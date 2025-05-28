@@ -22,12 +22,12 @@ export default function Navbar() {
             </Link>
           </li>
           <li className="m-[30px]">
-            <Link href="/register" className="hover:text-blue-600">
+            <Link href="/auth/register" className="hover:text-blue-600">
               Register
             </Link>
           </li>
           <li className="m-[30px]">
-            <Link href="/login" className="hover:text-blue-600">
+            <Link href="/auth/login" className="hover:text-blue-600">
               Login
             </Link>
           </li>
@@ -98,12 +98,12 @@ export default function Navbar() {
             </Link>
           </li>
           <li className="m-[10px] mr-[26%] border-b border-gray-300 py-[10px] pb-[20px]">
-            <Link href="/register" className="block hover:text-blue-600">
+            <Link href="/auth/register" className="block hover:text-blue-600">
               Register
             </Link>
           </li>
           <li className="m-[10px] mr-[26%] border-b border-gray-300 py-[10px] pb-[20px]">
-            <Link href="/login" className="block hover:text-blue-600">
+            <Link href="/auth/login" className="block hover:text-blue-600">
               Login
             </Link>
           </li>

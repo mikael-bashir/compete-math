@@ -1,14 +1,13 @@
 'use client';
 
+
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/router';
+import { signIn } from '../../../../auth';
+import { useRouter } from 'next/navigation';
+import { signInAction } from '@/app/lib/actions/auth';
+import { LoginFormData } from '@/app/lib/types/form';
 
-type FormData = {
-  username: string;
-  password: string;
-};
 
 type SignInResponse = {
   error?: string;
@@ -19,24 +18,19 @@ type SignInResponse = {
 
 const LoginForm = () => {
   const router = useRouter();
-  const { register, handleSubmit } = useForm<FormData>();
+  const { register, handleSubmit } = useForm<LoginFormData>();
   const [errorMessage, setErrorMessage] = useState('');
 
-  const onSubmit = async (data: FormData) => {
-    const response = await signIn('credentials', {
-      redirect: false,
-      ...data,
-    }) as unknown as SignInResponse;
-
-    if (response?.error) {
-      setErrorMessage('Invalid credentials. Please try again.');
-    } else if (response?.ok) {
-      router.push('/');
+  const onSubmit = async (data: LoginFormData) => {
+    try {
+      await signInAction(data);
+    } catch(error) {
+      console.error(error);
     }
   };
 
   return (
-    <div className="flex justify-center items-center h-screen bg-gray-100">
+    <div className="flex justify-center items-center h-screen bg-white">
       <form
         onSubmit={handleSubmit(onSubmit)}
         className="bg-white p-6 rounded-lg shadow-md w-full max-w-md"
@@ -55,7 +49,7 @@ const LoginForm = () => {
             type="text"
             id="username"
             {...register('username', { required: true })}
-            className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+            className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-blue-500 text-black"
           />
         </div>
 
@@ -67,7 +61,7 @@ const LoginForm = () => {
             type="password"
             id="password"
             {...register('password', { required: true })}
-            className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+            className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-blue-500 text-black"
           />
         </div>
 

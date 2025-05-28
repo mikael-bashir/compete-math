@@ -3,24 +3,12 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { signInSchema } from "@/app/lib/zod";
 import { getUser } from "@/app/lib/data/users";
 import { User } from "@/app/lib/types/user";
-import { DefaultSession } from "next-auth";
+import type { JWT } from "next-auth/jwt";
+import type { Session } from "next-auth";
 
-
-// Extend NextAuth types to include your custom properties.
-declare module "next-auth" {
-    interface Session {
-        user: {
-            id: string;
-            username: string;
-            iat: number;
-        } & DefaultSession["user"];
-    }
-    interface JWT {
-        id: string;
-        username?: string;
-        iat: number;
-    }
-}
+// for future maintenance refer to the below links
+// https://next-auth.js.org/providers/credentials#options
+// https://next-auth.js.org/configuration/callbacks
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
     pages: {
@@ -31,10 +19,19 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         CredentialsProvider({
             credentials: {
                 username: { label: "Username", type: "text" },
-                password: { label: "Password", type: "password" },
+                password: { label: "Password", type: "password", placeholder: '***' },
             },
             async authorize(credentials) {
-                const response = await signInSchema.parseAsync(credentials);
+                console.log('we got to the authorize step, with credentials:', credentials);
+                let response;
+                try {
+                    response = await signInSchema.parseAsync(credentials);
+                } catch(error) {
+                    console.error("Illegal input type");
+                    console.log(error);
+                    return null;
+                }
+
 
                 try{
                     const user = await getUser(response.username, response.password);
@@ -42,7 +39,9 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                         console.error("Invalid credentials: username or password is wrong");
                         return null;
                     }
+                    console.log('we have obtained a user, at the authorize step:', user);
                     return user;
+                    
                 } catch(error) {
                     console.error("Invalid credentials: username or password is wrong");
                     return null;
@@ -51,26 +50,21 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         }),
     ],
     callbacks: {
-        jwt({ token, user }) {
+        async jwt({ token, user } : { token: JWT, user: User }) {
             if (user) {
-                token.id = (user as User).id;
-                token.username = (user as User).username;
-                token.iat = (user as User).iat || Date.now();
-                token.email = ""; // Default to empty string
-                token.emailVerified = false; // Default to false
+                token.id = user.id;
+                token.username = user.username;
+                token.iat = user.iat || Date.now();
             }
-            return token;
+            return token
         },
-        session({ session, token }) {
+        async session({ session, token } : { session: Session, token: JWT }) {
             session.user = {
-                id: (token.id as string) || "",
-                username: (token.username as string) || "",
-                iat: (token.iat as number),
-                email: '',
-                emailVerified: null,
+                id: token.id || "",
+                username: token.username || "",
+                iat: token.iat
             };
             return session;
         },
     },
-    secret: process.env.NEXTAUTH_SECRET,
 });

@@ -47,11 +47,11 @@ const About = () => {
       <h3 className="text-3xl font-semibold text-gray-800">How to get started</h3>
       <p className="text-lg text-gray-600">
         Signing up is completely free for anyone - you can get started by clicking the{' '}
-        <Link id="registerLink" href="/register" className="text-blue-500 hover:underline">
+        <Link id="registerLink" href="/auth/register" className="text-blue-500 hover:underline">
           Register
         </Link>{' '}
         button in the navigation and creating an account. Then, you can{' '}
-        <Link id="loginLink" href="/login" className="text-blue-500 hover:underline">
+        <Link id="loginLink" href="/auth/login" className="text-blue-500 hover:underline">
           Login
         </Link>{' '}
         - that way, your progress will be saved and you can submit answers to questions.

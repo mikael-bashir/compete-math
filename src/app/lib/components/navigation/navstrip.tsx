@@ -23,27 +23,25 @@ export default function UserDisplayer() {
 
   return (
     <div className="flex justify-center">
-      <div className="flex justify-between items-center w-full max-w-[1000px]">
+      <div className="flex justify-between items-center w-full max-w-[1000px] h-[70px]">
         {/* Logo */}
         <Image
           id="logo"
           src="/logos/navbar-logo.png"
           alt="logo"
-          // className="h-[30px]"
-          width="100"
-          height="50"
+          width="200"
+          height="200"
         />
 
         {/* Login Session Details */}
         <div className="flex flex-col items-start h-[30px] w-[200px]">
           <div className="flex flex-row gap-2 items-center">
             {isLoggedIn && session?.user ? (
-              <p id="loggedInAs" className="text-[10pt] m-0">
+              <p id="loggedInAs" className="text-[10pt] m-0 text-black">
                 Logged in as: {session.user.username}
               </p>
             ) : (
-              <p id="loggedInAs" className="text-[10pt] m-0">
-                Not logged in
+              <p id="loggedInAs" className="text-[10pt] m-0 text-black">
               </p>
             )}
             {/* Optional: display a badge if available */}
