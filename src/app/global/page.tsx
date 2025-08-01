@@ -14,9 +14,9 @@ const GlobalLeaderboard = () => {
   const [selectedProblem, setSelectedProblem] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(false);
 
-  const handleProblemSelect = (problem: string) => {
-    setSelectedProblem(problem);
-  };
+  // const handleProblemSelect = (problem: string) => {
+  //   setSelectedProblem(problem);
+  // };
 
   useEffect(() => {
     const fetchLeaderboardData = async () => {

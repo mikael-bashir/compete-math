@@ -5,6 +5,11 @@ interface ProblemOption {
   label: string;
 }
 
+interface Problem {
+  problem_number: number;
+  problem_name: string;
+}
+
 interface LeaderboardSelectorProps {
   className?: string;
   setSelectedProblem: (problem: string | undefined) => void;
@@ -26,7 +31,7 @@ const LeaderboardSelector: React.FC<LeaderboardSelectorProps> = ({
         }
         const data = await response.json();
 
-        const options = data.map((problem: any) => ({
+        const options = data.map((problem: Problem) => ({
           value: problem.problem_number.toString(), // Ensure value is string
           label: problem.problem_name,
         }));

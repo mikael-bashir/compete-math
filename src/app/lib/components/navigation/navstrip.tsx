@@ -5,63 +5,73 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 
 export default function UserDisplayer() {
-  const { data: session, status } = useSession({
-    required: false, // Optional: Whether the session is required
-  });
-  const [badge, setBadge] = useState<string>('');
+    const { data: session, status } = useSession({
+        required: false, // Optional: Whether the session is required
+    });
+    const [badge] = useState<string>('');
+    // const [username, setUsername] = useState<string | null>(null);
+    // const [iat, setIat] = useState<number | null>(null);
+    
 
-  // Determine if the user is logged in
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+    // Determine if the user is logged in
+    // const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (status === 'authenticated') {
-      setIsLoggedIn(true);
-    } else {
-      setIsLoggedIn(false);
-    }
-  }, [status, session])
+    useEffect(() => {
+        console.log('this is firing!');
+                console.log('this is firing!');
+                        console.log('this is firing!');
+                                console.log('this is firing!');
+                                        console.log('this is firing!');
+        if (status === 'authenticated') {
+            // setIsLoggedIn(true);
+            // setUsername(session.user.username);
+            // setIat(session.user.iat || Date.now());
+        } else {
+            // setIsLoggedIn(false);
+            // setUsername(null);
+        }
+    }, [status, session])
 
-  return (
-    <div className="flex justify-center">
-      <div className="flex justify-between items-center w-full max-w-[1000px] h-[70px]">
-        {/* Logo */}
-        <Image
-          id="logo"
-          src="/logos/navbar-logo.png"
-          alt="logo"
-          width="200"
-          height="200"
-        />
+    return (
+        <div className="flex justify-center">
+            <div className="flex justify-between items-center w-full max-w-[1000px] h-[70px]">
+                {/* Logo */}
+                <Image
+                    id="logo"
+                    src="/logos/navbar-logo.png"
+                    alt="logo"
+                    width="200"
+                    height="200"
+                />
 
-        {/* Login Session Details */}
-        <div className="flex flex-col items-start h-[30px] w-[200px]">
-          <div className="flex flex-row gap-2 items-center">
-            {isLoggedIn && session?.user ? (
-              <p id="loggedInAs" className="text-[10pt] m-0 text-black">
-                Logged in as: {session.user.username}
-              </p>
-            ) : (
-              <p id="loggedInAs" className="text-[10pt] m-0 text-black">
-              </p>
-            )}
-            {/* Optional: display a badge if available */}
-            {isLoggedIn && badge && (
-              <img
-                id="badge"
-                src={badge}
-                alt="User Badge"
-                className="h-[25px] ml-1"
-              />
-            )}
-          </div>
-          {/* Optional: if your session includes an "iat" (issued at) timestamp */}
-          {isLoggedIn && session?.user?.iat && (
-            <p id="lastLoggedIn" className="text-[6pt] m-0 text-gray-500">
-              Last login: {new Date(session.user.iat * 1000).toLocaleString()}
-            </p>
-          )}
+                {/* Login Session Details */}
+                <div className="flex flex-col items-start h-[30px] w-[200px]">
+                    <div className="flex flex-row gap-2 items-center">
+                        {status === 'authenticated' && session?.user ? (
+                        <p id="loggedInAs" className="text-[10pt] m-0 text-black">
+                            Logged in as: {session.user.username}
+                        </p>
+                        ) : (
+                        <p id="loggedInAs" className="text-[10pt] m-0 text-black"></p>
+                        )}
+                        {/* Optional: display a badge if available */}
+                        {status === 'authenticated' && badge && (
+                        <img
+                            id="badge"
+                            src={badge}
+                            alt="User Badge"
+                            className="h-[25px] ml-1"
+                        />
+                        )}
+                    </div>
+                    {/* Optional: if your session includes an "iat" (issued at) timestamp */}
+                    {status === 'authenticated' && session?.user?.iat && (
+                        <p id="lastLoggedIn" className="text-[6pt] m-0 text-gray-500">
+                            Last login: {new Date(session.user.iat * 1000).toLocaleString()}
+                        </p>
+                    )}
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 }

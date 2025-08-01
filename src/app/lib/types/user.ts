@@ -1,5 +1,8 @@
+
 export type User = {
 	id: string;
 	username: string;
-	iat: number;
+	iat?: number;
+	email?: string;
+	emailVerified?: Date | null;
 }

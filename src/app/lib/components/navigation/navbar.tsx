@@ -3,40 +3,41 @@
 import { useState } from "react";
 import Link from "next/link";
 
+
 export default function Navbar() {
   const [isMenuOpen, setMenuOpen] = useState(false);
 
   return (
     <header className="flex justify-center">
       {/* Desktop Navigation */}
-      <nav className="relative bg-gray-200 border border-gray-300 p-[5px] font-bold w-full max-w-[1000px] hidden md:block">
+      <nav className="relative bg-yellow-50 border border-gray-300 p-[5px] font-bold w-full max-w-[1000px] hidden md:block">
         <ul className="flex justify-center list-none m-0 p-0">
-          <li className="m-[30px]">
+          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
             <Link href="/" className="hover:text-blue-600">
               About
             </Link>
           </li>
-          <li className="m-[30px]">
+          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
             <Link href="/archives" className="hover:text-blue-600">
               Archives
             </Link>
           </li>
-          <li className="m-[30px]">
+          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
             <Link href="/auth/register" className="hover:text-blue-600">
               Register
             </Link>
           </li>
-          <li className="m-[30px]">
+          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
             <Link href="/auth/login" className="hover:text-blue-600">
               Login
             </Link>
           </li>
-          <li className="m-[30px]">
+          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
             <Link href="/global" className="hover:text-blue-600">
               Global
             </Link>
           </li>
-          <li className="m-[30px]">
+          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
             <Link href="/news" className="hover:text-blue-600">
               News
             </Link>
@@ -53,7 +54,7 @@ export default function Navbar() {
             {/* This hamburger is hidden on desktop, but we include it in case */}
             <img
               id="hamburger"
-              src="/images/hamburger.png"
+              src="/icons/hamburger.png"
               alt="Menu"
               className="h-[23px] mt-[-3px] cursor-pointer"
             />
@@ -65,7 +66,7 @@ export default function Navbar() {
       <div className="md:hidden absolute top-4 right-4">
         <button onClick={() => setMenuOpen(!isMenuOpen)} className="focus:outline-none">
           <img
-            src="/images/hamburger.png"
+            src="/icons/hamburger.png"
             alt="Menu"
             className="h-[30px] cursor-pointer"
           />
@@ -84,7 +85,7 @@ export default function Navbar() {
           onClick={() => setMenuOpen(false)}
           className="absolute top-[15px] right-[15px] focus:outline-none cursor-pointer"
         >
-          <img src="/images/close.png" alt="Close" className="w-[15px]" />
+          <img src="/icons/cross.png" alt="Close" className="w-[15px]" />
         </button>
         <ul className="menuBarList flex flex-col justify-center items-center list-none pt-[50px]">
           <li className="m-[10px] mr-[26%] border-b border-gray-300 py-[10px] pb-[20px]">

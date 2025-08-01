@@ -11,12 +11,14 @@ export async function getUser(username: string, password: string): Promise<User 
         WHERE username=${username}
         `;
         const result =  user.rows[0];
+        if (!result?.password_hash) {
+            return undefined;
+        }
         if (bcrypt.compareSync(password, result.password_hash)) {
-          return { id: result.id, username: result.username, iat: Date.now() }
+            return { id: result.id, username: result.username, iat: Date.now() }
         }
 
         return undefined;
-        
     } catch (error) {
         console.error("Failed to fetch user:", error);
         throw new Error("Failed to fetch user.");

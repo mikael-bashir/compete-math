@@ -1,6 +1,5 @@
 
-export type LoginFormData = {
+export type RegisterFormData = {
     username: string;
     password: string;
 };
-
