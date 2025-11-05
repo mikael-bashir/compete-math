@@ -55,7 +55,17 @@ export default {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
-  		}
+  		},
+		animation: {
+			shimmer: "shimmer 3s linear infinite",
+		},
+		keyframes: {
+			shimmer: {
+			"0%": { "background-position": "0% center" },
+			"50%": { "background-position": "100% center" },
+			"100%": { "background-position": "0% center" },
+			},
+		},
   	}
   },
   plugins: [require("tailwindcss-animate")],

@@ -1,131 +1,116 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import Link from "next/link";
-
+import { useState } from "react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Menu, X, BookOpen, Archive, Users, Newspaper, Home } from "lucide-react"
 
 export default function Navbar() {
-  const [isMenuOpen, setMenuOpen] = useState(false);
+  const [isMenuOpen, setMenuOpen] = useState(false)
+
+  const navItems = [
+    { href: "/", label: "Home", icon: Home },
+    { href: "/about", label: "About", icon: BookOpen },
+    { href: "/archives", label: "Archives", icon: Archive },
+    { href: "/global", label: "Global", icon: Users },
+    { href: "/news", label: "News", icon: Newspaper },
+  ]
 
   return (
-    <header className="flex justify-center">
-      {/* Desktop Navigation */}
-      <nav className="relative bg-yellow-50 border border-gray-300 p-[5px] font-bold w-full max-w-[1000px] hidden md:block">
-        <ul className="flex justify-center list-none m-0 p-0">
-          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
-            <Link href="/" className="hover:text-blue-600">
-              About
-            </Link>
-          </li>
-          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
-            <Link href="/archives" className="hover:text-blue-600">
-              Archives
-            </Link>
-          </li>
-          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
-            <Link href="/auth/register" className="hover:text-blue-600">
-              Register
-            </Link>
-          </li>
-          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
-            <Link href="/auth/login" className="hover:text-blue-600">
-              Login
-            </Link>
-          </li>
-          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
-            <Link href="/global" className="hover:text-blue-600">
-              Global
-            </Link>
-          </li>
-          <li className="ml-[30px] mr-[30px] mt-[4px] mb-[4px] text-black">
-            <Link href="/news" className="hover:text-blue-600">
-              News
-            </Link>
-          </li>
-          {/* Uncomment if using token-based logout logic */}
-          {/* {isTokenValid && (
-            <li className="mx-[30px]">
-              <button onClick={logout} className="hover:text-red-600">
-                Logout
-              </button>
-            </li>
-          )} */}
-          <li className="md:hidden">
-            {/* This hamburger is hidden on desktop, but we include it in case */}
-            <img
-              id="hamburger"
-              src="/icons/hamburger.png"
-              alt="Menu"
-              className="h-[23px] mt-[-3px] cursor-pointer"
-            />
-          </li>
-        </ul>
-      </nav>
+    <header className="relative bg-white/90 backdrop-blur-md border-b border-emerald-100/50 shadow-sm">
+      <div className="flex justify-center">
+        {/* Desktop Navigation */}
+        <nav className="w-full max-w-7xl px-6 py-3 hidden md:block">
+          <ul className="flex justify-center items-center space-x-8">
+            {navItems.map((item) => {
+              const IconComponent = item.icon
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className="flex items-center space-x-2 px-4 py-2 rounded-lg text-emerald-800 hover:text-emerald-600 hover:bg-emerald-50/80 transition-all duration-200 font-medium group"
+                  >
+                    <IconComponent className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    <span>{item.label}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
 
-      {/* Mobile Navigation Toggle (Hamburger) */}
-      <div className="md:hidden absolute top-4 right-4">
-        <button onClick={() => setMenuOpen(!isMenuOpen)} className="focus:outline-none">
-          <img
-            src="/icons/hamburger.png"
-            alt="Menu"
-            className="h-[30px] cursor-pointer"
-          />
-        </button>
+        {/* Mobile Navigation Toggle */}
+        <div className="md:hidden absolute top-4 right-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMenuOpen(!isMenuOpen)}
+            className="text-emerald-700 hover:bg-emerald-50"
+          >
+            {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </Button>
+        </div>
       </div>
 
       {/* Mobile Side Navigation */}
       <div
-        id="menuBar"
-        className={`fixed top-0 right-0 h-full w-[200px] bg-gray-200 z-50 transform transition-transform duration-500 ease ${
-          isMenuOpen ? "translate-x-0" : "translate-x-[13rem]"
-        } md:hidden`}
+        className={`fixed top-0 right-0 h-full w-80 bg-white/95 backdrop-blur-lg shadow-2xl z-50 transform transition-transform duration-300 ease-out ${
+          isMenuOpen ? "translate-x-0" : "translate-x-full"
+        } md:hidden border-l border-emerald-100`}
       >
-        <button
-          id="cross"
-          onClick={() => setMenuOpen(false)}
-          className="absolute top-[15px] right-[15px] focus:outline-none cursor-pointer"
-        >
-          <img src="/icons/cross.png" alt="Close" className="w-[15px]" />
-        </button>
-        <ul className="menuBarList flex flex-col justify-center items-center list-none pt-[50px]">
-          <li className="m-[10px] mr-[26%] border-b border-gray-300 py-[10px] pb-[20px]">
-            <Link href="/" className="block hover:text-blue-600">
-              About
-            </Link>
-          </li>
-          <li className="m-[10px] mr-[26%] border-b border-gray-300 py-[10px] pb-[20px]">
-            <Link href="/archives" className="block hover:text-blue-600">
-              Archives
-            </Link>
-          </li>
-          <li className="m-[10px] mr-[26%] border-b border-gray-300 py-[10px] pb-[20px]">
-            <Link href="/auth/register" className="block hover:text-blue-600">
-              Register
-            </Link>
-          </li>
-          <li className="m-[10px] mr-[26%] border-b border-gray-300 py-[10px] pb-[20px]">
-            <Link href="/auth/login" className="block hover:text-blue-600">
-              Login
-            </Link>
-          </li>
-          <li className="m-[10px] mr-[26%] border-b border-gray-300 py-[10px] pb-[20px]">
-            <Link href="/global" className="block hover:text-blue-600">
-              Global
-            </Link>
-          </li>
-          <li className="m-[10px] mr-[26%] border-b border-gray-300 py-[10px] pb-[20px]">
-            <Link href="/news" className="block hover:text-blue-600">
-              News
-            </Link>
-          </li>
-          {/* Uncomment if using token-based logout logic */}
-          {/* {isTokenValid && (
-            <li className="m-[10px] mr-[26%] py-[10px] block text-red-600 hover:underline">
-              <button onClick={logout}>Logout</button>
-            </li>
-          )} */}
-        </ul>
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="font-heading text-lg font-bold text-emerald-900">Navigation</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setMenuOpen(false)}
+              className="text-emerald-700 hover:bg-emerald-50"
+            >
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
+
+          <ul className="space-y-2">
+            {navItems.map((item) => {
+              const IconComponent = item.icon
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center space-x-3 px-4 py-3 rounded-lg text-emerald-800 hover:text-emerald-600 hover:bg-emerald-50/80 transition-all duration-200 font-medium group w-full"
+                  >
+                    <IconComponent className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    <span>{item.label}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+
+          <div className="mt-8 pt-6 border-t border-emerald-100">
+            <div className="space-y-3">
+              <Link href="/auth/login" onClick={() => setMenuOpen(false)}>
+                <Button
+                  variant="outline"
+                  className="w-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 bg-transparent"
+                >
+                  Sign In
+                </Button>
+              </Link>
+              <Link href="/auth/register" onClick={() => setMenuOpen(false)}>
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Get Started</Button>
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Mobile Overlay */}
+      {isMenuOpen && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden" onClick={() => setMenuOpen(false)} />
+      )}
     </header>
-  );
+  )
 }
