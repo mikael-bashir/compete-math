@@ -1,0 +1,4 @@
+make the background art centred
+replace competemath in here with 'learn through competition'
+make buttons work
+make hamburger work

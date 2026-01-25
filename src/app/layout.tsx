@@ -1,15 +1,19 @@
 import type React from "react"
-import type { Metadata } from "next"
+// import type Metadata from "next"
 import { Space_Grotesk, DM_Sans } from "next/font/google"
+import "@shohojdhara/atomix/css"
 import "./globals.css" // Global styles
+// import "@shohojdhara/atomix/src/styles/index.scss";
+// import "@shohojdhara/atomix/dist/index.css"
 import Navbar from "./lib/components/navigation/navbar"
 import { UserDisplayer2 } from "./lib/components/navigation/navstrip"
-// import Footer from "./components/Footer"; // Your global Footer
+import Footer from "./lib/components/navigation/footer"
 import SessionProviderWrapper from "./lib/components/auth/session-provider-wrapper"
 import { Toaster } from "@/components/ui/sonner"
 import { Suspense } from "react"
 // import { Analytics } from "@vercel/analytics/react"; // For analytics
 import "katex/dist/katex.min.css"
+// import Metadata  from "next";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -24,10 +28,10 @@ const dmSans = DM_Sans({
 })
 
 // Metadata for the page, available globally
-export const metadata: Metadata = {
-  title: "Compete Math - Frontier of Math LLMs",
-  description: "Community-driven mathematical competitions powered by AI",
-}
+// export const metadata: Metadata = {
+//   title: "Compete Math - Frontier of Mathematics",
+//   description: "Community-driven mathematical competitions",
+// }
 
 // RootLayout component, wrapping all pages and ensuring global components are loaded
 export default function RootLayout({
@@ -45,9 +49,9 @@ export default function RootLayout({
             <div className="overflow-hidden">{children}</div>
 
             {/* Notification toaster */}
-            <Toaster position="top-right" />
+            <Toaster position="top-right" closeButton/>
 
-            {/* <Footer /> */}
+            <Footer />
 
             {/* Vercel Analytics */}
             {/* <Analytics /> */}

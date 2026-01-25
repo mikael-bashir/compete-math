@@ -2,7 +2,7 @@
 
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
-import { signIn, signOut } from "../../../../auth";
+import { signIn, signOut } from "../../(auth)/auth";
 import { LoginFormData } from "../types/form";
 import { signUpSchema } from '../zod';
 import { ZodError } from 'zod';

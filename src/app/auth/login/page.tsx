@@ -1,76 +1,33 @@
-'use client';
+import Image from "next/image"
+import AuthenticationCard from "@/app/lib/components/auth/authentication-card"
 
+export default function Login() {
+  return (
+    <div className="w-full min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden">
+      
+      {/* 1. BACKGROUND IMAGE */}
+      {/* 'fill' mimics absolute inset-0 w-full h-full */}
+      {/* 'object-cover' ensures it covers the screen without stretching */}
+      <Image
+        src="/images/greenery_a.png"
+        alt="Login Background"
+        fill
+        className="object-cover"
+        priority // Load this immediately (it's the biggest paint)
+        quality={100} // High fidelity for art
+        unoptimized
+      />
 
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-// import { useRouter } from 'next/navigation';
-import { signInAction } from '@/app/lib/actions/auth';
-import { LoginFormData } from '@/app/lib/types/form';
-import { toast } from 'sonner';
+      {/* 2. OVERLAY */}
+      {/* Sit on top of the image but behind the content */}
+      <div className="absolute inset-0 bg-black/20 z-0" />
 
+      {/* 3. CONTENT */}
+      {/* 'z-10' ensures inputs are clickable and sit above the image/overlay */}
+      <div className="relative z-10 w-full flex flex-col items-center justify-center">
+        <AuthenticationCard />
+      </div>
 
-const LoginForm = () => {
-    const { register, handleSubmit } = useForm<LoginFormData>();
-    const [errorMessage] = useState('');
-
-    const onSubmit = async (data: LoginFormData) => {
-        try {
-            const result = await signInAction(data);
-            if (result.ok) {
-                toast.success('Succesfully signed in!');
-            } else {
-                toast.error('Incorrect credentials');
-            }
-        } catch {
-            toast.error("server side error.");
-        }
-    };
-
-    return (
-        <div className="flex justify-center items-center h-screen bg-white">
-            <form
-                onSubmit={handleSubmit(onSubmit)}
-                className="bg-white p-6 rounded-lg shadow-md w-full max-w-md"
-            >
-                <h2 className="text-2xl font-bold text-center mb-6">Login</h2>
-
-                {errorMessage && (
-                    <div className="text-red-500 text-center mb-4">{errorMessage}</div>
-                )}
-
-                <div className="mb-4">
-                    <label htmlFor="username" className="block text-gray-700 mb-2">
-                        Username
-                    </label>
-                    <input
-                        type="text"
-                        id="username"
-                        {...register('username', { required: true })}
-                        className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-blue-500 text-black"
-                    />
-                </div>
-
-                <div className="mb-4">
-                    <label htmlFor="password" className="block text-gray-700 mb-2">
-                        Password
-                    </label>
-                    <input
-                        type="password"
-                        id="password"
-                        {...register('password', { required: true })}
-                        className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-blue-500 text-black"
-                    />
-                </div>
-
-                <button
-                    type="submit"
-                    className="w-full p-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                >
-                    Login
-                </button>
-            </form>
-        </div>
-    );
-};
-
-export default LoginForm;
+    </div>
+  )
+}

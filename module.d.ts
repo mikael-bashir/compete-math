@@ -15,10 +15,12 @@ declare module "next-auth" {
     iat?: number;
     email?: string;
     emailVerified?: Date | null;
+    badgeUrl?: string;
     // add any other fields User type has
   }
   interface Session {
     user: User;
+    badgeUrl?: string;
   }
 }
 
@@ -27,10 +29,11 @@ declare module "next-auth/jwt" {
    * Override NextAuth’s default JWT payload
    * so TypeScript recognizes your custom properties.
    */
-  interface JWTType {
+  interface JWT {
     id: string;
     username: string;
     iat?: number;
+    badgeUrl?: string;
     /** add any other properties you write into the token */
   }
 }
