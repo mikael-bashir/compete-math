@@ -34,7 +34,7 @@ const RegisterForm = () => {
                 onSubmit={handleSubmit(onSubmit)}
                 className="bg-white p-8 rounded-lg shadow-md w-full max-w-md"
             >
-                <h2 className="text-2xl font-bold text-center mb-6">Create Account</h2>
+                <p className="text-2xl font-bold text-center mb-6 text-white">Create Account</p>
 
                 <div className="mb-4">
                     <label htmlFor="username" className="block text-gray-700 mb-2">

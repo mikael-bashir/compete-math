@@ -241,7 +241,7 @@ export default function AuthenticationCard() {
           {step === "signup" && (
             <div className="flex-1 flex flex-col justify-center space-y-6">
               <div className="text-center space-y-2">
-                <h1 className="text-2xl font-semibold text-white">Create Account</h1>
+                <p className="text-4xl font-semibold text-white">Create Account</p>
                 <p className="text-white/70">Join us today</p>
               </div>
 

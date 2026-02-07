@@ -129,7 +129,7 @@ export function Leaderboard() {
               <p className="font-serif text-xl font-medium text-white">Leaderboard</p>
             </div>
             {!loading && problemTitle && (
-              <p className="text-xs text-white/40 truncate max-w-[200px]">
+              <p className="text-xs text-white/40 truncate max-w-50">
                 {problemTitle}
               </p>
             )}
@@ -145,7 +145,7 @@ export function Leaderboard() {
           </Link>
         </div>
 
-        <div className="mt-6 min-h-[300px]">
+        <div className="mt-6 min-h-75">
           {loading ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-white/40">
               <Loader2 className="h-6 w-6 animate-spin" />

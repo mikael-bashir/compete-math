@@ -100,7 +100,7 @@ export function WeeklyProblem() {
                 <p className="text-xs font-bold uppercase tracking-widest text-emerald-400/80">Problem of the Week</p>
               </div>
               {/* Using P tag instead of H tag for strict styling control */}
-              <p className="font-serif text-3xl font-medium text-white break-words leading-tight">
+              <p className="font-serif text-3xl font-medium text-white wrap-break-words leading-tight">
                 {problem.title}
               </p>
               <p className="mt-2 text-sm text-white/60">{problem.subtitle}</p>
@@ -122,7 +122,7 @@ export function WeeklyProblem() {
 
         {/* Problem statement */}
 <div className="mt-8 rounded-2xl bg-white/5 border border-white/5 p-6 overflow-hidden">
-  <div className="prose prose-invert max-w-none break-words">
+  <div className="prose prose-invert max-w-none wrap-break-words">
     <ReactMarkdown 
       remarkPlugins={[remarkMath]} 
       rehypePlugins={[rehypeKatex]} 
@@ -222,7 +222,7 @@ export function WeeklyProblem() {
                     onClick={handleSubmit}
                     disabled={status === 'submitting' || !answer}
                     className={`
-                      w-full sm:w-auto rounded-full px-8 py-6 min-w-[140px] font-medium text-base transition-all
+                      w-full sm:w-auto rounded-full px-8 py-6 min-w-35 font-medium text-base transition-all
                       ${status === 'wrong' 
                         ? 'bg-red-500/20 text-red-200 hover:bg-red-500/30 border border-red-500/30' 
                         : 'bg-white text-black hover:bg-white/90 hover:scale-105 active:scale-95 shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)]'
@@ -242,7 +242,7 @@ export function WeeklyProblem() {
                 ) : (
                   <Button
                     onClick={() => signIn()}
-                    className="w-full sm:w-auto rounded-full px-8 py-6 min-w-[140px] bg-white text-black hover:bg-white/90 hover:scale-105 active:scale-95 shadow-lg font-medium"
+                    className="w-full sm:w-auto rounded-full px-8 py-6 min-w-35 bg-white text-black hover:bg-white/90 hover:scale-105 active:scale-95 shadow-lg font-medium"
                   >
                     <span className="flex items-center gap-2">
                       <Lock className="h-4 w-4" />
