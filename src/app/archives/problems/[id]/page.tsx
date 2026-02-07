@@ -49,7 +49,7 @@ const showBadgeToast = (badgeName: string, badgeUrl: string) => {
     <div className="relative bg-[#0a0a0a] border border-emerald-500/50 rounded-xl p-5 shadow-[0_0_30px_-10px_rgba(16,185,129,0.3)] flex items-center gap-4 w-full max-w-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
       
       {/* Shine Effect */}
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/10 to-transparent -skew-x-12 translate-x-[-100%] animate-[shimmer_2s_infinite]" />
+      <div className="absolute inset-0 bg-linear-to-r from-transparent via-emerald-500/10 to-transparent -skew-x-12 translate-x-full animate-[shimmer_2s_infinite]" />
       
       <div className="relative bg-[#111] p-3 rounded-full border border-[#333]">
           <UserBadge url={badgeUrl} name={badgeName} className="w-8 h-8" />
@@ -71,7 +71,7 @@ const showBadgeToast = (badgeName: string, badgeUrl: string) => {
 
 export default function ProblemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data: session, status: authStatus } = useSession();
+  const { status: authStatus } = useSession();
 
   const [problem, setProblem] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -130,9 +130,8 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
   if (!problem) return <div className="min-h-screen bg-[#050505] text-slate-500 flex items-center justify-center">Problem not found.</div>;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-emerald-500/30 mt-[15px]">
+    <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-emerald-500/30 mt-3.75 placeholder-violet-100 pt-10">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#1a120b_0%,#050505_60%)]" />
-
       <div className="relative z-10 container max-w-4xl mx-auto px-4 py-12">
         <Link href="/archives" className="inline-flex items-center text-emerald-700 hover:text-emerald-500 transition-colors mb-8 group font-medium text-sm">
           <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" /> Back to Archives
@@ -144,13 +143,19 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                <h1 className="text-3xl text-slate-100 font-serif font-bold tracking-tight mb-1">{problem.title}</h1>
                <div className="flex items-center gap-3 text-xs uppercase tracking-widest font-semibold text-emerald-600/80">
                  <span>Problem {problem.id}</span>
-                 <span className="w-1 h-1 rounded-full bg-emerald-800" />
+                 {problem.difficulty || problem.points &&
+                  <span className="w-1 h-1 rounded-full bg-emerald-800" />
+                 }
                  <span>{problem.subtitle}</span>
                </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="px-3 py-1 rounded-full border border-emerald-900/30 bg-emerald-900/10 text-emerald-500 text-xs font-bold uppercase tracking-wider">{problem.difficulty}</span>
-              <span className="px-3 py-1 rounded-full border border-amber-900/30 bg-amber-900/10 text-amber-500 text-xs font-bold uppercase tracking-wider">{problem.points} Pts</span>
+              {problem.difficulty &&
+                <span className="px-3 py-1 rounded-full border border-emerald-900/30 bg-emerald-900/10 text-emerald-500 text-xs font-bold uppercase tracking-wider">{problem.difficulty}</span>
+              }
+              {problem.points &&
+                <span className="px-3 py-1 rounded-full border border-amber-900/30 bg-amber-900/10 text-amber-500 text-xs font-bold uppercase tracking-wider">{problem.points} Pts</span>
+              }
             </div>
           </div>
 
@@ -163,7 +168,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
             </ReactMarkdown>
           </div>
 
-          <div className="bg-[#0f0f0f] border-t border-[#222] p-8 min-h-[140px] flex flex-col justify-center">
+          <div className="bg-[#0f0f0f] border-t border-[#222] p-8 min-h-35 flex flex-col justify-center">
              {authStatus === 'unauthenticated' && (
                <div className="flex items-center justify-between bg-[#151515] border border-[#333] rounded-lg p-4">
                  <div className="flex items-center gap-4 text-slate-400">
@@ -183,13 +188,13 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
 
              {authStatus === 'authenticated' && !isSolved && (
                <>
-                 <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">Submit your Proof</h4>
+                 {/* <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4"></h4> */}
                  <form onSubmit={handleSubmit} className="relative max-w-xl">
                    <div className="flex gap-3">
-                      <div className="relative flex-grow">
-                        <Input value={answer} onChange={(e) => { setAnswer(e.target.value); if(status === 'wrong') setStatus('idle'); }} placeholder="Enter exact solution..." className="bg-[#050505] border-[#333] text-slate-200 placeholder:text-slate-700 focus:border-emerald-600 focus:ring-emerald-900/20 font-mono" />
+                      <div className="relative grow">
+                        <Input value={answer} onChange={(e) => { setAnswer(e.target.value); if(status === 'wrong') setStatus('idle'); }} placeholder="Enter answer here..." className="bg-[#050505] border-[#333] text-slate-200 placeholder:text-slate-700 focus:border-emerald-600 focus:ring-emerald-900/20 font-mono" />
                       </div>
-                      <Button type="submit" disabled={status === 'submitting' || !answer} className={`min-w-[120px] font-bold transition-all duration-300 ${status === 'wrong' ? 'bg-red-900/50 text-red-200 hover:bg-red-900/70 border border-red-800' : 'bg-[#cfa86e] hover:bg-[#deb87f] text-black'}`}>
+                      <Button type="submit" disabled={status === 'submitting' || !answer} className={`min-w-30 font-bold transition-all duration-300 ${status === 'wrong' ? 'bg-red-900/50 text-red-200 hover:bg-red-900/70 border border-red-800' : 'bg-[#cfa86e] hover:bg-[#deb87f] text-black'}`}>
                         {status === 'submitting' ? <span className="animate-pulse">Verifying...</span> : status === 'wrong' ? <span className="flex items-center gap-2"><RotateCcw size={16} /> Retry</span> : <span className="flex items-center gap-2">Submit <Send size={14} /></span>}
                       </Button>
                    </div>

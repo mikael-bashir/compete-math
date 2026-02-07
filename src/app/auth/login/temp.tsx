@@ -46,7 +46,7 @@ const LoginForm = () => {
                         type="text"
                         id="username"
                         {...register('username', { required: true })}
-                        className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-blue-500 text-black"
+                        className="w-full p-3 border border-gray-300 rounded-sm focus:outline-hidden focus:border-blue-500 text-black"
                     />
                 </div>
 
@@ -58,13 +58,13 @@ const LoginForm = () => {
                         type="password"
                         id="password"
                         {...register('password', { required: true })}
-                        className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-blue-500 text-black"
+                        className="w-full p-3 border border-gray-300 rounded-sm focus:outline-hidden focus:border-blue-500 text-black"
                     />
                 </div>
 
                 <button
                     type="submit"
-                    className="w-full p-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    className="w-full p-3 bg-blue-600 text-white rounded-sm hover:bg-blue-700 transition-colors"
                 >
                     Login
                 </button>

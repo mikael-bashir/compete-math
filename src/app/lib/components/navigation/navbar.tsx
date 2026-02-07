@@ -17,7 +17,7 @@ export default function Navbar() {
   ]
 
   return (
-    <header className="relative bg-white/90 backdrop-blur-md border-b border-emerald-100/50 shadow-sm">
+    <header className="relative bg-white/90 backdrop-blur-md border-b border-emerald-100/50 shadow-xs">
       <div className="flex justify-center">
         {/* Desktop Navigation */}
         <nav className="w-full max-w-7xl px-6 py-3 hidden md:block">
@@ -109,7 +109,7 @@ export default function Navbar() {
 
       {/* Mobile Overlay */}
       {isMenuOpen && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden" onClick={() => setMenuOpen(false)} />
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-xs z-40 md:hidden" onClick={() => setMenuOpen(false)} />
       )}
     </header>
   )

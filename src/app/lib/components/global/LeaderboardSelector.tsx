@@ -58,7 +58,7 @@ const LeaderboardSelector: React.FC<LeaderboardSelectorProps> = ({
       ) : (
         <select
           onChange={handleOptionSelect}
-          className="block w-full px-4 py-2 text-gray-700 bg-white border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          className="block w-full px-4 py-2 text-gray-700 bg-white border rounded-lg shadow-xs focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
         >
           {problemOptions.map((option) => (
             <option key={option.value} value={option.value}>

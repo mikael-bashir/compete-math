@@ -60,7 +60,8 @@ export async function GET() {
       isSelected: user.badgeSelected === b.badgeName,
       
       isLimited: b.numberAvailable !== null,
-      numberAvailable: b.numberAvailable // Passed for "Limited" UI tag
+      numberAvailable: b.numberAvailable, // Passed for "Limited" UI tag
+      numberOwned: b.numberOwned
     }));
 
     // 5. Fetch Stats (Using USERNAME, not UUID)

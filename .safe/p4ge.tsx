@@ -121,21 +121,21 @@ const Home = () => {
 
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-primary rounded-full mt-3 flex-shrink-0"></div>
+                  <div className="w-2 h-2 bg-primary rounded-full mt-3 shrink-0"></div>
                   <p className="text-muted-foreground">
                     <strong className="text-foreground">No advanced theory required</strong> - creativity and
                     investigation are your primary tools
                   </p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-accent rounded-full mt-3 flex-shrink-0"></div>
+                  <div className="w-2 h-2 bg-accent rounded-full mt-3 shrink-0"></div>
                   <p className="text-muted-foreground">
                     <strong className="text-foreground">Competition mathematics focus</strong> - efficient algorithms
                     under 1 second runtime
                   </p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-primary rounded-full mt-3 flex-shrink-0"></div>
+                  <div className="w-2 h-2 bg-primary rounded-full mt-3 shrink-0"></div>
                   <p className="text-muted-foreground">
                     <strong className="text-foreground">Progressive difficulty</strong> - start with fundamentals,
                     advance to frontier challenges

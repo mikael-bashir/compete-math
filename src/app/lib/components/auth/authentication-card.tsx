@@ -151,11 +151,11 @@ export default function AuthenticationCard() {
   const passwordStrength = getPasswordStrength(signUpPasswordValue)
 
   return (
-    <div className={`w-full max-w-[540px] transition-all duration-700 ease-out ${getCardHeight()}`}>
+    <div className={`w-full max-w-135 transition-all duration-700 ease-out ${getCardHeight()}`}>
       <div className="relative h-full">
         {/* Glass morphism card */}
         <div className="absolute inset-0 bg-white/5 backdrop-blur-none rounded-3xl border border-white/20 shadow-2xl">
-          <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-white/10 to-transparent rounded-3xl" />
+          <div className="absolute inset-0 bg-linear-to-br from-white/20 via-white/10 to-transparent rounded-3xl" />
         </div>
 
         {/* Content */}
@@ -165,7 +165,7 @@ export default function AuthenticationCard() {
           {step === "login" && (
             <div className="flex-1 flex flex-col justify-center space-y-6">
               <div className="text-center space-y-2">
-                <h1 className="text-2xl font-semibold text-white">Welcome Back</h1>
+                <p className="text-3xl xs:text-4xl font-semibold text-white">Welcome Back</p>
                 <p className="text-white/70">Sign in to your account</p>
               </div>
 
@@ -220,7 +220,7 @@ export default function AuthenticationCard() {
                 <Button
                   type="submit"
                   disabled={isLoginSubmitting}
-                  className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 hover:border-white/40 h-11 rounded-xl font-medium transition-all duration-200 backdrop-blur-sm"
+                  className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 hover:border-white/40 h-11 rounded-xl font-medium transition-all duration-200 backdrop-blur-xs"
                 >
                   {isLoginSubmitting ? "Signing in..." : "Sign In"}
                 </Button>
@@ -336,7 +336,7 @@ export default function AuthenticationCard() {
                 <Button
                   type="submit"
                   disabled={isSignUpSubmitting}
-                  className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 hover:border-white/40 h-11 rounded-xl font-medium transition-all duration-200 backdrop-blur-sm disabled:opacity-50"
+                  className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 hover:border-white/40 h-11 rounded-xl font-medium transition-all duration-200 backdrop-blur-xs disabled:opacity-50"
                 >
                   {isSignUpSubmitting ? "Creating account..." : "Sign Up"}
                 </Button>
@@ -374,7 +374,7 @@ export default function AuthenticationCard() {
                     <Input id="reset-email" type="email" className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50" placeholder="Enter your email" required />
                   </div>
                 </div>
-                <Button type="submit" disabled={isSimulatedLoading} className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 h-11 rounded-xl backdrop-blur-sm">
+                <Button type="submit" disabled={isSimulatedLoading} className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 h-11 rounded-xl backdrop-blur-xs">
                   {isSimulatedLoading ? "Sending..." : "Send Reset Link"}
                 </Button>
               </form>
@@ -390,7 +390,7 @@ export default function AuthenticationCard() {
               >
                 <X className="w-5 h-5" />
               </button>
-              <div className="w-16 h-16 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-xs border border-white/30 rounded-full flex items-center justify-center">
                 <Check className="w-8 h-8 text-white" />
               </div>
               <div className="text-center space-y-2">
@@ -401,7 +401,7 @@ export default function AuthenticationCard() {
               </div>
               <Button
                 onClick={() => setStep("login")}
-                className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 hover:border-white/40 h-11 rounded-xl font-medium transition-all duration-200 backdrop-blur-sm"
+                className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 hover:border-white/40 h-11 rounded-xl font-medium transition-all duration-200 backdrop-blur-xs"
               >
                 Return to Login
               </Button>

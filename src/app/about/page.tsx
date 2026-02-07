@@ -128,7 +128,7 @@ const About = () => {
             <h3 className="text-2xl font-heading font-semibold text-foreground mb-6">Key Principles</h3>
             <div className="grid md:grid-cols-2 gap-6">
               <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-primary rounded-full mt-3 flex-shrink-0"></div>
+                <div className="w-2 h-2 bg-primary rounded-full mt-3 shrink-0"></div>
                 <div>
                   <h4 className="font-semibold text-foreground mb-1">No Advanced Theory Required</h4>
                   <p className="text-muted-foreground">
@@ -137,7 +137,7 @@ const About = () => {
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-accent rounded-full mt-3 flex-shrink-0"></div>
+                <div className="w-2 h-2 bg-accent rounded-full mt-3 shrink-0"></div>
                 <div>
                   <h4 className="font-semibold text-foreground mb-1">Competition Mathematics Focus</h4>
                   <p className="text-muted-foreground">
@@ -146,7 +146,7 @@ const About = () => {
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-primary rounded-full mt-3 flex-shrink-0"></div>
+                <div className="w-2 h-2 bg-primary rounded-full mt-3 shrink-0"></div>
                 <div>
                   <h4 className="font-semibold text-foreground mb-1">Progressive Difficulty</h4>
                   <p className="text-muted-foreground">
@@ -155,7 +155,7 @@ const About = () => {
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-accent rounded-full mt-3 flex-shrink-0"></div>
+                <div className="w-2 h-2 bg-accent rounded-full mt-3 shrink-0"></div>
                 <div>
                   <h4 className="font-semibold text-foreground mb-1">Fun and Engaging</h4>
                   <p className="text-muted-foreground">
@@ -191,7 +191,7 @@ const About = () => {
 
               <div className="space-y-4">
                 <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center shrink-0 mt-1">
                     <span className="text-sm font-heading font-bold text-primary">1</span>
                   </div>
                   <div>
@@ -206,7 +206,7 @@ const About = () => {
                 </div>
 
                 <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 bg-accent/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-8 h-8 bg-accent/10 rounded-full flex items-center justify-center shrink-0 mt-1">
                     <span className="text-sm font-heading font-bold text-accent">2</span>
                   </div>
                   <div>
@@ -222,7 +222,7 @@ const About = () => {
                 </div>
 
                 <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center shrink-0 mt-1">
                     <span className="text-sm font-heading font-bold text-primary">3</span>
                   </div>
                   <div>

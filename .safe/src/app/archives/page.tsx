@@ -208,7 +208,7 @@ export default function PenroseArchives() {
             </h1>
             <div className="pointer-events-auto bg-black/40 backdrop-blur-lg border border-white/10 px-6 py-3 rounded-full flex gap-3 items-center shadow-xl hover:bg-black/60 transition-all">
                  <span className="text-gray-400 text-sm">🔍</span>
-                 <input type="text" placeholder="Search problems..." className="bg-transparent outline-none text-white placeholder-gray-500 w-48 text-sm" />
+                 <input type="text" placeholder="Search problems..." className="bg-transparent outline-hidden text-white placeholder-gray-500 w-48 text-sm" />
             </div>
       </div>
 

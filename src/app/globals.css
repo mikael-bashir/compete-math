@@ -1,5 +1,60 @@
 @import "tailwindcss";
 
+/* 1. MAP VARIABLES TO UTILITIES */
+@theme {
+  /* This tells Tailwind: "Make 'bg-background' use the --background variable" */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  
+  /* THIS FIXES 'border-border' */
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+  
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  
+  /* Add your custom animation here too if needed */
+  --animate-shimmer: shimmer 3s linear infinite;
+
+  --breakpoint-xs: 480px;
+  
+  @keyframes shimmer {
+    0% { background-position: 0% center; }
+    50% { background-position: 100% center; }
+    100% { background-position: 0% center; }
+  }
+}
+
+/* 2. DEFINE THE VALUES (Keep this as is) */
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -54,34 +109,20 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
-}
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --border: 0 0% 89.8%;
-    /* ... keep all your other variables here ... */
-  }
-
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    /* ... keep all your other dark variables here ... */
-  }
-
-  /* CSS FIRST APPROACH: Use standard properties */
+  /* 3. SET DEFAULTS */
   * {
-    border-color: hsl(var(--border));
+    /* This applies the --border variable to ALL borders by default */
+    border-color: hsl(var(--border)); 
   }
 
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background-color: black;
+    color: white;
   }
 }
 
+/* Custom Utilities */
 .large-text-container {
   margin-top: 5%; 
   margin-left: 5%;

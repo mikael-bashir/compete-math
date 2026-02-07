@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Trophy, Medal, Crown, Zap, Brain, Hexagon, 
-  ChevronDown, Calendar, Timer, Hash, Loader2, Trophy as Star, Flame
+  ChevronDown, Calendar, Timer, Loader2, Trophy as Star, Flame
 } from 'lucide-react';
 import Image from 'next/image';
+
 // --- BADGE CONFIGURATION ---
 const BADGE_MAP: Record<string, React.ElementType> = {
   crown: Crown,
@@ -87,28 +88,21 @@ export default function LeaderboardPage() {
         
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6 mt-10">
-          {/* <div>
-            <h1 className="text-4xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500 mb-2">
-              Hall of Integrals
-            </h1>
-            <p className="text-slate-500">Honoring those who solved the unsolvable.</p>
-          </div> */}
-
           {/* PROBLEM SELECTOR */}
           <div className="relative z-50">
             <button 
               onClick={() => setDropdownOpen(!dropdownOpen)}
               disabled={problems.length === 0}
-              className="flex items-center gap-3 bg-[#0a0a0a] border border-[#333] hover:border-emerald-700/50 px-5 py-3 rounded-xl transition-all min-w-[240px] justify-between group disabled:opacity-50"
+              className="flex items-center gap-3 bg-[#0a0a0a] border border-[#333] hover:border-emerald-700/50 px-5 py-3 rounded-xl transition-all min-w-60 justify-between group disabled:opacity-50"
             >
-              <span className="font-medium text-slate-200 truncate max-w-[200px]">
+              <span className="font-medium text-slate-200 truncate max-w-50">
                 {problems.find(p => p.id === selectedProblem)?.title || "Loading Problems..."}
               </span>
               <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
             
             {dropdownOpen && (
-              <div className="absolute top-full right-0 mt-2 w-full bg-[#0a0a0a] border border-[#333] rounded-xl shadow-2xl overflow-hidden max-h-[300px] overflow-y-auto">
+              <div className="absolute top-full right-0 mt-2 w-full bg-[#0a0a0a] border border-[#333] rounded-xl shadow-2xl overflow-hidden max-h-75 overflow-y-auto">
                 {problems.map((p) => (
                   <div 
                     key={p.id}
@@ -138,10 +132,12 @@ export default function LeaderboardPage() {
           {/* List Header */}
           <div className="grid grid-cols-12 gap-4 px-6 py-2 bg-[#111] border-b border-[#222] text-xs font-bold text-slate-500 uppercase tracking-widest">
             <div className="col-span-1 text-center">#</div>
-            <div className="col-span-5 md:col-span-4">Contender</div>
-            <div className="col-span-3 hidden md:block"><div className="flex items-center gap-2"><Calendar size={14} /> Date</div></div>
-            <div className="col-span-3 md:col-span-2 text-right"><div className="flex items-center justify-end gap-2"><Timer size={14} /> Time</div></div>
-            <div className="col-span-3 md:col-span-2 text-right"><div className="flex items-center justify-end gap-2"><Hash size={14} /> Attempts</div></div>
+            {/* Expanded Contender column to fill space */}
+            <div className="col-span-7 md:col-span-5">Contender</div>
+            {/* Expanded Date column */}
+            <div className="hidden md:col-span-4 md:block"><div className="flex items-center gap-2"><Calendar size={14} /> Date</div></div>
+            {/* Expanded Time column */}
+            <div className="col-span-4 md:col-span-2 text-right"><div className="flex items-center justify-end gap-2"><Timer size={14} /> Time</div></div>
           </div>
 
           <div className="divide-y divide-[#1a1a1a]">
@@ -158,27 +154,20 @@ export default function LeaderboardPage() {
                     {user.rank}
                   </div>
 
-                  {/* NAMEPLATE DESIGN */}
-                  <div className="col-span-5 md:col-span-4 flex items-center gap-4">
-                      {/* Circular Badge Frame */}
-                      {/* <div className="relative w-11 h-11 rounded-full bg-[#151515] border border-[#333] flex items-center justify-center shrink-0 shadow-inner group-hover:border-slate-600 transition-colors">
-
-                        <UserBadge type={user.badgeId} className="w-6 h-6" />
-                      </div> */}
+                  {/* NAMEPLATE DESIGN - Adjusted column spans */}
+                  <div className="col-span-7 md:col-span-5 flex items-center gap-4">
                       <div className="relative w-11 h-11 rounded-full bg-[#151515] border border-[#333] flex items-center justify-center shrink-0 shadow-inner group-hover:border-slate-600 transition-colors overflow-hidden">
-                        
                         <Image 
                           src={user.badgeId} 
                           alt={user.badgeTitle}
                           fill
                           className="object-fill"
                         />
-                        
                       </div>
                     
                       <div className="flex flex-col justify-center">
-                        {/* Badge Title (Directly from DB) */}
-                        <span className="text-[8px] tracking-wider font-bold text-slate-400/80 leading-none mb-[1px] whitespace-pre-wrap">
+                        {/* Badge Title */}
+                        <span className="text-[8px] tracking-wider font-bold text-slate-400/80 leading-none mb-px whitespace-pre-wrap">
                           {user.badgeTitle}
                         </span>
                         {/* Username */}
@@ -188,10 +177,9 @@ export default function LeaderboardPage() {
                       </div>
                   </div>
 
-                  {/* Metadata Columns */}
-                  <div className="col-span-3 hidden md:block text-sm text-slate-500">{user.solvedAt}</div>
-                  <div className="col-span-3 md:col-span-2 text-right font-mono text-emerald-600 text-sm">{user.timeTaken}</div>
-                  <div className="col-span-3 md:col-span-2 text-right text-sm text-slate-500">{user.attempts}</div>
+                  {/* Metadata Columns - Adjusted column spans */}
+                  <div className="hidden md:col-span-4 md:block text-sm text-slate-500">{user.solvedAt}</div>
+                  <div className="col-span-4 md:col-span-2 text-right font-mono text-emerald-600 text-sm">{user.timeTaken}</div>
                 </div>
             ))}
             

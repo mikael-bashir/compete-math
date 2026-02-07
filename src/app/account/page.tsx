@@ -136,23 +136,25 @@ export default function AccountPage() {
             </div>
           </div>
 
-          <div className="md:ml-auto bg-[#0f0f0f] border border-[#222] rounded-xl px-6 py-4 text-center min-w-[120px]">
+          <div className="md:ml-auto bg-[#0f0f0f] border border-[#222] rounded-xl px-6 py-4 text-center min-w-30">
             <div className="text-2xl font-bold text-emerald-400 font-mono">{profile.solvedCount || 0}</div>
             <div className="text-xs text-slate-500 uppercase tracking-widest mt-1">Solves</div>
           </div>
         </div>
 
         {/* --- DIVIDER --- */}
-        <div className="w-full h-px bg-gradient-to-r from-transparent via-[#222] to-transparent mb-10" />
+        <div className="w-full h-px bg-linear-to-r from-transparent via-[#222] to-transparent mb-10" />
 
         {/* --- ACTIVE BADGE DISPLAY --- */}
-        <div className="flex flex-col items-center justify-center text-center mb-12 space-y-4">
-            <div className="flex items-center gap-3">
-                <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-white to-slate-400 uppercase tracking-widest">
+        <div className="flex flex-col items-center justify-center text-center mb-12">
+            <div className="flex flex-col items-center gap-px">
+                <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-linear-to-br from-white to-slate-400 uppercase tracking-widest">
                     {activeBadge?.badgeName}
                 </h2>
-                {activeBadge?.numberAvailable && (
-                    <span className="px-2 py-0.5 rounded text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/30 font-mono uppercase">Limited</span>
+                {activeBadge?.isLimited && (
+                    <span className="px-2 py-0.5 rounded-sm text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/30 font-mono uppercase mb-2">
+                      Limited to {parseInt(activeBadge.numberAvailable) + parseInt(activeBadge.numberOwned)}
+                    </span>
                 )}
             </div>
 
@@ -160,7 +162,7 @@ export default function AccountPage() {
                 {activeBadge?.description}
             </p>
 
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/20 border border-emerald-500/20 text-emerald-400 text-xs font-mono uppercase tracking-wider">
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/20 border border-emerald-500/20 text-emerald-400 text-xs font-mono uppercase tracking-wider mt-2">
                 <ShieldCheck size={12} />
                 Currently Equipped
             </div>

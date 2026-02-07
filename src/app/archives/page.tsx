@@ -40,7 +40,7 @@ const BronzeTile = ({ problem }: { problem: Problem }) => {
           flex items-center justify-center
           border border-[#4a3b2a]
           transition-all duration-300
-          ${isLocked ? 'grayscale-[50%]' : 'opacity-100'}
+          ${isLocked ? 'grayscale-50' : 'opacity-100'}
         `}
         style={{
           background: `linear-gradient(135deg, #6d5639 0%, #3f2e1d 100%)`,
@@ -83,7 +83,7 @@ const BronzeTile = ({ problem }: { problem: Problem }) => {
       </div>
 
       {/* TEXT LABELS */}
-      <div className="flex flex-col items-center text-center max-w-[120px]">
+      <div className="flex flex-col items-center text-center max-w-30">
         <span className={`
             text-[10px] uppercase tracking-widest font-bold mb-1 opacity-70
             ${isSolved ? 'text-emerald-600' : 'text-[#8a7250]'}
@@ -153,7 +153,7 @@ export default function SimplifiedArchives() {
             <h1 className="text-[#cfa86e] font-serif text-3xl sm:text-4xl tracking-widest uppercase mb-2">
                 Archives
             </h1>
-            <div className="h-[1px] w-24 bg-gradient-to-r from-transparent via-[#5a4630] to-transparent mx-auto" />
+            <div className="h-px w-24 bg-linear-to-r from-transparent via-[#5a4630] to-transparent mx-auto" />
         </div>
 
         {/* The Grid */}

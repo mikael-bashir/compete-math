@@ -103,7 +103,7 @@ Give volume to 10 decimal places, multiplied by $10^{10}$.</p> */}
             <div ref={containerRef} className="problem-content" />
             <input 
                 {...register('answer', { required: true })}
-                className="text-black mx-auto w-32 rounded mt-20"
+                className="text-black mx-auto w-32 rounded-sm mt-20"
                 onSubmit={handleSubmit(onSubmit)}
             />
         </div>
