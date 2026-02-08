@@ -6,11 +6,13 @@ export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
 export default async function Image() {
+  // 1. Establish the URL
+  // We prioritize the hardcoded domain to avoid Vercel preview URL issues
+  // But fallback to VERCEL_URL if needed.
   const host = process.env.VERCEL_URL 
     ? `https://${process.env.VERCEL_URL}` 
     : 'http://localhost:3000'
   
-  // Just use the image, skip the font fetch
   const bgImageUrl = `${host}/images/backgrounds/train.png`
 
   return new ImageResponse(
@@ -23,20 +25,39 @@ export default async function Image() {
           alignItems: 'center',
           justifyContent: 'center',
           flexDirection: 'column',
-          backgroundImage: `url(${bgImageUrl})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          fontFamily: 'serif', // Just ask for generic serif
+          backgroundColor: '#0f172a', // Fallback color (Slate-900)
+          fontFamily: 'serif',
+          position: 'relative', // Needed for absolute positioning children
         }}
       >
+        {/* FIX: Use an <img /> tag instead of CSS backgroundImage.
+           This is much more robust on Vercel's Edge network.
+        */}
+        <img
+          src={bgImageUrl}
+          alt="Background"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            zIndex: 0, // Sit at the back
+          }}
+        />
+
+        {/* Dark Overlay */}
         <div
           style={{
             position: 'absolute',
             top: 0, left: 0, right: 0, bottom: 0,
             backgroundColor: 'rgba(15, 23, 42, 0.7)', 
-            zIndex: 1,
+            zIndex: 1, // Sit on top of image
           }}
         />
+
+        {/* Text Content */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10 }}>
           <p style={{ 
             fontSize: 90, 
@@ -62,6 +83,6 @@ export default async function Image() {
         </div>
       </div>
     ),
-    { ...size } // Removed the 'fonts' config entirely
+    { ...size }
   )
 }
