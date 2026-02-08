@@ -12,6 +12,7 @@ import SessionProviderWrapper from "./lib/components/auth/session-provider-wrapp
 import { Toaster } from "@/components/ui/sonner"
 import { Suspense } from "react"
 // import { Analytics } from "@vercel/analytics/react"; // For analytics
+import { Analytics } from "@vercel/analytics/next"
 import "katex/dist/katex.min.css"
 // import Metadata  from "next";
 
