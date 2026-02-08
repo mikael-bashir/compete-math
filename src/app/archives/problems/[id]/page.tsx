@@ -173,7 +173,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                <div className="flex items-center justify-between bg-[#151515] border border-[#333] rounded-lg p-4">
                  <div className="flex items-center gap-4 text-slate-400">
                     <Lock className="w-5 h-5 text-slate-500" />
-                    <span className="text-sm font-medium">Authentication required to submit proofs.</span>
+                    <span className="text-sm font-medium">Authentication required to submit answers.</span>
                  </div>
                  <Link href="/api/auth/signin"><Button variant="outline" className="border-[#333] hover:bg-[#222] text-slate-200"><LogIn className="w-4 h-4 mr-2" /> Log In</Button></Link>
                </div>

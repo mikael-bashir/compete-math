@@ -53,18 +53,18 @@ export const authConfig = {
         console.log("🔥 PROXY CHECK:", nextUrl.pathname);
         console.log("👤 User:", auth?.user); 
 
-        const isOnDashboard = nextUrl.pathname === '/account';
-        const isOnArchives = nextUrl.pathname.startsWith('/archives');
+        // const isOnDashboard = nextUrl.pathname === '/account';
+        // const isOnArchives = nextUrl.pathname.startsWith('/archives');
         const isOnAuth = nextUrl.pathname.startsWith('/auth');
 
         if (isLoggedIn && isOnAuth) {
             return Response.redirect(new URL('/', nextUrl));
         }
 
-        if (isOnDashboard || isOnArchives) {
-            if (isLoggedIn) return true;
-            return false; 
-        }
+        // if (isOnDashboard || isOnArchives) {
+        //     if (isLoggedIn) return true;
+        //     return false; 
+        // }
 
         return true;
     },
