@@ -71,7 +71,7 @@ export default function HomePage() {
               active:duration-150
             "
           >
-            Home
+            Start solving
           </Link>
         </div>
       </div>
