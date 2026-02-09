@@ -11,7 +11,6 @@ import Footer from "./lib/components/navigation/footer"
 import SessionProviderWrapper from "./lib/components/auth/session-provider-wrapper"
 import { Toaster } from "@/components/ui/sonner"
 import { Suspense } from "react"
-// import { Analytics } from "@vercel/analytics/react"; // For analytics
 import { Analytics } from "@vercel/analytics/next"
 import "katex/dist/katex.min.css"
 // import Metadata  from "next";
@@ -63,9 +62,23 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'CompeteMath',          // <--- THIS IS WHAT GOOGLE WILL SHOW
+    alternateName: ['competemath.com'], // Variations
+    url: 'https://competemath.com',
+  }
+
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${dmSans.variable}`}>
       <body className={`antialiased bg-background text-foreground font-sans`}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+
         <Suspense fallback={<div>Loading...</div>}>
           <SessionProviderWrapper>
             <UserDisplayer2 />
