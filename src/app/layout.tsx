@@ -1,5 +1,5 @@
 import type React from "react"
-// import type Metadata from "next"
+import type { Metadata } from "next"
 import { Space_Grotesk, DM_Sans } from "next/font/google"
 import "@shohojdhara/atomix/css"
 import "./globals.css" // Global styles
@@ -15,6 +15,29 @@ import { Suspense } from "react"
 import { Analytics } from "@vercel/analytics/next"
 import "katex/dist/katex.min.css"
 // import Metadata  from "next";
+
+// --- CRITICAL SEO METADATA FIX ---
+export const metadata: Metadata = {
+  metadataBase: new URL('https://competemath.com'),
+
+  // 2. Clear Title & Description
+  title: {
+    default: "CompeteMath - Discover the Beauty of Math",
+    template: "%s | CompeteMath", // e.g., "Problem #42 | CompeteMath"
+  },
+  description: "Try to find the key insights in weekly problems, climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted math competitions.",
+  
+  // 3. Open Graph (Social Cards)
+  openGraph: {
+    title: "CompeteMath",
+    description: "Discover the Beauty of Math",
+    url: 'https://competemath.com',
+    siteName: 'CompeteMath',
+    locale: 'en_GB',
+    type: 'website',
+  }
+}
+
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
