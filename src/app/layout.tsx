@@ -78,7 +78,7 @@ export default function RootLayout({
             <Footer />
 
             {/* Vercel Analytics */}
-            {/* <Analytics /> */}
+            <Analytics />
           </SessionProviderWrapper>
         </Suspense>
       </body>
