@@ -1,32 +1,32 @@
-'use server'
+// 'use server'
 
 
-import Redis from 'ioredis';
+// import Redis from 'ioredis';
 
-// ================================
-// redis initialization
-// ================================
+// // ================================
+// // redis initialization
+// // ================================
 
-const REDIS_URL = process.env.REDIS_URL;
+// const REDIS_URL = process.env.REDIS_URL;
 
-if (!REDIS_URL) {
-	throw new Error('REDIS_URL environment variable is not set');
-}
+// if (!REDIS_URL) {
+// 	throw new Error('REDIS_URL environment variable is not set');
+// }
 
-// Initialize one redis instance
-let redis: Redis | null = null;
+// // Initialize one redis instance
+// let redis: Redis | null = null;
 
-// redis singleton
-export function getRedisClient() {
-    if (!redis) {
-        redis = new Redis(REDIS_URL as string);
-        redis.on('connect', () => {
-            console.log('Connected to Redis successfully');
-        });
+// // redis singleton
+// export function getRedisClient() {
+//     if (!redis) {
+//         redis = new Redis(REDIS_URL as string);
+//         redis.on('connect', () => {
+//             console.log('Connected to Redis successfully');
+//         });
 
-        redis.on('error', (error) => {
-            console.error('Error connecting to Redis:', error);
-        });
-    }
-    return redis;
-}
+//         redis.on('error', (error) => {
+//             console.error('Error connecting to Redis:', error);
+//         });
+//     }
+//     return redis;
+// }
