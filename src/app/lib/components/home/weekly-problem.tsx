@@ -121,48 +121,48 @@ export function WeeklyProblem() {
         </div>
 
         {/* Problem statement */}
-<div className="mt-8 rounded-2xl bg-white/5 border border-white/5 p-6 overflow-hidden">
-  <div className="prose prose-invert max-w-none wrap-break-words">
-    <ReactMarkdown 
-      remarkPlugins={[remarkMath]} 
-      rehypePlugins={[rehypeKatex]} 
-      components={{
-        // standard paragraph
-        p: ({node, ...props}) => <p className="text-white/90 text-lg leading-relaxed mb-6 last:mb-0 font-light" {...props} />,
-        
-        // span
-        span: ({node, ...props}) => <span className="text-white/90" {...props} />,
-        
-        // math block
-        div: ({node, className, ...props}) => {
-          if (className?.includes('math-display')) {
-            return <div className="my-6 text-center text-xl text-white overflow-x-auto py-2" {...props} />
-          }
-          return <div className={className} {...props} />
-        },
+        <div className="mt-8 rounded-2xl bg-white/5 border border-white/5 p-6 overflow-hidden">
+          <div className="prose prose-invert max-w-none wrap-break-words">
+            <ReactMarkdown 
+              remarkPlugins={[remarkMath]} 
+              rehypePlugins={[rehypeKatex]} 
+              components={{
+                // standard paragraph
+                p: ({node, ...props}) => <p className="text-white/90 text-lg leading-relaxed mb-6 last:mb-0 font-light" {...props} />,
+                
+                // span
+                span: ({node, ...props}) => <span className="text-white/90" {...props} />,
+                
+                // math block
+                div: ({node, className, ...props}) => {
+                  if (className?.includes('math-display')) {
+                    return <div className="my-6 text-center text-xl text-white overflow-x-auto py-2" {...props} />
+                  }
+                  return <div className={className} {...props} />
+                },
 
-        // --- OVERRIDES TO FIX BLACK TEXT ---
+                // --- OVERRIDES TO FIX BLACK TEXT ---
 
-        // Force Headers to render as P tags with white text and bold styling
-        h1: ({node, ...props}) => <p className="text-white text-2xl font-bold mt-8 mb-4" {...props} />,
-        h2: ({node, ...props}) => <p className="text-white text-xl font-bold mt-8 mb-4" {...props} />,
-        h3: ({node, ...props}) => <p className="text-white text-lg font-bold mt-6 mb-3" {...props} />,
-        h4: ({node, ...props}) => <p className="text-white text-base font-bold mt-4 mb-2" {...props} />,
+                // Force Headers to render as P tags with white text and bold styling
+                h1: ({node, ...props}) => <p className="text-white text-2xl font-bold mt-8 mb-4" {...props} />,
+                h2: ({node, ...props}) => <p className="text-white text-xl font-bold mt-8 mb-4" {...props} />,
+                h3: ({node, ...props}) => <p className="text-white text-lg font-bold mt-6 mb-3" {...props} />,
+                h4: ({node, ...props}) => <p className="text-white text-base font-bold mt-4 mb-2" {...props} />,
 
-        // Force Lists to use white text
-        ul: ({node, ...props}) => <ul className="list-disc list-outside ml-6 mb-6 text-white/90" {...props} />,
-        ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-6 mb-6 text-white/90" {...props} />,
-        li: ({node, ...props}) => <li className="mb-2 pl-1 marker:text-white/50" {...props} />,
+                // Force Lists to use white text
+                ul: ({node, ...props}) => <ul className="list-disc list-outside ml-6 mb-6 text-white/90" {...props} />,
+                ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-6 mb-6 text-white/90" {...props} />,
+                li: ({node, ...props}) => <li className="mb-2 pl-1 marker:text-white/50" {...props} />,
 
-        // Force Bold/Italic to stay white
-        strong: ({node, ...props}) => <strong className="font-bold text-white" {...props} />,
-        em: ({node, ...props}) => <em className="italic text-white/90" {...props} />,
-      }}
-    >
-      {problem.content}
-    </ReactMarkdown>
-  </div>
-</div>
+                // Force Bold/Italic to stay white
+                strong: ({node, ...props}) => <strong className="font-bold text-white" {...props} />,
+                em: ({node, ...props}) => <em className="italic text-white/90" {...props} />,
+              }}
+            >
+              {problem.content}
+            </ReactMarkdown>
+          </div>
+        </div>
 
         {/* Hint section */}
         {problem.hint && (

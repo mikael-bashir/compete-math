@@ -47,7 +47,7 @@ export const authConfig = {
     // 3. Authorized: The Guard Logic (Proxy only)
     authorized({ auth, request: { nextUrl } }) {
         // NOW 'auth.user' will actually have data because the session callback above ran!
-        // @ts-ignore
+
         const isLoggedIn = !!auth?.user?.username;
 
         console.log("🔥 PROXY CHECK:", nextUrl.pathname);

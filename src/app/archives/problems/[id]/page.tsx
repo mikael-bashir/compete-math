@@ -143,9 +143,9 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                <h1 className="text-3xl text-slate-100 font-serif font-bold tracking-tight mb-1">{problem.title}</h1>
                <div className="flex items-center gap-3 text-xs uppercase tracking-widest font-semibold text-emerald-600/80">
                  <span>Problem {problem.id}</span>
-                 {problem.difficulty || problem.points &&
+                 {/* {problem.difficulty || problem.points &&
                   <span className="w-1 h-1 rounded-full bg-emerald-800" />
-                 }
+                 } */}
                  <span>{problem.subtitle}</span>
                </div>
             </div>
