@@ -81,17 +81,27 @@ export default function RootLayout({
 
         <Suspense fallback={<div>Loading...</div>}>
           <SessionProviderWrapper>
-            <UserDisplayer2 />
-            {/* <Navbar /> */}
-            <div className="overflow-hidden">{children}</div>
+            {/* Main container with background and content */}
+            <div className="relative min-h-screen">
+              {/* Background layer - always present */}
+              <div className="fixed inset-0 -z-10">
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-emerald-950/20 to-slate-900" />
+              </div>
 
-            {/* Notification toaster */}
-            <Toaster position="top-right" closeButton/>
+              {/* Navigation with AtomixGlass - positioned over background */}
+              <UserDisplayer2 />
+              
+              {/* Main content */}
+              <div className="overflow-hidden">{children}</div>
 
-            <Footer />
+              {/* Notification toaster */}
+              <Toaster position="top-right" closeButton/>
 
-            {/* Vercel Analytics */}
-            <Analytics />
+              <Footer />
+
+              {/* Vercel Analytics */}
+              <Analytics />
+            </div>
           </SessionProviderWrapper>
         </Suspense>
       </body>

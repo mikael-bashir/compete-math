@@ -3,8 +3,8 @@
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
-// Added Globe, Archive, Heart to imports
 import { Menu, LogOut, User, ChevronDown, Globe, Archive, Heart, HomeIcon } from "lucide-react"
+import { AtomixGlass } from "@shohojdhara/atomix"
 
 import { DazzleBadgeEffect } from "../art/badges/effects"
 import {
@@ -22,12 +22,22 @@ export function UserDisplayer2() {
 
   return (
     // Fixed container for the navbar
-    <div className="fixed top-0 left-0 right-0 z-50 font-serif">
+    <div className="fixed top-0 left-0 right-0 z-50 font-serif flex justify-center pt-4 px-4">
       
-      {/* REVERTED: Standard Navbar with subtle glass effect */}
-      <nav className="w-full border-b border-white/10 shadow-sm bg-black/5 backdrop-blur-sm">
-        <div className="flex justify-center">
-          <div className="flex justify-between items-center w-full max-w-7xl px-6 xs:py-4 py-2">
+      {/* AtomixGlass wrapper for the navbar */}
+      <AtomixGlass
+        mode="standard"
+        displacementScale={70}
+        blurAmount={0.2}
+        saturation={140}
+        aberrationIntensity={0.2}
+        elasticity={0}
+        cornerRadius={15}
+        className="w-full max-w-7xl"
+      >
+        <nav className="w-full border-b border-white/10 shadow-sm">
+          <div className="flex justify-center">
+            <div className="flex justify-between items-center w-full px-6 xs:py-4 py-2">
             
             {/* --- Logo Section --- */}
             <Link href="/" className="flex items-center space-x-3 group">
@@ -176,8 +186,8 @@ export function UserDisplayer2() {
               )}
             </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      </AtomixGlass>
     </div>
   )
 }
