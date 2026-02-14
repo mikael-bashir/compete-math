@@ -21,27 +21,19 @@ export function UserDisplayer2() {
   const { data: session, status } = useSession()
 
   return (
-    // Fixed container for the navbar
-    <div className="fixed top-0 left-0 right-0 z-50 font-serif">
-      <div className="flex justify-center pt-4 px-4">
-        <AtomixGlass
-          mode="standard"
-          displacementScale={70}
-          blurAmount={0.2}
-          saturation={140}
-          aberrationIntensity={0.2}
-          elasticity={0}
-          cornerRadius={15}
-          className="w-full max-w-7xl"
-        >
-          {/* Invisible filler divs to provide canvas context */}
-          <div className="absolute inset-0 opacity-0 pointer-events-none -z-10">
-            <div className="w-full h-full" />
-            <div className="w-full h-full" />
-            <div className="w-full h-full" />
-          </div>
-          
-          <nav className="w-full border-b border-white/10 shadow-sm bg-black/5 backdrop-blur-sm">
+    // Positioned within fixed canvas - matches test.tsx structure
+    <div className="flex justify-center pt-4 px-4 w-full pointer-events-auto">
+      <AtomixGlass
+        mode="standard"
+        displacementScale={70}
+        blurAmount={0.2}
+        saturation={140}
+        aberrationIntensity={0.2}
+        elasticity={0}
+        cornerRadius={15}
+        className="w-full max-w-7xl"
+      >
+        <nav className="w-full border-b border-white/10 shadow-sm">
           <div className="flex justify-center">
             <div className="flex justify-between items-center w-full px-6 xs:py-4 py-2">
             
@@ -195,7 +187,6 @@ export function UserDisplayer2() {
           </div>
         </nav>
       </AtomixGlass>
-      </div>
     </div>
   )
 }

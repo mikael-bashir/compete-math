@@ -81,17 +81,19 @@ export default function RootLayout({
 
         <Suspense fallback={<div>Loading...</div>}>
           <SessionProviderWrapper>
-            {/* Main container with background and content */}
-            <div className="relative min-h-screen">
-              {/* Background layer - always present */}
-              <div className="fixed inset-0 -z-10">
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-emerald-950/20 to-slate-900" />
+            {/* Fixed canvas container matching test.tsx structure */}
+            <div className="fixed w-screen h-screen pointer-events-none">
+              {/* Background layer - sibling to AtomixGlass */}
+              <div className="absolute inset-0">
+                <div className="w-full h-full bg-gradient-to-br from-slate-950 via-emerald-950/20 to-slate-900" />
               </div>
 
-              {/* Navigation with AtomixGlass - positioned over background */}
+              {/* Navigation with AtomixGlass - as sibling to background */}
               <UserDisplayer2 />
-              
-              {/* Main content */}
+            </div>
+
+            {/* Main scrollable content */}
+            <div className="relative min-h-screen">
               <div className="overflow-hidden">{children}</div>
 
               {/* Notification toaster */}

@@ -11,7 +11,7 @@ import Link from "next/link";
  */
 export default function HomePage() {
   return (
-    <div className="font-serif">
+    <div className="font-serif pt-20">
       <div className="relative h-screen w-full">
         {/* Full Screen Art */}
         <Image
