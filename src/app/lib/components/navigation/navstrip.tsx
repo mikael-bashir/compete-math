@@ -21,21 +21,26 @@ export function UserDisplayer2() {
   const { data: session, status } = useSession()
 
   return (
-    // Fixed container for the navbar
-    <div className="fixed top-0 left-0 right-0 z-50 font-serif flex justify-center pt-4 px-4">
+    // Fixed container for the navbar with background context
+    <div className="fixed top-0 left-0 right-0 z-50 font-serif h-24">
+      {/* Background content for AtomixGlass to capture - must be sibling */}
+      <div className="absolute inset-0">
+        <div className="w-full h-full bg-gradient-to-br from-slate-950 via-emerald-950/20 to-slate-900" />
+      </div>
       
-      {/* AtomixGlass wrapper for the navbar */}
-      <AtomixGlass
-        mode="standard"
-        displacementScale={70}
-        blurAmount={0.2}
-        saturation={140}
-        aberrationIntensity={0.2}
-        elasticity={0}
-        cornerRadius={15}
-        className="w-full max-w-7xl"
-      >
-        <nav className="w-full border-b border-white/10 shadow-sm">
+      {/* AtomixGlass wrapper positioned over background */}
+      <div className="flex justify-center pt-4 px-4 relative">
+        <AtomixGlass
+          mode="standard"
+          displacementScale={70}
+          blurAmount={0.2}
+          saturation={140}
+          aberrationIntensity={0.2}
+          elasticity={0}
+          cornerRadius={15}
+          className="w-full max-w-7xl"
+        >
+          <nav className="w-full border-b border-white/10 shadow-sm">
           <div className="flex justify-center">
             <div className="flex justify-between items-center w-full px-6 xs:py-4 py-2">
             
@@ -189,6 +194,7 @@ export function UserDisplayer2() {
           </div>
         </nav>
       </AtomixGlass>
+      </div>
     </div>
   )
 }
