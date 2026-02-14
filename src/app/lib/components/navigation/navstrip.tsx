@@ -185,6 +185,7 @@ export function UserDisplayer2() {
                 </div>
               )}
             </div>
+            </div>
           </div>
         </nav>
       </AtomixGlass>
