@@ -34,7 +34,7 @@ export function UserDisplayer2() {
               <div className="flex flex-col">
                 <p
                   className="
-                    font-bold text-[13pt]
+                    font-serif font-bold text-[13pt]
                     bg-linear-to-r from-amber-300 via-yellow-200 to-amber-400
                     bg-size-[200%_auto]
                     bg-clip-text text-transparent

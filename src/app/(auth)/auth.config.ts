@@ -5,7 +5,8 @@ import type { JWT } from "next-auth/jwt";
 // import { JWTType } from "next-auth/jwt";
 import type { Session } from "next-auth";
 
-
+const useSecureCookies = process.env.NODE_ENV === 'production';
+const cookiePrefix = useSecureCookies ? '__Secure-' : '';
 
 export const authConfig = {
     pages: {
@@ -13,6 +14,19 @@ export const authConfig = {
         signOut: '/auth/logout',
         newUser: '/',
     },
+    cookies: {
+        sessionToken: {
+            name: `${cookiePrefix}authjs.session-token`,
+            options: {
+                httpOnly: true,
+                sameSite: 'lax',
+                path: '/',
+                secure: useSecureCookies,
+                // This tells the browser: "Let subdomains read this too"
+                domain: useSecureCookies ? '.competemath.com' : 'localhost',
+            },
+        },
+    },      
     providers: [], // Keep this empty here! Providers live in auth.ts
     callbacks: {
         async jwt({ token, user, trigger, session }: { 
