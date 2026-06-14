@@ -1,6 +1,6 @@
 
 export type LoginFormData = {
-    username: string;
+    identifier: string;
     password: string;
 };
 

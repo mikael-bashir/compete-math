@@ -3,19 +3,19 @@ import bcrypt from "bcryptjs";
 import { User } from "../types/user";
 
 // A function to return a user if valid.
-export async function getUser(username: string, password: string): Promise<User | undefined> {
+export async function getUser(identifier: string, password: string): Promise<User | undefined> {
     try {
         const user = await sql`
-        SELECT id, username, password_hash
+        SELECT id, username, email, password_hash
         FROM users 
-        WHERE username=${username}
+        WHERE username=${identifier} or email=${identifier}
         `;
         const result =  user.rows[0];
         if (!result?.password_hash) {
             return undefined;
         }
         if (bcrypt.compareSync(password, result.password_hash)) {
-            return { id: result.id, username: result.username, iat: Date.now() }
+            return { id: result.id, username: result.username, email: result.email, iat: Date.now() }
         }
 
         return undefined;

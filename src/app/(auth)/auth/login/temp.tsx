@@ -45,7 +45,7 @@ const LoginForm = () => {
                     <input
                         type="text"
                         id="username"
-                        {...register('username', { required: true })}
+                        {...register('identifier', { required: true })}
                         className="w-full p-3 border border-gray-300 rounded-sm focus:outline-hidden focus:border-blue-500 text-black"
                     />
                 </div>

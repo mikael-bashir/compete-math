@@ -6,8 +6,9 @@ import { signIn, signOut } from "../../(auth)/auth";
 import { LoginFormData } from "../types/form";
 import { signUpSchema } from '../zod';
 import { ZodError } from 'zod';
+import { RegisterFormData } from '../types/auth';
 
-export async function signUpAction(data: { username: string; password: string }) {
+export async function signUpAction(data: RegisterFormData) {
     try {
         await signUpSchema.parseAsync(data);
     } catch (error) {
@@ -21,12 +22,14 @@ export async function signUpAction(data: { username: string; password: string })
     try {
         // Check for existing user
         const existingUser = await sql`
-        SELECT username FROM users 
-        WHERE username = ${data.username}
+        SELECT username, email FROM users 
+        WHERE username = ${data.username} OR email = ${data.email}
         `;
 
         if (existingUser.rows.length > 0) {
-        return { error: 'Username already exists' };
+            const user = existingUser.rows[0];
+            if (user.username === data.username) return { error: 'Username already exists' };
+            if (user.email === data.email) return { error: 'Email is already registered' };
         }
 
         // Hash password
@@ -34,14 +37,14 @@ export async function signUpAction(data: { username: string; password: string })
 
         // Create new user
         const result = await sql`
-        INSERT INTO users (username, password_hash)
-        VALUES (${data.username}, ${hashedPassword})
-        RETURNING id, username
+        INSERT INTO users (username, email, password_hash)
+        VALUES (${data.username}, ${data.email}, ${hashedPassword})
+        RETURNING id, username, email
         `;
 
         return {
-        user: result.rows[0],
-        error: undefined
+            user: result.rows[0],
+            error: undefined
         };
     } catch (error) {
         console.error('Registration error:', error);

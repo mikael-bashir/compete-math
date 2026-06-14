@@ -24,8 +24,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     providers: [
         CredentialsProvider({
             credentials: {
-                username: { label: "Username", type: "text" },
-                password: { label: "Password", type: "password", placeholder: '***' },
+                identifier: { label: "Username or Email", type: "string", placeholder: "jessica.jackson@gmail.com" },
+                password: { label: "Password", type: "string", placeholder: '***' },
             },
             async authorize(credentials) {
                 let response;
@@ -36,7 +36,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                 }
 
                 try{
-                    const user = await getUser(response.username, response.password);
+                    const user = await getUser(response.identifier, response.password);
                     if (!user) {
                         return null;
                     }

@@ -138,8 +138,8 @@ export default function AuthenticationCard() {
 
   const getCardHeight = () => {
     switch (step) {
-      case "login": return "h-[480px]"
-      case "signup": return "h-[520px]" // Adjusted height
+      case "login": return "h-[470px]"
+      case "signup": return signUpPasswordValue ? "h-[670px]" : "h-[530px]"
       case "forgot-password": return "h-[380px]"
       case "reset-password": return "h-[520px]"
       case "otp": return "h-[380px]"
@@ -171,15 +171,15 @@ export default function AuthenticationCard() {
 
               <form onSubmit={handleLoginSubmit(onLoginSubmit)} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-username" className="text-white/90">Username</Label>
+                  <Label htmlFor="login-username" className="text-white/90">Identifier</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
                     <Input
                       id="login-username"
                       type="text"
-                      {...registerLogin("username", { required: true })}
+                      {...registerLogin("identifier", { required: true })}
                       className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-white/40 focus:ring-white/20"
-                      placeholder="Enter your username"
+                      placeholder="Enter your username or email"
                       autoComplete="username"
                     />
                   </div>
@@ -262,6 +262,26 @@ export default function AuthenticationCard() {
                   </div>
                   {signUpErrors.username && (
                     <span className="text-xs text-red-400 pl-1">{signUpErrors.username.message}</span>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email" className="text-white/90">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      {...registerSignUp("email", { 
+                        required: "Email is required",
+                        // pattern: { value: /\S+@\S+\.\S+/, message: "Invalid email" }
+                      })}
+                      className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-white/40 focus:ring-white/20"
+                      placeholder="Enter your email"
+                    />
+                  </div>
+                  {signUpErrors.email && (
+                    <span className="text-xs text-red-400 pl-1">{signUpErrors.email.message}</span>
                   )}
                 </div>
 

@@ -39,6 +39,7 @@ export const authConfig = {
             if (user) {
                 token.id = user.id;
                 token.username = user.username;
+                token.email = user.email;
                 token.iat = "iat" in user ? user.iat : Date.now();
             }
             
@@ -53,6 +54,7 @@ export const authConfig = {
             session.user = {
                 id: token.id || "",
                 username: token.username || "",
+                email: token.email || "",
                 iat: token.iat || Date.now(),
                 badgeUrl: token?.badgeUrl ? token.badgeUrl : '/badges/newbie.png'
             };
