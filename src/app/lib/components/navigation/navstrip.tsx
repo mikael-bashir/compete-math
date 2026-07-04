@@ -1,12 +1,14 @@
 'use client'
 
 import Link from "next/link"
+import { useState } from "react"
+import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
-// Added Globe, Archive, Heart to imports
-import { Menu, LogOut, User, ChevronDown, Globe, Archive, Heart, HomeIcon } from "lucide-react"
+import { Menu, X, LogOut, User, ChevronDown, Globe, Archive, Heart, HomeIcon } from "lucide-react"
 
 import { DazzleBadgeEffect } from "../art/badges/effects"
+import { NAV_LINKS } from "../../constants/site"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,22 +21,24 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export function UserDisplayer2() {
   const { data: session, status } = useSession()
+  const pathname = usePathname()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
     // Fixed container for the navbar
     <div className="fixed top-0 left-0 right-0 z-50 font-serif">
-      
-      {/* REVERTED: Standard Navbar with subtle glass effect */}
-      <nav className="w-full border-b border-white/10 shadow-sm bg-black/5 backdrop-blur-sm">
+
+      {/* Standard Navbar with subtle glass effect */}
+      <nav className="w-full border-b border-white/10 shadow-sm bg-black/40 backdrop-blur-md">
         <div className="flex justify-center">
           <div className="flex justify-between items-center w-full max-w-7xl px-6 xs:py-4 py-2">
-            
+
             {/* --- Logo Section --- */}
             <Link href="/" className="flex items-center space-x-3 group">
               <div className="flex flex-col">
                 <p
                   className="
-                    font-serif font-bold text-[13pt]
+                    font-code font-bold text-[13pt]
                     bg-linear-to-r from-amber-300 via-yellow-200 to-amber-400
                     bg-size-[200%_auto]
                     bg-clip-text text-transparent
@@ -47,8 +51,37 @@ export function UserDisplayer2() {
               </div>
             </Link>
 
+            {/* --- Static Navigation Links (desktop) --- */}
+            <div className="hidden md:flex items-center gap-1">
+              {NAV_LINKS.map((link) => {
+                const active = pathname === link.href || pathname.startsWith(link.href + "/")
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`
+                      font-code text-[13px] px-3.5 py-2 rounded-md transition-all duration-200
+                      ${active
+                        ? "text-emerald-200 bg-emerald-400/10 shadow-[inset_0_-2px_0_rgba(52,211,153,0.6)]"
+                        : "text-white/60 hover:text-white hover:bg-white/5"}
+                    `}
+                  >
+                    {link.label}
+                  </Link>
+                )
+              })}
+            </div>
+
             {/* --- User Session Area --- */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              {/* Mobile menu toggle */}
+              <button
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="md:hidden p-2 text-white/70 hover:text-white transition-colors"
+                aria-label="Toggle navigation"
+              >
+                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
               {status === "loading" ? (
                 <div className="h-9 w-24 bg-emerald-50/50 animate-pulse rounded-md" />
               ) : status === "authenticated" && session?.user ? (
@@ -177,6 +210,30 @@ export function UserDisplayer2() {
             </div>
           </div>
         </div>
+
+        {/* --- Mobile navigation drawer --- */}
+        {mobileOpen && (
+          <div className="md:hidden border-t border-white/10 bg-black/80 backdrop-blur-lg">
+            <div className="px-6 py-3 flex flex-col">
+              {NAV_LINKS.map((link) => {
+                const active = pathname === link.href || pathname.startsWith(link.href + "/")
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={`
+                      font-code text-sm px-3 py-3 rounded-md transition-colors
+                      ${active ? "text-emerald-200 bg-emerald-400/10" : "text-white/70 hover:text-white hover:bg-white/5"}
+                    `}
+                  >
+                    {link.label}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </nav>
     </div>
   )

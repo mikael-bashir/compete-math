@@ -91,8 +91,8 @@ export function HeroSection() {
         </div>
       )}
 
-      <div className="mt-4 font-serif text-4xl font-light tracking-tight md:text-5xl lg:text-6xl text-white">
-        Welcome back, <span className="font-medium">{session?.user?.username || "Guest"}</span>
+      <div className="mt-4 font-code text-4xl font-light tracking-tight md:text-5xl lg:text-6xl text-white">
+        Welcome back, <span className="font-semibold text-emerald-200">{session?.user?.username || "Guest"}</span>
       </div>
       
       <p className="mx-auto mt-4 max-w-2xl font-serif text-lg italic text-white/60 leading-relaxed">
@@ -124,12 +124,12 @@ export function HeroSection() {
 function TimeBlock({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex flex-col items-center">
-      <div className="min-w-16 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm px-4 py-3">
-        <span className="text-2xl font-semibold tabular-nums text-white">
+      <div className="min-w-16 rounded-xl border border-white/10 bg-black/40 backdrop-blur-md px-4 py-3">
+        <span className="font-code text-2xl font-semibold tabular-nums text-white">
           {value.toString().padStart(2, "0")}
         </span>
       </div>
-      <span className="mt-1 text-xs text-white/40">{label}</span>
+      <span className="font-code mt-1 text-xs text-white/40 uppercase tracking-wider">{label}</span>
     </div>
   )
 }

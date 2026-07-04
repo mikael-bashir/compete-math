@@ -42,6 +42,9 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
   
+  /* Code-style display font (Advent of Code aesthetic) → `font-code` utility */
+  --font-code: var(--font-source-code), ui-monospace, "SF Mono", Menlo, monospace;
+
   /* Add your custom animation here too if needed */
   --animate-shimmer: shimmer 3s linear infinite;
 

@@ -18,9 +18,8 @@ export default function HomePage() {
           src={'/images/true-masterpiece.png'}
           alt="A dark sky with a bright full moon and wispy clouds"
           fill // This prop makes the image fill its parent container
-          style={{ 
+          style={{
             objectFit: 'cover', // This prevents the image from stretching/distorting
-            zIndex: -1          // This puts the image in the "back" of the container
           }}
           sizes="100vw"
           quality={100}
@@ -29,14 +28,15 @@ export default function HomePage() {
         />
 
         {/* Overlay Content */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-          <h1 className="text-4xl md:text-6xl font-semibold text-white tracking-tight">
-            <div className="opacity-90 pt-5 md:text-[65pt] xs:text-[40pt] text-[30pt] tracking-normal font-normal text-white">Competition.</div>
-            {/* <div className="opacity-90 pb-5 md:text-[65pt] xs:text-[40pt] 2xs:text-[26pt] 3xs:text-[20pt] text-[15pt]  tracking-normal font-normal">Competition</div> */}
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-4">
+          <h1 className="font-code text-4xl md:text-6xl font-semibold text-white tracking-tight">
+            <div className="opacity-90 pt-5 md:text-[58pt] xs:text-[36pt] text-[26pt] tracking-tight font-bold text-white">
+              Competition<span className="text-emerald-300">.</span>
+            </div>
           </h1>
           <div className="pb-7">
-            <p className="text-white/80 text-lg md:text-xl italic">
-              The best way to master Mathematics.
+            <p className="font-code text-white/75 text-base md:text-lg">
+              <span className="text-emerald-300/80">$</span> the best way to master mathematics
             </p>
           </div>
           {/* <button
@@ -95,7 +95,7 @@ export default function HomePage() {
             {/* Text Content */}
             <div className="flex-1 text-center"> {/* Centered text */}
               <div className="inline-flex items-center gap-3 mb-2">
-                <p className="text-5xl font-sans md:text-6xl font-bold text-white! text-center">
+                <p className="font-code text-4xl md:text-5xl font-bold text-white! text-center">
                   Learn through <span className="italic">Competition</span>
                 </p>
               </div>
@@ -111,7 +111,7 @@ export default function HomePage() {
             <div className="flex-1 text-center"> {/* Centered text */}
               <div className="inline-flex items-center gap-3 mb-2">
                 {/* <Users className="w-6 h-6 text-emerald-400" /> */}
-                <p className="text-5xl md:text-6xl font-bold text-white! text-center font-sans">
+                <p className="font-code text-4xl md:text-5xl font-bold text-white! text-center">
                   Grow with the Community
                 </p>
               </div>
@@ -127,7 +127,7 @@ export default function HomePage() {
             <div className="flex-1 text-center"> {/* Centered text */}
               <div className="inline-flex items-center gap-3 mb-2">
                 {/* <Library className="w-6 h-6 text-sky-400" /> */}
-                <p className="text-5xl font-sans md:text-6xl font-bold text-white! text-center">
+                <p className="font-code text-4xl md:text-5xl font-bold text-white! text-center">
                   A living Library
                 </p>
               </div>
