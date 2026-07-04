@@ -42,8 +42,13 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
   
-  /* Code-style display font (Advent of Code aesthetic) → `font-code` utility */
+  /* Code-style font (Advent of Code aesthetic) — applied APPLICATION-WIDE.
+     font-sans is the body default, and font-serif is remapped too so legacy
+     `font-serif` usages can't render an actual serif anywhere. KaTeX math is
+     unaffected: .katex carries its own font-family for proper typesetting. */
   --font-code: var(--font-source-code), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-sans: var(--font-source-code), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-serif: var(--font-source-code), ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Add your custom animation here too if needed */
   --animate-shimmer: shimmer 3s linear infinite;
@@ -123,6 +128,19 @@
     background-color: black;
     color: white;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   APPLICATION-WIDE CODE FONT
+   One font everywhere (Source Code Pro / AoC aesthetic). This must be a real
+   rule, not just a theme-token remap, because the atomix stylesheet hardcodes
+   font-family (Roboto / serif stacks) on body and headings with element
+   selectors. The :not() guards leave KaTeX's own fonts alone — rendered math
+   must keep its proper typesetting.
+   ------------------------------------------------------------------------- */
+body,
+body :not(.katex):not(.katex *) {
+  font-family: var(--font-code);
 }
 
 /* Custom Utilities */
