@@ -52,7 +52,7 @@ export default function HomePage() {
                 className="group rounded-xl border border-white/10 bg-black/40 backdrop-blur-md p-5 hover:border-emerald-400/40 transition-all hover:shadow-[0_8px_40px_rgba(16,185,129,0.12)] no-underline"
               >
                 <q.icon className="w-5 h-5 text-emerald-400/80 mb-3 transition-transform group-hover:scale-110" />
-                <h3 className="font-code text-sm font-semibold text-white group-hover:text-emerald-200 transition-colors">
+                <h3 className="font-code text-sm font-semibold text-white! group-hover:text-emerald-200! transition-colors">
                   {q.title}
                 </h3>
                 <p className="text-white/45 text-xs mt-1.5 leading-relaxed">{q.text}</p>
