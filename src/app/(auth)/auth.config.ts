@@ -8,6 +8,19 @@ import type { Session } from "next-auth";
 const useSecureCookies = process.env.NODE_ENV === 'production';
 const cookiePrefix = useSecureCookies ? '__Secure-' : '';
 
+// Production shares the session cookie across *.competemath.com subdomains, so
+// the cookie is scoped to `.competemath.com`. That domain does NOT match Vercel
+// preview hosts (*.vercel.app), so the browser silently drops the cookie there
+// and sign-in appears to "not work" on previews. Set AUTH_COOKIE_DOMAIN in the
+// preview environment to override:
+//   AUTH_COOKIE_DOMAIN=host-only  -> host-only cookie (works on *.vercel.app)
+//   AUTH_COOKIE_DOMAIN=.example.com -> a specific domain
+// Unset -> the production default of `.competemath.com` (unchanged).
+const prodCookieDomain =
+  process.env.AUTH_COOKIE_DOMAIN === 'host-only'
+    ? undefined
+    : process.env.AUTH_COOKIE_DOMAIN || '.competemath.com';
+
 export const authConfig = {
     pages: {
         signIn: '/auth/login',
@@ -23,7 +36,7 @@ export const authConfig = {
                 path: '/',
                 secure: useSecureCookies,
                 // This tells the browser: "Let subdomains read this too"
-                domain: useSecureCookies ? '.competemath.com' : 'localhost',
+                domain: useSecureCookies ? prodCookieDomain : 'localhost',
             },
         },
     },      

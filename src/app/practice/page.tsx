@@ -140,7 +140,7 @@ export default function PracticePage() {
                   {list.map((p) => (
                     <Link
                       key={p.id}
-                      href={`/archives/problems/${p.id}`}
+                      href={`/practice/problems/${p.id}`}
                       className="group rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent p-5 hover:border-emerald-400/30 transition-all hover:shadow-[0_8px_32px_rgba(16,185,129,0.08)] no-underline"
                     >
                       <div className="flex items-start justify-between gap-3 mb-2">

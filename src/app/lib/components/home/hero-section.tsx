@@ -92,7 +92,7 @@ export function HeroSection() {
 
       {/* Streak badge */}
       {streak > 0 && (
-        <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-500/10 px-4 py-1.5 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2">
+        <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-500/10 px-4 py-1.5 animate-in fade-in slide-in-from-bottom-2">
           <Flame className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
           <span className="font-code text-xs font-medium text-amber-200">
             {streak}-day streak
@@ -102,7 +102,7 @@ export function HeroSection() {
 
       {/* Countdown strip */}
       <div className="mx-auto mt-10 max-w-md">
-        <div className="relative rounded-2xl border border-white/10 bg-[#170a0e]/70 backdrop-blur-xl px-8 py-5 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+        <div className="relative rounded-2xl border border-white/10 bg-[#141013]/92 px-8 py-5 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
           {/* rose hairline along the top */}
           <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-rose-300/50 to-transparent" />
 

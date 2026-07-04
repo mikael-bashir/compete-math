@@ -4,11 +4,10 @@ import Link from "next/link"
 import { useState } from "react"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
-import { Button } from "@/components/ui/button"
-import { Menu, X, LogOut, User, ChevronDown, Globe, Archive, Heart, HomeIcon } from "lucide-react"
+import { LogOut, User, Globe, Heart, LogIn } from "lucide-react"
 
 import { DazzleBadgeEffect } from "../art/badges/effects"
-import { NAV_LINKS } from "../../constants/site"
+import { NAV_LINKS, DONATE_URL } from "../../constants/site"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,159 +18,163 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
+// Ornate, code-themed menu glyph. Closed = a decorated three-bar sigil with a
+// diamond node; open = a diamond-centred X. Swapping on `open` gives the
+// requested state-reactive affordance instead of a plain burger.
+function OrnateMenuGlyph({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={`h-5 w-5 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      aria-hidden
+    >
+      {open ? (
+        <>
+          <path d="M6.5 6.5 L17.5 17.5" />
+          <path d="M17.5 6.5 L6.5 17.5" />
+          <path d="M12 9.6 L14.4 12 L12 14.4 L9.6 12 Z" fill="currentColor" stroke="none" />
+        </>
+      ) : (
+        <>
+          <path d="M4.5 7 H19.5" />
+          <path d="M4.5 12 H14.5" />
+          <path d="M4.5 17 H19.5" />
+          <path d="M18 9.8 L20.2 12 L18 14.2 L15.8 12 Z" fill="currentColor" stroke="none" />
+        </>
+      )}
+    </svg>
+  )
+}
+
 export function UserDisplayer2() {
   const { data: session, status } = useSession()
   const pathname = usePathname()
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
+
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(href + "/")
 
   return (
-    // Fixed container for the navbar
-    <div className="fixed top-0 left-0 right-0 z-50 font-serif">
-
-      {/* Standard Navbar with subtle glass effect */}
-      <nav className="w-full border-b border-white/10 shadow-sm bg-black/40 backdrop-blur-md">
+    // Fixed container for the navbar. Solid (no backdrop-filter) so it doesn't
+    // re-blur the large fixed page background on every scroll frame.
+    <div className="fixed top-0 left-0 right-0 z-50 font-code">
+      <nav className="w-full border-b border-white/10 shadow-sm bg-[#0a0f14]/90">
         <div className="flex justify-center">
           <div className="flex justify-between items-center w-full max-w-7xl px-6 xs:py-4 py-2">
 
-            {/* --- Logo Section --- */}
+            {/* --- Logo --- */}
             <Link href="/" className="flex items-center space-x-3 group">
-              <div className="flex flex-col">
-                <p
-                  className="
-                    font-code font-bold text-[13pt]
-                    bg-linear-to-r from-amber-300 via-yellow-200 to-amber-400
-                    bg-size-[200%_auto]
-                    bg-clip-text text-transparent
-                    [--tw-drop-shadow:drop-shadow(0_0_5px_var(--color-yellow-200))_drop-shadow(0_0_15px_var(--color-amber-400))_drop-shadow(0_0_35px_--theme(--color-amber-600/0.8))]
-                    filter animate-shimmer
-                  "
-                >
-                  CompeteMath
-                </p>
-              </div>
+              <p
+                className="
+                  font-code font-bold text-[13pt]
+                  bg-linear-to-r from-amber-300 via-yellow-200 to-amber-400
+                  bg-size-[200%_auto]
+                  bg-clip-text text-transparent
+                  [--tw-drop-shadow:drop-shadow(0_0_5px_var(--color-yellow-200))_drop-shadow(0_0_15px_var(--color-amber-400))]
+                  filter animate-shimmer
+                "
+              >
+                CompeteMath
+              </p>
             </Link>
 
-            {/* --- Static Navigation Links (desktop) --- */}
+            {/* --- Static desktop nav links --- */}
             <div className="hidden md:flex items-center gap-1">
-              {NAV_LINKS.map((link) => {
-                const active = pathname === link.href || pathname.startsWith(link.href + "/")
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`
-                      font-code text-[13px] px-3.5 py-2 rounded-md transition-all duration-200
-                      ${active
-                        ? "text-emerald-200 bg-emerald-400/10 shadow-[inset_0_-2px_0_rgba(52,211,153,0.6)]"
-                        : "text-white/60 hover:text-white hover:bg-white/5"}
-                    `}
-                  >
-                    {link.label}
-                  </Link>
-                )
-              })}
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`
+                    font-code text-[13px] px-3.5 py-2 rounded-md transition-all duration-200
+                    ${isActive(link.href)
+                      ? "text-emerald-200 bg-emerald-400/10 shadow-[inset_0_-2px_0_rgba(52,211,153,0.6)]"
+                      : "text-white/60 hover:text-white hover:bg-white/5"}
+                  `}
+                >
+                  {link.label}
+                </Link>
+              ))}
             </div>
 
-            {/* --- User Session Area --- */}
-            <div className="flex items-center space-x-2">
-              {/* Mobile menu toggle */}
-              <button
-                onClick={() => setMobileOpen(!mobileOpen)}
-                className="md:hidden p-2 text-white/70 hover:text-white transition-colors"
-                aria-label="Toggle navigation"
-              >
-                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
+            {/* --- Right side: account (auth) or ornate menu (guest) --- */}
+            <div className="flex items-center gap-2">
               {status === "loading" ? (
-                <div className="h-9 w-24 bg-emerald-50/50 animate-pulse rounded-md" />
+                <div className="h-9 w-24 bg-white/5 animate-pulse rounded-md" />
               ) : status === "authenticated" && session?.user ? (
-                
-                /* --- Authenticated: User Dropdown --- */
-                <DropdownMenu>
+
+                /* Authenticated: avatar dropdown (chevron rotates on open) */
+                <DropdownMenu open={accountOpen} onOpenChange={setAccountOpen}>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="flex items-center gap-3 hover:bg-white/10 text-emerald-100 px-2 pl-3 hover:text-white transition-colors"
-                    >
-                      <span className="text-sm font-medium">
+                    <button className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-white/10 text-emerald-100 hover:text-white transition-colors outline-none">
+                      <span className="text-sm font-medium hidden sm:inline">
                         {session.user.username || "User"}
                       </span>
-                      {/* --- THE DAZZLE BADGE --- */}
-                      <div className="relative flex items-center justify-center">
-                        <DazzleBadgeEffect size="48px" color="#10b981">
-                          <Avatar className="h-8 w-8 border border-white/20">
-                            <AvatarImage src={session.user.badgeUrl || "/placeholder.svg"} alt="User" />
-                            <AvatarFallback className="bg-emerald-900/50 text-emerald-200">
-                              {session.user.name?.charAt(0) || "U"}
-                            </AvatarFallback>
-                          </Avatar>
-                        </DazzleBadgeEffect>
-                      </div>
-                      <ChevronDown className="w-4 h-4 text-emerald-400 opacity-70" />
-                    </Button>
+                      <DazzleBadgeEffect size="40px" color="#10b981">
+                        <Avatar className="h-8 w-8 border border-white/20">
+                          <AvatarImage src={session.user.badgeUrl || "/placeholder.svg"} alt="User" />
+                          <AvatarFallback className="bg-emerald-900/50 text-emerald-200">
+                            {session.user.username?.charAt(0)?.toUpperCase() || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                      </DazzleBadgeEffect>
+                      <span className={`transition-transform duration-300 ${accountOpen ? "rotate-90" : ""}`}>
+                        <OrnateMenuGlyph open={false} />
+                      </span>
+                    </button>
                   </DropdownMenuTrigger>
-                  
-                  <DropdownMenuContent align="end" className="w-56 bg-[#0B0F19]/90 backdrop-blur-md border-white/10 text-emerald-50">
+
+                  <DropdownMenuContent align="end" className="w-56 bg-[#0d141b] border-white/10 text-emerald-50">
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none text-emerald-100">
-                          {session.user.name}
+                          {session.user.username}
                         </p>
-                        <p className="text-xs leading-none text-emerald-400/70">
+                        <p className="text-xs leading-none text-emerald-400/70 truncate">
                           {session.user.email}
                         </p>
                       </div>
                     </DropdownMenuLabel>
-                    
+
                     <DropdownMenuSeparator className="bg-white/10" />
 
-                    {/* --- NEW BUTTONS START --- */}
-                    
-                    {/* Global */}
-                    <Link href="/global" className="w-full">
+                    {/* Nav links — shown in-menu on mobile only */}
+                    <div className="md:hidden">
+                      {NAV_LINKS.map((link) => (
+                        <Link key={link.href} href={link.href} className="w-full">
+                          <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
+                            <span>{link.label}</span>
+                          </DropdownMenuItem>
+                        </Link>
+                      ))}
+                      <DropdownMenuSeparator className="bg-white/10" />
+                    </div>
+
+                    <Link href={`/users/${session.user.username}`} className="w-full">
+                      <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
+                        <User className="mr-2 h-4 w-4" />
+                        <span>My Profile</span>
+                      </DropdownMenuItem>
+                    </Link>
+                    <Link href="/account" className="w-full">
                       <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
                         <Globe className="mr-2 h-4 w-4" />
-                        <span>Global</span>
+                        <span>Account &amp; Badges</span>
                       </DropdownMenuItem>
                     </Link>
-
-                    {/* Archives */}
-                    <Link href="/archives" className="w-full">
-                      <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
-                        <Archive className="mr-2 h-4 w-4" />
-                        <span>Archives</span>
-                      </DropdownMenuItem>
-                    </Link>
-
-                    {/* Home */}
-                    <Link href="/home" className="w-full">
-                      <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
-                        <HomeIcon className="mr-2 h-4 w-4" />
-                        <span>Home</span>
-                      </DropdownMenuItem>
-                    </Link>
-
-                    {/* Donate */}
-                    <a href="https://buy.stripe.com/eVq6oGethg9na8B7WD0Jq00" className="w-full">
+                    <a href={DONATE_URL} target="_blank" rel="noreferrer" className="w-full">
                       <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
                         <Heart className="mr-2 h-4 w-4" />
                         <span>Donate</span>
                       </DropdownMenuItem>
                     </a>
 
-                    {/* --- NEW BUTTONS END --- */}
-                    
                     <DropdownMenuSeparator className="bg-white/10" />
-                    
-                    <Link href="/account" className="w-full">
-                      <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
-                        <User className="mr-2 h-4 w-4" />
-                        <span>Profile</span>
-                      </DropdownMenuItem>
-                    </Link>
-                    
-                    <DropdownMenuSeparator className="bg-white/10" />
-                    
+
                     <DropdownMenuItem
                       onClick={() => signOut({ callbackUrl: '/' })}
                       className="text-red-400 focus:bg-red-900/20 focus:text-red-300 cursor-pointer"
@@ -182,58 +185,56 @@ export function UserDisplayer2() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                /* --- Unauthenticated --- */
-                <div>
-                  <div className="items-center space-x-3">
-                    <Link href="/auth/login">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="
-                          rounded-full
-                          text-emerald-100/90
-                          hover:text-white
-                          hover:bg-white/10
-                          transition-all
-                          duration-300
-                          ease-out
-                        "
-                      >
-                        <p className="text-xs">
-                          Sign In
-                        </p>
-                      </Button>
+
+                /* Guest: ornate menu button — holds Sign In + nav + Donate */
+                <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      aria-label="Menu"
+                      className={`
+                        inline-flex items-center justify-center h-10 w-10 rounded-lg border transition-all duration-200 outline-none
+                        ${menuOpen
+                          ? "border-amber-300/50 text-amber-200 bg-amber-400/10 shadow-[0_0_20px_-6px_rgba(251,213,130,0.6)]"
+                          : "border-white/15 text-white/70 hover:text-white hover:border-white/30 hover:bg-white/5"}
+                      `}
+                    >
+                      <OrnateMenuGlyph open={menuOpen} />
+                    </button>
+                  </DropdownMenuTrigger>
+
+                  <DropdownMenuContent align="end" className="w-52 bg-[#0d141b] border-white/10 text-emerald-50">
+                    {/* Nav links — mobile only (desktop has the strip) */}
+                    <div className="md:hidden">
+                      {NAV_LINKS.map((link) => (
+                        <Link key={link.href} href={link.href} className="w-full">
+                          <DropdownMenuItem
+                            className={`focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full ${isActive(link.href) ? "text-emerald-200" : ""}`}
+                          >
+                            <span>{link.label}</span>
+                          </DropdownMenuItem>
+                        </Link>
+                      ))}
+                      <DropdownMenuSeparator className="bg-white/10" />
+                    </div>
+
+                    <Link href="/auth/login" className="w-full">
+                      <DropdownMenuItem className="cursor-pointer w-full text-amber-200 focus:bg-amber-400/10 focus:text-amber-100 font-medium">
+                        <LogIn className="mr-2 h-4 w-4" />
+                        <span>Sign In</span>
+                      </DropdownMenuItem>
                     </Link>
-                  </div>
-                </div>
+                    <a href={DONATE_URL} target="_blank" rel="noreferrer" className="w-full">
+                      <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
+                        <Heart className="mr-2 h-4 w-4" />
+                        <span>Donate</span>
+                      </DropdownMenuItem>
+                    </a>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
           </div>
         </div>
-
-        {/* --- Mobile navigation drawer --- */}
-        {mobileOpen && (
-          <div className="md:hidden border-t border-white/10 bg-black/80 backdrop-blur-lg">
-            <div className="px-6 py-3 flex flex-col">
-              {NAV_LINKS.map((link) => {
-                const active = pathname === link.href || pathname.startsWith(link.href + "/")
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setMobileOpen(false)}
-                    className={`
-                      font-code text-sm px-3 py-3 rounded-md transition-colors
-                      ${active ? "text-emerald-200 bg-emerald-400/10" : "text-white/70 hover:text-white hover:bg-white/5"}
-                    `}
-                  >
-                    {link.label}
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </nav>
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ArrowRight, CheckCircle2, Lightbulb, Sparkles, Loader2, RotateCcw, Lock, Archive } from "lucide-react"
+import { ArrowRight, CheckCircle2, Lightbulb, Loader2, RotateCcw, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import ReactMarkdown from 'react-markdown'
@@ -72,7 +72,7 @@ export function WeeklyProblem() {
 
   if (loading || authStatus === "loading") {
     return (
-      <div className="flex h-64 items-center justify-center rounded-2xl border border-white/[0.08] bg-[#170a0e]/70 backdrop-blur-xl">
+      <div className="flex h-64 items-center justify-center rounded-2xl border border-white/[0.08] bg-[#141013]/92">
         <Loader2 className="h-8 w-8 animate-spin text-white/50" />
       </div>
     )
@@ -80,7 +80,7 @@ export function WeeklyProblem() {
 
   if (!problem) {
     return (
-      <div className="rounded-2xl border border-white/[0.08] bg-[#170a0e]/70 p-8 text-center text-white/60 backdrop-blur-xl">
+      <div className="rounded-2xl border border-white/[0.08] bg-[#141013]/92 p-8 text-center text-white/60">
         Unable to load the problem of the week.
       </div>
     )
@@ -89,7 +89,7 @@ export function WeeklyProblem() {
   const isAuthenticated = authStatus === "authenticated"
 
   return (
-    <div className="relative rounded-2xl border border-white/[0.08] bg-[#170a0e]/70 backdrop-blur-xl transition-all overflow-hidden w-full max-w-full shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+    <div className="relative rounded-2xl border border-white/[0.08] bg-[#141013]/92 transition-all overflow-hidden w-full max-w-full shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
       <div className="absolute top-0 left-10 right-10 h-px bg-gradient-to-r from-transparent via-rose-300/40 to-transparent" />
       <div className="p-6 md:p-8">
         {/* Header */}
@@ -261,13 +261,13 @@ export function WeeklyProblem() {
           )}
         </div>
 
-        {/* Footer: Slick Archive Link */}
+        {/* Footer: link to the full practice pool */}
         <div className="mt-8 flex justify-end pt-4 border-t border-white/5">
-          <Link 
-            href="/archives" 
+          <Link
+            href="/practice"
             className="group flex items-center gap-2 text-sm font-medium text-white/40 hover:text-white transition-colors duration-300"
           >
-            <span className="font-code text-xs">Rest of archives</span>
+            <span className="font-code text-xs">More problems</span>
             <div className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-white/5 transition-all duration-300 group-hover:border-white/30 group-hover:bg-white/10">
               <ArrowRight className="h-3 w-3 -rotate-45 transition-transform duration-300 group-hover:rotate-0" />
             </div>

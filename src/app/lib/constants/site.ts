@@ -11,7 +11,6 @@ export const NAV_LINKS = [
   { label: "Home", href: "/home" },
   { label: "Community", href: "/community" },
   { label: "Practice", href: "/practice" },
-  { label: "Archives", href: "/archives" },
   { label: "Leaderboard", href: "/global" },
 ] as const;
 

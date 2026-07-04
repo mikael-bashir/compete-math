@@ -12,7 +12,6 @@ const LINK_COLUMNS = [
       { label: "Home", href: "/home" },
       { label: "Community", href: "/community" },
       { label: "Practice", href: "/practice" },
-      { label: "Archives", href: "/archives" },
       { label: "Leaderboard", href: "/global" },
     ],
   },

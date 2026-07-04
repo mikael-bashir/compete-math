@@ -119,7 +119,7 @@ export function Leaderboard() {
   }, [])
 
   return (
-    <div className="relative flex flex-col h-full rounded-2xl border border-white/[0.08] bg-[#170a0e]/70 backdrop-blur-xl shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+    <div className="relative flex flex-col h-full rounded-2xl border border-white/[0.08] bg-[#141013]/92 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
       <div className="absolute top-0 left-10 right-10 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent" />
       <div className="p-6">
         <div className="flex items-center justify-between">

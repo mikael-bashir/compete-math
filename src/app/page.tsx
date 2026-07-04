@@ -12,7 +12,9 @@ import Link from "next/link";
 export default function HomePage() {
   return (
     <div className="font-serif">
-      <div className="relative h-screen w-full">
+      {/* bg color = sampled average of true-masterpiece.png; shows as the
+          suspense fallback until the (large) art paints. */}
+      <div className="relative h-screen w-full bg-[#2e2e24]">
         {/* Full Screen Art */}
         <Image
           src={'/images/true-masterpiece.png'}

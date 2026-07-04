@@ -48,8 +48,8 @@ export default function ContributePage() {
         <h2>Spread the word</h2>
         <p className="mt-3">
           Communities thrive on people. Share a problem that stumped you, drag a
-          friend onto the leaderboard, or start a rivalry. The arena is better with
-          you in it.
+          friend onto the leaderboard, or start a rivalry. CompeteMath is better
+          with you in it.
         </p>
       </section>
     </InfoPage>

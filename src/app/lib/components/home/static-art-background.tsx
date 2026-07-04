@@ -1,33 +1,36 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
 
-// Static, art-driven backdrop for the home dashboard. A fixed painting from
-// /public (blood-moon night sky) so the page feels like a deliberate scene
-// rather than a floating widget board. The artwork is already dark, so the
-// overlays stay light: just enough contrast for cards, plus a bottom fade
-// into the footer.
+// Static, art-driven backdrop for the home dashboard. The wrapper is painted
+// with a colour sampled from the artwork (#2f1f1e — the average of
+// blood-night-art.jpg) so that colour is the suspense fallback shown until the
+// large image decodes; the image then fades in over it.
 export function StaticArtBackground({ src = "/images/blood-night-art.jpg" }: { src?: string }) {
+  const [loaded, setLoaded] = useState(false);
+
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#120c10]" aria-hidden>
-      {/* The artwork itself — fixed, non-interactive, fills the viewport */}
+    <div className="fixed inset-0 overflow-hidden bg-[#2f1f1e]" aria-hidden>
       <Image
         src={src}
         alt=""
         fill
         priority
         sizes="100vw"
-        className="object-cover object-center opacity-90"
+        onLoad={() => setLoaded(true)}
+        className={`object-cover object-center opacity-90 transition-opacity duration-700 ${loaded ? "opacity-90" : "opacity-0"}`}
       />
 
-      {/* Gentle top/bottom shaping: keep the crescent moon zone untouched,
-          darken toward the bottom where the content and footer live */}
+      {/* Gentle top/bottom shaping, darkening toward the footer */}
       <div
         className="absolute inset-0"
         style={{
           background: `linear-gradient(to bottom,
-            rgba(18, 12, 16, 0.35) 0%,
-            rgba(18, 12, 16, 0.05) 30%,
-            rgba(18, 12, 16, 0.25) 65%,
-            rgba(18, 12, 16, 0.85) 100%
+            rgba(24, 12, 16, 0.35) 0%,
+            rgba(24, 12, 16, 0.05) 30%,
+            rgba(24, 12, 16, 0.25) 65%,
+            rgba(18, 10, 13, 0.85) 100%
           )`,
         }}
       />
@@ -38,8 +41,8 @@ export function StaticArtBackground({ src = "/images/blood-night-art.jpg" }: { s
         style={{
           background: `radial-gradient(ellipse 90% 75% at 50% 38%,
             transparent 0%,
-            rgba(18, 12, 16, 0.25) 75%,
-            rgba(18, 12, 16, 0.55) 100%
+            rgba(18, 10, 13, 0.25) 75%,
+            rgba(18, 10, 13, 0.55) 100%
           )`,
         }}
       />

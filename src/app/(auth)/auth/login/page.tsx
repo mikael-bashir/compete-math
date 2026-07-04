@@ -3,7 +3,7 @@ import AuthenticationCard from "@/app/lib/components/auth/authentication-card"
 
 export default function Login() {
   return (
-    <div className="w-full min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden">
+    <div className="w-full min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[#7ead92]">
       
       {/* 1. BACKGROUND IMAGE */}
       {/* 'fill' mimics absolute inset-0 w-full h-full */}

@@ -19,10 +19,10 @@ const QUICK_LINKS = [
     text: "Draft problems for the community and battle over solutions.",
   },
   {
-    href: "/archives",
+    href: "/global",
     index: "03",
-    title: "Archives",
-    text: "Every past weekly problem, ready to be conquered.",
+    title: "Leaderboard",
+    text: "See this week's fastest solvers and climb the ranks.",
   },
 ]
 
@@ -44,7 +44,7 @@ export default function HomePage() {
           </div>
 
           {/* Quick navigation — console-menu style */}
-          <div className="mt-8 rounded-2xl border border-white/[0.08] bg-[#170a0e]/70 backdrop-blur-xl shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] divide-y divide-white/[0.06] mb-10 overflow-hidden">
+          <div className="mt-8 rounded-2xl border border-white/[0.08] bg-[#141013]/92 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] divide-y divide-white/[0.06] mb-10 overflow-hidden">
             {QUICK_LINKS.map((q) => (
               <Link
                 key={q.href}
