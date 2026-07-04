@@ -1,6 +1,7 @@
 'use client';
 
 import FullMoon from "@/components/art/moon";
+import Image from "next/image";
 import { Trophy, Users, Library, ShieldCheck, Star, BrainCircuit, ArrowRight } from "lucide-react"; 
 import Link from "next/link";
 
@@ -14,18 +15,19 @@ export default function HomePage() {
       {/* bg color = sampled average of true-masterpiece.png; shows as the
           suspense fallback until the (large) art paints. */}
       <div className="relative h-screen w-full bg-[#2e2e24]">
-        {/* LAG TEST: full-screen art temporarily disabled — flat colour only.
-            Restore this <Image> once we've ruled out the background. */}
-        {/* <Image
+        {/* Full Screen Art */}
+        <Image
           src={'/images/true-masterpiece.png'}
           alt="A dark sky with a bright full moon and wispy clouds"
-          fill
-          style={{ objectFit: 'cover' }}
+          fill // This prop makes the image fill its parent container
+          style={{
+            objectFit: 'cover', // This prevents the image from stretching/distorting
+          }}
           sizes="100vw"
           quality={100}
           unoptimized
           priority
-        /> */}
+        />
 
         {/* Overlay Content */}
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-4">

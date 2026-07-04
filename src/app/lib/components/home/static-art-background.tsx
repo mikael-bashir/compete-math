@@ -1,21 +1,26 @@
-// Static, art-driven backdrop for the home dashboard.
-//
-// LAG TEST (temporary): the art <Image> is commented out and we render a FLAT
-// colour (#2f1f1e — the sampled average of blood-night-art.jpg) instead, to
-// check whether the fixed full-screen image is the source of the scroll jank.
-// To restore the art: re-enable the <Image> below and re-add `import Image`.
+"use client";
 
-export function StaticArtBackground(_props: { src?: string } = {}) {
+import { useState } from "react";
+import Image from "next/image";
+
+// Static, art-driven backdrop for the home dashboard. The wrapper is painted
+// with a colour sampled from the artwork (#2f1f1e — the average of
+// blood-night-art.jpg) so that colour is the suspense fallback shown until the
+// large image decodes; the image then fades in over it.
+export function StaticArtBackground({ src = "/images/blood-night-art.jpg" }: { src?: string }) {
+  const [loaded, setLoaded] = useState(false);
+
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#2f1f1e]" aria-hidden>
-      {/* <Image
+      <Image
         src={src}
         alt=""
         fill
         priority
         sizes="100vw"
-        className="object-cover object-center opacity-90"
-      /> */}
+        onLoad={() => setLoaded(true)}
+        className={`object-cover object-center opacity-90 transition-opacity duration-700 ${loaded ? "opacity-90" : "opacity-0"}`}
+      />
 
       {/* Gentle top/bottom shaping, darkening toward the footer */}
       <div
