@@ -64,7 +64,7 @@ export default function PracticePage() {
   const hasFilters = topic || difficulty || knowledge;
 
   const selectCls =
-    "font-code bg-[#121a22] border border-white/10 rounded-md px-2.5 py-1.5 text-[13px] text-white/70 focus:outline-none focus:border-emerald-400/50";
+    "font-code bg-[#121a22] border border-white/10 rounded px-2 py-1 text-[12px] text-white/70 focus:outline-none focus:border-emerald-400/50";
 
   return (
     <div className="min-h-screen bg-[#0a0f14] pt-24 pb-24">

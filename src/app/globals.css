@@ -132,14 +132,19 @@
 
 /* ---------------------------------------------------------------------------
    APPLICATION-WIDE CODE FONT
-   One font everywhere (Source Code Pro / AoC aesthetic). This must be a real
-   rule, not just a theme-token remap, because the atomix stylesheet hardcodes
-   font-family (Roboto / serif stacks) on body and headings with element
-   selectors. The :not() guards leave KaTeX's own fonts alone — rendered math
-   must keep its proper typesetting.
+   One font everywhere (Source Code Pro / AoC aesthetic). We only need to beat
+   the exact element selectors the atomix stylesheet hardcodes a font on; every
+   other element inherits the code font from `body`. KaTeX is preserved for free
+   because its `.katex` class rules outrank these plain element selectors.
+
+   IMPORTANT (perf): do NOT use a broad `:not(.katex *)` selector here — that
+   forces ancestor-walking style recalc that scales with the number of math
+   nodes and made KaTeX-heavy pages ~5x slower to recalc on scroll/hover.
    ------------------------------------------------------------------------- */
 body,
-body :not(.katex):not(.katex *) {
+h1, h2, h3, h4, h5, h6,
+button, input, optgroup, select, textarea,
+code, kbd, pre, samp {
   font-family: var(--font-code);
 }
 

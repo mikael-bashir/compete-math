@@ -160,7 +160,7 @@ export default function CommunityPage() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`font-code px-3 py-1.5 rounded-md text-[13px] transition-colors ${
+              className={`font-code px-2.5 py-1 rounded text-[12px] transition-colors ${
                 tab === t.id
                   ? "bg-white/10 text-white"
                   : "text-white/45 hover:text-white hover:bg-white/5"
@@ -172,7 +172,7 @@ export default function CommunityPage() {
           <select
             value={topicFilter}
             onChange={(e) => setTopicFilter(e.target.value)}
-            className="ml-auto font-code bg-[#121a22] border border-white/10 rounded-md px-2.5 py-1.5 text-[13px] text-white/70 focus:outline-none focus:border-emerald-400/50"
+            className="ml-auto font-code bg-[#121a22] border border-white/10 rounded px-2 py-1 text-[12px] text-white/70 focus:outline-none focus:border-emerald-400/50"
           >
             <option value="">All topics</option>
             {PROBLEM_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -193,48 +193,51 @@ export default function CommunityPage() {
             </p>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 gap-2.5">
+          <div className="flex flex-col gap-1.5">
             {problems.map((p) => (
               <div
                 key={p.id}
-                className="rounded-lg border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.045] hover:border-white/15 transition-colors"
+                className="rounded-md border border-white/[0.06] bg-white/[0.015] hover:bg-white/[0.04] hover:border-white/[0.12] transition-colors"
               >
-                {/* Whole card is the link to the problem */}
-                <Link href={`/community/${p.id}`} className="block px-4 py-3.5 no-underline">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="font-code text-[15px] font-medium text-white! leading-snug">
+                {/* Whole card is the link — a single thin full-width row */}
+                <Link
+                  href={`/community/${p.id}`}
+                  className="flex items-center justify-between gap-4 px-4 py-2.5 no-underline"
+                >
+                  <span className="flex items-center gap-3 min-w-0">
+                    <span className="font-code text-[13px] font-medium text-white! truncate">
                       {p.title}
-                    </h3>
-                    <span className={`font-code shrink-0 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border ${DIFFICULTY_COLORS[p.difficulty] || DIFFICULTY_COLORS.Medium}`}>
+                    </span>
+                    <span className={`font-code shrink-0 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${DIFFICULTY_COLORS[p.difficulty] || DIFFICULTY_COLORS.Medium}`}>
                       {p.difficulty}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 mt-3">
+                  </span>
+                  <span className="flex items-center gap-3 shrink-0 font-code text-[11px] text-white/35">
                     <UserChip username={p.author_username} badgeUrl={p.author_badge} size="sm" />
-                    <span className="font-code text-[11px] text-white/35 whitespace-nowrap">
-                      {p.topic} · {p.answer_count} answer{p.answer_count === 1 ? "" : "s"}
+                    <span className="hidden sm:inline whitespace-nowrap">
+                      {p.topic} · {p.answer_count}
                     </span>
-                  </div>
+                  </span>
                 </Link>
 
                 {tab === "review" && (
-                  <div className="flex gap-2 px-4 pb-3.5">
+                  <div className="flex gap-2 px-4 pb-2.5">
                     <button
                       onClick={() => reviewAction(p.id, "approve")}
-                      className="font-code flex-1 py-1.5 rounded-md bg-emerald-500/15 border border-emerald-400/40 text-emerald-200 text-xs hover:bg-emerald-500/25 transition-colors"
+                      className="font-code flex-1 py-1 rounded bg-emerald-500/15 border border-emerald-400/40 text-emerald-200 text-xs hover:bg-emerald-500/25 transition-colors"
                     >
                       Approve
                     </button>
                     <button
                       onClick={() => reviewAction(p.id, "reject")}
-                      className="font-code flex-1 py-1.5 rounded-md bg-rose-500/10 border border-rose-400/30 text-rose-300 text-xs hover:bg-rose-500/20 transition-colors"
+                      className="font-code flex-1 py-1 rounded bg-rose-500/10 border border-rose-400/30 text-rose-300 text-xs hover:bg-rose-500/20 transition-colors"
                     >
                       Reject
                     </button>
                   </div>
                 )}
                 {tab === "drafts" && (
-                  <p className="font-code px-4 pb-3 text-[11px] text-amber-300/70">
+                  <p className="font-code px-4 pb-2 text-[11px] text-amber-300/70">
                     awaiting admin review
                   </p>
                 )}
