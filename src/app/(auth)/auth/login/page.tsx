@@ -1,22 +1,20 @@
-import Image from "next/image"
 import AuthenticationCard from "@/app/lib/components/auth/authentication-card"
 
 export default function Login() {
   return (
     <div className="w-full min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[#7ead92]">
       
-      {/* 1. BACKGROUND IMAGE */}
-      {/* 'fill' mimics absolute inset-0 w-full h-full */}
-      {/* 'object-cover' ensures it covers the screen without stretching */}
-      <Image
+      {/* LAG TEST: background art temporarily disabled — flat colour only
+          (greenery_a.png is ~7.8 MB unoptimized). Restore once ruled out. */}
+      {/* <Image
         src="/images/greenery_a.png"
         alt="Login Background"
         fill
         className="object-cover"
-        priority // Load this immediately (it's the biggest paint)
-        quality={100} // High fidelity for art
+        priority
+        quality={100}
         unoptimized
-      />
+      /> */}
 
       {/* 2. OVERLAY */}
       {/* Sit on top of the image but behind the content */}

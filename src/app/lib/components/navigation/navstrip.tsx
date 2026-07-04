@@ -63,20 +63,17 @@ export function UserDisplayer2() {
     // Fixed container for the navbar. Solid (no backdrop-filter) so it doesn't
     // re-blur the large fixed page background on every scroll frame.
     <div className="fixed top-0 left-0 right-0 z-50 font-code">
-      <nav className="w-full border-b border-white/10 shadow-sm bg-[#0a0f14]/90">
+      <nav className="w-full border-b border-white/[0.06] bg-gradient-to-b from-[#0a0f14]/80 to-[#0a0f14]/25">
         <div className="flex justify-center">
           <div className="flex justify-between items-center w-full max-w-7xl px-6 xs:py-4 py-2">
 
-            {/* --- Logo --- */}
+            {/* --- Logo (static gradient — no per-frame shimmer/drop-shadow) --- */}
             <Link href="/" className="flex items-center space-x-3 group">
               <p
                 className="
                   font-code font-bold text-[13pt]
                   bg-linear-to-r from-amber-300 via-yellow-200 to-amber-400
-                  bg-size-[200%_auto]
                   bg-clip-text text-transparent
-                  [--tw-drop-shadow:drop-shadow(0_0_5px_var(--color-yellow-200))_drop-shadow(0_0_15px_var(--color-amber-400))]
-                  filter animate-shimmer
                 "
               >
                 CompeteMath

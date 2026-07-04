@@ -4,10 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import {
-  PenLine, MessagesSquare, ShieldCheck, Eye, Send, X,
-  CheckCircle2, XCircle, Loader2, Sparkles, Filter,
-} from "lucide-react";
+import { Eye, Send, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { MathMarkdown } from "../lib/components/community/math-markdown";
 import { UserChip } from "../lib/components/community/user-chip";
@@ -122,11 +119,9 @@ export default function CommunityPage() {
   };
 
   const tabs = useMemo(() => {
-    const base: { id: Tab; label: string; icon: React.ElementType }[] = [
-      { id: "browse", label: "Browse", icon: MessagesSquare },
-    ];
-    if (status === "authenticated") base.push({ id: "drafts", label: "My Drafts", icon: PenLine });
-    if (isAdmin) base.push({ id: "review", label: "Review Queue", icon: ShieldCheck });
+    const base: { id: Tab; label: string }[] = [{ id: "browse", label: "Browse" }];
+    if (status === "authenticated") base.push({ id: "drafts", label: "My Drafts" });
+    if (isAdmin) base.push({ id: "review", label: "Review Queue" });
     return base;
   }, [status, isAdmin]);
 
@@ -153,40 +148,35 @@ export default function CommunityPage() {
               if (status !== "authenticated") { router.push("/auth/login"); return; }
               setShowDraft(true);
             }}
-            className="font-code inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-emerald-500/90 hover:bg-emerald-400 text-black font-semibold text-sm transition-all hover:shadow-[0_0_30px_rgba(16,185,129,0.4)] active:scale-95 self-start"
+            className="font-code px-4 py-2 rounded-md bg-emerald-500/90 hover:bg-emerald-400 text-black font-medium text-[13px] transition-colors active:scale-95 self-start"
           >
-            <Sparkles className="w-4 h-4" />
             Draft a Problem
           </button>
         </div>
 
         {/* Tabs + topic filter */}
-        <div className="flex flex-wrap items-center gap-3 mb-8 border-b border-white/10 pb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-6 border-b border-white/10 pb-3">
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`font-code inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors ${
+              className={`font-code px-3 py-1.5 rounded-md text-[13px] transition-colors ${
                 tab === t.id
-                  ? "bg-white/10 text-white border border-white/20"
-                  : "text-white/50 hover:text-white hover:bg-white/5 border border-transparent"
+                  ? "bg-white/10 text-white"
+                  : "text-white/45 hover:text-white hover:bg-white/5"
               }`}
             >
-              <t.icon className="w-4 h-4" />
               {t.label}
             </button>
           ))}
-          <div className="ml-auto flex items-center gap-2">
-            <Filter className="w-4 h-4 text-white/40" />
-            <select
-              value={topicFilter}
-              onChange={(e) => setTopicFilter(e.target.value)}
-              className="font-code bg-[#121a22] border border-white/10 rounded-md px-3 py-2 text-sm text-white/80 focus:outline-none focus:border-emerald-400/50"
-            >
-              <option value="">All topics</option>
-              {PROBLEM_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
+          <select
+            value={topicFilter}
+            onChange={(e) => setTopicFilter(e.target.value)}
+            className="ml-auto font-code bg-[#121a22] border border-white/10 rounded-md px-2.5 py-1.5 text-[13px] text-white/70 focus:outline-none focus:border-emerald-400/50"
+          >
+            <option value="">All topics</option>
+            {PROBLEM_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
         </div>
 
         {/* Problem grid */}
@@ -203,57 +193,49 @@ export default function CommunityPage() {
             </p>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 gap-5">
+          <div className="grid md:grid-cols-2 gap-2.5">
             {problems.map((p) => (
               <div
                 key={p.id}
-                className="group relative rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent p-6 hover:border-emerald-400/30 transition-all hover:shadow-[0_8px_40px_rgba(16,185,129,0.08)]"
+                className="rounded-lg border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.045] hover:border-white/15 transition-colors"
               >
-                <div className="flex items-start justify-between gap-4 mb-3">
-                  <Link href={`/community/${p.id}`} className="no-underline">
-                    <h3 className="font-code text-lg font-semibold text-white! group-hover:text-emerald-200! transition-colors leading-snug">
+                {/* Whole card is the link to the problem */}
+                <Link href={`/community/${p.id}`} className="block px-4 py-3.5 no-underline">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-code text-[15px] font-medium text-white! leading-snug">
                       {p.title}
                     </h3>
-                  </Link>
-                  <span className={`font-code shrink-0 text-[10px] uppercase tracking-wider px-2 py-1 rounded border ${DIFFICULTY_COLORS[p.difficulty] || DIFFICULTY_COLORS.Medium}`}>
-                    {p.difficulty}
-                  </span>
-                </div>
-
-                <div className="text-white/60 text-sm line-clamp-3 mb-4 min-h-[3.5rem]">
-                  <MathMarkdown>{p.statement.length > 240 ? p.statement.slice(0, 240) + "…" : p.statement}</MathMarkdown>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                  <UserChip username={p.author_username} badgeUrl={p.author_badge} size="sm" />
-                  <div className="flex items-center gap-3 text-white/40 text-xs font-code">
-                    <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10">{p.topic}</span>
-                    <Link href={`/community/${p.id}`} className="inline-flex items-center gap-1 hover:text-emerald-300 transition-colors">
-                      <MessagesSquare className="w-3.5 h-3.5" /> {p.answer_count}
-                    </Link>
+                    <span className={`font-code shrink-0 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border ${DIFFICULTY_COLORS[p.difficulty] || DIFFICULTY_COLORS.Medium}`}>
+                      {p.difficulty}
+                    </span>
                   </div>
-                </div>
+                  <div className="flex items-center justify-between gap-3 mt-3">
+                    <UserChip username={p.author_username} badgeUrl={p.author_badge} size="sm" />
+                    <span className="font-code text-[11px] text-white/35 whitespace-nowrap">
+                      {p.topic} · {p.answer_count} answer{p.answer_count === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                </Link>
 
-                {/* Admin review controls */}
                 {tab === "review" && (
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex gap-2 px-4 pb-3.5">
                     <button
                       onClick={() => reviewAction(p.id, "approve")}
-                      className="font-code flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-md bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs hover:bg-emerald-500/30 transition-colors"
+                      className="font-code flex-1 py-1.5 rounded-md bg-emerald-500/15 border border-emerald-400/40 text-emerald-200 text-xs hover:bg-emerald-500/25 transition-colors"
                     >
-                      <CheckCircle2 className="w-4 h-4" /> Approve
+                      Approve
                     </button>
                     <button
                       onClick={() => reviewAction(p.id, "reject")}
-                      className="font-code flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-md bg-rose-500/10 border border-rose-400/30 text-rose-300 text-xs hover:bg-rose-500/20 transition-colors"
+                      className="font-code flex-1 py-1.5 rounded-md bg-rose-500/10 border border-rose-400/30 text-rose-300 text-xs hover:bg-rose-500/20 transition-colors"
                     >
-                      <XCircle className="w-4 h-4" /> Reject
+                      Reject
                     </button>
                   </div>
                 )}
                 {tab === "drafts" && (
-                  <p className="font-code mt-3 text-[11px] text-amber-300/70">
-                    ⧗ awaiting admin review
+                  <p className="font-code px-4 pb-3 text-[11px] text-amber-300/70">
+                    awaiting admin review
                   </p>
                 )}
               </div>

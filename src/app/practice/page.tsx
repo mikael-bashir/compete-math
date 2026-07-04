@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Loader2, CheckCircle2, Circle, SlidersHorizontal, Swords, RotateCcw,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   PROBLEM_TOPICS, DIFFICULTY_LEVELS, KNOWLEDGE_LEVELS,
 } from "../lib/constants/site";
@@ -66,7 +64,7 @@ export default function PracticePage() {
   const hasFilters = topic || difficulty || knowledge;
 
   const selectCls =
-    "font-code bg-[#121a22] border border-white/10 rounded-md px-3 py-2 text-sm text-white/80 focus:outline-none focus:border-emerald-400/50";
+    "font-code bg-[#121a22] border border-white/10 rounded-md px-2.5 py-1.5 text-[13px] text-white/70 focus:outline-none focus:border-emerald-400/50";
 
   return (
     <div className="min-h-screen bg-[#0a0f14] pt-24 pb-24">
@@ -92,8 +90,7 @@ export default function PracticePage() {
         </div>
 
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-3 mb-10 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
-          <SlidersHorizontal className="w-4 h-4 text-white/40" />
+        <div className="flex flex-wrap items-center gap-2 mb-8">
           <select value={topic} onChange={(e) => setTopic(e.target.value)} className={selectCls}>
             <option value="">All topics</option>
             {PROBLEM_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -112,9 +109,9 @@ export default function PracticePage() {
           {hasFilters && (
             <button
               onClick={() => { setTopic(""); setDifficulty(""); setKnowledge(""); }}
-              className="font-code inline-flex items-center gap-1.5 text-xs text-white/40 hover:text-white transition-colors ml-auto"
+              className="font-code text-[13px] text-white/40 hover:text-white transition-colors ml-auto"
             >
-              <RotateCcw className="w-3.5 h-3.5" /> Reset
+              Reset
             </button>
           )}
         </div>
@@ -134,38 +131,38 @@ export default function PracticePage() {
           <div className="space-y-12">
             {grouped.map(([topicName, list]) => (
               <section key={topicName}>
-                <div className="flex items-center gap-3 mb-5">
-                  <Swords className="w-5 h-5 text-emerald-400/70" />
-                  <h2 className="font-code text-xl text-white! font-semibold">{topicName}</h2>
-                  <span className="font-code text-xs text-white/30">{list.length} problem{list.length === 1 ? "" : "s"}</span>
-                  <div className="h-px flex-1 bg-white/10" />
+                <div className="flex items-center gap-3 mb-3">
+                  <h2 className="font-code text-sm text-white/80 font-medium uppercase tracking-wider">{topicName}</h2>
+                  <span className="font-code text-xs text-white/25">{list.length}</span>
+                  <div className="h-px flex-1 bg-white/[0.07]" />
                 </div>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2.5">
                   {list.map((p) => (
                     <Link
                       key={p.id}
                       href={`/practice/problems/${p.id}`}
-                      className="group rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent p-5 hover:border-emerald-400/30 transition-all hover:shadow-[0_8px_32px_rgba(16,185,129,0.08)] no-underline"
+                      className={`rounded-lg border px-4 py-3 no-underline transition-colors ${
+                        p.isSolved
+                          ? "border-emerald-400/20 bg-emerald-400/[0.04] hover:border-emerald-400/40"
+                          : "border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.045] hover:border-white/15"
+                      }`}
                     >
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <h3 className="font-code text-sm font-semibold text-white! group-hover:text-emerald-200! transition-colors leading-snug">
+                      <div className="flex items-start justify-between gap-3 mb-2.5">
+                        <h3 className="font-code text-[13px] font-medium text-white! leading-snug">
                           {p.title}
                         </h3>
-                        {p.isSolved
-                          ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" aria-label="Solved" />
-                          : <Circle className="w-4 h-4 shrink-0 text-white/15" aria-label="Unsolved" />}
+                        {p.isSolved && (
+                          <span className="font-code shrink-0 text-[10px] uppercase tracking-wider text-emerald-300">solved</span>
+                        )}
                       </div>
-                      {p.subtitle && (
-                        <p className="text-white/45 text-xs leading-relaxed line-clamp-2 mb-3">{p.subtitle}</p>
-                      )}
-                      <div className="flex items-center gap-2 font-code text-[10px] uppercase tracking-wider">
+                      <div className="flex items-center gap-1.5 font-code text-[10px] uppercase tracking-wider">
                         {p.difficulty && (
-                          <span className={`px-2 py-0.5 rounded border ${DIFFICULTY_COLORS[p.difficulty] || "text-white/50 border-white/10 bg-white/5"}`}>
+                          <span className={`px-1.5 py-0.5 rounded border ${DIFFICULTY_COLORS[p.difficulty] || "text-white/50 border-white/10 bg-white/5"}`}>
                             {p.difficulty}
                           </span>
                         )}
                         {p.knowledge && p.knowledge !== "None" && (
-                          <span className="px-2 py-0.5 rounded border border-white/10 bg-white/5 text-white/50">
+                          <span className="px-1.5 py-0.5 rounded border border-white/10 bg-white/5 text-white/45">
                             {p.knowledge}
                           </span>
                         )}
