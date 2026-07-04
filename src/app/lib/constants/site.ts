@@ -26,12 +26,39 @@ export const PROBLEM_TOPICS = [
 
 export const DIFFICULTY_LEVELS = ["Easy", "Medium", "Hard", "Insane"] as const;
 
-export const KNOWLEDGE_LEVELS = [
-  "None",
-  "High School",
-  "Olympiad",
-  "Undergraduate",
+// Knowledge is expressed as a 1–5 "level" scale describing the prerequisite
+// mathematical maturity, not the difficulty of the puzzle itself.
+export const LEVELS = [
+  {
+    value: "Level 1",
+    short: "Foundational",
+    blurb:
+      "A first-year primary school student would technically have the base knowledge to attempt it.",
+  },
+  {
+    value: "Level 2",
+    short: "Early secondary",
+    blurb: "Knowledge content up to early high / secondary school.",
+  },
+  {
+    value: "Level 3",
+    short: "Sixth form / college",
+    blurb: "Knowledge up to the end of sixth form / college.",
+  },
+  {
+    value: "Level 4",
+    short: "One advanced concept",
+    blurb: "A challenge built around a single advanced, university-level concept.",
+  },
+  {
+    value: "Level 5",
+    short: "Multiple advanced concepts",
+    blurb: "Several advanced concepts combined together in one problem.",
+  },
 ] as const;
+
+// Plain list of level values for <select> options and filters.
+export const KNOWLEDGE_LEVELS = LEVELS.map((l) => l.value);
 
 export const DONATE_URL = "https://buy.stripe.com/eVq6oGethg9na8B7WD0Jq00";
 export const GITHUB_URL = "https://github.com/mikael-bashir/compete-math";

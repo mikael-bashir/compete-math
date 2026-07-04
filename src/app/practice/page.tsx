@@ -8,6 +8,7 @@ import {
 import {
   PROBLEM_TOPICS, DIFFICULTY_LEVELS, KNOWLEDGE_LEVELS,
 } from "../lib/constants/site";
+import { LevelInfo } from "../lib/components/level-info";
 
 interface PracticeProblem {
   id: number;
@@ -15,7 +16,7 @@ interface PracticeProblem {
   subtitle: string | null;
   difficulty: string | null;
   topic: string;
-  knowledge: string;
+  knowledge: string | null;
   isSolved: boolean;
 }
 
@@ -81,7 +82,7 @@ export default function PracticePage() {
           </h1>
           <p className="text-white/50 mt-3 max-w-xl text-sm leading-relaxed">
             Freshly generated problems, sorted by concept. Filter by difficulty and
-            required knowledge, then grind your way up the ranks.
+            knowledge level, then grind your way up the ranks.
           </p>
           {problems.length > 0 && (
             <p className="font-code text-xs text-emerald-300/70 mt-3">
@@ -101,10 +102,13 @@ export default function PracticePage() {
             <option value="">Any difficulty</option>
             {DIFFICULTY_LEVELS.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
-          <select value={knowledge} onChange={(e) => setKnowledge(e.target.value)} className={selectCls}>
-            <option value="">Any knowledge</option>
-            {KNOWLEDGE_LEVELS.map((k) => <option key={k} value={k}>{k}</option>)}
-          </select>
+          <span className="inline-flex items-center gap-1.5">
+            <select value={knowledge} onChange={(e) => setKnowledge(e.target.value)} className={selectCls}>
+              <option value="">Any level</option>
+              {KNOWLEDGE_LEVELS.map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
+            <LevelInfo />
+          </span>
           {hasFilters && (
             <button
               onClick={() => { setTopic(""); setDifficulty(""); setKnowledge(""); }}
@@ -160,7 +164,7 @@ export default function PracticePage() {
                             {p.difficulty}
                           </span>
                         )}
-                        {p.knowledge !== "None" && (
+                        {p.knowledge && p.knowledge !== "None" && (
                           <span className="px-2 py-0.5 rounded border border-white/10 bg-white/5 text-white/50">
                             {p.knowledge}
                           </span>

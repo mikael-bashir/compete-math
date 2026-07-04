@@ -20,7 +20,7 @@ export async function POST() {
         proposed_answer TEXT,
         topic TEXT NOT NULL DEFAULT 'Algebra',
         difficulty TEXT NOT NULL DEFAULT 'Medium',
-        knowledge TEXT NOT NULL DEFAULT 'None',
+        knowledge TEXT,
         status TEXT NOT NULL DEFAULT 'pending',
         author_username TEXT NOT NULL,
         review_note TEXT,

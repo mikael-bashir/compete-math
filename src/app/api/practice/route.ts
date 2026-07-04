@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
         q.subtitle,
         q.difficulty,
         COALESCE(q.topic, 'General') AS topic,
-        COALESCE(q.knowledge, 'None') AS knowledge,
+        q.knowledge AS knowledge,
         (${userId}::text IS NOT NULL AND EXISTS (
           SELECT 1 FROM submissions s
           WHERE s."questionId" = q."questionId"

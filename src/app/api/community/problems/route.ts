@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         (title, statement, proposed_answer, topic, difficulty, knowledge, status, author_username)
       VALUES
         (${title.trim()}, ${statement.trim()}, ${proposedAnswer ?? null},
-         ${topic || "Algebra"}, ${difficulty || "Medium"}, ${knowledge || "None"},
+         ${topic || "Algebra"}, ${difficulty || "Medium"}, ${knowledge || null},
          'pending', ${session.user.username})
       RETURNING id;
     `;

@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import { MathMarkdown } from "@/app/lib/components/community/math-markdown";
 import { UserChip } from "@/app/lib/components/community/user-chip";
+import { LevelInfo } from "@/app/lib/components/level-info";
 
 interface Answer {
   id: number;
@@ -201,7 +202,12 @@ export default function CommunityProblemPage({
           <div className="flex flex-wrap items-center gap-2 mb-4 font-code text-[11px] uppercase tracking-wider">
             <span className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/60">{problem.topic}</span>
             <span className="px-2 py-1 rounded bg-amber-400/10 border border-amber-400/30 text-amber-300">{problem.difficulty}</span>
-            <span className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/60">req: {problem.knowledge}</span>
+            {problem.knowledge && problem.knowledge !== "None" && (
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 border border-white/10 text-white/60">
+                {problem.knowledge}
+                <LevelInfo align="left" />
+              </span>
+            )}
           </div>
           <h1 className="font-code text-3xl md:text-4xl font-bold text-white! mb-6">{problem.title}</h1>
           <div className="text-white/85">

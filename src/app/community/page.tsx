@@ -14,6 +14,7 @@ import { UserChip } from "../lib/components/community/user-chip";
 import {
   PROBLEM_TOPICS, DIFFICULTY_LEVELS, KNOWLEDGE_LEVELS, isAdminEmail,
 } from "../lib/constants/site";
+import { LevelInfo } from "../lib/components/level-info";
 
 interface CommunityProblem {
   id: number;
@@ -56,7 +57,7 @@ export default function CommunityPage() {
   const [proposedAnswer, setProposedAnswer] = useState("");
   const [topic, setTopic] = useState<string>(PROBLEM_TOPICS[0]);
   const [difficulty, setDifficulty] = useState<string>("Medium");
-  const [knowledge, setKnowledge] = useState<string>("None");
+  const [knowledge, setKnowledge] = useState<string>("Level 2");
   const [preview, setPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -292,12 +293,15 @@ export default function CommunityPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {[
-                  { label: "Topic", value: topic, set: setTopic, options: PROBLEM_TOPICS },
-                  { label: "Difficulty", value: difficulty, set: setDifficulty, options: DIFFICULTY_LEVELS },
-                  { label: "Knowledge", value: knowledge, set: setKnowledge, options: KNOWLEDGE_LEVELS },
+                  { label: "Topic", value: topic, set: setTopic, options: PROBLEM_TOPICS, info: false },
+                  { label: "Difficulty", value: difficulty, set: setDifficulty, options: DIFFICULTY_LEVELS, info: false },
+                  { label: "Level", value: knowledge, set: setKnowledge, options: KNOWLEDGE_LEVELS, info: true },
                 ].map((f) => (
                   <label key={f.label} className="flex flex-col gap-1.5">
-                    <span className="font-code text-[10px] uppercase tracking-widest text-white/40">{f.label}</span>
+                    <span className="font-code text-[10px] uppercase tracking-widest text-white/40 inline-flex items-center gap-1.5">
+                      {f.label}
+                      {f.info && <LevelInfo align="left" />}
+                    </span>
                     <select
                       value={f.value}
                       onChange={(e) => f.set(e.target.value)}
