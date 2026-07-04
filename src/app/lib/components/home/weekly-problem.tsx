@@ -72,7 +72,7 @@ export function WeeklyProblem() {
 
   if (loading || authStatus === "loading") {
     return (
-      <div className="flex h-64 items-center justify-center rounded-2xl border border-white/10 bg-black/20 backdrop-blur-md">
+      <div className="flex h-64 items-center justify-center rounded-2xl border border-white/[0.08] bg-[#170a0e]/70 backdrop-blur-xl">
         <Loader2 className="h-8 w-8 animate-spin text-white/50" />
       </div>
     )
@@ -80,7 +80,7 @@ export function WeeklyProblem() {
 
   if (!problem) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-8 text-center text-white/60 backdrop-blur-md">
+      <div className="rounded-2xl border border-white/[0.08] bg-[#170a0e]/70 p-8 text-center text-white/60 backdrop-blur-xl">
         Unable to load the problem of the week.
       </div>
     )
@@ -89,18 +89,18 @@ export function WeeklyProblem() {
   const isAuthenticated = authStatus === "authenticated"
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-black/20 backdrop-blur-md transition-all overflow-hidden w-full max-w-full shadow-2xl shadow-black/40">
+    <div className="relative rounded-2xl border border-white/[0.08] bg-[#170a0e]/70 backdrop-blur-xl transition-all overflow-hidden w-full max-w-full shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+      <div className="absolute top-0 left-10 right-10 h-px bg-gradient-to-r from-transparent via-rose-300/40 to-transparent" />
       <div className="p-6 md:p-8">
         {/* Header */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="h-4 w-4 text-emerald-400" />
-                <p className="text-xs font-bold uppercase tracking-widest text-emerald-400/80">Problem of the Week</p>
-              </div>
+              <p className="font-code text-[10px] tracking-[0.3em] uppercase text-rose-300/70 mb-3">
+                // problem of the week
+              </p>
               {/* Using P tag instead of H tag for strict styling control */}
-              <p className="font-serif text-3xl font-medium text-white wrap-break-words leading-tight">
+              <p className="font-code text-2xl md:text-3xl font-semibold text-white wrap-break-words leading-tight">
                 {problem.title}
               </p>
               <p className="mt-2 text-sm text-white/60">{problem.subtitle}</p>
@@ -109,11 +109,11 @@ export function WeeklyProblem() {
             {/* Badges: Dark on White for readability */}
             <div className="flex items-center gap-2 self-start shrink-0">
               {problem.difficulty && (
-                <div className="rounded-full bg-white px-3 py-1 text-xs font-bold text-black capitalize shadow-sm">
+                <div className="font-code rounded-md border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-[11px] uppercase tracking-wider text-rose-200 capitalize">
                   {problem.difficulty}
                 </div>
               )}
-              <div className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-black whitespace-nowrap shadow-sm">
+              <div className="font-code rounded-md border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-[11px] uppercase tracking-wider text-amber-200 whitespace-nowrap">
                 {problem.points} pts
               </div>
             </div>
@@ -121,7 +121,7 @@ export function WeeklyProblem() {
         </div>
 
         {/* Problem statement */}
-        <div className="mt-8 rounded-2xl bg-white/5 border border-white/5 p-6 overflow-hidden">
+        <div className="mt-7 rounded-xl bg-black/30 border border-white/[0.06] p-6 overflow-hidden">
           <div className="prose prose-invert max-w-none wrap-break-words">
             <ReactMarkdown 
               remarkPlugins={[remarkMath]} 
@@ -210,8 +210,8 @@ export function WeeklyProblem() {
                   }}
                   placeholder={isAuthenticated ? "Enter your answer..." : "Please log in to answer"}
                   className={`
-                    w-full flex-1 rounded-full border bg-black/40 px-6 py-4 text-white 
-                    placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all
+                    w-full flex-1 rounded-xl border bg-black/40 px-5 py-4 text-white font-code text-sm
+                    placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-rose-400/40 transition-all
                     ${status === 'wrong' ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10'}
                     ${!isAuthenticated ? 'opacity-50 cursor-not-allowed' : 'hover:border-white/20'}
                   `}
@@ -222,10 +222,10 @@ export function WeeklyProblem() {
                     onClick={handleSubmit}
                     disabled={status === 'submitting' || !answer}
                     className={`
-                      w-full sm:w-auto rounded-full px-8 py-6 min-w-35 font-medium text-base transition-all
+                      w-full sm:w-auto rounded-xl px-8 py-6 min-w-35 font-code font-semibold text-sm transition-all
                       ${status === 'wrong' 
                         ? 'bg-red-500/20 text-red-200 hover:bg-red-500/30 border border-red-500/30' 
-                        : 'bg-white text-black hover:bg-white/90 hover:scale-105 active:scale-95 shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)]'
+                        : 'bg-amber-100 text-black hover:bg-amber-50 hover:scale-[1.03] active:scale-95 shadow-[0_0_30px_-8px_rgba(251,213,130,0.5)]'
                       }
                     `}
                   >
@@ -242,7 +242,7 @@ export function WeeklyProblem() {
                 ) : (
                   <Button
                     onClick={() => signIn()}
-                    className="w-full sm:w-auto rounded-full px-8 py-6 min-w-35 bg-white text-black hover:bg-white/90 hover:scale-105 active:scale-95 shadow-lg font-medium"
+                    className="w-full sm:w-auto rounded-xl px-8 py-6 min-w-35 bg-amber-100 text-black hover:bg-amber-50 hover:scale-[1.03] active:scale-95 shadow-lg font-code font-semibold text-sm"
                   >
                     <span className="flex items-center gap-2">
                       <Lock className="h-4 w-4" />
@@ -267,7 +267,7 @@ export function WeeklyProblem() {
             href="/archives" 
             className="group flex items-center gap-2 text-sm font-medium text-white/40 hover:text-white transition-colors duration-300"
           >
-            <span>Rest of archives</span>
+            <span className="font-code text-xs">Rest of archives</span>
             <div className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-white/5 transition-all duration-300 group-hover:border-white/30 group-hover:bg-white/10">
               <ArrowRight className="h-3 w-3 -rotate-45 transition-transform duration-300 group-hover:rotate-0" />
             </div>

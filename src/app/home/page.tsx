@@ -3,24 +3,24 @@ import { HeroSection } from "../lib/components/home/hero-section"
 import { WeeklyProblem } from "../lib/components/home/weekly-problem"
 import { Leaderboard } from "../lib/components/home/leaderboard"
 import { StaticArtBackground } from "../lib/components/home/static-art-background"
-import { Swords, MessagesSquare, Archive } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 
 const QUICK_LINKS = [
   {
     href: "/practice",
-    icon: Swords,
+    index: "01",
     title: "Training Grounds",
-    text: "Generated problems by topic — filter, grind, repeat.",
+    text: "Generated problems by concept — filter, grind, repeat.",
   },
   {
     href: "/community",
-    icon: MessagesSquare,
+    index: "02",
     title: "Problem Forge",
     text: "Draft problems for the community and battle over solutions.",
   },
   {
     href: "/archives",
-    icon: Archive,
+    index: "03",
     title: "Archives",
     text: "Every past weekly problem, ready to be conquered.",
   },
@@ -34,7 +34,7 @@ export default function HomePage() {
         <main className="container mx-auto px-4 py-8">
           <HeroSection />
 
-          <div className="mt-12 flex flex-col gap-8 lg:flex-row lg:items-start">
+          <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-start">
             <div className="w-full min-w-0 lg:w-3/5">
               <WeeklyProblem />
             </div>
@@ -43,19 +43,26 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Quick navigation cards */}
-          <div className="mt-10 grid gap-4 sm:grid-cols-3 pb-8">
+          {/* Quick navigation — console-menu style */}
+          <div className="mt-8 rounded-2xl border border-white/[0.08] bg-[#170a0e]/70 backdrop-blur-xl shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] divide-y divide-white/[0.06] mb-10 overflow-hidden">
             {QUICK_LINKS.map((q) => (
               <Link
                 key={q.href}
                 href={q.href}
-                className="group rounded-xl border border-white/10 bg-black/40 backdrop-blur-md p-5 hover:border-emerald-400/40 transition-all hover:shadow-[0_8px_40px_rgba(16,185,129,0.12)] no-underline"
+                className="group flex items-center gap-5 px-6 md:px-8 py-5 no-underline transition-colors hover:bg-rose-400/[0.04]"
               >
-                <q.icon className="w-5 h-5 text-emerald-400/80 mb-3 transition-transform group-hover:scale-110" />
-                <h3 className="font-code text-sm font-semibold text-white! group-hover:text-emerald-200! transition-colors">
-                  {q.title}
-                </h3>
-                <p className="text-white/45 text-xs mt-1.5 leading-relaxed">{q.text}</p>
+                <span className="font-code text-xs text-rose-300/60 tabular-nums shrink-0">
+                  {q.index}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="font-code block text-sm font-semibold text-white! group-hover:text-rose-100! transition-colors">
+                    {q.title}
+                  </span>
+                  <span className="block text-xs text-white/40 mt-0.5 truncate">
+                    {q.text}
+                  </span>
+                </span>
+                <ArrowRight className="w-4 h-4 shrink-0 text-white/25 transition-all group-hover:text-rose-200 group-hover:translate-x-1" />
               </Link>
             ))}
           </div>

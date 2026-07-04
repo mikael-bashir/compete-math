@@ -119,14 +119,17 @@ export function Leaderboard() {
   }, [])
 
   return (
-    <div className="flex flex-col h-full rounded-3xl border border-white/10 bg-black/20 backdrop-blur-md shadow-2xl shadow-black/40">
+    <div className="relative flex flex-col h-full rounded-2xl border border-white/[0.08] bg-[#170a0e]/70 backdrop-blur-xl shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+      <div className="absolute top-0 left-10 right-10 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent" />
       <div className="p-6">
         <div className="flex items-center justify-between">
           <div>
+            <p className="font-code text-[10px] tracking-[0.3em] uppercase text-amber-300/70 mb-2">
+              // this week's fastest
+            </p>
             <div className="flex items-center gap-2 mb-1">
-              <Trophy className="h-5 w-5 text-emerald-400" />
-              {/* Changed h2 to p for strict styling control */}
-              <p className="font-serif text-xl font-medium text-white">Leaderboard</p>
+              <Trophy className="h-4 w-4 text-amber-300" />
+              <p className="font-code text-lg font-semibold text-white">Leaderboard</p>
             </div>
             {!loading && problemTitle && (
               <p className="text-xs text-white/40 truncate max-w-50">
@@ -138,7 +141,7 @@ export function Leaderboard() {
           {/* Changed button to Link pointing to /global */}
           <Link 
             href="/global"
-            className="flex items-center gap-1 text-sm text-white/60 transition-colors hover:text-white group"
+            className="font-code flex items-center gap-1 text-xs text-white/50! transition-colors hover:text-white! group"
           >
             All leaderboards 
             <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
