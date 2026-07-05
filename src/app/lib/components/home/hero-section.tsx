@@ -1,72 +1,68 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
-import { Clock, Flame } from "lucide-react"
+import { Flame } from "lucide-react"
 import { useSession } from "next-auth/react"
+
+// Guest greeting adjectives — one is picked at random and cached in the browser
+// for the day so the greeting doesn't reshuffle on every render/visit.
+const GUEST_ADJECTIVES = ["Ambitious", "Curious", "Aspiring", "Dedicated"]
 
 export function HeroSection() {
   const [streak, setStreak] = useState(0)
-  const [timeLeft, setTimeLeft] = useState({
-    days: 0,
-    hours: 0,
-    minutes: 0,
-    seconds: 0,
-  })
+  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 })
+  const [guestAdj, setGuestAdj] = useState<string | null>(null)
 
-  const { data: session } = useSession();
+  const { data: session } = useSession()
+  const username = session?.user?.username
+  const isAuthed = !!username
+
+  // Pick (or reuse) today's guest adjective, cached in localStorage for a day.
+  useEffect(() => {
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const raw = localStorage.getItem("cm_guest_adj")
+      const cached = raw ? JSON.parse(raw) : null
+      if (cached?.date === today && cached?.adj) {
+        setGuestAdj(cached.adj)
+        return
+      }
+      const adj = GUEST_ADJECTIVES[Math.floor(Math.random() * GUEST_ADJECTIVES.length)]
+      localStorage.setItem("cm_guest_adj", JSON.stringify({ date: today, adj }))
+      setGuestAdj(adj)
+    } catch {
+      setGuestAdj(GUEST_ADJECTIVES[0])
+    }
+  }, [])
 
   // 1. Fetch Streak
   useEffect(() => {
-    if (session?.user?.username) {
+    if (username) {
       fetch('/api/user/profile/streak')
         .then((res) => res.json())
         .then((data) => {
-          if (typeof data.streak === 'number') {
-            setStreak(data.streak)
-          }
+          if (typeof data.streak === 'number') setStreak(data.streak)
         })
         .catch((err) => console.error("Failed to load streak", err))
     }
-  }, [session])
+  }, [username])
 
-// 2. Timer Logic (Friday 6am BST)
+  // 2. Timer Logic — counts down to the next 06:00 UTC (a fresh problem daily).
   useEffect(() => {
-    const getNextFriday6amBST = () => {
+    const getNext6amUTC = () => {
       const now = new Date()
       const target = new Date(now)
-
-      // Configuration: Friday (5) at 6am BST
-      // Note: 6am BST (UTC+1) is 5am UTC.
-      // We use UTC calculations to ensure global synchronization.
-      const targetDayOfWeek = 5 // Friday
-      const targetHourUTC = 6   // 05:00 UTC = 06:00 BST
-
-      const currentDay = now.getUTCDay()
-      
-      // Calculate days until the next Friday
-      // If today is Friday (5) and we haven't passed 5am UTC yet, diff is 0.
-      let daysUntil = (targetDayOfWeek - currentDay + 7) % 7
-
-      // Set the target date
-      target.setUTCDate(now.getUTCDate() + daysUntil)
-      target.setUTCHours(targetHourUTC, 0, 0, 0)
-
-      // If the calculated target is in the past (e.g. it's Friday 8am), jump to next week
+      target.setUTCHours(6, 0, 0, 0)
       if (target.getTime() <= now.getTime()) {
-        target.setUTCDate(target.getUTCDate() + 7)
+        target.setUTCDate(target.getUTCDate() + 1)
       }
-
       return target
     }
 
     const updateTimer = () => {
-      const now = new Date()
-      const target = getNextFriday6amBST()
-      const diff = target.getTime() - now.getTime()
-
+      const diff = getNext6amUTC().getTime() - Date.now()
       if (diff > 0) {
         setTimeLeft({
-          days: Math.floor(diff / (1000 * 60 * 60 * 24)),
           hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
           minutes: Math.floor((diff / (1000 * 60)) % 60),
           seconds: Math.floor((diff / 1000) % 60),
@@ -80,60 +76,65 @@ export function HeroSection() {
   }, [])
 
   return (
-    <section className="py-8 text-center mt-8">
-      {/* Dynamic Streak Badge */}
+    // pt preserves the gap between the greeting and the navbar now that the
+    // "weekly arena" kicker above it has been removed.
+    <section className="pt-[4.5rem] pb-2 text-center">
+      <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-white!">
+        {/* comma after "Welcome" kept; "back" only appears when signed in */}
+        Welcome{isAuthed ? " back," : ","}{" "}
+        <span className="bg-linear-to-r from-amber-200 via-yellow-100 to-amber-300 bg-clip-text text-transparent">
+          {isAuthed ? username : (guestAdj ?? " ")}
+        </span>
+        {!isAuthed && " one"}
+      </h1>
+
+      <p className="mx-auto mt-4 max-w-xl text-sm md:text-base text-white/50 leading-relaxed">
+        A fresh problem every day. The whole world racing you to the insight.
+      </p>
+
+      {/* Streak badge */}
       {streak > 0 && (
-        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-4 py-1.5 backdrop-blur-sm transition-colors animate-in fade-in slide-in-from-bottom-2">
-          <Flame className="h-4 w-4 text-orange-500 fill-orange-500" />
-          <span className="text-sm font-medium text-orange-200">
-            {streak} day streak!
+        <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-500/10 px-4 py-1.5 animate-in fade-in slide-in-from-bottom-2">
+          <Flame className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+          <span className="font-code text-xs font-medium text-amber-200">
+            {streak}-day streak
           </span>
         </div>
       )}
 
-      <div className="mt-4 font-serif text-4xl font-light tracking-tight md:text-5xl lg:text-6xl text-white">
-        Welcome back, <span className="font-medium">{session?.user?.username || "Guest"}</span>
-      </div>
-      
-      <p className="mx-auto mt-4 max-w-2xl font-serif text-lg italic text-white/60 leading-relaxed">
-        {/* Timestamp 0:47 from your video */}
-        "...it is often the small steps, not the giant leaps, that bring about the most lasting change."
-      </p>
-      <p className="mt-2 text-sm text-white/40 tracking-wider uppercase">— Queen Elizabeth II</p>
+      {/* Countdown strip */}
+      <div className="mx-auto mt-10 max-w-md">
+        <div className="relative rounded-2xl border border-white/[0.08] bg-[#141013]/92 px-8 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+          {/* rose hairline along the top */}
+          <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-rose-300/50 to-transparent" />
 
-      {/* Countdown timer */}
-      <div className="mx-auto mt-10 max-w-xl">
-        <div className="flex items-center justify-center gap-2 text-white/60">
-          <Clock className="h-4 w-4" />
-          <span className="text-sm">New problem in</span>
-        </div>
-        <div className="mt-3 flex justify-center gap-3">
-          <TimeBlock value={timeLeft.days} label="Days" />
-          <TimeSeparator />
-          <TimeBlock value={timeLeft.hours} label="Hours" />
-          <TimeSeparator />
-          <TimeBlock value={timeLeft.minutes} label="Min" />
-          <TimeSeparator />
-          <TimeBlock value={timeLeft.seconds} label="Sec" />
+          <p className="font-code text-[10px] tracking-[0.3em] uppercase text-white/35 mb-3">
+            next problem drops in
+          </p>
+          <div className="flex items-baseline justify-center gap-1.5">
+            <TimeUnit value={timeLeft.hours} label="h" />
+            <Colon />
+            <TimeUnit value={timeLeft.minutes} label="m" />
+            <Colon />
+            <TimeUnit value={timeLeft.seconds} label="s" />
+          </div>
         </div>
       </div>
     </section>
   )
 }
 
-function TimeBlock({ value, label }: { value: number; label: string }) {
+function TimeUnit({ value, label }: { value: number; label: string }) {
   return (
-    <div className="flex flex-col items-center">
-      <div className="min-w-16 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm px-4 py-3">
-        <span className="text-2xl font-semibold tabular-nums text-white">
-          {value.toString().padStart(2, "0")}
-        </span>
-      </div>
-      <span className="mt-1 text-xs text-white/40">{label}</span>
-    </div>
+    <span className="font-code tabular-nums">
+      <span className="text-3xl md:text-4xl font-semibold text-white">
+        {value.toString().padStart(2, "0")}
+      </span>
+      <span className="ml-0.5 text-xs text-rose-300/70">{label}</span>
+    </span>
   )
 }
 
-function TimeSeparator() {
-  return <span className="text-2xl font-light text-white/20 self-start mt-3">:</span>
+function Colon() {
+  return <span className="font-code text-2xl text-white/20 px-0.5">:</span>
 }

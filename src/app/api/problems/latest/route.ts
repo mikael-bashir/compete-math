@@ -1,64 +1,49 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { formatProblem } from '@/app/lib/utils';
-import { getUserProblemStatus } from '@/app/lib/data/problems';
 import { auth } from '@/app/(auth)/auth';
 
-// Define the shape expected by formatProblem
-interface RawProblem {
-  questionId: string;
-  subtitle: string;
-  questionTitle: string;
-  difficulty: string;
-  points: string;
-  questionProblem: string;
-}
+// Points shown for the featured problem, derived from its difficulty.
+const POINTS: Record<string, number> = {
+  Easy: 50,
+  Medium: 100,
+  Hard: 150,
+  Insane: 200,
+  Extreme: 200,
+};
 
+// The "Problem of the Week" is now a featured COMMUNITY problem. We pick a
+// stable weekly rotation over the approved pool so it doesn't change mid-week,
+// and the home card links through to /community/[id] to attempt/discuss it.
 export async function GET() {
-  const session = await auth();
+  await auth();
 
   try {
-    // 1. Fetch the single most recent problem using Vercel SQL.
-    // We use aliases (e.g., question_id as "questionId") to ensure the 
-    // returned object keys match what formatProblem expects (camelCase).
-    const result = await sql`
-      SELECT 
-        "questionId",
-        subtitle,
-        "questionTitle",
-        difficulty,
-        points,
-        "questionProblem"
-      FROM questions 
-      ORDER BY created_at DESC 
-      LIMIT 1;
+    const res = await sql`
+      SELECT id, title, statement, topic, difficulty
+      FROM community_problems
+      WHERE status = 'approved'
+      ORDER BY id ASC;
     `;
-
-    // Cast the row to our interface so TypeScript is happy
-    const latestProblem = result.rows[0] as RawProblem;
-
-    if (!latestProblem) {
-      return NextResponse.json({ error: "No problems found" }, { status: 404 });
+    const rows = res.rows;
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'No problems found' }, { status: 404 });
     }
 
-    // 2. Format the problem
-    const formattedProblem = formatProblem(latestProblem);
+    const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+    const p = rows[week % rows.length];
 
-    // 3. Check if user solved it
-    let isSolved = false;
-    if (session?.user?.username) {
-      // Convert string ID to number for the check
-      const problemIdAsNumber = Number(formattedProblem.id);
-      
-      if (!isNaN(problemIdAsNumber)) {
-        isSolved = await getUserProblemStatus(session.user.username, problemIdAsNumber);
-      }
-    }
-
-    return NextResponse.json({ ...formattedProblem, isSolved });
-
+    return NextResponse.json({
+      id: p.id,
+      title: p.title,
+      subtitle: p.topic,
+      content: p.statement,
+      difficulty: p.difficulty,
+      points: POINTS[p.difficulty] ?? 100,
+      community: true,
+      isSolved: false,
+    });
   } catch (error) {
-    console.error("Failed to fetch latest problem:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error('Failed to fetch weekly problem:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

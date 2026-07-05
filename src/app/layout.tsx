@@ -1,12 +1,12 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Space_Grotesk, DM_Sans } from "next/font/google"
+import { Space_Grotesk, DM_Sans, Source_Code_Pro } from "next/font/google"
 import "@shohojdhara/atomix/css"
 import "./globals.css" // Global styles
 // import "@shohojdhara/atomix/src/styles/index.scss";
 // import "@shohojdhara/atomix/dist/index.css"
-import Navbar from "./lib/components/navigation/navbar"
 import { UserDisplayer2 } from "./lib/components/navigation/navstrip"
+import { auth } from "./(auth)/auth"
 import Footer from "./lib/components/navigation/footer"
 import SessionProviderWrapper from "./lib/components/auth/session-provider-wrapper"
 import { Toaster } from "@/components/ui/sonner"
@@ -50,6 +50,14 @@ const dmSans = DM_Sans({
   variable: "--font-dm-sans",
 })
 
+// Code-style display font (the Advent of Code aesthetic) used for headings,
+// navigation and stats across the site.
+const sourceCodePro = Source_Code_Pro({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-source-code",
+})
+
 // Metadata for the page, available globally
 // export const metadata: Metadata = {
 //   title: "Compete Math - Frontier of Mathematics",
@@ -57,11 +65,15 @@ const dmSans = DM_Sans({
 // }
 
 // RootLayout component, wrapping all pages and ensuring global components are loaded
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+
+  // Resolve the session on the server so SessionProvider starts already
+  // authenticated — no client loading→auth flip (greeting/nav flicker).
+  const session = await auth()
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -72,7 +84,7 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${dmSans.variable}`}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${dmSans.variable} ${sourceCodePro.variable}`}>
       <body className={`antialiased bg-background text-foreground font-sans`}>
         <script
           type="application/ld+json"
@@ -80,9 +92,8 @@ export default function RootLayout({
         />
 
         <Suspense fallback={<div>Loading...</div>}>
-          <SessionProviderWrapper>
+          <SessionProviderWrapper session={session}>
             <UserDisplayer2 />
-            {/* <Navbar /> */}
             <div className="overflow-hidden">{children}</div>
 
             {/* Notification toaster */}

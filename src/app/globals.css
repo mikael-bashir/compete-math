@@ -42,6 +42,17 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
   
+  /* Code-style font (Advent of Code aesthetic) — applied APPLICATION-WIDE.
+     font-sans is the body default, and font-serif is remapped too so legacy
+     `font-serif` usages can't render an actual serif anywhere. KaTeX math is
+     unaffected: .katex carries its own font-family for proper typesetting. */
+  --font-code: var(--font-source-code), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-sans: var(--font-source-code), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-serif: var(--font-source-code), ui-monospace, "SF Mono", Menlo, monospace;
+  /* Display face for headings — a grotesk paired with the mono for real
+     hierarchy (`font-display` utility). Mono stays for UI/labels/stats. */
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+
   /* Add your custom animation here too if needed */
   --animate-shimmer: shimmer 3s linear infinite;
 
@@ -120,6 +131,35 @@
     background-color: black;
     color: white;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   APPLICATION-WIDE CODE FONT
+   One font everywhere (Source Code Pro / AoC aesthetic). We only need to beat
+   the exact element selectors the atomix stylesheet hardcodes a font on; every
+   other element inherits the code font from `body`. KaTeX is preserved for free
+   because its `.katex` class rules outrank these plain element selectors.
+
+   IMPORTANT (perf): do NOT use a broad `:not(.katex *)` selector here — that
+   forces ancestor-walking style recalc that scales with the number of math
+   nodes and made KaTeX-heavy pages ~5x slower to recalc on scroll/hover.
+   ------------------------------------------------------------------------- */
+body,
+button, input, optgroup, select, textarea,
+code, kbd, pre, samp {
+  font-family: var(--font-code);
+}
+
+/* Headings default to the display grotesk, tightly tracked. Elements that opt
+   into `font-code`/`font-display` explicitly still win over this. */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
 }
 
 /* Custom Utilities */

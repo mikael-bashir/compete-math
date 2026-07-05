@@ -8,6 +8,23 @@ import type { Session } from "next-auth";
 const useSecureCookies = process.env.NODE_ENV === 'production';
 const cookiePrefix = useSecureCookies ? '__Secure-' : '';
 
+// Cookie domain resolution — this is what makes sign-in work on previews:
+// - `.competemath.com` is shared across subdomains, but the browser REFUSES to
+//   set that cookie on any host that isn't a competemath.com subdomain (e.g. a
+//   *.vercel.app preview). Result: the sign-in succeeds server-side but no
+//   session cookie is stored, so the UI never updates ("Sign In" persists).
+// - So: share across .competemath.com ONLY on the Vercel *production* deploy;
+//   every preview/dev deployment uses a host-only cookie (no domain) that works
+//   on its own host. AUTH_COOKIE_DOMAIN still overrides everything if set
+//   ('host-only' => undefined; any other value => that domain).
+function resolveCookieDomain(): string | undefined {
+  const override = process.env.AUTH_COOKIE_DOMAIN;
+  if (override) return override === 'host-only' ? undefined : override;
+  if (!useSecureCookies) return 'localhost';
+  return process.env.VERCEL_ENV === 'production' ? '.competemath.com' : undefined;
+}
+const cookieDomain = resolveCookieDomain();
+
 export const authConfig = {
     pages: {
         signIn: '/auth/login',
@@ -22,8 +39,8 @@ export const authConfig = {
                 sameSite: 'lax',
                 path: '/',
                 secure: useSecureCookies,
-                // This tells the browser: "Let subdomains read this too"
-                domain: useSecureCookies ? '.competemath.com' : 'localhost',
+                // Shared across subdomains on prod; host-only on previews/dev.
+                domain: cookieDomain,
             },
         },
     },      
