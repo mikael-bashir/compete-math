@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
 import { auth } from "@/app/(auth)/auth";
-import { isAdminEmail } from "@/app/lib/constants/site";
+import { isAdminEmail, COMMUNITY_MAX_ATTEMPTS } from "@/app/lib/constants/site";
 
-// GET /api/community/problems/:id — problem + answers + votes + comments.
+// GET /api/community/problems/:id — problem + the viewer's attempt state +
+// problem-level discussion comments. The canonical answer (proposed_answer) is
+// only ever returned to the admin, never leaked to solvers.
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -24,42 +26,53 @@ export async function GET(
     if (problemRes.rowCount === 0) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    const problem = problemRes.rows[0];
+    const row = problemRes.rows[0];
 
     // Non-approved problems are visible only to their author and the admin.
-    if (problem.status !== "approved" && !admin && problem.author_username !== username) {
+    if (row.status !== "approved" && !admin && row.author_username !== username) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const answersRes = await sql`
-      SELECT
-        a.id, a.author_username, a.body, a.created_at,
-        b."badgeUrl" AS author_badge,
-        (SELECT COUNT(*)::int FROM community_answer_votes v WHERE v.answer_id = a.id) AS votes,
-        (${username}::text IS NOT NULL AND EXISTS (
-          SELECT 1 FROM community_answer_votes v
-          WHERE v.answer_id = a.id AND v.username = ${username}
-        )) AS voted_by_me
-      FROM community_answers a
-      LEFT JOIN users u ON u.username = a.author_username
-      LEFT JOIN badges b ON b."badgeName" = u."badgeSelected"
-      WHERE a.problem_id = ${id}
-      ORDER BY votes DESC, a.created_at ASC;
+    // Strip the answer for everyone except the admin (who reviews it).
+    const problem = { ...row };
+    if (!admin) delete problem.proposed_answer;
+
+    // The viewer's own attempt state (capped at COMMUNITY_MAX_ATTEMPTS).
+    let submission = { attemptsUsed: 0, attemptsLeft: COMMUNITY_MAX_ATTEMPTS, solved: false };
+    if (username) {
+      const subRes = await sql`
+        SELECT attempt_count, is_correct FROM community_submissions
+        WHERE problem_id = ${id} AND username = ${username};
+      `;
+      if (subRes.rows[0]) {
+        const used = subRes.rows[0].attempt_count as number;
+        submission = {
+          attemptsUsed: used,
+          attemptsLeft: Math.max(0, COMMUNITY_MAX_ATTEMPTS - used),
+          solved: subRes.rows[0].is_correct as boolean,
+        };
+      }
+    }
+
+    const solveCountRes = await sql`
+      SELECT COUNT(*)::int AS n FROM community_submissions
+      WHERE problem_id = ${id} AND is_correct = TRUE;
     `;
 
     const commentsRes = await sql`
-      SELECT c.id, c.answer_id, c.author_username, c.body, c.created_at,
+      SELECT c.id, c.author_username, c.body, c.created_at,
              b."badgeUrl" AS author_badge
-      FROM community_answer_comments c
+      FROM community_comments c
       LEFT JOIN users u ON u.username = c.author_username
       LEFT JOIN badges b ON b."badgeName" = u."badgeSelected"
-      WHERE c.answer_id IN (SELECT id FROM community_answers WHERE problem_id = ${id})
+      WHERE c.problem_id = ${id}
       ORDER BY c.created_at ASC;
     `;
 
     return NextResponse.json({
       problem,
-      answers: answersRes.rows,
+      submission,
+      solveCount: solveCountRes.rows[0].n,
       comments: commentsRes.rows,
       viewer: { username, isAdmin: admin },
     });

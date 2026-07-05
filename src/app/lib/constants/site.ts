@@ -60,6 +60,10 @@ export const LEVELS = [
 // Plain list of level values for <select> options and filters.
 export const KNOWLEDGE_LEVELS = LEVELS.map((l) => l.value);
 
+// Community problems cap each solver at this many answer attempts. Practice
+// problems are uncapped.
+export const COMMUNITY_MAX_ATTEMPTS = 3;
+
 export const DONATE_URL = "https://buy.stripe.com/eVq6oGethg9na8B7WD0Jq00";
 export const GITHUB_URL = "https://github.com/mikael-bashir/compete-math";
 export const CONTACT_EMAIL = "bashir.mikael@outlook.com";

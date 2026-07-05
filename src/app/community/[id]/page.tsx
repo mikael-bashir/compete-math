@@ -4,27 +4,16 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
-  ArrowLeft, ArrowBigUp, MessageSquare, Send, Loader2,
-  CheckCircle2, XCircle, ShieldCheck,
+  ArrowLeft, Send, Loader2, CheckCircle2, XCircle, ShieldCheck, Lock, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MathMarkdown } from "@/app/lib/components/community/math-markdown";
 import { UserChip } from "@/app/lib/components/community/user-chip";
 import { LevelInfo } from "@/app/lib/components/level-info";
-
-interface Answer {
-  id: number;
-  author_username: string;
-  author_badge: string | null;
-  body: string;
-  created_at: string;
-  votes: number;
-  voted_by_me: boolean;
-}
+import { COMMUNITY_MAX_ATTEMPTS } from "@/app/lib/constants/site";
 
 interface Comment {
   id: number;
-  answer_id: number;
   author_username: string;
   author_badge: string | null;
   body: string;
@@ -36,7 +25,7 @@ interface Detail {
     id: number;
     title: string;
     statement: string;
-    proposed_answer: string | null;
+    proposed_answer?: string | null; // admin only
     topic: string;
     difficulty: string;
     knowledge: string;
@@ -46,7 +35,8 @@ interface Detail {
     created_at: string;
     review_note: string | null;
   };
-  answers: Answer[];
+  submission: { attemptsUsed: number; attemptsLeft: number; solved: boolean };
+  solveCount: number;
   comments: Comment[];
   viewer: { username: string | null; isAdmin: boolean };
 }
@@ -68,10 +58,13 @@ export default function CommunityProblemPage({
   const { status } = useSession();
   const [data, setData] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [answerBody, setAnswerBody] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [commentDrafts, setCommentDrafts] = useState<Record<number, string>>({});
-  const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
+
+  const [answer, setAnswer] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [wrong, setWrong] = useState(false); // brief incorrect flash
+
+  const [commentBody, setCommentBody] = useState("");
+  const [postingComment, setPostingComment] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -85,56 +78,63 @@ export default function CommunityProblemPage({
 
   useEffect(() => { load(); }, [load]);
 
-  const toggleVote = async (answerId: number) => {
-    if (status !== "authenticated") { toast.error("Sign in to upvote"); return; }
-    // Optimistic update
-    setData((d) => d && {
-      ...d,
-      answers: d.answers.map((a) =>
-        a.id === answerId
-          ? { ...a, votes: a.votes + (a.voted_by_me ? -1 : 1), voted_by_me: !a.voted_by_me }
-          : a,
-      ),
-    });
-    const res = await fetch(`/api/community/answers/${answerId}/vote`, { method: "POST" });
-    if (!res.ok) { toast.error("Vote failed"); load(); }
-  };
-
-  const postAnswer = async () => {
-    if (!answerBody.trim()) return;
-    setPosting(true);
+  const submit = async () => {
+    if (!answer.trim() || submitting) return;
+    setSubmitting(true);
+    setWrong(false);
     try {
-      const res = await fetch(`/api/community/problems/${id}/answers`, {
+      const res = await fetch(`/api/community/problems/${id}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: answerBody }),
+        body: JSON.stringify({ answer: answer.trim() }),
       });
       const out = await res.json();
-      if (!res.ok) throw new Error(out.error);
-      setAnswerBody("");
-      toast.success("Answer posted");
-      load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to post");
+      if (!res.ok) { toast.error(out.error || "Submission failed"); return; }
+
+      setData((d) => {
+        if (!d) return d;
+        const newlySolved = out.solved && !d.submission.solved;
+        return {
+          ...d,
+          solveCount: d.solveCount + (newlySolved ? 1 : 0),
+          submission: {
+            attemptsUsed: out.attemptsUsed ?? d.submission.attemptsUsed,
+            attemptsLeft: out.attemptsLeft ?? d.submission.attemptsLeft,
+            solved: out.solved ?? d.submission.solved,
+          },
+        };
+      });
+
+      if (out.solved) {
+        toast.success("Correct — problem solved! 🎉");
+        setAnswer("");
+      } else if (out.noAttemptsLeft) {
+        toast.error("No attempts left on this problem.");
+      } else {
+        setWrong(true);
+        const left = out.attemptsLeft ?? 0;
+        toast.error(`Not quite — ${left} attempt${left === 1 ? "" : "s"} left.`);
+      }
     } finally {
-      setPosting(false);
+      setSubmitting(false);
     }
   };
 
-  const postComment = async (answerId: number) => {
-    const body = commentDrafts[answerId];
-    if (!body?.trim()) return;
-    const res = await fetch(`/api/community/answers/${answerId}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body }),
-    });
-    if (res.ok) {
-      setCommentDrafts((d) => ({ ...d, [answerId]: "" }));
+  const postComment = async () => {
+    if (!commentBody.trim() || postingComment) return;
+    setPostingComment(true);
+    try {
+      const res = await fetch(`/api/community/problems/${id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: commentBody.trim() }),
+      });
+      const out = await res.json();
+      if (!res.ok) { toast.error(out.error || "Failed to comment"); return; }
+      setCommentBody("");
       load();
-    } else {
-      const out = await res.json().catch(() => ({}));
-      toast.error(out.error || "Failed to comment");
+    } finally {
+      setPostingComment(false);
     }
   };
 
@@ -166,8 +166,8 @@ export default function CommunityProblemPage({
     );
   }
 
-  const { problem, answers, comments, viewer } = data;
-  const commentsFor = (answerId: number) => comments.filter((c) => c.answer_id === answerId);
+  const { problem, submission, solveCount, comments, viewer } = data;
+  const { solved, attemptsLeft, attemptsUsed } = submission;
 
   return (
     <div className="min-h-screen bg-[#0a0f14] pt-24 pb-24">
@@ -198,7 +198,7 @@ export default function CommunityProblemPage({
         )}
 
         {/* Problem card */}
-        <article className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent p-8 mb-10">
+        <article className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent p-8 mb-8">
           <div className="flex flex-wrap items-center gap-2 mb-4 font-code text-[11px] uppercase tracking-wider">
             <span className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/60">{problem.topic}</span>
             <span className="px-2 py-1 rounded bg-amber-400/10 border border-amber-400/30 text-amber-300">{problem.difficulty}</span>
@@ -208,6 +208,7 @@ export default function CommunityProblemPage({
                 <LevelInfo align="left" />
               </span>
             )}
+            <span className="ml-auto text-white/35 normal-case tracking-normal">{solveCount} solved</span>
           </div>
           <h1 className="font-code text-3xl md:text-4xl font-bold text-white! mb-6">{problem.title}</h1>
           <div className="text-white/85">
@@ -219,141 +220,133 @@ export default function CommunityProblemPage({
               badgeUrl={problem.author_badge}
               subtitle={`posted ${timeAgo(problem.created_at)}`}
             />
-            {viewer.isAdmin && problem.proposed_answer && (
+            {viewer.isAdmin && problem.proposed_answer != null && (
               <div className="font-code text-xs text-white/40 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-400/60" />
-                proposed: <span className="text-emerald-300/80">{problem.proposed_answer}</span>
+                answer: <span className="text-emerald-300/80">{problem.proposed_answer}</span>
               </div>
             )}
           </div>
         </article>
 
-        {/* Answers */}
-        <div className="flex items-center gap-3 mb-6">
-          <h2 className="font-code text-xl text-white! font-semibold">
-            {answers.length} Answer{answers.length === 1 ? "" : "s"}
+        {/* Answer box — numeric, checked in the DB, capped at 3 attempts */}
+        {problem.status === "approved" && (
+          <div className="mb-12">
+            {status !== "authenticated" ? (
+              <div className="text-center py-8 rounded-xl border border-white/10 bg-white/[0.02]">
+                <Link href="/auth/login" className="font-code text-emerald-300 hover:text-emerald-200 text-sm">
+                  Sign in to submit an answer →
+                </Link>
+              </div>
+            ) : solved ? (
+              <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/[0.07] p-6 flex items-center gap-3">
+                <CheckCircle2 className="w-6 h-6 text-emerald-300 shrink-0" />
+                <div>
+                  <p className="font-code text-emerald-200 font-semibold">Solved</p>
+                  <p className="font-code text-xs text-emerald-300/60">You cracked this one in {attemptsUsed} attempt{attemptsUsed === 1 ? "" : "s"}.</p>
+                </div>
+              </div>
+            ) : attemptsLeft <= 0 ? (
+              <div className="rounded-xl border border-rose-400/25 bg-rose-400/[0.06] p-6 flex items-center gap-3">
+                <Lock className="w-5 h-5 text-rose-300/80 shrink-0" />
+                <div>
+                  <p className="font-code text-rose-200 font-semibold">No attempts left</p>
+                  <p className="font-code text-xs text-rose-300/50">You've used all {COMMUNITY_MAX_ATTEMPTS} attempts. Compare approaches in the discussion below.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-code text-white! font-semibold">Your Answer</h3>
+                  <span className="font-code text-xs text-white/40">
+                    {attemptsLeft} of {COMMUNITY_MAX_ATTEMPTS} attempt{attemptsLeft === 1 ? "" : "s"} left
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={answer}
+                    onChange={(e) => { setAnswer(e.target.value); setWrong(false); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+                    inputMode="decimal"
+                    placeholder="Enter a number…"
+                    className={`font-code flex-1 bg-[#121a22] border rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none transition-colors ${
+                      wrong ? "border-rose-400/60" : "border-white/10 focus:border-emerald-400/50"
+                    }`}
+                  />
+                  <button
+                    onClick={submit}
+                    disabled={submitting || !answer.trim()}
+                    className="font-code inline-flex items-center gap-2 px-6 rounded-lg bg-emerald-500/90 hover:bg-emerald-400 disabled:opacity-40 text-black font-semibold text-sm transition-all active:scale-95"
+                  >
+                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Submit
+                  </button>
+                </div>
+                <p className="font-code text-[11px] text-white/30 mt-3">
+                  A single numeric answer, checked instantly. You get {COMMUNITY_MAX_ATTEMPTS} attempts.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Discussion — talk through how to tackle the problem */}
+        <div className="flex items-center gap-3 mb-5">
+          <MessageSquare className="w-4 h-4 text-white/40" />
+          <h2 className="font-code text-lg text-white! font-semibold">
+            Discussion <span className="text-white/30 font-normal">· {comments.length}</span>
           </h2>
           <div className="h-px flex-1 bg-white/10" />
         </div>
 
-        <div className="space-y-6 mb-12">
-          {answers.map((a) => (
-            <div key={a.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-6">
-              <div className="flex gap-4">
-                {/* Upvote column — upvotes only, no downvote by design */}
-                <div className="flex flex-col items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => toggleVote(a.id)}
-                    aria-label="Upvote"
-                    className={`p-1.5 rounded-lg border transition-all active:scale-90 ${
-                      a.voted_by_me
-                        ? "bg-emerald-500/20 border-emerald-400/50 text-emerald-300"
-                        : "border-white/10 text-white/40 hover:text-emerald-300 hover:border-emerald-400/30"
-                    }`}
-                  >
-                    <ArrowBigUp className="w-5 h-5" />
-                  </button>
-                  <span className={`font-code text-sm font-semibold ${a.voted_by_me ? "text-emerald-300" : "text-white/60"}`}>
-                    {a.votes}
-                  </span>
-                </div>
+        <p className="font-code text-xs text-white/35 mb-5 -mt-2">
+          Discuss approaches and compare methods. Please don't post the final answer.
+        </p>
 
-                <div className="flex-1 min-w-0">
-                  <div className="mb-3">
-                    <UserChip
-                      username={a.author_username}
-                      badgeUrl={a.author_badge}
-                      size="sm"
-                      subtitle={timeAgo(a.created_at)}
-                    />
-                  </div>
-                  <div className="text-white/85">
-                    <MathMarkdown>{a.body}</MathMarkdown>
-                  </div>
-
-                  {/* Comments on this answer (flat, by design) */}
-                  <div className="mt-4 pt-3 border-t border-white/5">
-                    <button
-                      onClick={() => setOpenComments((o) => ({ ...o, [a.id]: !o[a.id] }))}
-                      className="font-code inline-flex items-center gap-2 text-xs text-white/40 hover:text-emerald-300 transition-colors"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      {commentsFor(a.id).length} comment{commentsFor(a.id).length === 1 ? "" : "s"}
-                    </button>
-
-                    {openComments[a.id] && (
-                      <div className="mt-3 space-y-3 pl-3 border-l-2 border-white/10">
-                        {commentsFor(a.id).map((c) => (
-                          <div key={c.id} className="text-sm">
-                            <div className="flex items-center gap-2 mb-1">
-                              <UserChip username={c.author_username} badgeUrl={c.author_badge} size="sm" subtitle={timeAgo(c.created_at)} />
-                            </div>
-                            <p className="text-white/70 pl-8">{c.body}</p>
-                          </div>
-                        ))}
-                        {status === "authenticated" && (
-                          <div className="flex gap-2 pt-1">
-                            <input
-                              value={commentDrafts[a.id] || ""}
-                              onChange={(e) => setCommentDrafts((d) => ({ ...d, [a.id]: e.target.value }))}
-                              onKeyDown={(e) => e.key === "Enter" && postComment(a.id)}
-                              placeholder="Add a comment…"
-                              className="flex-1 bg-[#121a22] border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-emerald-400/40"
-                            />
-                            <button
-                              onClick={() => postComment(a.id)}
-                              className="px-3 rounded-md border border-white/10 text-white/50 hover:text-emerald-300 hover:border-emerald-400/30 transition-colors"
-                              aria-label="Post comment"
-                            >
-                              <Send className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
+        <div className="space-y-5 mb-8">
+          {comments.map((c) => (
+            <div key={c.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-5">
+              <div className="mb-2">
+                <UserChip username={c.author_username} badgeUrl={c.author_badge} size="sm" subtitle={timeAgo(c.created_at)} />
+              </div>
+              <div className="text-white/85 text-sm">
+                <MathMarkdown>{c.body}</MathMarkdown>
               </div>
             </div>
           ))}
-
-          {answers.length === 0 && problem.status === "approved" && (
-            <div className="text-center py-12 border border-dashed border-white/10 rounded-xl">
-              <p className="font-code text-white/35 text-sm">No answers yet. Claim first blood.</p>
+          {comments.length === 0 && (
+            <div className="text-center py-10 border border-dashed border-white/10 rounded-xl">
+              <p className="font-code text-white/35 text-sm">No discussion yet — start the conversation.</p>
             </div>
           )}
         </div>
 
-        {/* Post an answer */}
-        {problem.status === "approved" && (
-          status === "authenticated" ? (
-            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6">
-              <h3 className="font-code text-white! font-semibold mb-4">Your Answer</h3>
-              <textarea
-                value={answerBody}
-                onChange={(e) => setAnswerBody(e.target.value)}
-                rows={5}
-                placeholder={"Write your solution. Markdown + LaTeX supported: $e^{i\\pi} + 1 = 0$"}
-                className="w-full bg-[#121a22] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-emerald-400/50 text-sm leading-relaxed resize-y mb-4"
-              />
-              <div className="flex justify-end">
-                <button
-                  onClick={postAnswer}
-                  disabled={posting || !answerBody.trim()}
-                  className="font-code inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-400 disabled:opacity-40 text-black font-semibold text-sm transition-all active:scale-95"
-                >
-                  {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  Post Answer
-                </button>
-              </div>
+        {status === "authenticated" ? (
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5">
+            <textarea
+              value={commentBody}
+              onChange={(e) => setCommentBody(e.target.value)}
+              rows={3}
+              placeholder={"Share your approach. Markdown + LaTeX supported: $\\gcd(a,b)$"}
+              className="w-full bg-[#121a22] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-emerald-400/50 text-sm leading-relaxed resize-y mb-3"
+            />
+            <div className="flex justify-end">
+              <button
+                onClick={postComment}
+                disabled={postingComment || !commentBody.trim()}
+                className="font-code inline-flex items-center gap-2 px-5 py-2 rounded-lg border border-white/10 text-white/70 hover:text-emerald-200 hover:border-emerald-400/30 disabled:opacity-40 text-sm transition-all active:scale-95"
+              >
+                {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Post to discussion
+              </button>
             </div>
-          ) : (
-            <div className="text-center py-8 rounded-xl border border-white/10 bg-white/[0.02]">
-              <Link href="/auth/login" className="font-code text-emerald-300 hover:text-emerald-200 text-sm">
-                Sign in to post an answer →
-              </Link>
-            </div>
-          )
+          </div>
+        ) : (
+          <div className="text-center py-6 rounded-xl border border-white/10 bg-white/[0.02]">
+            <Link href="/auth/login" className="font-code text-emerald-300 hover:text-emerald-200 text-sm">
+              Sign in to join the discussion →
+            </Link>
+          </div>
         )}
       </div>
     </div>

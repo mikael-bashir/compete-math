@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
         p.id, p.title, p.statement, p.topic, p.difficulty, p.knowledge,
         p.status, p.author_username, p.created_at, p.review_note,
         b."badgeUrl" AS author_badge,
-        (SELECT COUNT(*)::int FROM community_answers a WHERE a.problem_id = p.id) AS answer_count
+        (SELECT COUNT(*)::int FROM community_submissions s WHERE s.problem_id = p.id AND s.is_correct) AS solve_count
       FROM community_problems p
       LEFT JOIN users u ON u.username = p.author_username
       LEFT JOIN badges b ON b."badgeName" = u."badgeSelected"
@@ -58,12 +58,20 @@ export async function POST(request: NextRequest) {
     if (title.length > 200 || statement.length > 20000) {
       return NextResponse.json({ error: "Title or statement too long" }, { status: 400 });
     }
+    // Community problems are checked by a single numeric answer.
+    const answer = proposedAnswer != null ? String(proposedAnswer).trim() : "";
+    if (!answer) {
+      return NextResponse.json({ error: "A numeric answer is required" }, { status: 400 });
+    }
+    if (!Number.isFinite(Number(answer))) {
+      return NextResponse.json({ error: "The answer must be a number" }, { status: 400 });
+    }
 
     const result = await sql`
       INSERT INTO community_problems
         (title, statement, proposed_answer, topic, difficulty, knowledge, status, author_username)
       VALUES
-        (${title.trim()}, ${statement.trim()}, ${proposedAnswer ?? null},
+        (${title.trim()}, ${statement.trim()}, ${answer},
          ${topic || "Algebra"}, ${difficulty || "Medium"}, ${knowledge || null},
          'pending', ${session.user.username})
       RETURNING id;

@@ -25,7 +25,7 @@ interface CommunityProblem {
   author_badge: string | null;
   created_at: string;
   review_note: string | null;
-  answer_count: number;
+  solve_count: number;
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -81,6 +81,10 @@ export default function CommunityPage() {
   const submitDraft = async () => {
     if (!title.trim() || !statement.trim()) {
       toast.error("A title and a problem statement are required.");
+      return;
+    }
+    if (!proposedAnswer.trim() || !Number.isFinite(Number(proposedAnswer.trim()))) {
+      toast.error("A single numeric answer is required.");
       return;
     }
     setSubmitting(true);
@@ -215,7 +219,7 @@ export default function CommunityPage() {
                   <span className="flex items-center gap-3 shrink-0 font-code text-[11px] text-white/35">
                     <UserChip username={p.author_username} badgeUrl={p.author_badge} size="sm" />
                     <span className="hidden sm:inline whitespace-nowrap">
-                      {p.topic} · {p.answer_count}
+                      {p.topic} · {p.solve_count} solved
                     </span>
                   </span>
                 </Link>
@@ -319,7 +323,8 @@ export default function CommunityPage() {
               <input
                 value={proposedAnswer}
                 onChange={(e) => setProposedAnswer(e.target.value)}
-                placeholder="Proposed answer / solution sketch (visible to the admin during review)"
+                inputMode="decimal"
+                placeholder="The answer — a single number (checked when solvers submit)"
                 className="w-full bg-[#121a22] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-emerald-400/50 text-sm"
               />
 
