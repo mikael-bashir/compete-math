@@ -6,6 +6,7 @@ import "./globals.css" // Global styles
 // import "@shohojdhara/atomix/src/styles/index.scss";
 // import "@shohojdhara/atomix/dist/index.css"
 import { UserDisplayer2 } from "./lib/components/navigation/navstrip"
+import { auth } from "./(auth)/auth"
 import Footer from "./lib/components/navigation/footer"
 import SessionProviderWrapper from "./lib/components/auth/session-provider-wrapper"
 import { Toaster } from "@/components/ui/sonner"
@@ -64,11 +65,15 @@ const sourceCodePro = Source_Code_Pro({
 // }
 
 // RootLayout component, wrapping all pages and ensuring global components are loaded
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+
+  // Resolve the session on the server so SessionProvider starts already
+  // authenticated — no client loading→auth flip (greeting/nav flicker).
+  const session = await auth()
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -87,7 +92,7 @@ export default function RootLayout({
         />
 
         <Suspense fallback={<div>Loading...</div>}>
-          <SessionProviderWrapper>
+          <SessionProviderWrapper session={session}>
             <UserDisplayer2 />
             <div className="overflow-hidden">{children}</div>
 
