@@ -1,116 +1,191 @@
-"use client"
+'use client'
 
-import { useState } from "react"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Menu, X, BookOpen, Archive, Users, Newspaper, Home } from "lucide-react"
+import { usePathname } from "next/navigation"
+import { useSession, signOut } from "next-auth/react"
+import { useState } from "react"
+import { Settings, User, Globe, Heart, LogOut } from "lucide-react"
 
-export default function Navbar() {
-  const [isMenuOpen, setMenuOpen] = useState(false)
+import { NAV_LINKS, DONATE_URL } from "../../constants/site"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
-  const navItems = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/about", label: "About", icon: BookOpen },
-    { href: "/practice", label: "Archives", icon: Archive },
-    { href: "/global", label: "Global", icon: Users },
-    { href: "/news", label: "News", icon: Newspaper },
-  ]
+type SettingsItem = {
+  label: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  external?: boolean
+}
+
+/**
+ * Tier 2 of the navigation — a thin bar of section links plus a Settings
+ * dropdown. On desktop it is always a row; on phones it collapses to a single
+ * column (toggled by the L-arrow in the strip), with Settings rendered as a
+ * mini vertical list rather than a dropdown.
+ */
+export default function Navbar({
+  open,
+  onNavigate,
+}: {
+  open: boolean
+  onNavigate: () => void
+}) {
+  const pathname = usePathname()
+  const { data: session, status } = useSession()
+  const isAuthed = status === "authenticated" && !!session?.user
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(href + "/")
+
+  const settingsItems: SettingsItem[] = isAuthed
+    ? [
+        { label: "My Profile", href: `/users/${session!.user!.username}`, icon: User },
+        { label: "Account & Badges", href: "/account", icon: Globe },
+        { label: "Donate", href: DONATE_URL, icon: Heart, external: true },
+      ]
+    : []
 
   return (
-    <header className="relative bg-white/90 backdrop-blur-md border-b border-emerald-100/50 shadow-xs">
+    <div
+      className={`${open ? "block" : "hidden"} md:block border-t border-white/[0.05] bg-[#0a0f14]/95 md:bg-transparent`}
+    >
       <div className="flex justify-center">
-        {/* Desktop Navigation */}
-        <nav className="w-full max-w-7xl px-6 py-3 hidden md:block">
-          <ul className="flex justify-center items-center space-x-8">
-            {navItems.map((item) => {
-              const IconComponent = item.icon
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className="flex items-center space-x-2 px-4 py-2 rounded-lg text-emerald-800 hover:text-emerald-600 hover:bg-emerald-50/80 transition-all duration-200 font-medium group"
-                  >
-                    <IconComponent className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                    <span>{item.label}</span>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        </nav>
+        <div className="w-full max-w-7xl px-6">
 
-        {/* Mobile Navigation Toggle */}
-        <div className="md:hidden absolute top-4 right-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setMenuOpen(!isMenuOpen)}
-            className="text-emerald-700 hover:bg-emerald-50"
-          >
-            {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </Button>
-        </div>
-      </div>
-
-      {/* Mobile Side Navigation */}
-      <div
-        className={`fixed top-0 right-0 h-full w-80 bg-white/95 backdrop-blur-lg shadow-2xl z-50 transform transition-transform duration-300 ease-out ${
-          isMenuOpen ? "translate-x-0" : "translate-x-full"
-        } md:hidden border-l border-emerald-100`}
-      >
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="font-heading text-lg font-bold text-emerald-900">Navigation</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setMenuOpen(false)}
-              className="text-emerald-700 hover:bg-emerald-50"
-            >
-              <X className="w-5 h-5" />
-            </Button>
-          </div>
-
-          <ul className="space-y-2">
-            {navItems.map((item) => {
-              const IconComponent = item.icon
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center space-x-3 px-4 py-3 rounded-lg text-emerald-800 hover:text-emerald-600 hover:bg-emerald-50/80 transition-all duration-200 font-medium group w-full"
-                  >
-                    <IconComponent className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    <span>{item.label}</span>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-
-          <div className="mt-8 pt-6 border-t border-emerald-100">
-            <div className="space-y-3">
-              <Link href="/auth/login" onClick={() => setMenuOpen(false)}>
-                <Button
-                  variant="outline"
-                  className="w-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 bg-transparent"
+          {/* ---------- DESKTOP: single thin row ---------- */}
+          <div className="hidden md:flex items-center justify-between py-1">
+            <div className="flex items-center gap-1">
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`font-code text-[12.5px] px-3 py-1 rounded-md transition-all duration-200 ${
+                    isActive(link.href)
+                      ? "text-emerald-200 bg-emerald-400/10 shadow-[inset_0_-2px_0_rgba(52,211,153,0.6)]"
+                      : "text-white/60 hover:text-white hover:bg-white/5"
+                  }`}
                 >
-                  Sign In
-                </Button>
-              </Link>
-              <Link href="/auth/register" onClick={() => setMenuOpen(false)}>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Get Started</Button>
-              </Link>
+                  {link.label}
+                </Link>
+              ))}
             </div>
+
+            {isAuthed && (
+              <DropdownMenu open={settingsOpen} onOpenChange={setSettingsOpen}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={`font-code inline-flex items-center gap-1.5 text-[12.5px] px-3 py-1.5 rounded-md transition-colors outline-none ${
+                      settingsOpen
+                        ? "text-amber-200 bg-amber-400/10"
+                        : "text-white/60 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <Settings
+                      className={`h-3.5 w-3.5 transition-transform duration-300 ${settingsOpen ? "rotate-90" : ""}`}
+                    />
+                    Settings
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52 bg-[#0d141b] border-white/10 text-emerald-50">
+                  {settingsItems.map(({ label, href, icon: Icon, external }) =>
+                    external ? (
+                      <a key={label} href={href} target="_blank" rel="noreferrer" className="w-full">
+                        <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
+                          <Icon className="mr-2 h-4 w-4" />
+                          <span>{label}</span>
+                        </DropdownMenuItem>
+                      </a>
+                    ) : (
+                      <Link key={label} href={href} className="w-full">
+                        <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
+                          <Icon className="mr-2 h-4 w-4" />
+                          <span>{label}</span>
+                        </DropdownMenuItem>
+                      </Link>
+                    )
+                  )}
+                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuItem
+                    onClick={() => signOut({ callbackUrl: "/" })}
+                    className="text-red-400 focus:bg-red-900/20 focus:text-red-300 cursor-pointer"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
+
+          {/* ---------- MOBILE: column of single-row options ---------- */}
+          <div className="md:hidden flex flex-col py-2 gap-0.5">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={onNavigate}
+                className={`font-code text-[13px] px-3 py-2 rounded-md transition-colors ${
+                  isActive(link.href)
+                    ? "text-emerald-200 bg-emerald-400/10"
+                    : "text-white/70 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
+
+            {isAuthed && (
+              <div className="mt-1 pt-2 border-t border-white/[0.06]">
+                <p className="font-code text-[10px] uppercase tracking-widest text-white/30 px-3 mb-1">
+                  Settings
+                </p>
+                {settingsItems.map(({ label, href, icon: Icon, external }) =>
+                  external ? (
+                    <a
+                      key={label}
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={onNavigate}
+                      className="font-code flex items-center gap-2 text-[13px] px-3 py-1.5 text-white/60 hover:text-white transition-colors no-underline"
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={label}
+                      href={href}
+                      onClick={onNavigate}
+                      className="font-code flex items-center gap-2 text-[13px] px-3 py-1.5 text-white/60 hover:text-white transition-colors no-underline"
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {label}
+                    </Link>
+                  )
+                )}
+                <button
+                  onClick={() => {
+                    onNavigate()
+                    signOut({ callbackUrl: "/" })
+                  }}
+                  className="font-code flex items-center gap-2 text-[13px] px-3 py-1.5 w-full text-red-400 hover:text-red-300 transition-colors"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
-
-      {/* Mobile Overlay */}
-      {isMenuOpen && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-xs z-40 md:hidden" onClick={() => setMenuOpen(false)} />
-      )}
-    </header>
+    </div>
   )
 }

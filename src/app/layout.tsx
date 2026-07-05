@@ -5,7 +5,6 @@ import "@shohojdhara/atomix/css"
 import "./globals.css" // Global styles
 // import "@shohojdhara/atomix/src/styles/index.scss";
 // import "@shohojdhara/atomix/dist/index.css"
-import Navbar from "./lib/components/navigation/navbar"
 import { UserDisplayer2 } from "./lib/components/navigation/navstrip"
 import Footer from "./lib/components/navigation/footer"
 import SessionProviderWrapper from "./lib/components/auth/session-provider-wrapper"
@@ -90,7 +89,6 @@ export default function RootLayout({
         <Suspense fallback={<div>Loading...</div>}>
           <SessionProviderWrapper>
             <UserDisplayer2 />
-            {/* <Navbar /> */}
             <div className="overflow-hidden">{children}</div>
 
             {/* Notification toaster */}

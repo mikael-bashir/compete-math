@@ -87,7 +87,7 @@ export default function Footer() {
               <p className="font-code text-[11px]! font-semibold uppercase tracking-[0.2em] text-white/35! mb-4">
                 {col.title}
               </p>
-              <ul className="space-y-2.5">
+              <ul className="space-y-2.5 pl-0! list-none">
                 {col.links.map((link) => (
                   <li key={link.label}>
                     {"external" in link && link.external ? (

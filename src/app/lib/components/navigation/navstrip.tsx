@@ -2,73 +2,64 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { usePathname } from "next/navigation"
-import { useSession, signOut } from "next-auth/react"
-import { LogOut, User, Globe, Heart, LogIn } from "lucide-react"
+import { useSession } from "next-auth/react"
+import { LogIn } from "lucide-react"
 
 import { DazzleBadgeEffect } from "../art/badges/effects"
-import { NAV_LINKS, DONATE_URL } from "../../constants/site"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import Navbar from "./navbar"
 
-// Ornate, code-themed menu glyph. Closed = a decorated three-bar sigil with a
-// diamond node; open = a diamond-centred X. Swapping on `open` gives the
-// requested state-reactive affordance instead of a plain burger.
-function OrnateMenuGlyph({ open }: { open: boolean }) {
+// L-shaped (elbow) arrow that toggles the navbar on phones. It carries the same
+// amber shine as the logo (gradient stroke + glow) and shifts orientation when
+// the navbar is open vs closed.
+function LArrow({ open }: { open: boolean }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      className={`h-5 w-5 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+      className={`h-5 w-5 transition-transform duration-300 ${open ? "rotate-90" : ""}`}
       fill="none"
-      stroke="currentColor"
-      strokeWidth={1.6}
+      strokeWidth={1.8}
       strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ filter: "drop-shadow(0 0 4px rgba(251,191,36,0.55))" }}
       aria-hidden
     >
-      {open ? (
-        <>
-          <path d="M6.5 6.5 L17.5 17.5" />
-          <path d="M17.5 6.5 L6.5 17.5" />
-          <path d="M12 9.6 L14.4 12 L12 14.4 L9.6 12 Z" fill="currentColor" stroke="none" />
-        </>
-      ) : (
-        <>
-          <path d="M4.5 7 H19.5" />
-          <path d="M4.5 12 H14.5" />
-          <path d="M4.5 17 H19.5" />
-          <path d="M18 9.8 L20.2 12 L18 14.2 L15.8 12 Z" fill="currentColor" stroke="none" />
-        </>
-      )}
+      <defs>
+        <linearGradient id="larrow-shine" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#fcd34d" />
+          <stop offset="50%" stopColor="#fef08a" />
+          <stop offset="100%" stopColor="#f59e0b" />
+        </linearGradient>
+      </defs>
+      <g stroke="url(#larrow-shine)">
+        {/* the elbow: down, then right */}
+        <path d="M8 4.5 V15.5 H16" />
+        {/* arrowhead at the corner's end, pointing right */}
+        <path d="M12.5 12 L16.5 15.5 L12.5 19" />
+      </g>
     </svg>
   )
 }
 
 export function UserDisplayer2() {
   const { data: session, status } = useSession()
-  const pathname = usePathname()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [accountOpen, setAccountOpen] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/")
+  const isAuthed = status === "authenticated" && !!session?.user
+  const username = session?.user?.username
 
   return (
-    // Fixed container for the navbar. Solid (no backdrop-filter) so it doesn't
-    // re-blur the large fixed page background on every scroll frame.
+    // Fixed header. Solid-ish translucent surface (no backdrop-filter) so it
+    // doesn't re-blur the large fixed page background on every scroll frame.
     <div className="fixed top-0 left-0 right-0 z-50 font-code">
-      <nav className="w-full bg-gradient-to-b from-[#0a0f14]/80 to-[#0a0f14]/25">
-        <div className="flex justify-center">
-          <div className="flex justify-between items-center w-full max-w-7xl px-6 xs:py-4 py-2">
+      <div className="bg-gradient-to-b from-[#0a0f14]/85 to-[#0a0f14]/45">
 
-            {/* --- Logo (live shine) --- */}
-            <Link href="/" className="flex items-center space-x-3 group">
+        {/* ---------- Tier 1: the strip (logo + user/badge) ---------- */}
+        <div className="flex justify-center">
+          <div className="flex justify-between items-center w-full max-w-7xl px-6 py-1">
+
+            {/* Logo (live shine) */}
+            <Link href="/" className="flex items-center group no-underline">
               <p
                 className="
                   font-code font-bold text-[13pt]
@@ -83,159 +74,54 @@ export function UserDisplayer2() {
               </p>
             </Link>
 
-            {/* --- Static desktop nav links --- */}
-            <div className="hidden md:flex items-center gap-1">
-              {NAV_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`
-                    font-code text-[13px] px-3.5 py-2 rounded-md transition-all duration-200
-                    ${isActive(link.href)
-                      ? "text-emerald-200 bg-emerald-400/10 shadow-[inset_0_-2px_0_rgba(52,211,153,0.6)]"
-                      : "text-white/60 hover:text-white hover:bg-white/5"}
-                  `}
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-
-            {/* --- Right side: account (auth) or ornate menu (guest) --- */}
+            {/* Right: user chip (auth) or Sign In (guest) + mobile toggle */}
             <div className="flex items-center gap-2">
               {status === "loading" ? (
-                <div className="h-9 w-24 bg-white/5 animate-pulse rounded-md" />
-              ) : status === "authenticated" && session?.user ? (
-
-                /* Authenticated: avatar dropdown (chevron rotates on open) */
-                <DropdownMenu open={accountOpen} onOpenChange={setAccountOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-white/10 text-emerald-100 hover:text-white transition-colors outline-none">
-                      <span className="text-sm font-medium hidden sm:inline">
-                        {session.user.username || "User"}
-                      </span>
-                      <DazzleBadgeEffect size="40px" color="#10b981">
-                        <Avatar className="h-8 w-8 border border-white/20">
-                          <AvatarImage src={session.user.badgeUrl || "/placeholder.svg"} alt="User" />
-                          <AvatarFallback className="bg-emerald-900/50 text-emerald-200">
-                            {session.user.username?.charAt(0)?.toUpperCase() || "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                      </DazzleBadgeEffect>
-                      <span className={`transition-transform duration-300 ${accountOpen ? "rotate-90" : ""}`}>
-                        <OrnateMenuGlyph open={false} />
-                      </span>
-                    </button>
-                  </DropdownMenuTrigger>
-
-                  <DropdownMenuContent align="end" className="w-56 bg-[#0d141b] border-white/10 text-emerald-50">
-                    <DropdownMenuLabel className="font-normal">
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none text-emerald-100">
-                          {session.user.username}
-                        </p>
-                        <p className="text-xs leading-none text-emerald-400/70 truncate">
-                          {session.user.email}
-                        </p>
-                      </div>
-                    </DropdownMenuLabel>
-
-                    <DropdownMenuSeparator className="bg-white/10" />
-
-                    {/* Nav links — shown in-menu on mobile only */}
-                    <div className="md:hidden">
-                      {NAV_LINKS.map((link) => (
-                        <Link key={link.href} href={link.href} className="w-full">
-                          <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
-                            <span>{link.label}</span>
-                          </DropdownMenuItem>
-                        </Link>
-                      ))}
-                      <DropdownMenuSeparator className="bg-white/10" />
-                    </div>
-
-                    <Link href={`/users/${session.user.username}`} className="w-full">
-                      <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
-                        <User className="mr-2 h-4 w-4" />
-                        <span>My Profile</span>
-                      </DropdownMenuItem>
-                    </Link>
-                    <Link href="/account" className="w-full">
-                      <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
-                        <Globe className="mr-2 h-4 w-4" />
-                        <span>Account &amp; Badges</span>
-                      </DropdownMenuItem>
-                    </Link>
-                    <a href={DONATE_URL} target="_blank" rel="noreferrer" className="w-full">
-                      <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
-                        <Heart className="mr-2 h-4 w-4" />
-                        <span>Donate</span>
-                      </DropdownMenuItem>
-                    </a>
-
-                    <DropdownMenuSeparator className="bg-white/10" />
-
-                    <DropdownMenuItem
-                      onClick={() => signOut({ callbackUrl: '/' })}
-                      className="text-red-400 focus:bg-red-900/20 focus:text-red-300 cursor-pointer"
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Log out</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="h-7 w-20 bg-white/5 animate-pulse rounded-md" />
+              ) : isAuthed ? (
+                <Link
+                  href={`/users/${username}`}
+                  className="flex items-center gap-2 rounded-md px-1.5 py-0.5 hover:bg-white/10 transition-colors no-underline"
+                >
+                  <span className="text-[13px] font-medium text-emerald-100 hidden xs:inline">
+                    {username || "User"}
+                  </span>
+                  <DazzleBadgeEffect size="34px" color="#10b981">
+                    <Avatar className="h-7 w-7 border border-white/20">
+                      <AvatarImage src={session!.user!.badgeUrl || "/placeholder.svg"} alt="User" />
+                      <AvatarFallback className="bg-emerald-900/50 text-emerald-200 text-xs">
+                        {username?.charAt(0)?.toUpperCase() || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </DazzleBadgeEffect>
+                </Link>
               ) : (
-
-                /* Guest: ornate menu button — holds Sign In + nav + Donate */
-                <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      aria-label="Menu"
-                      className={`
-                        inline-flex items-center justify-center h-10 w-10 rounded-lg border transition-all duration-200 outline-none
-                        ${menuOpen
-                          ? "border-amber-300/50 text-amber-200 bg-amber-400/10 shadow-[0_0_20px_-6px_rgba(251,213,130,0.6)]"
-                          : "border-white/15 text-white/70 hover:text-white hover:border-white/30 hover:bg-white/5"}
-                      `}
-                    >
-                      <OrnateMenuGlyph open={menuOpen} />
-                    </button>
-                  </DropdownMenuTrigger>
-
-                  <DropdownMenuContent align="end" className="w-52 bg-[#0d141b] border-white/10 text-emerald-50">
-                    {/* Nav links — mobile only (desktop has the strip) */}
-                    <div className="md:hidden">
-                      {NAV_LINKS.map((link) => (
-                        <Link key={link.href} href={link.href} className="w-full">
-                          <DropdownMenuItem
-                            className={`focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full ${isActive(link.href) ? "text-emerald-200" : ""}`}
-                          >
-                            <span>{link.label}</span>
-                          </DropdownMenuItem>
-                        </Link>
-                      ))}
-                      <DropdownMenuSeparator className="bg-white/10" />
-                    </div>
-
-                    <Link href="/auth/login" className="w-full">
-                      <DropdownMenuItem className="cursor-pointer w-full text-amber-200 focus:bg-amber-400/10 focus:text-amber-100 font-medium">
-                        <LogIn className="mr-2 h-4 w-4" />
-                        <span>Sign In</span>
-                      </DropdownMenuItem>
-                    </Link>
-                    <a href={DONATE_URL} target="_blank" rel="noreferrer" className="w-full">
-                      <DropdownMenuItem className="focus:bg-white/10 focus:text-emerald-200 cursor-pointer w-full">
-                        <Heart className="mr-2 h-4 w-4" />
-                        <span>Donate</span>
-                      </DropdownMenuItem>
-                    </a>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Link
+                  href="/auth/login"
+                  className="font-code inline-flex items-center gap-1.5 text-[12.5px] px-3 py-1 rounded-md border border-amber-300/40 text-amber-200 hover:bg-amber-400/10 transition-colors no-underline"
+                >
+                  <LogIn className="h-3.5 w-3.5" />
+                  Sign In
+                </Link>
               )}
+
+              {/* Mobile-only navbar toggle (replaces the old burger) */}
+              <button
+                type="button"
+                onClick={() => setNavOpen((o) => !o)}
+                aria-label="Toggle navigation"
+                aria-expanded={navOpen}
+                className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-white/5 transition-colors outline-none"
+              >
+                <LArrow open={navOpen} />
+              </button>
             </div>
           </div>
         </div>
-      </nav>
+
+        {/* ---------- Tier 2: the navbar (links + Settings) ---------- */}
+        <Navbar open={navOpen} onNavigate={() => setNavOpen(false)} />
+      </div>
     </div>
   )
 }
