@@ -94,14 +94,21 @@ export default function Navbar() {
             </Link>
           ))}
           {isAuthed && (
-            <button
-              type="button"
+            <a
+              role="button"
+              tabIndex={0}
               onClick={() => setSettingsOpen((o) => !o)}
-              className={`${linkCls(settingsOpen)} inline-flex items-center gap-1 outline-none`}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  setSettingsOpen((o) => !o)
+                }
+              }}
+              className={`${linkCls(false)} inline-flex items-center gap-1 cursor-pointer select-none outline-none no-underline`}
             >
               Settings
               <VArrow open={settingsOpen} className="h-3 w-3" />
-            </button>
+            </a>
           )}
         </div>
 
@@ -165,16 +172,21 @@ export default function Navbar() {
             {isAuthed && (
               <>
                 {/* Settings — identical to a nav link, plus a smaller V */}
-                <button
-                  type="button"
+                <a
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSettingsOpen((o) => !o)}
-                  className={`${linkBase} inline-flex items-center justify-center gap-1 outline-none ${
-                    settingsOpen ? "text-amber-200" : "text-white/70 hover:text-white hover:bg-white/5"
-                  }`}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      setSettingsOpen((o) => !o)
+                    }
+                  }}
+                  className={`${linkBase} flex items-center justify-center gap-1 cursor-pointer select-none outline-none no-underline text-white/70 hover:text-white hover:bg-white/5`}
                 >
                   Settings
                   <VArrow open={settingsOpen} className="h-3.5 w-3.5" />
-                </button>
+                </a>
 
                 {/* smaller, minimised set of setting links */}
                 {settingsOpen && (
