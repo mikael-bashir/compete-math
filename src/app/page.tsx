@@ -31,7 +31,7 @@ export default function HomePage() {
 
         {/* Overlay Content */}
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-4">
-          <h1 className="font-code text-4xl md:text-6xl font-semibold text-white tracking-tight">
+          <h1 className="font-display text-4xl md:text-6xl font-semibold text-white tracking-tight">
             <div className="opacity-90 pt-5 md:text-[58pt] xs:text-[36pt] text-[26pt] tracking-tight font-bold text-white">
               Competition<span className="text-emerald-300">.</span>
             </div>
@@ -97,7 +97,7 @@ export default function HomePage() {
             {/* Text Content */}
             <div className="flex-1 text-center"> {/* Centered text */}
               <div className="inline-flex items-center gap-3 mb-2">
-                <p className="font-code text-4xl md:text-5xl font-bold text-white! text-center">
+                <p className="font-display text-4xl md:text-5xl font-bold text-white! text-center">
                   Learn through <span className="italic">Competition</span>
                 </p>
               </div>
@@ -113,7 +113,7 @@ export default function HomePage() {
             <div className="flex-1 text-center"> {/* Centered text */}
               <div className="inline-flex items-center gap-3 mb-2">
                 {/* <Users className="w-6 h-6 text-emerald-400" /> */}
-                <p className="font-code text-4xl md:text-5xl font-bold text-white! text-center">
+                <p className="font-display text-4xl md:text-5xl font-bold text-white! text-center">
                   Grow with the Community
                 </p>
               </div>
@@ -129,7 +129,7 @@ export default function HomePage() {
             <div className="flex-1 text-center"> {/* Centered text */}
               <div className="inline-flex items-center gap-3 mb-2">
                 {/* <Library className="w-6 h-6 text-sky-400" /> */}
-                <p className="font-code text-4xl md:text-5xl font-bold text-white! text-center">
+                <p className="font-display text-4xl md:text-5xl font-bold text-white! text-center">
                   A living Library
                 </p>
               </div>

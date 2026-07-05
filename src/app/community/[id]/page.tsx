@@ -210,7 +210,7 @@ export default function CommunityProblemPage({
             )}
             <span className="ml-auto text-white/35 normal-case tracking-normal">{solveCount} solved</span>
           </div>
-          <h1 className="font-code text-3xl md:text-4xl font-bold text-white! mb-6">{problem.title}</h1>
+          <h1 className="font-display text-3xl md:text-4xl font-bold text-white! mb-6">{problem.title}</h1>
           <div className="text-white/85">
             <MathMarkdown>{problem.statement}</MathMarkdown>
           </div>
@@ -276,7 +276,7 @@ export default function CommunityProblemPage({
                   <button
                     onClick={submit}
                     disabled={submitting || !answer.trim()}
-                    className="font-code inline-flex items-center gap-2 px-6 rounded-lg bg-emerald-500/90 hover:bg-emerald-400 disabled:opacity-40 text-black font-semibold text-sm transition-all active:scale-95"
+                    className="font-code inline-flex items-center gap-2 px-6 rounded-lg bg-amber-100 hover:bg-amber-50 disabled:opacity-40 text-black font-semibold text-sm transition-all active:scale-95"
                   >
                     {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     Submit
@@ -293,7 +293,7 @@ export default function CommunityProblemPage({
         {/* Discussion — talk through how to tackle the problem */}
         <div className="flex items-center gap-3 mb-5">
           <MessageSquare className="w-4 h-4 text-white/40" />
-          <h2 className="font-code text-lg text-white! font-semibold">
+          <h2 className="font-display text-lg text-white! font-semibold">
             Discussion <span className="text-white/30 font-normal">· {comments.length}</span>
           </h2>
           <div className="h-px flex-1 bg-white/10" />

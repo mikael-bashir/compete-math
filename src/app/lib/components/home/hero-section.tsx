@@ -79,7 +79,7 @@ export function HeroSection() {
     // pt preserves the gap between the greeting and the navbar now that the
     // "weekly arena" kicker above it has been removed.
     <section className="pt-[4.5rem] pb-2 text-center">
-      <h1 className="font-code text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-white!">
+      <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-white!">
         {/* comma after "Welcome" kept; "back" only appears when signed in */}
         Welcome{isAuthed ? " back," : ","}{" "}
         <span className="bg-linear-to-r from-amber-200 via-yellow-100 to-amber-300 bg-clip-text text-transparent">

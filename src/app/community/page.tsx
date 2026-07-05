@@ -139,7 +139,7 @@ export default function CommunityPage() {
             <p className="font-code text-xs tracking-[0.3em] uppercase text-emerald-400/80 mb-2">
               // community
             </p>
-            <h1 className="font-code text-4xl md:text-5xl font-bold text-white!">
+            <h1 className="font-display text-4xl md:text-5xl font-bold text-white!">
               Problem Forge
             </h1>
             <p className="text-white/50 mt-3 max-w-xl text-sm leading-relaxed">
@@ -152,7 +152,7 @@ export default function CommunityPage() {
               if (status !== "authenticated") { router.push("/auth/login"); return; }
               setShowDraft(true);
             }}
-            className="font-code px-4 py-2 rounded-md bg-emerald-500/90 hover:bg-emerald-400 text-black font-medium text-[13px] transition-colors active:scale-95 self-start"
+            className="font-code px-4 py-2 rounded-md bg-amber-100 hover:bg-amber-50 text-black font-medium text-[13px] transition-colors active:scale-95 self-start"
           >
             Draft a Problem
           </button>

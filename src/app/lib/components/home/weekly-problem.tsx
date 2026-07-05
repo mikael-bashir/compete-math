@@ -56,7 +56,7 @@ export function WeeklyProblem() {
             <p className="font-code text-[10px] tracking-[0.3em] uppercase text-rose-300/70 mb-2">
               // problem of the week
             </p>
-            <p className="font-code text-xl md:text-2xl font-semibold text-white leading-tight">
+            <p className="font-display text-xl md:text-2xl font-semibold text-white leading-tight">
               {problem.title}
             </p>
             {problem.subtitle && (

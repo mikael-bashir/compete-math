@@ -49,6 +49,9 @@
   --font-code: var(--font-source-code), ui-monospace, "SF Mono", Menlo, monospace;
   --font-sans: var(--font-source-code), ui-monospace, "SF Mono", Menlo, monospace;
   --font-serif: var(--font-source-code), ui-monospace, "SF Mono", Menlo, monospace;
+  /* Display face for headings — a grotesk paired with the mono for real
+     hierarchy (`font-display` utility). Mono stays for UI/labels/stats. */
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
 
   /* Add your custom animation here too if needed */
   --animate-shimmer: shimmer 3s linear infinite;
@@ -142,10 +145,21 @@
    nodes and made KaTeX-heavy pages ~5x slower to recalc on scroll/hover.
    ------------------------------------------------------------------------- */
 body,
-h1, h2, h3, h4, h5, h6,
 button, input, optgroup, select, textarea,
 code, kbd, pre, samp {
   font-family: var(--font-code);
+}
+
+/* Headings default to the display grotesk, tightly tracked. Elements that opt
+   into `font-code`/`font-display` explicitly still win over this. */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
 }
 
 /* Custom Utilities */

@@ -90,7 +90,7 @@ export default function PublicProfilePage({
             </DazzleBadgeEffect>
 
             <div className="text-center sm:text-left flex-1">
-              <h1 className="font-code text-3xl font-bold text-white! mb-1">{display}</h1>
+              <h1 className="font-display text-3xl font-bold text-white! mb-1">{display}</h1>
               <p className="font-code inline-flex items-center gap-1.5 text-xs text-white/40">
                 <CalendarDays className="w-3.5 h-3.5" /> joined {joined}
               </p>
