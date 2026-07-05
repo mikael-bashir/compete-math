@@ -1,7 +1,6 @@
 'use client'
 
 import Link from "next/link"
-import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { LogIn } from "lucide-react"
 
@@ -9,41 +8,8 @@ import { DazzleBadgeEffect } from "../art/badges/effects"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Navbar from "./navbar"
 
-// L-shaped (elbow) arrow that toggles the navbar on phones. It carries the same
-// amber shine as the logo (gradient stroke + glow) and shifts orientation when
-// the navbar is open vs closed.
-function LArrow({ open }: { open: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={`h-5 w-5 transition-transform duration-300 ${open ? "rotate-90" : ""}`}
-      fill="none"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ filter: "drop-shadow(0 0 4px rgba(251,191,36,0.55))" }}
-      aria-hidden
-    >
-      <defs>
-        <linearGradient id="larrow-shine" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#fcd34d" />
-          <stop offset="50%" stopColor="#fef08a" />
-          <stop offset="100%" stopColor="#f59e0b" />
-        </linearGradient>
-      </defs>
-      <g stroke="url(#larrow-shine)">
-        {/* the elbow: down, then right */}
-        <path d="M8 4.5 V15.5 H16" />
-        {/* arrowhead at the corner's end, pointing right */}
-        <path d="M12.5 12 L16.5 15.5 L12.5 19" />
-      </g>
-    </svg>
-  )
-}
-
 export function UserDisplayer2() {
   const { data: session, status } = useSession()
-  const [navOpen, setNavOpen] = useState(false)
 
   const isAuthed = status === "authenticated" && !!session?.user
   const username = session?.user?.username
@@ -74,7 +40,7 @@ export function UserDisplayer2() {
               </p>
             </Link>
 
-            {/* Right: user chip (auth) or Sign In (guest) + mobile toggle */}
+            {/* Right: user chip (auth) or Sign In (guest) */}
             <div className="flex items-center gap-2">
               {status === "loading" ? (
                 <div className="h-7 w-20 bg-white/5 animate-pulse rounded-md" />
@@ -104,23 +70,12 @@ export function UserDisplayer2() {
                   Sign In
                 </Link>
               )}
-
-              {/* Mobile-only navbar toggle (replaces the old burger) */}
-              <button
-                type="button"
-                onClick={() => setNavOpen((o) => !o)}
-                aria-label="Toggle navigation"
-                aria-expanded={navOpen}
-                className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-white/5 transition-colors outline-none"
-              >
-                <LArrow open={navOpen} />
-              </button>
             </div>
           </div>
         </div>
 
         {/* ---------- Tier 2: the navbar (links + Settings) ---------- */}
-        <Navbar open={navOpen} onNavigate={() => setNavOpen(false)} />
+        <Navbar />
       </div>
     </div>
   )
