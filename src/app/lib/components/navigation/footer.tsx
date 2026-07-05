@@ -45,11 +45,11 @@ export default function Footer() {
 
           {/* Brand column */}
           <div className="col-span-2">
-            <p className="font-code font-bold text-lg bg-linear-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent">
+            <p className="font-code font-bold text-lg bg-linear-to-r from-amber-300 via-yellow-200 to-amber-400 bg-size-[200%_auto] bg-clip-text text-transparent [--tw-drop-shadow:drop-shadow(0_0_5px_var(--color-yellow-200))_drop-shadow(0_0_15px_var(--color-amber-400))] filter animate-shimmer">
               CompeteMath
             </p>
             <p className="mt-3 text-sm text-white/45 leading-relaxed max-w-xs">
-              A competitive mathematics arena. New problems every Friday,
+              A competitive mathematics arena. New problems every day,
               formally verified with Lean 4.
             </p>
             <div className="flex items-center gap-4 mt-6">
@@ -120,7 +120,7 @@ export default function Footer() {
             © {new Date().getFullYear()} CompeteMath. All rights reserved.
           </p>
           <p className="font-code text-xs text-white/25">
-            <span className="text-emerald-400/50">$</span> proofs checked by Lean 4 · problems dropped every Friday
+            <span className="text-emerald-400/50">$</span> proofs checked by Lean 4 · problems dropped every day
           </p>
         </div>
       </div>

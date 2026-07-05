@@ -4,62 +4,65 @@ import React, { useEffect, useState } from "react"
 import { Flame } from "lucide-react"
 import { useSession } from "next-auth/react"
 
+// Guest greeting adjectives — one is picked at random and cached in the browser
+// for the day so the greeting doesn't reshuffle on every render/visit.
+const GUEST_ADJECTIVES = ["Ambitious", "Curious", "Aspiring", "Dedicated"]
+
 export function HeroSection() {
   const [streak, setStreak] = useState(0)
-  const [timeLeft, setTimeLeft] = useState({
-    days: 0,
-    hours: 0,
-    minutes: 0,
-    seconds: 0,
-  })
+  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 })
+  const [guestAdj, setGuestAdj] = useState<string | null>(null)
 
-  const { data: session } = useSession();
+  const { data: session } = useSession()
+  const username = session?.user?.username
+  const isAuthed = !!username
+
+  // Pick (or reuse) today's guest adjective, cached in localStorage for a day.
+  useEffect(() => {
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const raw = localStorage.getItem("cm_guest_adj")
+      const cached = raw ? JSON.parse(raw) : null
+      if (cached?.date === today && cached?.adj) {
+        setGuestAdj(cached.adj)
+        return
+      }
+      const adj = GUEST_ADJECTIVES[Math.floor(Math.random() * GUEST_ADJECTIVES.length)]
+      localStorage.setItem("cm_guest_adj", JSON.stringify({ date: today, adj }))
+      setGuestAdj(adj)
+    } catch {
+      setGuestAdj(GUEST_ADJECTIVES[0])
+    }
+  }, [])
 
   // 1. Fetch Streak
   useEffect(() => {
-    if (session?.user?.username) {
+    if (username) {
       fetch('/api/user/profile/streak')
         .then((res) => res.json())
         .then((data) => {
-          if (typeof data.streak === 'number') {
-            setStreak(data.streak)
-          }
+          if (typeof data.streak === 'number') setStreak(data.streak)
         })
         .catch((err) => console.error("Failed to load streak", err))
     }
-  }, [session])
+  }, [username])
 
-// 2. Timer Logic (Friday 6am BST)
+  // 2. Timer Logic — counts down to the next 06:00 UTC (a fresh problem daily).
   useEffect(() => {
-    const getNextFriday6amBST = () => {
+    const getNext6amUTC = () => {
       const now = new Date()
       const target = new Date(now)
-
-      // 6am BST (UTC+1) — UTC calculations keep it globally synchronized.
-      const targetDayOfWeek = 5 // Friday
-      const targetHourUTC = 6   // 05:00 UTC = 06:00 BST
-
-      const currentDay = now.getUTCDay()
-      let daysUntil = (targetDayOfWeek - currentDay + 7) % 7
-
-      target.setUTCDate(now.getUTCDate() + daysUntil)
-      target.setUTCHours(targetHourUTC, 0, 0, 0)
-
+      target.setUTCHours(6, 0, 0, 0)
       if (target.getTime() <= now.getTime()) {
-        target.setUTCDate(target.getUTCDate() + 7)
+        target.setUTCDate(target.getUTCDate() + 1)
       }
-
       return target
     }
 
     const updateTimer = () => {
-      const now = new Date()
-      const target = getNextFriday6amBST()
-      const diff = target.getTime() - now.getTime()
-
+      const diff = getNext6amUTC().getTime() - Date.now()
       if (diff > 0) {
         setTimeLeft({
-          days: Math.floor(diff / (1000 * 60 * 60 * 24)),
           hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
           minutes: Math.floor((diff / (1000 * 60)) % 60),
           seconds: Math.floor((diff / 1000) % 60),
@@ -73,21 +76,20 @@ export function HeroSection() {
   }, [])
 
   return (
-    <section className="pt-10 pb-2 text-center">
-      {/* Kicker */}
-      <p className="font-code text-[11px] tracking-[0.35em] uppercase text-rose-300/70 mb-4">
-        — the weekly arena —
-      </p>
-
+    // pt preserves the gap between the greeting and the navbar now that the
+    // "weekly arena" kicker above it has been removed.
+    <section className="pt-[4.5rem] pb-2 text-center">
       <h1 className="font-code text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-white!">
-        Welcome back,{" "}
+        {/* comma after "Welcome" kept; "back" only appears when signed in */}
+        Welcome{isAuthed ? " back," : ","}{" "}
         <span className="bg-linear-to-r from-amber-200 via-yellow-100 to-amber-300 bg-clip-text text-transparent">
-          {session?.user?.username || "Guest"}
+          {isAuthed ? username : (guestAdj ?? " ")}
         </span>
+        {!isAuthed && " one"}
       </h1>
 
       <p className="mx-auto mt-4 max-w-xl text-sm md:text-base text-white/50 leading-relaxed">
-        One problem. Seven days. The whole world racing you to the insight.
+        A fresh problem every day. The whole world racing you to the insight.
       </p>
 
       {/* Streak badge */}
@@ -110,8 +112,6 @@ export function HeroSection() {
             next problem drops in
           </p>
           <div className="flex items-baseline justify-center gap-1.5">
-            <TimeUnit value={timeLeft.days} label="d" />
-            <Colon />
             <TimeUnit value={timeLeft.hours} label="h" />
             <Colon />
             <TimeUnit value={timeLeft.minutes} label="m" />

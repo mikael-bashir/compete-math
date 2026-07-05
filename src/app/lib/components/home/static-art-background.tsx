@@ -4,14 +4,14 @@ import { useState } from "react";
 import Image from "next/image";
 
 // Static, art-driven backdrop for the home dashboard. The wrapper is painted
-// with a colour sampled from the artwork (#2f1f1e — the average of
-// blood-night-art.jpg) so that colour is the suspense fallback shown until the
-// large image decodes; the image then fades in over it.
-export function StaticArtBackground({ src = "/images/blood-night-art.jpg" }: { src?: string }) {
+// with the requested home fallback colour (#180f0e) so that colour is the
+// suspense fallback shown until the large image decodes; the image then fades
+// in over it.
+export function StaticArtBackground({ src = "/images/blood-night-art-mk2.png" }: { src?: string }) {
   const [loaded, setLoaded] = useState(false);
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#2f1f1e]" aria-hidden>
+    <div className="fixed inset-0 overflow-hidden bg-[#180f0e]" aria-hidden>
       <Image
         src={src}
         alt=""
