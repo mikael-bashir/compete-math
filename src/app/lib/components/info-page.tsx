@@ -23,7 +23,7 @@ export function InfoPage({
           <ArrowLeft className="w-4 h-4" /> competemath.com
         </Link>
 
-        <p className="font-code text-xs tracking-[0.3em] uppercase text-emerald-400/80 mb-2">
+        <p className="font-code text-xs tracking-[0.3em] uppercase text-amber-400/80 mb-2">
           // {kicker}
         </p>
         <h1 className="font-code text-4xl md:text-5xl font-bold text-white! mb-10">{title}</h1>

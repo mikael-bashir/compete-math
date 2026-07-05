@@ -104,7 +104,7 @@ export function HeroSection() {
 
       {/* Countdown strip */}
       <div className="mx-auto mt-10 max-w-md">
-        <div className="relative rounded-2xl border border-white/10 bg-[#141013]/92 px-8 py-5 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+        <div className="relative rounded-2xl border border-white/[0.08] bg-[#141013]/92 px-8 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_20px_60px_-20px_rgba(0,0,0,0.8)]">
           {/* rose hairline along the top */}
           <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-rose-300/50 to-transparent" />
 

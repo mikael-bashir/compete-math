@@ -38,7 +38,7 @@ export default function Footer() {
   return (
     <footer className="relative bg-[#070b0f] border-t border-white/10">
       {/* subtle emerald glow along the top edge */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent" />
 
       <div className="max-w-7xl mx-auto px-6 pt-16 pb-10">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-10">
@@ -120,7 +120,7 @@ export default function Footer() {
             © {new Date().getFullYear()} CompeteMath. All rights reserved.
           </p>
           <p className="font-code text-xs text-white/25">
-            <span className="text-emerald-400/50">$</span> proofs checked by Lean 4 · problems dropped every day
+            <span className="text-amber-400/50">$</span> proofs checked by Lean 4 · problems dropped every day
           </p>
         </div>
       </div>

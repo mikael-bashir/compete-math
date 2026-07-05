@@ -136,7 +136,7 @@ export default function CommunityPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-10">
           <div>
-            <p className="font-code text-xs tracking-[0.3em] uppercase text-emerald-400/80 mb-2">
+            <p className="font-code text-xs tracking-[0.3em] uppercase text-amber-400/80 mb-2">
               // community
             </p>
             <h1 className="font-display text-4xl md:text-5xl font-bold text-white!">
@@ -201,7 +201,7 @@ export default function CommunityPage() {
             {problems.map((p) => (
               <div
                 key={p.id}
-                className="rounded-md border border-white/[0.06] bg-white/[0.015] hover:bg-white/[0.04] hover:border-white/[0.12] transition-colors"
+                className="rounded-xl border border-white/[0.08] bg-white/[0.025] hover:bg-white/[0.05] hover:border-white/[0.14] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
               >
                 {/* Whole card is the link — a single thin full-width row */}
                 <Link

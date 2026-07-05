@@ -33,7 +33,7 @@ export function LevelInfo({ align = "right" }: { align?: "left" | "right" }) {
             align === "right" ? "right-0" : "left-0"
           }`}
         >
-          <p className="font-code text-[10px] tracking-[0.25em] uppercase text-emerald-400/80 mb-3">
+          <p className="font-code text-[10px] tracking-[0.25em] uppercase text-amber-400/80 mb-3">
             // knowledge levels
           </p>
           <ul className="space-y-2.5">

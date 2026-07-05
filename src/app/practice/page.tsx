@@ -72,7 +72,7 @@ export default function PracticePage() {
 
         {/* Header */}
         <div className="mb-10">
-          <p className="font-code text-xs tracking-[0.3em] uppercase text-emerald-400/80 mb-2">
+          <p className="font-code text-xs tracking-[0.3em] uppercase text-amber-400/80 mb-2">
             // practice
           </p>
           <h1 className="font-code text-4xl md:text-5xl font-bold text-white!">
@@ -141,10 +141,10 @@ export default function PracticePage() {
                     <Link
                       key={p.id}
                       href={`/practice/problems/${p.id}`}
-                      className={`rounded-lg border px-4 py-3 no-underline transition-colors ${
+                      className={`rounded-xl border px-4 py-3 no-underline transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${
                         p.isSolved
                           ? "border-emerald-400/20 bg-emerald-400/[0.04] hover:border-emerald-400/40"
-                          : "border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.045] hover:border-white/15"
+                          : "border-white/[0.08] bg-white/[0.025] hover:bg-white/[0.05] hover:border-white/15"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3 mb-2.5">

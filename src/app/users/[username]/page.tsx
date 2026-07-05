@@ -69,8 +69,8 @@ export default function PublicProfilePage({
   const stats = [
     { icon: Trophy, label: "Problems solved", value: profile.solvedCount, color: "text-amber-300" },
     { icon: Flame, label: "Day streak", value: profile.streak, color: "text-orange-400" },
-    { icon: PenLine, label: "Problems forged", value: profile.problems.length, color: "text-emerald-300" },
-    { icon: MessageSquare, label: "Answers posted", value: profile.answers.length, color: "text-sky-300" },
+    { icon: PenLine, label: "Problems forged", value: profile.problems.length, color: "text-amber-300" },
+    { icon: MessageSquare, label: "Answers posted", value: profile.answers.length, color: "text-amber-200" },
   ];
 
   return (

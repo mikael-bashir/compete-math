@@ -33,12 +33,12 @@ export default function HomePage() {
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-4">
           <h1 className="font-display text-4xl md:text-6xl font-semibold text-white tracking-tight">
             <div className="opacity-90 pt-5 md:text-[58pt] xs:text-[36pt] text-[26pt] tracking-tight font-bold text-white">
-              Competition<span className="text-emerald-300">.</span>
+              Competition<span className="text-amber-300">.</span>
             </div>
           </h1>
           <div className="pb-7">
             <p className="font-code text-white/75 text-base md:text-lg">
-              <span className="text-emerald-300/80">$</span> the best way to master mathematics
+              <span className="text-amber-300/80">$</span> the best way to master mathematics
             </p>
           </div>
           {/* <button

@@ -49,7 +49,7 @@ export function WeeklyProblem() {
   const href = problem.community ? `/community/${problem.id}` : `/practice/problems/${problem.id}`
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-[#141013]/85 overflow-hidden">
+    <div className="rounded-2xl border border-white/[0.08] bg-[#141013]/92 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_20px_60px_-20px_rgba(0,0,0,0.8)]">
       <div className="p-6 md:p-7">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
