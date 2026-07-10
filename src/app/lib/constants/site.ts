@@ -14,14 +14,101 @@ export const NAV_LINKS = [
   { label: "Leaderboard", href: "/global" },
 ] as const;
 
+// Theme/topic taxonomy for practice + community problems. Kept broad and close
+// to exhaustive across competition and undergraduate mathematics so an admin can
+// tag a problem precisely. Ordered by cluster (algebra → number theory → geometry
+// → combinatorics → probability → analysis → discrete/CS → advanced) rather than
+// alphabetically, so the picker reads sensibly. Existing rows keep whatever value
+// they already have; "General" is the implicit fallback for untagged problems.
 export const PROBLEM_TOPICS = [
+  // Algebra
   "Algebra",
+  "Elementary Algebra",
+  "Polynomials",
+  "Functional Equations",
+  "Inequalities",
+  "Sequences & Series",
+  "Recurrence Relations",
+  "Complex Numbers",
+  "Roots of Unity",
+  "Linear Algebra",
+  "Matrices & Determinants",
+  "Abstract Algebra",
+  "Group Theory",
+  "Ring & Field Theory",
+  "Galois Theory",
+  // Number Theory
   "Number Theory",
+  "Divisibility",
+  "Modular Arithmetic",
+  "Prime Numbers",
+  "Diophantine Equations",
+  "Quadratic Residues",
+  "Multiplicative Functions",
+  "p-adic Valuations",
+  "Continued Fractions",
+  "Algebraic Number Theory",
+  "Analytic Number Theory",
+  // Geometry
   "Geometry",
+  "Euclidean Geometry",
+  "Triangle Geometry",
+  "Circle Geometry",
+  "Coordinate Geometry",
+  "Trigonometry",
+  "Vectors",
+  "Transformational Geometry",
+  "Projective Geometry",
+  "Solid Geometry",
+  "Combinatorial Geometry",
+  "Differential Geometry",
+  // Combinatorics
   "Combinatorics",
+  "Enumerative Combinatorics",
+  "Graph Theory",
+  "Extremal Combinatorics",
+  "Pigeonhole Principle",
+  "Bijective Combinatorics",
+  "Generating Functions",
+  "Combinatorial Game Theory",
+  "Ramsey Theory",
+  "Order & Lattice Theory",
+  // Probability & Statistics
   "Probability",
+  "Combinatorial Probability",
+  "Expected Value",
+  "Random Processes",
+  "Markov Chains",
+  "Statistics",
+  // Analysis & Calculus
   "Analysis",
+  "Real Analysis",
+  "Calculus",
+  "Limits & Continuity",
+  "Differential Calculus",
+  "Integral Calculus",
+  "Multivariable Calculus",
+  "Differential Equations",
+  "Complex Analysis",
+  "Functional Analysis",
+  "Measure Theory",
+  "Fourier Analysis",
+  // Discrete / Logic / CS
   "Logic",
+  "Set Theory",
+  "Discrete Mathematics",
+  "Boolean Algebra",
+  "Combinatorial Optimization",
+  "Algorithms",
+  "Computational Complexity",
+  "Cryptography",
+  "Information Theory",
+  "Game Theory",
+  // Topology & advanced
+  "Topology",
+  "Dynamical Systems",
+  "Category Theory",
+  "Mathematical Olympiad",
 ] as const;
 
 export const DIFFICULTY_LEVELS = ["Easy", "Medium", "Hard", "Insane"] as const;

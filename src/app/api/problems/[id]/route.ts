@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
+import { sql } from '@vercel/postgres';
 import { getProblemById, getUserProblemStatus, recordSubmission } from '@/app/lib/data/problems';
 import { formatProblem } from '@/app/lib/utils';
 import { auth } from '../../../(auth)/auth';
 import { rewardBadges } from '@/app/lib/data/problems';
+import {
+  isAdminEmail,
+  PROBLEM_TOPICS,
+  DIFFICULTY_LEVELS,
+  KNOWLEDGE_LEVELS,
+} from '@/app/lib/constants/site';
 
 interface RawProblem {
   questionId: string;
@@ -31,6 +38,72 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   // 3. Return Combined Data
   return NextResponse.json({ ...formattedProblem, isSolved });
+}
+
+// Admin-only edit of a practice problem's taxonomy: theme (topic), difficulty
+// and knowledge level. Everything else (statement, answer, points) is owned by
+// the generation pipeline and left untouched here.
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!isAdminEmail(session?.user?.email)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const questionId = parseInt(id);
+  if (Number.isNaN(questionId)) {
+    return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  }
+
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
+  }
+
+  // Normalize + validate each field. Topic/difficulty must be from the known
+  // taxonomies; knowledge may additionally be cleared (null / "None").
+  const topic: string | null = body.topic ?? null;
+  const difficulty: string | null = body.difficulty ?? null;
+  const rawKnowledge: string | null = body.knowledge ?? null;
+  const knowledge =
+    rawKnowledge && rawKnowledge !== 'None' ? rawKnowledge : null;
+
+  if (topic !== null && !(PROBLEM_TOPICS as readonly string[]).includes(topic)) {
+    return NextResponse.json({ error: 'Unknown theme' }, { status: 400 });
+  }
+  if (
+    difficulty !== null &&
+    !(DIFFICULTY_LEVELS as readonly string[]).includes(difficulty)
+  ) {
+    return NextResponse.json({ error: 'Unknown difficulty' }, { status: 400 });
+  }
+  if (
+    knowledge !== null &&
+    !(KNOWLEDGE_LEVELS as readonly string[]).includes(knowledge)
+  ) {
+    return NextResponse.json({ error: 'Unknown level' }, { status: 400 });
+  }
+
+  try {
+    const result = await sql`
+      UPDATE questions
+      SET topic = ${topic},
+          difficulty = ${difficulty},
+          knowledge = ${knowledge}
+      WHERE "questionId" = ${questionId}
+      RETURNING "questionId";
+    `;
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, topic, difficulty, knowledge });
+  } catch (error) {
+    console.error('Problem edit error:', error);
+    return NextResponse.json({ error: 'Update failed' }, { status: 500 });
+  }
 }
 
 export async function POST(

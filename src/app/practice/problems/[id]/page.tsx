@@ -15,6 +15,12 @@ import 'katex/dist/katex.min.css';
 // UI Components
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  isAdminEmail,
+  PROBLEM_TOPICS,
+  DIFFICULTY_LEVELS,
+  KNOWLEDGE_LEVELS,
+} from "@/app/lib/constants/site"
 
 // --- 1. BADGE COMPONENT ---
 const UserBadge = ({ url, name, className }: { url: string, name: string, className?: string }) => {
@@ -71,13 +77,20 @@ const showBadgeToast = (badgeName: string, badgeUrl: string) => {
 
 export default function ProblemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { status: authStatus } = useSession();
+  const { data: session, status: authStatus } = useSession();
+  const isAdmin = isAdminEmail(session?.user?.email);
 
   const [problem, setProblem] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [isSolved, setIsSolved] = useState(false);
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState<'idle' | 'submitting' | 'wrong'>('idle');
+
+  // Admin taxonomy editor (theme / difficulty / level), prefilled from the problem.
+  const [editTopic, setEditTopic] = useState("");
+  const [editDifficulty, setEditDifficulty] = useState("");
+  const [editKnowledge, setEditKnowledge] = useState("");
+  const [savingMeta, setSavingMeta] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -86,12 +99,38 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         if (!res.ok) throw new Error('Failed to fetch');
         const data = await res.json();
         setProblem(data);
+        setEditTopic(data.topic || "");
+        setEditDifficulty(data.difficulty || "");
+        setEditKnowledge(data.knowledge && data.knowledge !== "None" ? data.knowledge : "");
         if (data.isSolved) setIsSolved(true);
-      } catch (error) { console.error(error); } 
+      } catch (error) { console.error(error); }
       finally { setLoadingData(false); }
     };
     fetchData();
   }, [id]);
+
+  const saveMeta = async () => {
+    setSavingMeta(true);
+    try {
+      const res = await fetch(`/api/problems/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: editTopic || null,
+          difficulty: editDifficulty || null,
+          knowledge: editKnowledge || null,
+        }),
+      });
+      const out = await res.json();
+      if (!res.ok) { toast.error(out.error || 'Save failed'); return; }
+      setProblem((p: any) => ({ ...p, topic: out.topic, difficulty: out.difficulty, knowledge: out.knowledge }));
+      toast.success('Problem updated');
+    } catch {
+      toast.error('Save failed');
+    } finally {
+      setSavingMeta(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,6 +175,56 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         <Link href="/practice" className="inline-flex items-center text-emerald-700 hover:text-emerald-500 transition-colors mb-8 group font-medium text-sm">
           <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" /> Back to Archives
         </Link>
+
+        {isAdmin && (
+          <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-4">
+            <p className="text-[11px] uppercase tracking-widest font-semibold text-amber-400/80 mb-3">
+              Admin · edit taxonomy
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wider text-slate-400">
+                Theme
+                <select
+                  value={editTopic}
+                  onChange={(e) => setEditTopic(e.target.value)}
+                  className="bg-[#050505] border border-[#333] rounded px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500/60"
+                >
+                  <option value="">General</option>
+                  {PROBLEM_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wider text-slate-400">
+                Difficulty
+                <select
+                  value={editDifficulty}
+                  onChange={(e) => setEditDifficulty(e.target.value)}
+                  className="bg-[#050505] border border-[#333] rounded px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500/60"
+                >
+                  <option value="">—</option>
+                  {DIFFICULTY_LEVELS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wider text-slate-400">
+                Level
+                <select
+                  value={editKnowledge}
+                  onChange={(e) => setEditKnowledge(e.target.value)}
+                  className="bg-[#050505] border border-[#333] rounded px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500/60"
+                >
+                  <option value="">None</option>
+                  {KNOWLEDGE_LEVELS.map((k) => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </label>
+              <Button
+                onClick={saveMeta}
+                disabled={savingMeta}
+                className="bg-amber-500/90 hover:bg-amber-500 text-black font-semibold"
+              >
+                {savingMeta ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-2xl overflow-hidden shadow-2xl">
           <div className="bg-[#111] border-b border-[#222] px-8 py-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

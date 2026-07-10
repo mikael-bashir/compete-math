@@ -59,28 +59,32 @@ export const getProblems = async () => {
 // };
 
 // Fetch the problem content (excluding the answer)
-export async function getProblemById(id: number): Promise<{ questionId: string, subtitle: string, questionTitle: string, difficulty: string, points: string, questionProblem: string }> {
+export async function getProblemById(id: number): Promise<{ questionId: string, subtitle: string, questionTitle: string, difficulty: string, points: string, questionProblem: string, topic: string | null, knowledge: string | null }> {
   try {
     // Vercel SQL returns a result object where .rows is the array of data
     const result = await sql`
-      SELECT 
-        "questionId", 
+      SELECT
+        "questionId",
         subtitle,
-        "questionTitle", 
+        "questionTitle",
         difficulty,
         points,
-        "questionProblem" 
+        "questionProblem",
+        topic,
+        knowledge
       FROM questions
       WHERE "questionId" = ${id}
     `;
 
-    return { 
-      questionId: result.rows[0].questionId, 
-      subtitle: result.rows[0].subtitle, 
-      questionTitle: result.rows[0].questionTitle, 
-      difficulty: result.rows[0].difficulty, 
-      questionProblem: result.rows[0].questionProblem, 
-      points: result.rows[0].points 
+    return {
+      questionId: result.rows[0].questionId,
+      subtitle: result.rows[0].subtitle,
+      questionTitle: result.rows[0].questionTitle,
+      difficulty: result.rows[0].difficulty,
+      questionProblem: result.rows[0].questionProblem,
+      points: result.rows[0].points,
+      topic: result.rows[0].topic ?? null,
+      knowledge: result.rows[0].knowledge ?? null
     };
 
   } catch (error) {
