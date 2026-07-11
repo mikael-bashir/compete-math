@@ -34,7 +34,6 @@ import { CertifiedInfo } from "@/app/lib/components/certified-info"
 interface CertPayload {
   proof: string;
   full: string;
-  digest?: string | null;
   signature?: string | null;
   keyId?: string | null;
   mintedAt?: string | null;
@@ -64,7 +63,6 @@ function CertificatePanel({
   cert: CertPayload | null;
 }) {
   const [copied, setCopied] = useState(false);
-  const [copiedHash, setCopiedHash] = useState(false);
   const [verify, setVerify] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   if (!open) return null;
 
@@ -122,20 +120,6 @@ function CertificatePanel({
           <Field label="Support" className="sm:col-span-2">
             <a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30 break-all">{CERTIFICATE.supportEmail}</a>
           </Field>
-          <Field label="Digest · SHA-256" className="sm:col-span-2">
-            <span className="flex items-start gap-2">
-              <code className="min-w-0 flex-1 text-white/55 break-all leading-relaxed">{cert?.digest ?? '—'}</code>
-              {cert?.digest && (
-                <button
-                  onClick={async () => { try { await navigator.clipboard.writeText(cert.digest!); setCopiedHash(true); setTimeout(() => setCopiedHash(false), 1500); } catch {} }}
-                  aria-label="Copy digest"
-                  className="shrink-0 text-amber-400/60 hover:text-amber-200 transition-colors"
-                >
-                  {copiedHash ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                </button>
-              )}
-            </span>
-          </Field>
           {cert?.signature && (
             <Field label={`Signature · Ed25519 · key ${cert.keyId ?? CERTIFICATE.keyId}`} className="sm:col-span-2">
               <span className="flex items-start gap-2">
@@ -190,10 +174,10 @@ function CertificatePanel({
         <p className="text-[10px] leading-relaxed text-white/40 border-t border-white/[0.06] pt-3">
           The proof was found and enforced by <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30">{CERTIFICATE.prover}</a>, then machine-checked in Lean:
           the stated answer follows from a script that compiles under the toolchain above with no
-          errors or unproven goals. The certificate is signed with CompeteMath&rsquo;s Ed25519 key —
-          altering any byte invalidates the signature, and it can&rsquo;t be re-signed without the
-          private key, so tampering is detectable by anyone using the public key. (The SHA-256
-          digest is just a quick fingerprint; the signature is the actual guarantee.)
+          errors or unproven goals. The whole certificate — the proof included — is signed with
+          CompeteMath&rsquo;s Ed25519 key: altering any byte invalidates the signature, and it
+          can&rsquo;t be re-signed without the private key, so tampering is detectable by anyone
+          verifying against the public key.
         </p>
       </div>
     </div>

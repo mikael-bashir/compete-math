@@ -68,14 +68,27 @@ export function verifySignedText(pasted: string): { valid: boolean; keyId: strin
   const block = pasted.slice(i);
   const m = block.match(/Signature\s*:\s*([A-Za-z0-9+/=]+)/);
   if (!m) return { valid: false, keyId: CERTIFICATE.keyId };
+  const signature = m[1];
   try {
-    const valid = crypto.verify(
+    // 1) The signature must be authentic over the exact certificate content
+    //    (header + full proof — everything above the banner).
+    const sigOk = crypto.verify(
       null,
       Buffer.from(content, "utf8"),
       publicKeyObject(),
-      Buffer.from(m[1], "base64"),
+      Buffer.from(signature, "base64"),
     );
-    return { valid, keyId: CERTIFICATE.keyId };
+    if (!sigOk) return { valid: false, keyId: CERTIFICATE.keyId };
+    // 2) The WHOLE artifact must be byte-identical to one we would emit for this
+    //    content + signature. This closes the gap where extra text is appended
+    //    after the signature block: a "valid" result now covers the entire
+    //    certificate, not merely the region above the banner.
+    const rebuilt = buildSignedText(content, {
+      signature,
+      keyId: CERTIFICATE.keyId,
+      publicKey: CERTIFICATE.publicKey,
+    });
+    return { valid: rebuilt === pasted, keyId: CERTIFICATE.keyId };
   } catch {
     return { valid: false, keyId: CERTIFICATE.keyId };
   }

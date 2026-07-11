@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createHash } from 'node:crypto';
 import { sql } from '@vercel/postgres';
 import { auth } from '@/app/(auth)/auth';
 import { PRACTICE_REVEAL_ATTEMPTS } from '@/app/lib/constants/site';
@@ -64,22 +63,19 @@ export async function GET(
     const hasProof = typeof row.proof === 'string' && row.proof.trim().length > 0;
 
     // Build + SIGN the certificate. `canonical` is the exact byte sequence the
-    // Ed25519 signature covers; `digest` is a SHA-256 fingerprint of it; `full`
-    // is the copyable, self-verifiable artifact (canonical + signature block).
-    // The signature — not the digest — is what makes tampering detectable: an
-    // attacker can recompute the hash of altered content, but cannot forge a
-    // valid signature without the private key.
+    // Ed25519 signature covers (header + full proof); `full` is the copyable,
+    // self-verifiable artifact (canonical + signature block). The signature is
+    // what makes tampering detectable — a forger can't re-sign altered content
+    // without the private key.
     let certificate = null;
     if (hasProof) {
       const canonical = fullCertificate(row.proof, meta).trimEnd();
-      const digest = createHash('sha256').update(canonical, 'utf8').digest('hex');
       const sig = signCertificate(canonical);
       const full = sig ? buildSignedText(canonical, sig) : canonical + '\n';
       certificate = {
         ...meta,
         proof: row.proof,
         full,
-        digest,
         signature: sig?.signature ?? null,
         keyId: sig?.keyId ?? null,
       };
