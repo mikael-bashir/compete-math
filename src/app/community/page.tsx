@@ -8,6 +8,7 @@ import { Eye, Send, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { MathMarkdown } from "../lib/components/community/math-markdown";
 import { UserChip } from "../lib/components/community/user-chip";
+import { StaticArtBackground } from "../lib/components/home/static-art-background";
 import {
   PROBLEM_TOPICS, DIFFICULTY_LEVELS, KNOWLEDGE_LEVELS, isAdminEmail,
 } from "../lib/constants/site";
@@ -130,8 +131,9 @@ export default function CommunityPage() {
   }, [status, isAdmin]);
 
   return (
-    <div className="min-h-screen bg-[#180f0e] pt-24 pb-24">
-      <div className="max-w-6xl mx-auto px-6">
+    <div className="relative min-h-screen overflow-hidden pt-24 pb-24">
+      <StaticArtBackground />
+      <div className="relative z-10 max-w-6xl mx-auto px-6">
 
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-10">
