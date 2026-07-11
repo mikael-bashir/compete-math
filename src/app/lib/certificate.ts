@@ -21,9 +21,9 @@ export const CERTIFICATE = {
   // against it. The matching PRIVATE key lives only in CERT_SIGN_PRIVATE_KEY
   // (server env, never committed); without it, nobody can forge a signature.
   publicKey:
-    "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQThCQzlLMkxINElCYzloWnNseFYzTUF4R0U5aDRaVlJkL1g1ZVJEOFI1NkU9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo=",
+    "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQWF1WXJDbitsb2ErTGhadzBJN1QxQkROcEJjMno3VTJ1UDZGaERQNDlVUlU9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo=",
   // Short fingerprint (first 16 hex of SHA-256 of the public-key PEM) for display.
-  keyId: "27ea521447add2c3",
+  keyId: "120beb3b40504cca",
 } as const;
 
 // Banner that separates the signed certificate content from the appended
