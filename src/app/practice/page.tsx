@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { Loader2, BadgeCheck } from "lucide-react";
 import {
   PROBLEM_TOPICS, DIFFICULTY_LEVELS, KNOWLEDGE_LEVELS,
 } from "../lib/constants/site";
@@ -15,6 +15,7 @@ interface PracticeProblem {
   difficulty: string | null;
   topic: string;
   knowledge: string | null;
+  hasProof?: boolean;
   isSolved: boolean;
 }
 
@@ -302,9 +303,19 @@ export default function PracticePage() {
                         <h3 className="font-code text-[13px] font-medium text-white! leading-snug">
                           {p.title}
                         </h3>
-                        {p.isSolved && (
-                          <span className="font-code shrink-0 text-[10px] uppercase tracking-wider text-emerald-300">solved</span>
-                        )}
+                        <span className="flex shrink-0 items-center gap-1.5">
+                          {p.hasProof && (
+                            <span
+                              title="Answer backed by a machine-checked Lean proof certificate"
+                              className="inline-flex items-center gap-0.5 font-code text-[10px] uppercase tracking-wider text-[#deb87f]"
+                            >
+                              <BadgeCheck className="w-3 h-3" /> certified
+                            </span>
+                          )}
+                          {p.isSolved && (
+                            <span className="font-code text-[10px] uppercase tracking-wider text-emerald-300">solved</span>
+                          )}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5 font-code text-[10px] uppercase tracking-wider">
                         {p.difficulty && (

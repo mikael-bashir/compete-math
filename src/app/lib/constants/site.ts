@@ -151,6 +151,10 @@ export const KNOWLEDGE_LEVELS = LEVELS.map((l) => l.value);
 // problems are uncapped.
 export const COMMUNITY_MAX_ATTEMPTS = 3;
 
+// Practice: a user must submit at least this many attempts before they may give
+// up and reveal the answer + proof certificate. Enforced server-side.
+export const PRACTICE_REVEAL_ATTEMPTS = 3;
+
 export const DONATE_URL = "https://buy.stripe.com/eVq6oGethg9na8B7WD0Jq00";
 export const GITHUB_URL = "https://github.com/mikael-bashir/compete-math";
 export const CONTACT_EMAIL = "bashir.mikael@outlook.com";

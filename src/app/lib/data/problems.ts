@@ -136,13 +136,17 @@ export async function recordSubmission(userId: string, questionId: number, userA
     // 1. CHECK IF ALREADY SOLVED
     // We check this first to prevent unnecessary processing
     const existing = await sql`
-      SELECT "isCorrect" 
-      FROM submissions 
+      SELECT "isCorrect", "attemptCount"
+      FROM submissions
       WHERE username = ${userId} AND "questionId" = ${questionId}
     `;
 
     if (existing.rows.length > 0 && existing.rows[0].isCorrect) {
-      return { success: false, message: 'Problem already solved' };
+      return {
+        success: false,
+        message: 'Problem already solved',
+        attemptCount: Number(existing.rows[0].attemptCount) || 0,
+      };
     }
 
     // 2. FETCH CORRECT ANSWER (Internal verification)
@@ -160,24 +164,26 @@ export async function recordSubmission(userId: string, questionId: number, userA
     const isCorrect = userAttempt.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
     const solvedAt = isCorrect ? new Date().toISOString() : null;
 
-    // 3. UPSERT: Record the attempt securely
-    await sql`
+    // 3. UPSERT: Record the attempt securely, returning the running attempt total
+    // (drives the "attempt 3 times before you can reveal" gate on the client).
+    const upsert = await sql`
       INSERT INTO submissions (username, "questionId", "attemptCount", "isCorrect", "solvedAt")
       VALUES (${userId}, ${questionId}, 1, ${isCorrect}, ${solvedAt})
       ON CONFLICT (username, "questionId")
       DO UPDATE SET
         "attemptCount" = submissions."attemptCount" + 1,
-        "isCorrect" = CASE 
-                          WHEN EXCLUDED."isCorrect" = TRUE THEN TRUE 
-                          ELSE submissions."isCorrect" 
+        "isCorrect" = CASE
+                          WHEN EXCLUDED."isCorrect" = TRUE THEN TRUE
+                          ELSE submissions."isCorrect"
                         END,
-        "solvedAt" = CASE 
-                          WHEN EXCLUDED."isCorrect" = TRUE AND submissions."solvedAt" IS NULL THEN EXCLUDED."solvedAt" 
-                          ELSE submissions."solvedAt" 
-                        END;
+        "solvedAt" = CASE
+                          WHEN EXCLUDED."isCorrect" = TRUE AND submissions."solvedAt" IS NULL THEN EXCLUDED."solvedAt"
+                          ELSE submissions."solvedAt"
+                        END
+      RETURNING "attemptCount";
     `;
 
-    return { success: true, isCorrect };
+    return { success: true, isCorrect, attemptCount: Number(upsert.rows[0]?.attemptCount) || 1 };
 
   } catch (error) {
     console.error("Submission Error:", error);

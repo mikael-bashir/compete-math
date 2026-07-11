@@ -9,6 +9,7 @@ import {
   PROBLEM_TOPICS,
   DIFFICULTY_LEVELS,
   KNOWLEDGE_LEVELS,
+  PRACTICE_REVEAL_ATTEMPTS,
 } from '@/app/lib/constants/site';
 
 interface RawProblem {
@@ -36,8 +37,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     isSolved = await getUserProblemStatus(session.user.username, questionId);
   }
 
+  // 2b. Does this problem carry a proof certificate? (flag only — the proof
+  // itself is served by the gated /certificate endpoint, never here.)
+  const proofCheck = await sql`
+    SELECT (proof IS NOT NULL AND length(trim(proof)) > 0) AS "hasProof"
+    FROM questions WHERE "questionId" = ${questionId}
+  `;
+  const hasProof = !!proofCheck.rows[0]?.hasProof;
+
   // 3. Return Combined Data
-  return NextResponse.json({ ...formattedProblem, isSolved });
+  return NextResponse.json({ ...formattedProblem, isSolved, hasProof });
 }
 
 // Admin-only edit of a practice problem's taxonomy: theme (topic), difficulty
@@ -129,17 +138,31 @@ export async function POST(
   try {
     const result = await recordSubmission(userId, questionId, attempt);
 
-    // CHECK: If the user already solved it, return your specific error message
+    // Already solved (or otherwise not counted): still surface the attempt total
+    // so the client can keep the certificate/answer reveal unlocked.
     if (!result.success) {
-      return NextResponse.json({ 
-        success: false, 
-        message: result.message 
-      }); 
+      return NextResponse.json({
+        success: false,
+        message: result.message,
+        attemptCount: result.attemptCount ?? 0,
+        canReveal: true,
+      });
     }
 
     const newBadges = await rewardBadges(userId, questionId);
-    // Standard response for a valid attempt
-    return NextResponse.json({ success: true, correct: result.isCorrect, newBadges: newBadges });
+    const attemptCount = result.attemptCount;
+    // The reveal (answer + certificate) unlocks once solved, or after the user
+    // has genuinely attempted PRACTICE_REVEAL_ATTEMPTS times.
+    const canReveal =
+      result.isCorrect || attemptCount >= PRACTICE_REVEAL_ATTEMPTS;
+    return NextResponse.json({
+      success: true,
+      correct: result.isCorrect,
+      newBadges,
+      attemptCount,
+      attemptsUntilReveal: Math.max(0, PRACTICE_REVEAL_ATTEMPTS - attemptCount),
+      canReveal,
+    });
 
   } catch (e) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

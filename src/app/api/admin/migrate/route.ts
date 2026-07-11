@@ -78,6 +78,12 @@ export async function POST() {
     // Practice filters live on the existing questions table.
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS topic TEXT;`;
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS knowledge TEXT;`;
+    // Proof CERTIFICATE for a practice problem: the machine-checked Lean proof
+    // (`proof`), when it was minted (generated) and enforced (verified). Nullable
+    // — problems without a proof simply show no certificate.
+    await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS proof TEXT;`;
+    await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "mintedAt" TIMESTAMPTZ;`;
+    await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "provedAt" TIMESTAMPTZ;`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_problems_status ON community_problems(status);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_answers_problem ON community_answers(problem_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_comments_problem ON community_comments(problem_id);`;

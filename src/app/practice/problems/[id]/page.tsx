@@ -3,8 +3,9 @@
 import React, { useState, useEffect, use } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { 
-  ArrowLeft, Send, CheckCircle2, RotateCcw, Loader2, Lock, LogIn, X 
+import {
+  ArrowLeft, Send, CheckCircle2, RotateCcw, Loader2, Lock, LogIn, X,
+  BadgeCheck, ShieldCheck, Copy, Check, Flag, ScrollText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
@@ -20,7 +21,111 @@ import {
   PROBLEM_TOPICS,
   DIFFICULTY_LEVELS,
   KNOWLEDGE_LEVELS,
+  PRACTICE_REVEAL_ATTEMPTS,
 } from "@/app/lib/constants/site"
+import { CERTIFICATE, fmtCertDate } from "@/app/lib/certificate"
+
+// --- CERTIFICATE ---
+// Shown once a problem is complete (solved, or given up after the attempt gate).
+// Presents the machine-checked Lean proof as a verification certificate: the
+// answer, provenance (minted/enforced dates + toolchain), a support contact,
+// and the full proof script (copyable).
+interface CertPayload {
+  proof: string;
+  full: string;
+  mintedAt?: string | null;
+  provedAt?: string | null;
+  title?: string | null;
+}
+function CertificateModal({
+  open, onClose, answer, cert,
+}: {
+  open: boolean;
+  onClose: () => void;
+  answer: React.ReactNode;
+  cert: CertPayload | null;
+}) {
+  const [copied, setCopied] = useState(false);
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-2xl max-h-[88vh] overflow-hidden rounded-2xl border border-[#deb87f]/30 bg-[#0a0a0a] shadow-[0_0_60px_-15px_rgba(222,184,127,0.25)] animate-in zoom-in-95 fade-in duration-200 flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Seal header */}
+        <div className="relative border-b border-[#deb87f]/20 bg-gradient-to-b from-[#1a120b] to-[#0a0a0a] px-6 py-5">
+          <button onClick={onClose} className="absolute top-4 right-4 text-slate-600 hover:text-slate-300"><X size={16} /></button>
+          <div className="flex items-center gap-3">
+            <div className="rounded-full border border-[#deb87f]/40 bg-[#deb87f]/10 p-2.5">
+              <ShieldCheck className="w-6 h-6 text-[#deb87f]" />
+            </div>
+            <div>
+              <h3 className="font-serif text-lg text-slate-100 leading-tight">Verified Proof Certificate</h3>
+              <p className="text-[11px] uppercase tracking-widest text-[#deb87f]/70">{CERTIFICATE.issuer} · machine-checked</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto px-6 py-5 space-y-5">
+          {/* Answer */}
+          <div>
+            <p className="text-[11px] uppercase tracking-widest text-slate-500 mb-1">Verified answer</p>
+            <p className="font-mono text-2xl text-emerald-300">{answer}</p>
+          </div>
+
+          {/* Provenance grid */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-[#222] bg-[#0f0f0f] p-4 text-xs">
+            <div>
+              <p className="uppercase tracking-widest text-slate-600 text-[10px]">Minted</p>
+              <p className="text-slate-300 font-mono">{fmtCertDate(cert?.mintedAt)}</p>
+            </div>
+            <div>
+              <p className="uppercase tracking-widest text-slate-600 text-[10px]">Enforced (machine-checked)</p>
+              <p className="text-slate-300 font-mono">{fmtCertDate(cert?.provedAt)}</p>
+            </div>
+            <div>
+              <p className="uppercase tracking-widest text-slate-600 text-[10px]">Toolchain</p>
+              <p className="text-slate-300 font-mono">{CERTIFICATE.toolchain} · {CERTIFICATE.mathlib}</p>
+            </div>
+            <div>
+              <p className="uppercase tracking-widest text-slate-600 text-[10px]">Support</p>
+              <a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-[#deb87f] hover:underline font-mono break-all">{CERTIFICATE.supportEmail}</a>
+            </div>
+          </div>
+
+          {/* Proof script */}
+          {cert?.proof ? (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[11px] uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
+                  <ScrollText className="w-3.5 h-3.5" /> Proof script
+                </p>
+                <button
+                  onClick={async () => {
+                    try { await navigator.clipboard.writeText(cert.full); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+                  }}
+                  className="inline-flex items-center gap-1 rounded border border-[#333] px-2 py-1 text-[11px] text-slate-400 hover:bg-[#1a1a1a] hover:text-slate-200"
+                >
+                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copied ? 'Copied' : 'Copy certificate'}
+                </button>
+              </div>
+              <pre className="max-h-72 overflow-auto rounded-lg border border-[#222] bg-[#050505] p-3 font-mono text-[11px] leading-relaxed text-slate-300 whitespace-pre">
+                {cert.proof}
+              </pre>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 italic">No proof certificate is attached to this problem.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // --- 1. BADGE COMPONENT ---
 const UserBadge = ({ url, name, className }: { url: string, name: string, className?: string }) => {
@@ -86,6 +191,18 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState<'idle' | 'submitting' | 'wrong'>('idle');
 
+  // Attempt gate + certificate reveal. `attemptCount` drives "attempt N of 3
+  // before you can give up"; `canReveal` unlocks the answer + certificate (after
+  // solving, or PRACTICE_REVEAL_ATTEMPTS tries). `cert`/`certAnswer` hold the
+  // revealed payload once fetched from the gated /certificate endpoint.
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [canReveal, setCanReveal] = useState(false);
+  const [cert, setCert] = useState<CertPayload | null>(null);
+  const [certAnswer, setCertAnswer] = useState<string | null>(null);
+  const [certOpen, setCertOpen] = useState(false);
+  const [revealing, setRevealing] = useState(false);
+  const [gaveUp, setGaveUp] = useState(false);
+
   // Admin taxonomy editor (theme / difficulty / level), prefilled from the problem.
   const [editTopic, setEditTopic] = useState("");
   const [editDifficulty, setEditDifficulty] = useState("");
@@ -108,6 +225,53 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
     };
     fetchData();
   }, [id]);
+
+  // On load (signed in): read the gate state from the certificate endpoint —
+  // how many attempts the user has used, and whether the reveal is already
+  // unlocked (solved earlier / hit the attempt cap). Does NOT auto-show anything.
+  useEffect(() => {
+    if (authStatus !== 'authenticated') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/problems/${id}/certificate`);
+        const d = await res.json();
+        if (cancelled) return;
+        if (typeof d.attemptsUsed === 'number') setAttemptCount(d.attemptsUsed);
+        if (d.unlocked) {
+          setCanReveal(true);
+          setCertAnswer(d.answer != null ? String(d.answer) : null);
+          if (d.certificate) setCert(d.certificate);
+        }
+      } catch { /* leave locked */ }
+    })();
+    return () => { cancelled = true; };
+  }, [id, authStatus]);
+
+  // Reveal the answer + certificate (the "give up" action, or "view certificate"
+  // once complete). The server re-checks the gate, so this can't leak early.
+  const revealAnswer = async () => {
+    if (canReveal && certAnswer != null) { setGaveUp(true); setCertOpen(true); return; }
+    setRevealing(true);
+    try {
+      const res = await fetch(`/api/problems/${id}/certificate`);
+      const d = await res.json();
+      if (d.unlocked) {
+        setCanReveal(true);
+        setCertAnswer(d.answer != null ? String(d.answer) : null);
+        if (d.certificate) setCert(d.certificate);
+        setGaveUp(true);
+        setCertOpen(true);
+      } else {
+        if (typeof d.attemptsUsed === 'number') setAttemptCount(d.attemptsUsed);
+        toast.error(`Attempt ${d.attemptsLeft ?? PRACTICE_REVEAL_ATTEMPTS} more time(s) before you can give up.`);
+      }
+    } catch {
+      toast.error('Could not load the answer.');
+    } finally {
+      setRevealing(false);
+    }
+  };
 
   const saveMeta = async () => {
     setSavingMeta(true);
@@ -145,10 +309,15 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
       
       const result = await res.json();
 
-      if (result.correct || (result.success === false && result.message === 'Question was already solved')) {
+      // Track the running attempt total + whether the reveal is now unlocked.
+      if (typeof result.attemptCount === 'number') setAttemptCount(result.attemptCount);
+      if (result.canReveal) setCanReveal(true);
+
+      if (result.correct || (result.success === false && result.message === 'Problem already solved')) {
         setIsSolved(true);
+        setCanReveal(true);
         setStatus('idle');
-        
+
         // --- HANDLE TOASTS ---
         if (result.newBadges && result.newBadges.length > 0) {
           result.newBadges.forEach((badge: { badgeName: string, badgeUrl: string }) => {
@@ -239,6 +408,11 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                </div>
             </div>
             <div className="flex items-center gap-3">
+              {problem.hasProof &&
+                <span title="Answer backed by a machine-checked Lean proof certificate" className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-[#deb87f]/30 bg-[#deb87f]/10 text-[#deb87f] text-xs font-bold uppercase tracking-wider">
+                  <BadgeCheck className="w-3.5 h-3.5" /> Certified
+                </span>
+              }
               {problem.difficulty &&
                 <span className="px-3 py-1 rounded-full border border-emerald-900/30 bg-emerald-900/10 text-emerald-500 text-xs font-bold uppercase tracking-wider">{problem.difficulty}</span>
               }
@@ -271,13 +445,32 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
              {authStatus === 'authenticated' && isSolved && (
                <div className="bg-emerald-950/20 border border-emerald-900/50 rounded-lg p-4 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
                   <div className="p-2 bg-emerald-900/30 rounded-full"><CheckCircle2 className="w-6 h-6 text-emerald-500" /></div>
-                  <div><h4 className="text-emerald-400 font-bold text-sm tracking-wide">Problem Solved</h4><p className="text-emerald-600/80 text-xs">Your proof has been verified and recorded.</p></div>
+                  <div className="flex-1"><h4 className="text-emerald-400 font-bold text-sm tracking-wide">Problem Solved</h4><p className="text-emerald-600/80 text-xs">Nicely done — your answer is correct.</p></div>
+                  {problem.hasProof && (
+                    <Button onClick={revealAnswer} disabled={revealing} className="bg-[#deb87f]/90 hover:bg-[#deb87f] text-black font-semibold shrink-0">
+                      {revealing ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="flex items-center gap-2"><ShieldCheck size={16} /> View certificate</span>}
+                    </Button>
+                  )}
                </div>
              )}
 
-             {authStatus === 'authenticated' && !isSolved && (
+             {authStatus === 'authenticated' && !isSolved && gaveUp && (
+               <div className="bg-[#151515] border border-[#deb87f]/25 rounded-lg p-4 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
+                  <div className="p-2 bg-[#deb87f]/10 rounded-full border border-[#deb87f]/30 shrink-0"><Flag className="w-5 h-5 text-[#deb87f]" /></div>
+                  <div className="flex-1">
+                    <h4 className="text-slate-200 font-bold text-sm tracking-wide">Answer revealed</h4>
+                    <p className="text-xs text-slate-500">The correct answer is <span className="font-mono text-emerald-300">{certAnswer ?? '—'}</span>.</p>
+                  </div>
+                  {problem.hasProof && (
+                    <Button onClick={revealAnswer} className="bg-[#deb87f]/90 hover:bg-[#deb87f] text-black font-semibold shrink-0">
+                      <span className="flex items-center gap-2"><ShieldCheck size={16} /> View certificate</span>
+                    </Button>
+                  )}
+               </div>
+             )}
+
+             {authStatus === 'authenticated' && !isSolved && !gaveUp && (
                <>
-                 {/* <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4"></h4> */}
                  <form onSubmit={handleSubmit} className="relative max-w-xl">
                    <div className="flex gap-3">
                       <div className="relative grow">
@@ -289,11 +482,36 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                    </div>
                    {status === 'wrong' && <p className="absolute -bottom-8 left-0 text-sm text-red-500 font-medium animate-in slide-in-from-top-1 fade-in">Incorrect answer. Double check your calculations.</p>}
                  </form>
+
+                 {/* Attempt gate: must genuinely try PRACTICE_REVEAL_ATTEMPTS times
+                     before the answer + certificate can be revealed. */}
+                 <div className="mt-10 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                   <span className="font-mono text-slate-500">
+                     Attempt <span className="text-slate-300">{attemptCount}</span> / {PRACTICE_REVEAL_ATTEMPTS}
+                   </span>
+                   {canReveal ? (
+                     <button onClick={revealAnswer} disabled={revealing} className="inline-flex items-center gap-1.5 rounded-md border border-[#deb87f]/30 bg-[#deb87f]/5 px-3 py-1.5 font-medium text-[#deb87f] hover:bg-[#deb87f]/10 disabled:opacity-50">
+                       {revealing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flag className="w-3.5 h-3.5" />}
+                       Give up &amp; reveal answer{problem.hasProof ? ' + certificate' : ''}
+                     </button>
+                   ) : (
+                     <span className="text-slate-600">
+                       {Math.max(0, PRACTICE_REVEAL_ATTEMPTS - attemptCount)} more attempt(s) before you can give up and see the answer.
+                     </span>
+                   )}
+                 </div>
                </>
              )}
           </div>
         </div>
       </div>
+
+      <CertificateModal
+        open={certOpen}
+        onClose={() => setCertOpen(false)}
+        answer={certAnswer ?? '—'}
+        cert={cert}
+      />
     </div>
   );
 }

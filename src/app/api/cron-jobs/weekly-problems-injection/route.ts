@@ -26,6 +26,10 @@ interface ProblemPayload {
   answer?: string | null;
   topic?: string | null;
   knowledge?: string | null;
+  // Proof certificate: the machine-checked Lean proof + when it was minted.
+  // `provedAt` (enforced) is stamped now, at the moment CompeteMath ingests it.
+  proof?: string | null;
+  mintedAt?: string | null;
 }
 
 // Cron auth: Vercel Cron auto-sends `Authorization: Bearer <CRON_SECRET>` when
@@ -48,11 +52,13 @@ async function ingestOne(raw: unknown): Promise<string> {
   }
   await sql`
     INSERT INTO questions
-      ("questionTitle", "questionProblem", subtitle, difficulty, points, answer, topic, knowledge)
+      ("questionTitle", "questionProblem", subtitle, difficulty, points, answer, topic, knowledge,
+       proof, "mintedAt", "provedAt")
     VALUES (
       ${p.questionTitle}, ${p.questionProblem}, ${p.subtitle ?? null},
       ${p.difficulty ?? 'Medium'}, ${p.points ?? 100}, ${p.answer ?? null},
-      ${p.topic ?? null}, ${p.knowledge ?? null}
+      ${p.topic ?? null}, ${p.knowledge ?? null},
+      ${p.proof ?? null}, ${p.mintedAt ?? null}, ${p.proof ? new Date().toISOString() : null}
     );
   `;
   return p.questionTitle;

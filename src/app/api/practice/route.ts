@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
         q.difficulty,
         COALESCE(q.topic, 'General') AS topic,
         q.knowledge AS knowledge,
+        (q.proof IS NOT NULL AND length(trim(q.proof)) > 0) AS "hasProof",
         COUNT(*) OVER() AS total,
         (${userId}::text IS NOT NULL AND EXISTS (
           SELECT 1 FROM submissions s
@@ -56,6 +57,7 @@ export async function GET(request: NextRequest) {
       difficulty: r.difficulty,
       topic: r.topic,
       knowledge: r.knowledge,
+      hasProof: r.hasProof,
       isSolved: r.isSolved,
     }));
     return NextResponse.json({ items, total });
