@@ -35,6 +35,8 @@ interface CertPayload {
   proof: string;
   full: string;
   digest?: string | null;
+  signature?: string | null;
+  keyId?: string | null;
   mintedAt?: string | null;
   provedAt?: string | null;
   title?: string | null;
@@ -63,7 +65,27 @@ function CertificatePanel({
 }) {
   const [copied, setCopied] = useState(false);
   const [copiedHash, setCopiedHash] = useState(false);
+  const [verify, setVerify] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   if (!open) return null;
+
+  // Ask the server to check the certificate's Ed25519 signature against the
+  // published public key. Proves the artifact wasn't altered — tamper the
+  // copied text and this comes back invalid.
+  const runVerify = async () => {
+    if (!cert?.full) return;
+    setVerify('checking');
+    try {
+      const res = await fetch('/api/certificate/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ certificate: cert.full }),
+      });
+      const d = await res.json();
+      setVerify(d.valid ? 'valid' : 'invalid');
+    } catch {
+      setVerify('invalid');
+    }
+  };
   return (
     <div className="relative mt-4 overflow-hidden rounded-xl border border-amber-400/20 bg-[#141013] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] animate-in fade-in slide-in-from-top-2 duration-200">
       {/* Close — anchored to the panel's top-right corner */}
@@ -114,6 +136,30 @@ function CertificatePanel({
               )}
             </span>
           </Field>
+          {cert?.signature && (
+            <Field label={`Signature · Ed25519 · key ${cert.keyId ?? CERTIFICATE.keyId}`} className="sm:col-span-2">
+              <span className="flex items-start gap-2">
+                <code className="min-w-0 flex-1 text-white/55 break-all leading-relaxed">{cert.signature}</code>
+                <button
+                  onClick={runVerify}
+                  disabled={verify === 'checking'}
+                  className={`shrink-0 inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] transition-colors ${
+                    verify === 'valid'
+                      ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
+                      : verify === 'invalid'
+                      ? 'border-red-400/30 bg-red-500/10 text-red-300'
+                      : 'border-amber-400/25 bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/12'
+                  }`}
+                >
+                  {verify === 'checking' ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : verify === 'valid' ? <Check className="w-3 h-3" />
+                    : verify === 'invalid' ? <X className="w-3 h-3" />
+                    : <ShieldCheck className="w-3 h-3" />}
+                  {verify === 'valid' ? 'Signature valid' : verify === 'invalid' ? 'Invalid' : verify === 'checking' ? 'Checking…' : 'Verify'}
+                </button>
+              </span>
+            </Field>
+          )}
         </dl>
 
         {/* Proof script */}
@@ -144,8 +190,10 @@ function CertificatePanel({
         <p className="text-[10px] leading-relaxed text-white/40 border-t border-white/[0.06] pt-3">
           The proof was found and enforced by <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30">{CERTIFICATE.prover}</a>, then machine-checked in Lean:
           the stated answer follows from a script that compiles under the toolchain above with no
-          errors or unproven goals. To confirm this certificate was not altered, recompute the
-          SHA-256 of the copied certificate and compare it against the digest above.
+          errors or unproven goals. The certificate is signed with CompeteMath&rsquo;s Ed25519 key —
+          altering any byte invalidates the signature, and it can&rsquo;t be re-signed without the
+          private key, so tampering is detectable by anyone using the public key. (The SHA-256
+          digest is just a quick fingerprint; the signature is the actual guarantee.)
         </p>
       </div>
     </div>

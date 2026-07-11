@@ -9,6 +9,29 @@ import type { Session } from "next-auth";
 // import { AdapterUser } from "next-auth/adapters";
 import { authConfig } from "./auth.config";
 
+// DEV-ONLY mock login. Only registered when NODE_ENV === 'development', so it is
+// absent from every Vercel build (those run NODE_ENV=production) — it cannot be
+// used in production or preview deployments. It exists purely so local `next dev`
+// verification can render authenticated pages without real credentials.
+const devProviders =
+  process.env.NODE_ENV === "development"
+    ? [
+        CredentialsProvider({
+          id: "dev-mock",
+          name: "Dev Mock Login",
+          credentials: {},
+          async authorize() {
+            return {
+              id: "dev-mock-user",
+              username: "devtester",
+              email: "dev@localhost",
+              iat: Date.now(),
+            } as unknown as User;
+          },
+        }),
+      ]
+    : [];
+
 // working timestamp 11/01/26 23:21:44
 
 // for future maintenance refer to the below links
@@ -46,6 +69,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                 }
             },
         }),
+        ...devProviders,
     ],
     // callbacks: {
     //     async jwt({ token, user, trigger, session }: { 

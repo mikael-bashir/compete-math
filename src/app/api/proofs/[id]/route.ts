@@ -4,6 +4,7 @@ import { sql } from '@vercel/postgres';
 import { auth } from '@/app/(auth)/auth';
 import { PRACTICE_REVEAL_ATTEMPTS } from '@/app/lib/constants/site';
 import { fullCertificate } from '@/app/lib/certificate';
+import { signCertificate, buildSignedText } from '@/app/lib/certificate-sign';
 
 // GET /api/proofs/:id   (id = questionId)
 // The dedicated proofs API. Proofs live here, NOT in the problems payload — the
@@ -62,15 +63,26 @@ export async function GET(
     };
     const hasProof = typeof row.proof === 'string' && row.proof.trim().length > 0;
 
-    // Content digest: SHA-256 over the exact canonical certificate text (the same
-    // string the "Copy certificate" button yields). Anyone can recompute the hash
-    // of a copied certificate and compare it against this digest — served fresh
-    // from the app — to confirm the certificate text was not altered.
+    // Build + SIGN the certificate. `canonical` is the exact byte sequence the
+    // Ed25519 signature covers; `digest` is a SHA-256 fingerprint of it; `full`
+    // is the copyable, self-verifiable artifact (canonical + signature block).
+    // The signature — not the digest — is what makes tampering detectable: an
+    // attacker can recompute the hash of altered content, but cannot forge a
+    // valid signature without the private key.
     let certificate = null;
     if (hasProof) {
-      const full = fullCertificate(row.proof, meta);
-      const digest = createHash('sha256').update(full, 'utf8').digest('hex');
-      certificate = { ...meta, proof: row.proof, full, digest };
+      const canonical = fullCertificate(row.proof, meta).trimEnd();
+      const digest = createHash('sha256').update(canonical, 'utf8').digest('hex');
+      const sig = signCertificate(canonical);
+      const full = sig ? buildSignedText(canonical, sig) : canonical + '\n';
+      certificate = {
+        ...meta,
+        proof: row.proof,
+        full,
+        digest,
+        signature: sig?.signature ?? null,
+        keyId: sig?.keyId ?? null,
+      };
     }
 
     return NextResponse.json({
