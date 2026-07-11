@@ -7,6 +7,10 @@
 
 export const CERTIFICATE = {
   issuer: "CompeteMath",
+  // The prover that searched for and machine-checked (enforced) the proof.
+  // NOTE: confirm/adjust proverUrl — set to the public Leak deployment.
+  prover: "Leak",
+  proverUrl: "https://leak.competemath.com",
   // The Lean toolchain + Mathlib revision every current proof is enforced against.
   toolchain: "Lean 4.29.1",
   mathlib: "Mathlib v4.29.1",
@@ -47,6 +51,7 @@ export function certificateHeader(meta: CertificateMeta): string {
     `  Problem   : ${meta.title ?? "—"}`,
     `  Minted    : ${fmtCertDate(meta.mintedAt)}`,
     `  Enforced  : ${fmtCertDate(meta.provedAt)}  (machine-checked)`,
+    `  Enforcer  : ${CERTIFICATE.prover} · ${CERTIFICATE.proverUrl}`,
     `  Toolchain : ${CERTIFICATE.toolchain} · ${CERTIFICATE.mathlib}`,
     `  Support   : ${CERTIFICATE.supportEmail}`,
     `  ${line}`,

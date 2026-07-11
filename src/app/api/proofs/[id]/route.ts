@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
 import { sql } from '@vercel/postgres';
 import { auth } from '@/app/(auth)/auth';
 import { PRACTICE_REVEAL_ATTEMPTS } from '@/app/lib/constants/site';
@@ -61,14 +62,23 @@ export async function GET(
     };
     const hasProof = typeof row.proof === 'string' && row.proof.trim().length > 0;
 
+    // Content digest: SHA-256 over the exact canonical certificate text (the same
+    // string the "Copy certificate" button yields). Anyone can recompute the hash
+    // of a copied certificate and compare it against this digest — served fresh
+    // from the app — to confirm the certificate text was not altered.
+    let certificate = null;
+    if (hasProof) {
+      const full = fullCertificate(row.proof, meta);
+      const digest = createHash('sha256').update(full, 'utf8').digest('hex');
+      certificate = { ...meta, proof: row.proof, full, digest };
+    }
+
     return NextResponse.json({
       unlocked: true,
       solved,
       answer: row.answer,
       hasProof,
-      certificate: hasProof
-        ? { ...meta, proof: row.proof, full: fullCertificate(row.proof, meta) }
-        : null,
+      certificate,
     });
   } catch (error) {
     console.error('Proof reveal error:', error);

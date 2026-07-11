@@ -34,9 +34,23 @@ import { CertifiedInfo } from "@/app/lib/components/certified-info"
 interface CertPayload {
   proof: string;
   full: string;
+  digest?: string | null;
   mintedAt?: string | null;
   provedAt?: string | null;
   title?: string | null;
+}
+
+// One label→value pair in the borderless provenance grid. A small gold bullet,
+// a mono uppercase label, and the value beneath.
+function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`min-w-0 ${className}`}>
+      <dt className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.15em] text-amber-400/60 mb-1">
+        <span className="text-amber-400/50 leading-none">•</span> {label}
+      </dt>
+      <dd className="font-mono text-[11px] text-white/75 break-words">{children}</dd>
+    </div>
+  );
 }
 // Rendered inline beneath the problem card (not a modal). Compact, small type.
 function CertificatePanel({
@@ -48,11 +62,15 @@ function CertificatePanel({
   cert: CertPayload | null;
 }) {
   const [copied, setCopied] = useState(false);
+  const [copiedHash, setCopiedHash] = useState(false);
   if (!open) return null;
   return (
-    <div className="mt-4 overflow-hidden rounded-xl border border-amber-400/20 bg-[#141013] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] animate-in fade-in slide-in-from-top-2 duration-200">
+    <div className="relative mt-4 overflow-hidden rounded-xl border border-amber-400/20 bg-[#141013] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] animate-in fade-in slide-in-from-top-2 duration-200">
+      {/* Close — anchored to the panel's top-right corner */}
+      <button onClick={onClose} aria-label="Close certificate" className="absolute top-3 right-3 z-10 text-white/40 hover:text-amber-200"><X size={14} /></button>
+
       {/* Header — a gold seal */}
-      <div className="relative flex items-center gap-2.5 border-b border-white/[0.06] px-4 py-3">
+      <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-4 py-3 pr-10">
         <div className="grid place-items-center rounded-md border border-amber-400/30 bg-amber-500/10 h-7 w-7 shrink-0">
           <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
         </div>
@@ -60,7 +78,6 @@ function CertificatePanel({
           <h3 className="text-[13px] font-semibold text-white leading-tight">Proof Certificate</h3>
           <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/60 truncate">{CERTIFICATE.issuer} · machine-checked formal proof</p>
         </div>
-        <button onClick={onClose} aria-label="Close certificate" className="ml-auto shrink-0 text-white/40 hover:text-amber-200"><X size={14} /></button>
       </div>
 
       <div className="px-4 py-4 space-y-4">
@@ -70,24 +87,33 @@ function CertificatePanel({
           <p className="font-mono text-sm text-amber-200">{answer}</p>
         </div>
 
-        {/* Provenance — formal definition table */}
-        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-white/[0.08] bg-white/[0.04]">
-          <div className="p-3 bg-[#141013]">
-            <dt className="font-mono uppercase tracking-[0.12em] text-amber-400/50 text-[9px] mb-0.5">Minted</dt>
-            <dd className="text-white/70 font-mono text-[11px]">{fmtCertDate(cert?.mintedAt)}</dd>
-          </div>
-          <div className="p-3 bg-[#141013]">
-            <dt className="font-mono uppercase tracking-[0.12em] text-amber-400/50 text-[9px] mb-0.5">Enforced · machine-checked</dt>
-            <dd className="text-white/70 font-mono text-[11px]">{fmtCertDate(cert?.provedAt)}</dd>
-          </div>
-          <div className="p-3 bg-[#141013]">
-            <dt className="font-mono uppercase tracking-[0.12em] text-amber-400/50 text-[9px] mb-0.5">Toolchain</dt>
-            <dd className="text-white/70 font-mono text-[11px]">{CERTIFICATE.toolchain} · {CERTIFICATE.mathlib}</dd>
-          </div>
-          <div className="p-3 bg-[#141013]">
-            <dt className="font-mono uppercase tracking-[0.12em] text-amber-400/50 text-[9px] mb-0.5">Support</dt>
-            <dd><a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30 font-mono text-[11px] break-all">{CERTIFICATE.supportEmail}</a></dd>
-          </div>
+        {/* Provenance — borderless bulleted grid */}
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+          <Field label="Minted">{fmtCertDate(cert?.mintedAt)}</Field>
+          <Field label="Enforced · machine-checked">{fmtCertDate(cert?.provedAt)}</Field>
+          <Field label="Enforcer">
+            <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30 inline-flex items-center gap-1">
+              {CERTIFICATE.prover} <span aria-hidden>↗</span>
+            </a>
+          </Field>
+          <Field label="Toolchain">{CERTIFICATE.toolchain} · {CERTIFICATE.mathlib}</Field>
+          <Field label="Support" className="sm:col-span-2">
+            <a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30 break-all">{CERTIFICATE.supportEmail}</a>
+          </Field>
+          <Field label="Digest · SHA-256" className="sm:col-span-2">
+            <span className="flex items-start gap-2">
+              <code className="min-w-0 flex-1 text-white/55 break-all leading-relaxed">{cert?.digest ?? '—'}</code>
+              {cert?.digest && (
+                <button
+                  onClick={async () => { try { await navigator.clipboard.writeText(cert.digest!); setCopiedHash(true); setTimeout(() => setCopiedHash(false), 1500); } catch {} }}
+                  aria-label="Copy digest"
+                  className="shrink-0 text-amber-400/60 hover:text-amber-200 transition-colors"
+                >
+                  {copiedHash ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                </button>
+              )}
+            </span>
+          </Field>
         </dl>
 
         {/* Proof script */}
@@ -116,9 +142,10 @@ function CertificatePanel({
         )}
 
         <p className="text-[10px] leading-relaxed text-white/40 border-t border-white/[0.06] pt-3">
-          This certificate attests that the stated answer follows from a formal proof
-          that compiles and type-checks under the toolchain above. The proof is
-          reproducible: compiling the script yields no errors or unproven goals.
+          The proof was found and enforced by <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30">{CERTIFICATE.prover}</a>, then machine-checked in Lean:
+          the stated answer follows from a script that compiles under the toolchain above with no
+          errors or unproven goals. To confirm this certificate was not altered, recompute the
+          SHA-256 of the copied certificate and compare it against the digest above.
         </p>
       </div>
     </div>
@@ -462,27 +489,27 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
              )}
 
              {authStatus === 'authenticated' && isSolved && (
-               <div className="bg-amber-500/[0.06] border border-amber-400/25 rounded-lg p-4 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
+               <div className="relative bg-amber-500/[0.06] border border-amber-400/25 rounded-lg p-4 pb-5 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
                   <div className="p-2 bg-amber-500/15 border border-amber-400/25 rounded-full"><CheckCircle2 className="w-6 h-6 text-amber-400" /></div>
                   <div className="flex-1"><h4 className="text-amber-200 font-bold text-sm tracking-wide">Problem Solved</h4><p className="text-amber-300/60 text-xs">Nicely done — your answer is correct.</p></div>
                   {problem.hasProof && (
-                    <Button onClick={viewCertificate} disabled={revealing} variant="outline" className="shrink-0 border-amber-400/25 bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/12 hover:text-amber-100 font-medium">
-                      {revealing ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="flex items-center gap-2"><ScrollText size={15} /> View certificate</span>}
-                    </Button>
+                    <button onClick={viewCertificate} disabled={revealing} className="absolute bottom-2 right-3 inline-flex items-center gap-1 text-[10px] text-amber-300/80 hover:text-amber-100 underline underline-offset-2 decoration-amber-400/30 hover:decoration-amber-400/50 transition-colors disabled:opacity-50">
+                      {revealing ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <ScrollText className="w-2.5 h-2.5" />} View certificate
+                    </button>
                   )}
                </div>
              )}
 
              {authStatus === 'authenticated' && !isSolved && gaveUp && (
-               <div className="bg-white/[0.02] border border-white/10 rounded-lg p-4 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
+               <div className="relative bg-white/[0.02] border border-white/10 rounded-lg p-4 pb-5 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
                   <div className="p-2 bg-white/[0.04] rounded-full border border-white/10 shrink-0"><Flag className="w-5 h-5 text-amber-400/70" /></div>
                   <div className="flex-1">
                     <h4 className="text-slate-200 font-semibold text-sm tracking-wide">Answer revealed</h4>
                     <p className="text-xs text-white/45">The correct answer is <span className="font-mono text-amber-200">{certAnswer ?? '—'}</span>.</p>
                   </div>
                   {problem.hasProof && (
-                    <button onClick={viewCertificate} disabled={revealing} className="shrink-0 text-xs text-white/50 hover:text-amber-200 underline underline-offset-4 decoration-white/20 hover:decoration-amber-400/40 transition-colors disabled:opacity-50">
-                      View certificate
+                    <button onClick={viewCertificate} disabled={revealing} className="absolute bottom-2 right-3 inline-flex items-center gap-1 text-[10px] text-white/45 hover:text-amber-200 underline underline-offset-2 decoration-white/20 hover:decoration-amber-400/40 transition-colors disabled:opacity-50">
+                      {revealing ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <ScrollText className="w-2.5 h-2.5" />} View certificate
                     </button>
                   )}
                </div>
