@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2, BadgeCheck } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   PROBLEM_TOPICS, DIFFICULTY_LEVELS, KNOWLEDGE_LEVELS,
 } from "../lib/constants/site";
 import { LevelInfo } from "../lib/components/level-info";
+import { CertifiedInfo } from "../lib/components/certified-info";
 
 interface PracticeProblem {
   id: number;
@@ -304,14 +305,7 @@ export default function PracticePage() {
                           {p.title}
                         </h3>
                         <span className="flex shrink-0 items-center gap-1.5">
-                          {p.hasProof && (
-                            <span
-                              title="A Leak certificate — a machine-checked proof of the truthfulness of an interpretation of this problem and its answer — is available on request."
-                              className="inline-flex items-center text-[#deb87f]"
-                            >
-                              <BadgeCheck className="w-3.5 h-3.5" />
-                            </span>
-                          )}
+                          {p.hasProof && <CertifiedInfo interactive={false} />}
                           {p.isSolved && (
                             <span className="font-code text-[10px] uppercase tracking-wider text-emerald-300">solved</span>
                           )}

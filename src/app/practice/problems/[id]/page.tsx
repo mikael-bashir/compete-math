@@ -54,74 +54,80 @@ function CertificateModal({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl max-h-[88vh] overflow-hidden rounded-2xl border border-[#deb87f]/30 bg-[#0a0a0a] shadow-[0_0_60px_-15px_rgba(222,184,127,0.25)] animate-in zoom-in-95 fade-in duration-200 flex flex-col"
+        className="relative w-full max-w-2xl max-h-[88vh] overflow-hidden rounded-2xl border border-white/10 bg-[#0b0e12] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9)] animate-in zoom-in-95 fade-in duration-200 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Seal header */}
-        <div className="relative border-b border-[#deb87f]/20 bg-gradient-to-b from-[#1a120b] to-[#0a0a0a] px-6 py-5">
+        {/* Header — clean, no seal glow */}
+        <div className="relative border-b border-white/10 px-6 py-5">
           <button onClick={onClose} className="absolute top-4 right-4 text-slate-600 hover:text-slate-300"><X size={16} /></button>
           <div className="flex items-center gap-3">
-            <div className="rounded-full border border-[#deb87f]/40 bg-[#deb87f]/10 p-2.5">
-              <ShieldCheck className="w-6 h-6 text-[#deb87f]" />
+            <div className="grid place-items-center rounded-lg border border-white/10 bg-white/[0.03] h-11 w-11">
+              <ShieldCheck className="w-5 h-5 text-slate-300" />
             </div>
             <div>
-              <h3 className="font-serif text-lg text-slate-100 leading-tight">Verified Proof Certificate</h3>
-              <p className="text-[11px] uppercase tracking-widest text-[#deb87f]/70">{CERTIFICATE.issuer} · machine-checked</p>
+              <h3 className="text-lg font-semibold text-slate-100 leading-tight tracking-tight">Proof Certificate</h3>
+              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-slate-500">{CERTIFICATE.issuer} · machine-checked formal proof</p>
             </div>
           </div>
         </div>
 
-        <div className="overflow-y-auto px-6 py-5 space-y-5">
-          {/* Answer */}
-          <div>
-            <p className="text-[11px] uppercase tracking-widest text-slate-500 mb-1">Verified answer</p>
+        <div className="overflow-y-auto px-6 py-5 space-y-6">
+          {/* Statement of verification */}
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-4">
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500 sm:w-40 sm:shrink-0 sm:pt-1">Verified answer</p>
             <p className="font-mono text-2xl text-emerald-300">{answer}</p>
           </div>
 
-          {/* Provenance grid */}
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-[#222] bg-[#0f0f0f] p-4 text-xs">
-            <div>
-              <p className="uppercase tracking-widest text-slate-600 text-[10px]">Minted</p>
-              <p className="text-slate-300 font-mono">{fmtCertDate(cert?.mintedAt)}</p>
+          {/* Provenance — formal definition table */}
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-px overflow-hidden rounded-lg border border-white/10 bg-white/[0.02] text-xs">
+            <div className="p-4 bg-[#0b0e12]">
+              <dt className="font-mono uppercase tracking-[0.15em] text-slate-500 text-[10px] mb-1">Minted</dt>
+              <dd className="text-slate-300 font-mono">{fmtCertDate(cert?.mintedAt)}</dd>
             </div>
-            <div>
-              <p className="uppercase tracking-widest text-slate-600 text-[10px]">Enforced (machine-checked)</p>
-              <p className="text-slate-300 font-mono">{fmtCertDate(cert?.provedAt)}</p>
+            <div className="p-4 bg-[#0b0e12]">
+              <dt className="font-mono uppercase tracking-[0.15em] text-slate-500 text-[10px] mb-1">Enforced · machine-checked</dt>
+              <dd className="text-slate-300 font-mono">{fmtCertDate(cert?.provedAt)}</dd>
             </div>
-            <div>
-              <p className="uppercase tracking-widest text-slate-600 text-[10px]">Toolchain</p>
-              <p className="text-slate-300 font-mono">{CERTIFICATE.toolchain} · {CERTIFICATE.mathlib}</p>
+            <div className="p-4 bg-[#0b0e12]">
+              <dt className="font-mono uppercase tracking-[0.15em] text-slate-500 text-[10px] mb-1">Toolchain</dt>
+              <dd className="text-slate-300 font-mono">{CERTIFICATE.toolchain} · {CERTIFICATE.mathlib}</dd>
             </div>
-            <div>
-              <p className="uppercase tracking-widest text-slate-600 text-[10px]">Support</p>
-              <a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-[#deb87f] hover:underline font-mono break-all">{CERTIFICATE.supportEmail}</a>
+            <div className="p-4 bg-[#0b0e12]">
+              <dt className="font-mono uppercase tracking-[0.15em] text-slate-500 text-[10px] mb-1">Support</dt>
+              <dd><a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-slate-300 hover:text-white underline underline-offset-2 decoration-white/20 font-mono break-all">{CERTIFICATE.supportEmail}</a></dd>
             </div>
-          </div>
+          </dl>
 
           {/* Proof script */}
           {cert?.proof ? (
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[11px] uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
-                  <ScrollText className="w-3.5 h-3.5" /> Proof script
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500 flex items-center gap-1.5">
+                  <ScrollText className="w-3.5 h-3.5" /> Proof script · Lean 4
                 </p>
                 <button
                   onClick={async () => {
                     try { await navigator.clipboard.writeText(cert.full); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
                   }}
-                  className="inline-flex items-center gap-1 rounded border border-[#333] px-2 py-1 text-[11px] text-slate-400 hover:bg-[#1a1a1a] hover:text-slate-200"
+                  className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] text-slate-400 hover:bg-white/[0.07] hover:text-slate-200 transition-colors"
                 >
                   {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                   {copied ? 'Copied' : 'Copy certificate'}
                 </button>
               </div>
-              <pre className="max-h-72 overflow-auto rounded-lg border border-[#222] bg-[#050505] p-3 font-mono text-[11px] leading-relaxed text-slate-300 whitespace-pre">
+              <pre className="max-h-72 overflow-auto rounded-lg border border-white/10 bg-[#07090c] p-4 font-mono text-[11px] leading-relaxed text-slate-300 whitespace-pre">
                 {cert.proof}
               </pre>
             </div>
           ) : (
             <p className="text-xs text-slate-500 italic">No proof certificate is attached to this problem.</p>
           )}
+
+          <p className="text-[11px] leading-relaxed text-slate-500 border-t border-white/[0.06] pt-4">
+            This certificate attests that the stated answer follows from a formal proof
+            that compiles and type-checks under the toolchain above. The proof is
+            reproducible: compiling the script yields no errors or unproven goals.
+          </p>
         </div>
       </div>
     </div>
@@ -221,6 +227,9 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         setEditDifficulty(data.difficulty || "");
         setEditKnowledge(data.knowledge && data.knowledge !== "None" ? data.knowledge : "");
         if (data.isSolved) setIsSolved(true);
+        // Restore the attempt gate from the server so it survives refresh / nav.
+        if (typeof data.attemptCount === "number") setAttemptCount(data.attemptCount);
+        if (data.canReveal) setCanReveal(true);
       } catch (error) { console.error(error); }
       finally { setLoadingData(false); }
     };
@@ -249,10 +258,11 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
     return () => { cancelled = true; };
   }, [id, authStatus]);
 
-  // Reveal the answer + certificate (the "give up" action, or "view certificate"
-  // once complete). The server re-checks the gate, so this can't leak early.
+  // The "give up" action: reveal the plain answer once the attempt gate is
+  // cleared. Deliberately does NOT open or mention the certificate — it just
+  // surfaces the answer. The server re-checks the gate, so this can't leak early.
   const revealAnswer = async () => {
-    if (canReveal && certAnswer != null) { setGaveUp(true); setCertOpen(true); return; }
+    if (canReveal && certAnswer != null) { setGaveUp(true); return; }
     setRevealing(true);
     try {
       const res = await fetch(`/api/proofs/${id}`);
@@ -262,13 +272,35 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         setCertAnswer(d.answer != null ? String(d.answer) : null);
         if (d.certificate) setCert(d.certificate);
         setGaveUp(true);
-        setCertOpen(true);
       } else {
         if (typeof d.attemptsUsed === 'number') setAttemptCount(d.attemptsUsed);
-        toast.error(`Attempt ${d.attemptsLeft ?? PRACTICE_REVEAL_ATTEMPTS} more time(s) before you can give up.`);
+        toast.error(`${d.attemptsLeft ?? PRACTICE_REVEAL_ATTEMPTS} more attempt(s) before you can reveal the answer.`);
       }
     } catch {
       toast.error('Could not load the answer.');
+    } finally {
+      setRevealing(false);
+    }
+  };
+
+  // Open the full proof certificate (fetching it on demand if not already loaded).
+  // A separate, opt-in action — the certificate is never pushed on the user.
+  const viewCertificate = async () => {
+    if (cert || certAnswer != null) { setCertOpen(true); return; }
+    setRevealing(true);
+    try {
+      const res = await fetch(`/api/proofs/${id}`);
+      const d = await res.json();
+      if (d.unlocked) {
+        setCanReveal(true);
+        setCertAnswer(d.answer != null ? String(d.answer) : null);
+        if (d.certificate) setCert(d.certificate);
+        setCertOpen(true);
+      } else {
+        toast.error('The certificate is not available yet.');
+      }
+    } catch {
+      toast.error('Could not load the certificate.');
     } finally {
       setRevealing(false);
     }
@@ -340,7 +372,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
 
   return (
     <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-emerald-500/30 mt-3.75 placeholder-violet-100 pt-10">
-      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#1a120b_0%,#050505_60%)]" />
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#0f141a_0%,#050505_60%)]" />
       <div className="relative z-10 container max-w-4xl mx-auto px-4 py-12">
         <Link href="/practice" className="inline-flex items-center text-emerald-700 hover:text-emerald-500 transition-colors mb-8 group font-medium text-sm">
           <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" /> Back to Archives
@@ -388,7 +420,8 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
               <Button
                 onClick={saveMeta}
                 disabled={savingMeta}
-                className="bg-amber-500/90 hover:bg-amber-500 text-black font-semibold"
+                variant="outline"
+                className="border-amber-400/25 bg-amber-400/[0.06] text-amber-200 hover:bg-amber-400/10 font-medium"
               >
                 {savingMeta ? 'Saving…' : 'Save'}
               </Button>
@@ -444,24 +477,24 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                   <div className="p-2 bg-emerald-900/30 rounded-full"><CheckCircle2 className="w-6 h-6 text-emerald-500" /></div>
                   <div className="flex-1"><h4 className="text-emerald-400 font-bold text-sm tracking-wide">Problem Solved</h4><p className="text-emerald-600/80 text-xs">Nicely done — your answer is correct.</p></div>
                   {problem.hasProof && (
-                    <Button onClick={revealAnswer} disabled={revealing} className="bg-[#deb87f]/90 hover:bg-[#deb87f] text-black font-semibold shrink-0">
-                      {revealing ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="flex items-center gap-2"><ShieldCheck size={16} /> View certificate</span>}
+                    <Button onClick={viewCertificate} disabled={revealing} variant="outline" className="shrink-0 border-white/15 bg-white/[0.04] text-slate-200 hover:bg-white/[0.08] hover:text-white font-medium">
+                      {revealing ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="flex items-center gap-2"><ScrollText size={15} /> View certificate</span>}
                     </Button>
                   )}
                </div>
              )}
 
              {authStatus === 'authenticated' && !isSolved && gaveUp && (
-               <div className="bg-[#151515] border border-[#deb87f]/25 rounded-lg p-4 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
-                  <div className="p-2 bg-[#deb87f]/10 rounded-full border border-[#deb87f]/30 shrink-0"><Flag className="w-5 h-5 text-[#deb87f]" /></div>
+               <div className="bg-white/[0.02] border border-white/10 rounded-lg p-4 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
+                  <div className="p-2 bg-white/[0.04] rounded-full border border-white/10 shrink-0"><Flag className="w-5 h-5 text-slate-400" /></div>
                   <div className="flex-1">
-                    <h4 className="text-slate-200 font-bold text-sm tracking-wide">Answer revealed</h4>
+                    <h4 className="text-slate-200 font-semibold text-sm tracking-wide">Answer revealed</h4>
                     <p className="text-xs text-slate-500">The correct answer is <span className="font-mono text-emerald-300">{certAnswer ?? '—'}</span>.</p>
                   </div>
                   {problem.hasProof && (
-                    <Button onClick={revealAnswer} className="bg-[#deb87f]/90 hover:bg-[#deb87f] text-black font-semibold shrink-0">
-                      <span className="flex items-center gap-2"><ShieldCheck size={16} /> View certificate</span>
-                    </Button>
+                    <button onClick={viewCertificate} disabled={revealing} className="shrink-0 text-xs text-slate-400 hover:text-slate-100 underline underline-offset-4 decoration-white/20 hover:decoration-white/40 transition-colors disabled:opacity-50">
+                      View certificate
+                    </button>
                   )}
                </div>
              )}
@@ -473,7 +506,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                       <div className="relative grow">
                         <Input value={answer} onChange={(e) => { setAnswer(e.target.value); if(status === 'wrong') setStatus('idle'); }} placeholder="Enter answer here..." className="bg-[#050505] border-[#333] text-slate-200 placeholder:text-slate-700 focus:border-emerald-600 focus:ring-emerald-900/20 font-mono" />
                       </div>
-                      <Button type="submit" disabled={status === 'submitting' || !answer} className={`min-w-30 font-bold transition-all duration-300 ${status === 'wrong' ? 'bg-red-900/50 text-red-200 hover:bg-red-900/70 border border-red-800' : 'bg-[#cfa86e] hover:bg-[#deb87f] text-black'}`}>
+                      <Button type="submit" disabled={status === 'submitting' || !answer} className={`min-w-30 font-medium transition-colors duration-200 border ${status === 'wrong' ? 'bg-red-500/10 text-red-300 hover:bg-red-500/15 border-red-500/30' : 'bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15 border-emerald-400/25'}`}>
                         {status === 'submitting' ? <span className="animate-pulse">Verifying...</span> : status === 'wrong' ? <span className="flex items-center gap-2"><RotateCcw size={16} /> Retry</span> : <span className="flex items-center gap-2">Submit <Send size={14} /></span>}
                       </Button>
                    </div>
@@ -487,9 +520,9 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                      Attempt <span className="text-slate-300">{attemptCount}</span> / {PRACTICE_REVEAL_ATTEMPTS}
                    </span>
                    {canReveal ? (
-                     <button onClick={revealAnswer} disabled={revealing} className="inline-flex items-center gap-1.5 rounded-md border border-[#deb87f]/30 bg-[#deb87f]/5 px-3 py-1.5 font-medium text-[#deb87f] hover:bg-[#deb87f]/10 disabled:opacity-50">
+                     <button onClick={revealAnswer} disabled={revealing} className="inline-flex items-center gap-1.5 font-medium text-slate-400 hover:text-slate-100 transition-colors disabled:opacity-50">
                        {revealing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flag className="w-3.5 h-3.5" />}
-                       Give up &amp; reveal answer{problem.hasProof ? ' + certificate' : ''}
+                       Reveal answer
                      </button>
                    ) : (
                      <span className="text-slate-600">

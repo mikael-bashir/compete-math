@@ -135,6 +135,31 @@ export async function getUserProblemStatus(userId: string, questionId: number): 
   }
 }
 
+// The user's running submission state for a problem: how many attempts they've
+// made and whether they've solved it. Drives the attempt gate + reveal, and —
+// critically — lets that state survive a refresh / navigation (it's read back
+// from the DB on load rather than living only in React state).
+export async function getUserSubmissionState(
+  userId: string,
+  questionId: number,
+): Promise<{ attemptCount: number; isCorrect: boolean }> {
+  try {
+    const result = await sql`
+      SELECT "attemptCount", "isCorrect"
+      FROM submissions
+      WHERE username = ${userId} AND "questionId" = ${questionId}
+    `;
+    if (result.rows.length === 0) return { attemptCount: 0, isCorrect: false };
+    return {
+      attemptCount: Number(result.rows[0].attemptCount) || 0,
+      isCorrect: !!result.rows[0].isCorrect,
+    };
+  } catch (error) {
+    console.error("Error retrieving submission state:", error);
+    return { attemptCount: 0, isCorrect: false };
+  }
+}
+
 export async function recordSubmission(userId: string, questionId: number, userAttempt: string): Promise<SubmissionResult> {
   try {
     // 1. CHECK IF ALREADY SOLVED

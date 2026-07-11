@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getProblemById, getUserProblemStatus, recordSubmission } from '@/app/lib/data/problems';
+import { getProblemById, getUserSubmissionState, recordSubmission } from '@/app/lib/data/problems';
 import { formatProblem } from '@/app/lib/utils';
 import { auth } from '../../../(auth)/auth';
 import { rewardBadges } from '@/app/lib/data/problems';
@@ -32,15 +32,27 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!problem) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const formattedProblem = formatProblem(problem);
 
-  // 2. Fetch User Status (If logged in)
+  // 2. Fetch the user's submission state (if logged in). We read attemptCount +
+  // isCorrect straight from the DB so the attempt gate survives a refresh /
+  // navigation instead of resetting to zero in React state.
   let isSolved = false;
+  let attemptCount = 0;
   if (session?.user?.username) {
-    isSolved = await getUserProblemStatus(session.user.username, questionId);
+    const st = await getUserSubmissionState(session.user.username, questionId);
+    isSolved = st.isCorrect;
+    attemptCount = st.attemptCount;
   }
+  const canReveal = isSolved || attemptCount >= PRACTICE_REVEAL_ATTEMPTS;
 
   // 3. Return Combined Data. `hasProof` is a boolean flag (folded into the single
   // getProblemById query); the proof itself is served by /api/proofs/:id only.
-  return NextResponse.json({ ...formattedProblem, isSolved, hasProof: !!problem.hasProof });
+  return NextResponse.json({
+    ...formattedProblem,
+    isSolved,
+    hasProof: !!problem.hasProof,
+    attemptCount,
+    canReveal,
+  });
 }
 
 // Admin-only edit of a practice problem's taxonomy: theme (topic), difficulty
