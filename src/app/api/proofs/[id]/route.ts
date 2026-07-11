@@ -4,11 +4,14 @@ import { auth } from '@/app/(auth)/auth';
 import { PRACTICE_REVEAL_ATTEMPTS } from '@/app/lib/constants/site';
 import { fullCertificate } from '@/app/lib/certificate';
 
-// GET /api/problems/:id/certificate
-// Returns the answer + full proof certificate for a practice problem — but ONLY
-// once the signed-in user has earned it: either they solved it, or they have
-// genuinely attempted it PRACTICE_REVEAL_ATTEMPTS times (the "give up" gate).
-// Enforced server-side so the answer/proof can't be scraped without attempting.
+// GET /api/proofs/:id   (id = questionId)
+// The dedicated proofs API. Proofs live here, NOT in the problems payload — the
+// problems endpoints only carry a `hasProof` boolean, so lists/detail stay light
+// and reactive; the ~18 KB proof is fetched only when a user asks to see it.
+//
+// Gated: returns the answer + full certificate ONLY once the signed-in user has
+// earned it — solved it, or genuinely attempted PRACTICE_REVEAL_ATTEMPTS times
+// (the "give up" gate). Enforced server-side so it can't be scraped early.
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -68,7 +71,7 @@ export async function GET(
         : null,
     });
   } catch (error) {
-    console.error('Certificate reveal error:', error);
+    console.error('Proof reveal error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

@@ -59,9 +59,11 @@ export const getProblems = async () => {
 // };
 
 // Fetch the problem content (excluding the answer)
-export async function getProblemById(id: number): Promise<{ questionId: string, subtitle: string, questionTitle: string, difficulty: string, points: string, questionProblem: string, topic: string | null, knowledge: string | null }> {
+export async function getProblemById(id: number): Promise<{ questionId: string, subtitle: string, questionTitle: string, difficulty: string, points: string, questionProblem: string, topic: string | null, knowledge: string | null, hasProof: boolean }> {
   try {
-    // Vercel SQL returns a result object where .rows is the array of data
+    // Vercel SQL returns a result object where .rows is the array of data.
+    // NOTE: the proof itself is deliberately NOT selected here — only a boolean
+    // `hasProof` flag. The proof (large) is served on demand by /api/proofs/:id.
     const result = await sql`
       SELECT
         "questionId",
@@ -71,7 +73,8 @@ export async function getProblemById(id: number): Promise<{ questionId: string, 
         points,
         "questionProblem",
         topic,
-        knowledge
+        knowledge,
+        (proof IS NOT NULL AND length(trim(proof)) > 0) AS "hasProof"
       FROM questions
       WHERE "questionId" = ${id}
     `;
@@ -84,7 +87,8 @@ export async function getProblemById(id: number): Promise<{ questionId: string, 
       questionProblem: result.rows[0].questionProblem,
       points: result.rows[0].points,
       topic: result.rows[0].topic ?? null,
-      knowledge: result.rows[0].knowledge ?? null
+      knowledge: result.rows[0].knowledge ?? null,
+      hasProof: !!result.rows[0].hasProof
     };
 
   } catch (error) {

@@ -195,7 +195,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
   // Attempt gate + certificate reveal. `attemptCount` drives "attempt N of 3
   // before you can give up"; `canReveal` unlocks the answer + certificate (after
   // solving, or PRACTICE_REVEAL_ATTEMPTS tries). `cert`/`certAnswer` hold the
-  // revealed payload once fetched from the gated /certificate endpoint.
+  // revealed payload once fetched from the gated /api/proofs endpoint.
   const [attemptCount, setAttemptCount] = useState(0);
   const [canReveal, setCanReveal] = useState(false);
   const [cert, setCert] = useState<CertPayload | null>(null);
@@ -235,7 +235,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/problems/${id}/certificate`);
+        const res = await fetch(`/api/proofs/${id}`);
         const d = await res.json();
         if (cancelled) return;
         if (typeof d.attemptsUsed === 'number') setAttemptCount(d.attemptsUsed);
@@ -255,7 +255,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
     if (canReveal && certAnswer != null) { setGaveUp(true); setCertOpen(true); return; }
     setRevealing(true);
     try {
-      const res = await fetch(`/api/problems/${id}/certificate`);
+      const res = await fetch(`/api/proofs/${id}`);
       const d = await res.json();
       if (d.unlocked) {
         setCanReveal(true);

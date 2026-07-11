@@ -19,6 +19,7 @@ interface RawProblem {
   difficulty: string;
   points: string;
   questionProblem: string;
+  hasProof?: boolean;
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -37,16 +38,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     isSolved = await getUserProblemStatus(session.user.username, questionId);
   }
 
-  // 2b. Does this problem carry a proof certificate? (flag only — the proof
-  // itself is served by the gated /certificate endpoint, never here.)
-  const proofCheck = await sql`
-    SELECT (proof IS NOT NULL AND length(trim(proof)) > 0) AS "hasProof"
-    FROM questions WHERE "questionId" = ${questionId}
-  `;
-  const hasProof = !!proofCheck.rows[0]?.hasProof;
-
-  // 3. Return Combined Data
-  return NextResponse.json({ ...formattedProblem, isSolved, hasProof });
+  // 3. Return Combined Data. `hasProof` is a boolean flag (folded into the single
+  // getProblemById query); the proof itself is served by /api/proofs/:id only.
+  return NextResponse.json({ ...formattedProblem, isSolved, hasProof: !!problem.hasProof });
 }
 
 // Admin-only edit of a practice problem's taxonomy: theme (topic), difficulty
@@ -164,7 +158,7 @@ export async function POST(
       canReveal,
     });
 
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
