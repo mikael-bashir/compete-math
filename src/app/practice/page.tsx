@@ -306,10 +306,10 @@ export default function PracticePage() {
                         <span className="flex shrink-0 items-center gap-1.5">
                           {p.hasProof && (
                             <span
-                              title="Answer backed by a machine-checked Lean proof certificate"
-                              className="inline-flex items-center gap-0.5 font-code text-[10px] uppercase tracking-wider text-[#deb87f]"
+                              title="A Leak certificate — a machine-checked proof of the truthfulness of an interpretation of this problem and its answer — is available on request."
+                              className="inline-flex items-center text-[#deb87f]"
                             >
-                              <BadgeCheck className="w-3 h-3" /> certified
+                              <BadgeCheck className="w-3.5 h-3.5" />
                             </span>
                           )}
                           {p.isSolved && (
