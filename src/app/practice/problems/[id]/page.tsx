@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import {
   ArrowLeft, Send, CheckCircle2, RotateCcw, Loader2, Lock, LogIn, X,
-  BadgeCheck, ShieldCheck, Copy, Check, Flag, ScrollText
+  ShieldCheck, Copy, Check, Flag, ScrollText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
@@ -24,6 +24,7 @@ import {
   PRACTICE_REVEAL_ATTEMPTS,
 } from "@/app/lib/constants/site"
 import { CERTIFICATE, fmtCertDate } from "@/app/lib/certificate"
+import { CertifiedInfo } from "@/app/lib/components/certified-info"
 
 // --- CERTIFICATE ---
 // Shown once a problem is complete (solved, or given up after the attempt gate).
@@ -408,11 +409,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                </div>
             </div>
             <div className="flex items-center gap-3">
-              {problem.hasProof &&
-                <span title="Answer backed by a machine-checked Lean proof certificate" className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-[#deb87f]/30 bg-[#deb87f]/10 text-[#deb87f] text-xs font-bold uppercase tracking-wider">
-                  <BadgeCheck className="w-3.5 h-3.5" /> Certified
-                </span>
-              }
+              {problem.hasProof && <CertifiedInfo />}
               {problem.difficulty &&
                 <span className="px-3 py-1 rounded-full border border-emerald-900/30 bg-emerald-900/10 text-emerald-500 text-xs font-bold uppercase tracking-wider">{problem.difficulty}</span>
               }
