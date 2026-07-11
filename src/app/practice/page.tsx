@@ -25,29 +25,67 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   Insane: "text-fuchsia-300 border-fuchsia-400/30 bg-fuchsia-400/10",
 };
 
+// How many cards to pull per request. The page appends via "Load more" so the
+// DOM only ever holds what's been explicitly asked for — keeps the initial paint
+// cheap even when the pool is large.
+const PAGE_SIZE = 48;
+
 export default function PracticePage() {
   const [problems, setProblems] = useState<PracticeProblem[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [topic, setTopic] = useState("");
   const [difficulty, setDifficulty] = useState("");
   const [knowledge, setKnowledge] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
+  // Fetch one page at the given offset for the current filters.
+  const fetchPage = useCallback(
+    async (offset: number) => {
       const qs = new URLSearchParams();
       if (topic) qs.set("topic", topic);
       if (difficulty) qs.set("difficulty", difficulty);
       if (knowledge) qs.set("knowledge", knowledge);
+      qs.set("limit", String(PAGE_SIZE));
+      qs.set("offset", String(offset));
       const res = await fetch(`/api/practice?${qs.toString()}`);
       const data = await res.json();
-      setProblems(Array.isArray(data) ? data : []);
-    } finally {
-      setLoading(false);
-    }
-  }, [topic, difficulty, knowledge]);
+      return {
+        items: Array.isArray(data?.items) ? (data.items as PracticeProblem[]) : [],
+        total: typeof data?.total === "number" ? data.total : 0,
+      };
+    },
+    [topic, difficulty, knowledge],
+  );
 
-  useEffect(() => { load(); }, [load]);
+  // Reset to the first page whenever the filters change.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchPage(0)
+      .then(({ items, total }) => {
+        if (cancelled) return;
+        setProblems(items);
+        setTotal(total);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPage]);
+
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const { items, total } = await fetchPage(problems.length);
+      setProblems((prev) => [...prev, ...items]);
+      setTotal(total);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [fetchPage, problems.length]);
 
   // Group by topic for the "sorted by concept" presentation.
   const grouped = useMemo(() => {
@@ -84,7 +122,10 @@ export default function PracticePage() {
           </p>
           {problems.length > 0 && (
             <p className="font-code text-xs text-emerald-300/70 mt-3">
-              {solvedCount}/{problems.length} solved in current view
+              {solvedCount}/{problems.length} solved
+              {total > problems.length && (
+                <span className="text-white/35"> · showing {problems.length} of {total}</span>
+              )}
             </p>
           )}
         </div>
@@ -128,6 +169,7 @@ export default function PracticePage() {
             </p>
           </div>
         ) : (
+          <>
           <div className="space-y-12">
             {grouped.map(([topicName, list]) => (
               <section key={topicName}>
@@ -173,6 +215,26 @@ export default function PracticePage() {
               </section>
             ))}
           </div>
+
+          {/* Load more — only when there are further pages to pull. */}
+          {problems.length < total && (
+            <div className="flex justify-center mt-12">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="font-code text-[13px] text-white/70 border border-white/10 rounded-lg px-5 py-2 hover:bg-white/[0.05] hover:border-white/20 hover:text-white transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+                  </>
+                ) : (
+                  <>Load more ({total - problems.length} left)</>
+                )}
+              </button>
+            </div>
+          )}
+          </>
         )}
       </div>
     </div>
