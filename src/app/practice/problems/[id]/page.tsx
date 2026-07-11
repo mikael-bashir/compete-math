@@ -101,14 +101,11 @@ function CertificatePanel({
       </div>
 
       <div className="px-4 py-4 space-y-4">
-        {/* Statement of verification */}
-        <div className="flex items-baseline gap-3">
-          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/60 shrink-0">Answer</p>
-          <p className="font-mono text-sm text-amber-200">{answer}</p>
-        </div>
-
-        {/* Provenance — borderless bulleted grid */}
+        {/* Provenance — borderless bulleted grid (answer included, same style) */}
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+          <Field label="Answer" className="sm:col-span-2">
+            <span className="text-[13px] text-amber-200">{answer}</span>
+          </Field>
           <Field label="Minted">{fmtCertDate(cert?.mintedAt)}</Field>
           <Field label="Enforced · machine-checked">{fmtCertDate(cert?.provedAt)}</Field>
           <Field label="Enforcer">
@@ -172,12 +169,11 @@ function CertificatePanel({
         )}
 
         <p className="text-[10px] leading-relaxed text-white/40 border-t border-white/[0.06] pt-3">
-          The proof was found and enforced by <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30">{CERTIFICATE.prover}</a>, then machine-checked in Lean:
-          the stated answer follows from a script that compiles under the toolchain above with no
-          errors or unproven goals. The whole certificate — the proof included — is signed with
-          CompeteMath&rsquo;s Ed25519 key: altering any byte invalidates the signature, and it
-          can&rsquo;t be re-signed without the private key, so tampering is detectable by anyone
-          verifying against the public key.
+          <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30">{CERTIFICATE.prover}</a> found this proof and machine-checked it in Lean against the toolchain above:
+          the stated answer follows from a script that compiles with no errors or unproven goals.
+          The whole certificate — the proof included — is signed with CompeteMath&rsquo;s Ed25519
+          key; altering any byte invalidates the signature, and it cannot be re-signed without the
+          private key, so tampering is detectable by anyone verifying against the public key.
         </p>
       </div>
     </div>
