@@ -529,7 +529,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                   <div className="p-1.5 bg-amber-500/15 border border-amber-400/25 rounded-full shrink-0"><CheckCircle2 className="w-4 h-4 text-amber-400" /></div>
                   <div className="flex-1"><h4 className="text-amber-200 font-semibold text-xs tracking-wide">Problem Solved</h4><p className="text-amber-300/60 text-[11px]">Nicely done — your answer is correct.</p></div>
                   {problem.hasProof && (
-                    <button onClick={viewCertificate} disabled={revealing} style={{ fontSize: '5pt' }} className="absolute bottom-1.5 right-3 leading-none tracking-wide text-white/30 hover:text-white/70 underline underline-offset-2 decoration-white/15 transition-colors disabled:opacity-50">
+                    <button onClick={viewCertificate} disabled={revealing} style={{ fontSize: '8pt' }} className="absolute bottom-1.5 right-3 leading-none tracking-wide text-white/30 hover:text-white/70 underline underline-offset-2 decoration-white/15 transition-colors disabled:opacity-50">
                       view certificate
                     </button>
                   )}
@@ -544,7 +544,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                     <p className="text-[11px] text-white/45">The correct answer is <span className="font-mono text-amber-200">{certAnswer ?? '—'}</span>.</p>
                   </div>
                   {problem.hasProof && (
-                    <button onClick={viewCertificate} disabled={revealing} style={{ fontSize: '5pt' }} className="absolute bottom-1.5 right-3 leading-none tracking-wide text-white/30 hover:text-white/70 underline underline-offset-2 decoration-white/15 transition-colors disabled:opacity-50">
+                    <button onClick={viewCertificate} disabled={revealing} style={{ fontSize: '8pt' }} className="absolute bottom-1.5 right-3 leading-none tracking-wide text-white/30 hover:text-white/70 underline underline-offset-2 decoration-white/15 transition-colors disabled:opacity-50">
                       view certificate
                     </button>
                   )}
