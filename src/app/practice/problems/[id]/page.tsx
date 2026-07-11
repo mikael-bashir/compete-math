@@ -103,7 +103,7 @@ function CertificatePanel({
       <div className="px-4 py-4 space-y-4">
         {/* Provenance — borderless bulleted grid (answer included, same style) */}
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-          <Field label="Answer" className="sm:col-span-2">
+          <Field label="Answer">
             <span className="text-[13px] text-amber-200">{answer}</span>
           </Field>
           <Field label="Minted">{fmtCertDate(cert?.mintedAt)}</Field>
