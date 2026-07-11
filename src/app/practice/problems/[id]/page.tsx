@@ -525,9 +525,9 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
              )}
 
              {authStatus === 'authenticated' && isSolved && (
-               <div className="relative bg-amber-500/[0.06] border border-amber-400/25 rounded-lg p-4 pb-5 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
-                  <div className="p-2 bg-amber-500/15 border border-amber-400/25 rounded-full"><CheckCircle2 className="w-6 h-6 text-amber-400" /></div>
-                  <div className="flex-1"><h4 className="text-amber-200 font-bold text-sm tracking-wide">Problem Solved</h4><p className="text-amber-300/60 text-xs">Nicely done — your answer is correct.</p></div>
+               <div className="relative bg-amber-500/[0.06] border border-amber-400/25 rounded-lg p-3.5 pb-5 flex items-center gap-3 animate-in fade-in zoom-in-95 duration-300">
+                  <div className="p-1.5 bg-amber-500/15 border border-amber-400/25 rounded-full shrink-0"><CheckCircle2 className="w-4 h-4 text-amber-400" /></div>
+                  <div className="flex-1"><h4 className="text-amber-200 font-semibold text-xs tracking-wide">Problem Solved</h4><p className="text-amber-300/60 text-[11px]">Nicely done — your answer is correct.</p></div>
                   {problem.hasProof && (
                     <button onClick={viewCertificate} disabled={revealing} className="absolute bottom-1.5 right-3 text-[9px] tracking-wide text-white/30 hover:text-white/70 underline underline-offset-2 decoration-white/15 transition-colors disabled:opacity-50">
                       view certificate
@@ -537,11 +537,11 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
              )}
 
              {authStatus === 'authenticated' && !isSolved && gaveUp && (
-               <div className="relative bg-white/[0.02] border border-white/10 rounded-lg p-4 pb-5 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
-                  <div className="p-2 bg-white/[0.04] rounded-full border border-white/10 shrink-0"><Flag className="w-5 h-5 text-amber-400/70" /></div>
+               <div className="relative bg-white/[0.02] border border-white/10 rounded-lg p-3.5 pb-5 flex items-center gap-3 animate-in fade-in zoom-in-95 duration-300">
+                  <div className="p-1.5 bg-white/[0.04] rounded-full border border-white/10 shrink-0"><Flag className="w-4 h-4 text-amber-400/70" /></div>
                   <div className="flex-1">
-                    <h4 className="text-slate-200 font-semibold text-sm tracking-wide">Answer revealed</h4>
-                    <p className="text-xs text-white/45">The correct answer is <span className="font-mono text-amber-200">{certAnswer ?? '—'}</span>.</p>
+                    <h4 className="text-slate-200 font-semibold text-xs tracking-wide">Answer revealed</h4>
+                    <p className="text-[11px] text-white/45">The correct answer is <span className="font-mono text-amber-200">{certAnswer ?? '—'}</span>.</p>
                   </div>
                   {problem.hasProof && (
                     <button onClick={viewCertificate} disabled={revealing} className="absolute bottom-1.5 right-3 text-[9px] tracking-wide text-white/30 hover:text-white/70 underline underline-offset-2 decoration-white/15 transition-colors disabled:opacity-50">
