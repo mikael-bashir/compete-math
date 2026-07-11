@@ -38,7 +38,8 @@ interface CertPayload {
   provedAt?: string | null;
   title?: string | null;
 }
-function CertificateModal({
+// Rendered inline beneath the problem card (not a modal). Compact, small type.
+function CertificatePanel({
   open, onClose, answer, cert,
 }: {
   open: boolean;
@@ -49,86 +50,76 @@ function CertificateModal({
   const [copied, setCopied] = useState(false);
   if (!open) return null;
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-2xl max-h-[88vh] overflow-hidden rounded-2xl border border-white/10 bg-[#0b0e12] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9)] animate-in zoom-in-95 fade-in duration-200 flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header — clean, no seal glow */}
-        <div className="relative border-b border-white/10 px-6 py-5">
-          <button onClick={onClose} className="absolute top-4 right-4 text-slate-600 hover:text-slate-300"><X size={16} /></button>
-          <div className="flex items-center gap-3">
-            <div className="grid place-items-center rounded-lg border border-white/10 bg-white/[0.03] h-11 w-11">
-              <ShieldCheck className="w-5 h-5 text-slate-300" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-100 leading-tight tracking-tight">Proof Certificate</h3>
-              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-slate-500">{CERTIFICATE.issuer} · machine-checked formal proof</p>
-            </div>
-          </div>
+    <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-[#0b0e12] animate-in fade-in slide-in-from-top-2 duration-200">
+      {/* Header — clean, no seal glow */}
+      <div className="relative flex items-center gap-2.5 border-b border-white/[0.07] px-4 py-3">
+        <div className="grid place-items-center rounded-md border border-white/10 bg-white/[0.03] h-7 w-7 shrink-0">
+          <ShieldCheck className="w-3.5 h-3.5 text-slate-300" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-[13px] font-semibold text-slate-100 leading-tight">Proof Certificate</h3>
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-500 truncate">{CERTIFICATE.issuer} · machine-checked formal proof</p>
+        </div>
+        <button onClick={onClose} aria-label="Close certificate" className="ml-auto shrink-0 text-slate-600 hover:text-slate-300"><X size={14} /></button>
+      </div>
+
+      <div className="px-4 py-4 space-y-4">
+        {/* Statement of verification */}
+        <div className="flex items-baseline gap-3">
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-500 shrink-0">Answer</p>
+          <p className="font-mono text-sm text-emerald-300">{answer}</p>
         </div>
 
-        <div className="overflow-y-auto px-6 py-5 space-y-6">
-          {/* Statement of verification */}
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-4">
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500 sm:w-40 sm:shrink-0 sm:pt-1">Verified answer</p>
-            <p className="font-mono text-2xl text-emerald-300">{answer}</p>
+        {/* Provenance — formal definition table */}
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-white/10 bg-white/[0.02]">
+          <div className="p-3 bg-[#0b0e12]">
+            <dt className="font-mono uppercase tracking-[0.12em] text-slate-500 text-[9px] mb-0.5">Minted</dt>
+            <dd className="text-slate-300 font-mono text-[11px]">{fmtCertDate(cert?.mintedAt)}</dd>
           </div>
+          <div className="p-3 bg-[#0b0e12]">
+            <dt className="font-mono uppercase tracking-[0.12em] text-slate-500 text-[9px] mb-0.5">Enforced · machine-checked</dt>
+            <dd className="text-slate-300 font-mono text-[11px]">{fmtCertDate(cert?.provedAt)}</dd>
+          </div>
+          <div className="p-3 bg-[#0b0e12]">
+            <dt className="font-mono uppercase tracking-[0.12em] text-slate-500 text-[9px] mb-0.5">Toolchain</dt>
+            <dd className="text-slate-300 font-mono text-[11px]">{CERTIFICATE.toolchain} · {CERTIFICATE.mathlib}</dd>
+          </div>
+          <div className="p-3 bg-[#0b0e12]">
+            <dt className="font-mono uppercase tracking-[0.12em] text-slate-500 text-[9px] mb-0.5">Support</dt>
+            <dd><a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-slate-300 hover:text-white underline underline-offset-2 decoration-white/20 font-mono text-[11px] break-all">{CERTIFICATE.supportEmail}</a></dd>
+          </div>
+        </dl>
 
-          {/* Provenance — formal definition table */}
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-px overflow-hidden rounded-lg border border-white/10 bg-white/[0.02] text-xs">
-            <div className="p-4 bg-[#0b0e12]">
-              <dt className="font-mono uppercase tracking-[0.15em] text-slate-500 text-[10px] mb-1">Minted</dt>
-              <dd className="text-slate-300 font-mono">{fmtCertDate(cert?.mintedAt)}</dd>
+        {/* Proof script */}
+        {cert?.proof ? (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-500 flex items-center gap-1.5">
+                <ScrollText className="w-3 h-3" /> Proof script · Lean 4
+              </p>
+              <button
+                onClick={async () => {
+                  try { await navigator.clipboard.writeText(cert.full); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-slate-400 hover:bg-white/[0.07] hover:text-slate-200 transition-colors"
+              >
+                {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                {copied ? 'Copied' : 'Copy certificate'}
+              </button>
             </div>
-            <div className="p-4 bg-[#0b0e12]">
-              <dt className="font-mono uppercase tracking-[0.15em] text-slate-500 text-[10px] mb-1">Enforced · machine-checked</dt>
-              <dd className="text-slate-300 font-mono">{fmtCertDate(cert?.provedAt)}</dd>
-            </div>
-            <div className="p-4 bg-[#0b0e12]">
-              <dt className="font-mono uppercase tracking-[0.15em] text-slate-500 text-[10px] mb-1">Toolchain</dt>
-              <dd className="text-slate-300 font-mono">{CERTIFICATE.toolchain} · {CERTIFICATE.mathlib}</dd>
-            </div>
-            <div className="p-4 bg-[#0b0e12]">
-              <dt className="font-mono uppercase tracking-[0.15em] text-slate-500 text-[10px] mb-1">Support</dt>
-              <dd><a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-slate-300 hover:text-white underline underline-offset-2 decoration-white/20 font-mono break-all">{CERTIFICATE.supportEmail}</a></dd>
-            </div>
-          </dl>
+            <pre className="max-h-80 overflow-auto rounded-lg border border-white/10 bg-[#07090c] p-3 font-mono text-[10px] leading-relaxed text-slate-300 whitespace-pre">
+              {cert.proof}
+            </pre>
+          </div>
+        ) : (
+          <p className="text-[11px] text-slate-500 italic">No proof certificate is attached to this problem.</p>
+        )}
 
-          {/* Proof script */}
-          {cert?.proof ? (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500 flex items-center gap-1.5">
-                  <ScrollText className="w-3.5 h-3.5" /> Proof script · Lean 4
-                </p>
-                <button
-                  onClick={async () => {
-                    try { await navigator.clipboard.writeText(cert.full); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
-                  }}
-                  className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] text-slate-400 hover:bg-white/[0.07] hover:text-slate-200 transition-colors"
-                >
-                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  {copied ? 'Copied' : 'Copy certificate'}
-                </button>
-              </div>
-              <pre className="max-h-72 overflow-auto rounded-lg border border-white/10 bg-[#07090c] p-4 font-mono text-[11px] leading-relaxed text-slate-300 whitespace-pre">
-                {cert.proof}
-              </pre>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-500 italic">No proof certificate is attached to this problem.</p>
-          )}
-
-          <p className="text-[11px] leading-relaxed text-slate-500 border-t border-white/[0.06] pt-4">
-            This certificate attests that the stated answer follows from a formal proof
-            that compiles and type-checks under the toolchain above. The proof is
-            reproducible: compiling the script yields no errors or unproven goals.
-          </p>
-        </div>
+        <p className="text-[10px] leading-relaxed text-slate-500 border-t border-white/[0.06] pt-3">
+          This certificate attests that the stated answer follows from a formal proof
+          that compiles and type-checks under the toolchain above. The proof is
+          reproducible: compiling the script yields no errors or unproven goals.
+        </p>
       </div>
     </div>
   );
@@ -534,14 +525,15 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
              )}
           </div>
         </div>
-      </div>
 
-      <CertificateModal
-        open={certOpen}
-        onClose={() => setCertOpen(false)}
-        answer={certAnswer ?? '—'}
-        cert={cert}
-      />
+        {/* Certificate — revealed inline beneath the problem, not as a modal. */}
+        <CertificatePanel
+          open={certOpen}
+          onClose={() => setCertOpen(false)}
+          answer={certAnswer ?? '—'}
+          cert={cert}
+        />
+      </div>
     </div>
   );
 }
