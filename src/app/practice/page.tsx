@@ -8,6 +8,7 @@ import {
 } from "../lib/constants/site";
 import { LevelInfo } from "../lib/components/level-info";
 import { CertifiedInfo } from "../lib/components/certified-info";
+import { StaticArtBackground } from "../lib/components/home/static-art-background";
 
 interface PracticeProblem {
   id: number;
@@ -218,8 +219,9 @@ export default function PracticePage() {
     "font-code bg-[#141013] border border-white/10 rounded px-2 py-1 text-[12px] text-white/70 focus:outline-none focus:border-amber-400/50";
 
   return (
-    <div className="min-h-screen bg-[#180f0e] pt-24 pb-24">
-      <div className="max-w-6xl mx-auto px-6">
+    <div className="relative min-h-screen overflow-hidden pt-24 pb-24">
+      <StaticArtBackground />
+      <div className="relative z-10 max-w-6xl mx-auto px-6">
 
         {/* Header */}
         <div className="mb-10">

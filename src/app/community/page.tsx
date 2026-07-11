@@ -130,7 +130,7 @@ export default function CommunityPage() {
   }, [status, isAdmin]);
 
   return (
-    <div className="min-h-screen bg-[#0a0f14] pt-24 pb-24">
+    <div className="min-h-screen bg-[#180f0e] pt-24 pb-24">
       <div className="max-w-6xl mx-auto px-6">
 
         {/* Header */}
