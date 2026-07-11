@@ -37,21 +37,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   // navigation instead of resetting to zero in React state.
   let isSolved = false;
   let attemptCount = 0;
+  let gaveUp = false;
   if (session?.user?.username) {
     const st = await getUserSubmissionState(session.user.username, questionId);
     isSolved = st.isCorrect;
     attemptCount = st.attemptCount;
+    gaveUp = st.gaveUp;
   }
-  const canReveal = isSolved || attemptCount >= PRACTICE_REVEAL_ATTEMPTS;
+  const canReveal = attemptCount >= PRACTICE_REVEAL_ATTEMPTS;
 
   // 3. Return Combined Data. `hasProof` is a boolean flag (folded into the single
   // getProblemById query); the proof itself is served by /api/proofs/:id only.
+  // `gaveUp` is terminal — like `isSolved`, it locks the problem permanently.
   return NextResponse.json({
     ...formattedProblem,
     isSolved,
     hasProof: !!problem.hasProof,
     attemptCount,
     canReveal,
+    gaveUp,
   });
 }
 

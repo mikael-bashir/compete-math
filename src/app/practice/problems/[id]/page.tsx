@@ -277,9 +277,11 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         setEditDifficulty(data.difficulty || "");
         setEditKnowledge(data.knowledge && data.knowledge !== "None" ? data.knowledge : "");
         if (data.isSolved) setIsSolved(true);
-        // Restore the attempt gate from the server so it survives refresh / nav.
+        // Restore the attempt gate + terminal states from the server so they
+        // survive refresh / nav. `gaveUp` is permanent, like solving.
         if (typeof data.attemptCount === "number") setAttemptCount(data.attemptCount);
         if (data.canReveal) setCanReveal(true);
+        if (data.gaveUp) setGaveUp(true);
       } catch (error) { console.error(error); }
       finally { setLoadingData(false); }
     };
@@ -298,6 +300,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         const d = await res.json();
         if (cancelled) return;
         if (typeof d.attemptsUsed === 'number') setAttemptCount(d.attemptsUsed);
+        if (d.gaveUp) setGaveUp(true);
         if (d.unlocked) {
           setCanReveal(true);
           setCertAnswer(d.answer != null ? String(d.answer) : null);
@@ -312,10 +315,11 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
   // cleared. Deliberately does NOT open or mention the certificate — it just
   // surfaces the answer. The server re-checks the gate, so this can't leak early.
   const revealAnswer = async () => {
-    if (canReveal && certAnswer != null) { setGaveUp(true); return; }
+    if (gaveUp && certAnswer != null) return; // already given up
     setRevealing(true);
     try {
-      const res = await fetch(`/api/proofs/${id}`);
+      // POST records the give-up as terminal (no more attempts, revealed forever).
+      const res = await fetch(`/api/proofs/${id}`, { method: 'POST' });
       const d = await res.json();
       if (d.unlocked) {
         setCanReveal(true);
@@ -525,8 +529,8 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                   <div className="p-2 bg-amber-500/15 border border-amber-400/25 rounded-full"><CheckCircle2 className="w-6 h-6 text-amber-400" /></div>
                   <div className="flex-1"><h4 className="text-amber-200 font-bold text-sm tracking-wide">Problem Solved</h4><p className="text-amber-300/60 text-xs">Nicely done — your answer is correct.</p></div>
                   {problem.hasProof && (
-                    <button onClick={viewCertificate} disabled={revealing} className="absolute bottom-2 right-3 inline-flex items-center gap-1 text-[10px] text-amber-300/80 hover:text-amber-100 underline underline-offset-2 decoration-amber-400/30 hover:decoration-amber-400/50 transition-colors disabled:opacity-50">
-                      {revealing ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <ScrollText className="w-2.5 h-2.5" />} View certificate
+                    <button onClick={viewCertificate} disabled={revealing} className="absolute bottom-1.5 right-3 text-[9px] tracking-wide text-white/30 hover:text-white/70 underline underline-offset-2 decoration-white/15 transition-colors disabled:opacity-50">
+                      view certificate
                     </button>
                   )}
                </div>
@@ -540,8 +544,8 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                     <p className="text-xs text-white/45">The correct answer is <span className="font-mono text-amber-200">{certAnswer ?? '—'}</span>.</p>
                   </div>
                   {problem.hasProof && (
-                    <button onClick={viewCertificate} disabled={revealing} className="absolute bottom-2 right-3 inline-flex items-center gap-1 text-[10px] text-white/45 hover:text-amber-200 underline underline-offset-2 decoration-white/20 hover:decoration-amber-400/40 transition-colors disabled:opacity-50">
-                      {revealing ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <ScrollText className="w-2.5 h-2.5" />} View certificate
+                    <button onClick={viewCertificate} disabled={revealing} className="absolute bottom-1.5 right-3 text-[9px] tracking-wide text-white/30 hover:text-white/70 underline underline-offset-2 decoration-white/15 transition-colors disabled:opacity-50">
+                      view certificate
                     </button>
                   )}
                </div>

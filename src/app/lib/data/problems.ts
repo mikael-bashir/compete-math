@@ -142,21 +142,37 @@ export async function getUserProblemStatus(userId: string, questionId: number): 
 export async function getUserSubmissionState(
   userId: string,
   questionId: number,
-): Promise<{ attemptCount: number; isCorrect: boolean }> {
+): Promise<{ attemptCount: number; isCorrect: boolean; gaveUp: boolean }> {
   try {
     const result = await sql`
-      SELECT "attemptCount", "isCorrect"
+      SELECT "attemptCount", "isCorrect", "gaveUp"
       FROM submissions
       WHERE username = ${userId} AND "questionId" = ${questionId}
     `;
-    if (result.rows.length === 0) return { attemptCount: 0, isCorrect: false };
+    if (result.rows.length === 0) return { attemptCount: 0, isCorrect: false, gaveUp: false };
     return {
       attemptCount: Number(result.rows[0].attemptCount) || 0,
       isCorrect: !!result.rows[0].isCorrect,
+      gaveUp: !!result.rows[0].gaveUp,
     };
   } catch (error) {
     console.error("Error retrieving submission state:", error);
-    return { attemptCount: 0, isCorrect: false };
+    return { attemptCount: 0, isCorrect: false, gaveUp: false };
+  }
+}
+
+// Mark a problem as "given up" — terminal, like solving. Only permitted once the
+// user has genuinely used up their attempts (gate enforced by the caller). After
+// this, the answer is revealed permanently and further attempts are refused.
+export async function markGaveUp(userId: string, questionId: number): Promise<void> {
+  try {
+    await sql`
+      UPDATE submissions SET "gaveUp" = TRUE
+      WHERE username = ${userId} AND "questionId" = ${questionId}
+    `;
+  } catch (error) {
+    console.error("Error marking gave-up:", error);
+    throw new Error("Failed to record give-up.");
   }
 }
 
@@ -165,7 +181,7 @@ export async function recordSubmission(userId: string, questionId: number, userA
     // 1. CHECK IF ALREADY SOLVED
     // We check this first to prevent unnecessary processing
     const existing = await sql`
-      SELECT "isCorrect", "attemptCount"
+      SELECT "isCorrect", "attemptCount", "gaveUp"
       FROM submissions
       WHERE username = ${userId} AND "questionId" = ${questionId}
     `;
@@ -174,6 +190,15 @@ export async function recordSubmission(userId: string, questionId: number, userA
       return {
         success: false,
         message: 'Problem already solved',
+        attemptCount: Number(existing.rows[0].attemptCount) || 0,
+      };
+    }
+
+    // Terminal once the user has given up: the answer is revealed, so no retries.
+    if (existing.rows.length > 0 && existing.rows[0].gaveUp) {
+      return {
+        success: false,
+        message: 'Answer already revealed',
         attemptCount: Number(existing.rows[0].attemptCount) || 0,
       };
     }

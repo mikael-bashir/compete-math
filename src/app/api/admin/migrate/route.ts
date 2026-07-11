@@ -84,6 +84,9 @@ export async function POST() {
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS proof TEXT;`;
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "mintedAt" TIMESTAMPTZ;`;
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "provedAt" TIMESTAMPTZ;`;
+    // "Gave up" is terminal, like solving: once a user reveals the answer, the
+    // problem locks (no more attempts) and the revealed state persists forever.
+    await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS "gaveUp" BOOLEAN NOT NULL DEFAULT FALSE;`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_problems_status ON community_problems(status);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_answers_problem ON community_answers(problem_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_comments_problem ON community_comments(problem_id);`;
