@@ -289,7 +289,7 @@ export default function PracticePage() {
             {grouped.map(([topicName, list]) => (
               <section key={topicName}>
                 <div className="flex items-center gap-3 mb-3">
-                  <h2 className="font-code text-sm text-white/80 font-medium uppercase tracking-wider">{topicName}</h2>
+                  <h2 className="font-code text-sm! text-white/80! font-medium uppercase tracking-wider">{topicName}</h2>
                   <span className="font-code text-xs text-white/25">{list.length}</span>
                   <div className="h-px flex-1 bg-white/[0.07]" />
                 </div>
