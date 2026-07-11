@@ -50,43 +50,43 @@ function CertificatePanel({
   const [copied, setCopied] = useState(false);
   if (!open) return null;
   return (
-    <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-[#0b0e12] animate-in fade-in slide-in-from-top-2 duration-200">
-      {/* Header — clean, no seal glow */}
-      <div className="relative flex items-center gap-2.5 border-b border-white/[0.07] px-4 py-3">
-        <div className="grid place-items-center rounded-md border border-white/10 bg-white/[0.03] h-7 w-7 shrink-0">
-          <ShieldCheck className="w-3.5 h-3.5 text-slate-300" />
+    <div className="mt-4 overflow-hidden rounded-xl border border-amber-400/20 bg-[#141013] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] animate-in fade-in slide-in-from-top-2 duration-200">
+      {/* Header — a gold seal */}
+      <div className="relative flex items-center gap-2.5 border-b border-white/[0.06] px-4 py-3">
+        <div className="grid place-items-center rounded-md border border-amber-400/30 bg-amber-500/10 h-7 w-7 shrink-0">
+          <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-[13px] font-semibold text-slate-100 leading-tight">Proof Certificate</h3>
-          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-500 truncate">{CERTIFICATE.issuer} · machine-checked formal proof</p>
+          <h3 className="text-[13px] font-semibold text-white leading-tight">Proof Certificate</h3>
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/60 truncate">{CERTIFICATE.issuer} · machine-checked formal proof</p>
         </div>
-        <button onClick={onClose} aria-label="Close certificate" className="ml-auto shrink-0 text-slate-600 hover:text-slate-300"><X size={14} /></button>
+        <button onClick={onClose} aria-label="Close certificate" className="ml-auto shrink-0 text-white/40 hover:text-amber-200"><X size={14} /></button>
       </div>
 
       <div className="px-4 py-4 space-y-4">
         {/* Statement of verification */}
         <div className="flex items-baseline gap-3">
-          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-500 shrink-0">Answer</p>
-          <p className="font-mono text-sm text-emerald-300">{answer}</p>
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/60 shrink-0">Answer</p>
+          <p className="font-mono text-sm text-amber-200">{answer}</p>
         </div>
 
         {/* Provenance — formal definition table */}
-        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-white/10 bg-white/[0.02]">
-          <div className="p-3 bg-[#0b0e12]">
-            <dt className="font-mono uppercase tracking-[0.12em] text-slate-500 text-[9px] mb-0.5">Minted</dt>
-            <dd className="text-slate-300 font-mono text-[11px]">{fmtCertDate(cert?.mintedAt)}</dd>
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-white/[0.08] bg-white/[0.04]">
+          <div className="p-3 bg-[#141013]">
+            <dt className="font-mono uppercase tracking-[0.12em] text-amber-400/50 text-[9px] mb-0.5">Minted</dt>
+            <dd className="text-white/70 font-mono text-[11px]">{fmtCertDate(cert?.mintedAt)}</dd>
           </div>
-          <div className="p-3 bg-[#0b0e12]">
-            <dt className="font-mono uppercase tracking-[0.12em] text-slate-500 text-[9px] mb-0.5">Enforced · machine-checked</dt>
-            <dd className="text-slate-300 font-mono text-[11px]">{fmtCertDate(cert?.provedAt)}</dd>
+          <div className="p-3 bg-[#141013]">
+            <dt className="font-mono uppercase tracking-[0.12em] text-amber-400/50 text-[9px] mb-0.5">Enforced · machine-checked</dt>
+            <dd className="text-white/70 font-mono text-[11px]">{fmtCertDate(cert?.provedAt)}</dd>
           </div>
-          <div className="p-3 bg-[#0b0e12]">
-            <dt className="font-mono uppercase tracking-[0.12em] text-slate-500 text-[9px] mb-0.5">Toolchain</dt>
-            <dd className="text-slate-300 font-mono text-[11px]">{CERTIFICATE.toolchain} · {CERTIFICATE.mathlib}</dd>
+          <div className="p-3 bg-[#141013]">
+            <dt className="font-mono uppercase tracking-[0.12em] text-amber-400/50 text-[9px] mb-0.5">Toolchain</dt>
+            <dd className="text-white/70 font-mono text-[11px]">{CERTIFICATE.toolchain} · {CERTIFICATE.mathlib}</dd>
           </div>
-          <div className="p-3 bg-[#0b0e12]">
-            <dt className="font-mono uppercase tracking-[0.12em] text-slate-500 text-[9px] mb-0.5">Support</dt>
-            <dd><a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-slate-300 hover:text-white underline underline-offset-2 decoration-white/20 font-mono text-[11px] break-all">{CERTIFICATE.supportEmail}</a></dd>
+          <div className="p-3 bg-[#141013]">
+            <dt className="font-mono uppercase tracking-[0.12em] text-amber-400/50 text-[9px] mb-0.5">Support</dt>
+            <dd><a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30 font-mono text-[11px] break-all">{CERTIFICATE.supportEmail}</a></dd>
           </div>
         </dl>
 
@@ -94,28 +94,28 @@ function CertificatePanel({
         {cert?.proof ? (
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-slate-500 flex items-center gap-1.5">
+              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/60 flex items-center gap-1.5">
                 <ScrollText className="w-3 h-3" /> Proof script · Lean 4
               </p>
               <button
                 onClick={async () => {
                   try { await navigator.clipboard.writeText(cert.full); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
                 }}
-                className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-slate-400 hover:bg-white/[0.07] hover:text-slate-200 transition-colors"
+                className="inline-flex items-center gap-1 rounded-md border border-amber-400/25 bg-amber-500/[0.06] px-2 py-0.5 text-[10px] text-amber-200 hover:bg-amber-500/12 transition-colors"
               >
                 {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                 {copied ? 'Copied' : 'Copy certificate'}
               </button>
             </div>
-            <pre className="max-h-80 overflow-auto rounded-lg border border-white/10 bg-[#07090c] p-3 font-mono text-[10px] leading-relaxed text-slate-300 whitespace-pre">
+            <pre className="max-h-80 overflow-auto rounded-lg border border-white/[0.08] bg-[#0d0908] p-3 font-mono text-[10px] leading-relaxed text-slate-300 whitespace-pre">
               {cert.proof}
             </pre>
           </div>
         ) : (
-          <p className="text-[11px] text-slate-500 italic">No proof certificate is attached to this problem.</p>
+          <p className="text-[11px] text-white/40 italic">No proof certificate is attached to this problem.</p>
         )}
 
-        <p className="text-[10px] leading-relaxed text-slate-500 border-t border-white/[0.06] pt-3">
+        <p className="text-[10px] leading-relaxed text-white/40 border-t border-white/[0.06] pt-3">
           This certificate attests that the stated answer follows from a formal proof
           that compiles and type-checks under the toolchain above. The proof is
           reproducible: compiling the script yields no errors or unproven goals.
@@ -357,15 +357,15 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
     }
   };
 
-  if (authStatus === 'loading' || loadingData) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-emerald-600 w-8 h-8" /></div>;
+  if (authStatus === 'loading' || loadingData) return <div className="min-h-screen bg-[#180f0e] flex items-center justify-center"><Loader2 className="animate-spin text-amber-500 w-8 h-8" /></div>;
 
-  if (!problem) return <div className="min-h-screen bg-[#050505] text-slate-500 flex items-center justify-center">Problem not found.</div>;
+  if (!problem) return <div className="min-h-screen bg-[#180f0e] text-white/50 flex items-center justify-center">Problem not found.</div>;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-emerald-500/30 mt-3.75 placeholder-violet-100 pt-10">
-      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#0f141a_0%,#050505_60%)]" />
+    <div className="min-h-screen bg-[#180f0e] text-slate-300 font-sans selection:bg-amber-500/30 mt-3.75 pt-10">
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#241413_0%,#140c0b_60%)]" />
       <div className="relative z-10 container max-w-4xl mx-auto px-4 py-12">
-        <Link href="/practice" className="inline-flex items-center text-emerald-700 hover:text-emerald-500 transition-colors mb-8 group font-medium text-sm">
+        <Link href="/practice" className="inline-flex items-center text-amber-400/70 hover:text-amber-300 transition-colors mb-8 group font-medium text-sm">
           <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" /> Back to Archives
         </Link>
 
@@ -420,55 +420,53 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
           </div>
         )}
 
-        <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-2xl overflow-hidden shadow-2xl">
-          <div className="bg-[#111] border-b border-[#222] px-8 py-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="bg-[#141013]/92 border border-white/[0.08] rounded-2xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+          <div className="bg-[#1a1315] border-b border-white/[0.06] px-8 py-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
              <div>
-               <h1 className="text-3xl text-slate-100 font-serif font-bold tracking-tight mb-1">{problem.title}</h1>
-               <div className="flex items-center gap-3 text-xs uppercase tracking-widest font-semibold text-emerald-600/80">
+               <h1 className="font-code text-3xl text-white font-bold tracking-tight mb-1">{problem.title}</h1>
+               <div className="flex items-center gap-3 text-xs uppercase tracking-widest font-semibold text-amber-400/70">
                  <span>Problem {problem.id}</span>
-                 {/* {problem.difficulty || problem.points &&
-                  <span className="w-1 h-1 rounded-full bg-emerald-800" />
-                 } */}
+                 <span className="w-1 h-1 rounded-full bg-amber-400/40" />
                  <span>{problem.subtitle}</span>
                </div>
             </div>
             <div className="flex items-center gap-3">
               {problem.hasProof && <CertifiedInfo />}
               {problem.difficulty &&
-                <span className="px-3 py-1 rounded-full border border-emerald-900/30 bg-emerald-900/10 text-emerald-500 text-xs font-bold uppercase tracking-wider">{problem.difficulty}</span>
+                <span className="px-3 py-1 rounded-full border border-white/10 bg-white/[0.04] text-white/70 text-xs font-bold uppercase tracking-wider">{problem.difficulty}</span>
               }
               {problem.points &&
-                <span className="px-3 py-1 rounded-full border border-amber-900/30 bg-amber-900/10 text-amber-500 text-xs font-bold uppercase tracking-wider">{problem.points} Pts</span>
+                <span className="px-3 py-1 rounded-full border border-amber-400/25 bg-amber-500/10 text-amber-200 text-xs font-bold uppercase tracking-wider">{problem.points} Pts</span>
               }
             </div>
           </div>
 
-          <div className="px-8 py-10 prose prose-invert prose-emerald max-w-none">
+          <div className="px-8 py-10 prose prose-invert max-w-none">
             <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{
                 p: ({node, ...props}) => <p className="text-lg leading-relaxed text-slate-300 mb-6" {...props} />,
-                h3: ({node, ...props}) => <h3 className="text-xl font-serif text-emerald-100 mt-8 mb-4 border-b border-emerald-900/30 pb-2" {...props} />,
+                h3: ({node, ...props}) => <h3 className="text-xl text-amber-100/90 mt-8 mb-4 border-b border-white/10 pb-2" {...props} />,
               }}>
               {problem.content}
             </ReactMarkdown>
           </div>
 
-          <div className="bg-[#0f0f0f] border-t border-[#222] p-8 min-h-35 flex flex-col justify-center">
+          <div className="bg-[#0f0b0a] border-t border-white/[0.06] p-8 min-h-35 flex flex-col justify-center">
              {authStatus === 'unauthenticated' && (
-               <div className="flex items-center justify-between bg-[#151515] border border-[#333] rounded-lg p-4">
-                 <div className="flex items-center gap-4 text-slate-400">
-                    <Lock className="w-5 h-5 text-slate-500" />
+               <div className="flex items-center justify-between bg-white/[0.02] border border-white/10 rounded-lg p-4">
+                 <div className="flex items-center gap-4 text-white/50">
+                    <Lock className="w-5 h-5 text-white/40" />
                     <span className="text-sm font-medium">Authentication required to submit answers.</span>
                  </div>
-                 <Link href="/api/auth/signin"><Button variant="outline" className="border-[#333] hover:bg-[#222] text-slate-200"><LogIn className="w-4 h-4 mr-2" /> Log In</Button></Link>
+                 <Link href="/api/auth/signin"><Button variant="outline" className="border-white/15 hover:bg-white/[0.06] text-slate-200"><LogIn className="w-4 h-4 mr-2" /> Log In</Button></Link>
                </div>
              )}
 
              {authStatus === 'authenticated' && isSolved && (
-               <div className="bg-emerald-950/20 border border-emerald-900/50 rounded-lg p-4 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
-                  <div className="p-2 bg-emerald-900/30 rounded-full"><CheckCircle2 className="w-6 h-6 text-emerald-500" /></div>
-                  <div className="flex-1"><h4 className="text-emerald-400 font-bold text-sm tracking-wide">Problem Solved</h4><p className="text-emerald-600/80 text-xs">Nicely done — your answer is correct.</p></div>
+               <div className="bg-amber-500/[0.06] border border-amber-400/25 rounded-lg p-4 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
+                  <div className="p-2 bg-amber-500/15 border border-amber-400/25 rounded-full"><CheckCircle2 className="w-6 h-6 text-amber-400" /></div>
+                  <div className="flex-1"><h4 className="text-amber-200 font-bold text-sm tracking-wide">Problem Solved</h4><p className="text-amber-300/60 text-xs">Nicely done — your answer is correct.</p></div>
                   {problem.hasProof && (
-                    <Button onClick={viewCertificate} disabled={revealing} variant="outline" className="shrink-0 border-white/15 bg-white/[0.04] text-slate-200 hover:bg-white/[0.08] hover:text-white font-medium">
+                    <Button onClick={viewCertificate} disabled={revealing} variant="outline" className="shrink-0 border-amber-400/25 bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/12 hover:text-amber-100 font-medium">
                       {revealing ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="flex items-center gap-2"><ScrollText size={15} /> View certificate</span>}
                     </Button>
                   )}
@@ -477,13 +475,13 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
 
              {authStatus === 'authenticated' && !isSolved && gaveUp && (
                <div className="bg-white/[0.02] border border-white/10 rounded-lg p-4 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
-                  <div className="p-2 bg-white/[0.04] rounded-full border border-white/10 shrink-0"><Flag className="w-5 h-5 text-slate-400" /></div>
+                  <div className="p-2 bg-white/[0.04] rounded-full border border-white/10 shrink-0"><Flag className="w-5 h-5 text-amber-400/70" /></div>
                   <div className="flex-1">
                     <h4 className="text-slate-200 font-semibold text-sm tracking-wide">Answer revealed</h4>
-                    <p className="text-xs text-slate-500">The correct answer is <span className="font-mono text-emerald-300">{certAnswer ?? '—'}</span>.</p>
+                    <p className="text-xs text-white/45">The correct answer is <span className="font-mono text-amber-200">{certAnswer ?? '—'}</span>.</p>
                   </div>
                   {problem.hasProof && (
-                    <button onClick={viewCertificate} disabled={revealing} className="shrink-0 text-xs text-slate-400 hover:text-slate-100 underline underline-offset-4 decoration-white/20 hover:decoration-white/40 transition-colors disabled:opacity-50">
+                    <button onClick={viewCertificate} disabled={revealing} className="shrink-0 text-xs text-white/50 hover:text-amber-200 underline underline-offset-4 decoration-white/20 hover:decoration-amber-400/40 transition-colors disabled:opacity-50">
                       View certificate
                     </button>
                   )}
@@ -495,23 +493,23 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                  <form onSubmit={handleSubmit} className="relative max-w-xl">
                    <div className="flex gap-3">
                       <div className="relative grow">
-                        <Input value={answer} onChange={(e) => { setAnswer(e.target.value); if(status === 'wrong') setStatus('idle'); }} placeholder="Enter answer here..." className="bg-[#050505] border-[#333] text-slate-200 placeholder:text-slate-700 focus:border-emerald-600 focus:ring-emerald-900/20 font-mono" />
+                        <Input value={answer} onChange={(e) => { setAnswer(e.target.value); if(status === 'wrong') setStatus('idle'); }} placeholder="Enter answer here..." className="bg-[#0f0b0a] border-white/12 text-slate-200 placeholder:text-white/25 focus:border-amber-500/60 focus:ring-amber-900/20 font-mono" />
                       </div>
-                      <Button type="submit" disabled={status === 'submitting' || !answer} className={`min-w-30 font-medium transition-colors duration-200 border ${status === 'wrong' ? 'bg-red-500/10 text-red-300 hover:bg-red-500/15 border-red-500/30' : 'bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15 border-emerald-400/25'}`}>
+                      <Button type="submit" disabled={status === 'submitting' || !answer} className={`min-w-30 font-medium transition-colors duration-200 border ${status === 'wrong' ? 'bg-red-500/10 text-rose-300 hover:bg-red-500/15 border-red-500/30' : 'bg-amber-500/10 text-amber-200 hover:bg-amber-500/15 border-amber-400/25'}`}>
                         {status === 'submitting' ? <span className="animate-pulse">Verifying...</span> : status === 'wrong' ? <span className="flex items-center gap-2"><RotateCcw size={16} /> Retry</span> : <span className="flex items-center gap-2">Submit <Send size={14} /></span>}
                       </Button>
                    </div>
-                   {status === 'wrong' && <p className="absolute -bottom-8 left-0 text-sm text-red-500 font-medium animate-in slide-in-from-top-1 fade-in">Incorrect answer. Double check your calculations.</p>}
+                   {status === 'wrong' && <p className="absolute -bottom-8 left-0 text-sm text-rose-400 font-medium animate-in slide-in-from-top-1 fade-in">Incorrect answer. Double check your calculations.</p>}
                  </form>
 
                  {/* Attempt gate: must genuinely try PRACTICE_REVEAL_ATTEMPTS times
                      before the answer + certificate can be revealed. */}
                  <div className="mt-10 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-                   <span className="font-mono text-slate-500">
-                     Attempt <span className="text-slate-300">{attemptCount}</span> / {PRACTICE_REVEAL_ATTEMPTS}
+                   <span className="font-mono text-white/40">
+                     Attempt <span className="text-amber-200/90">{attemptCount}</span> / {PRACTICE_REVEAL_ATTEMPTS}
                    </span>
                    {canReveal ? (
-                     <button onClick={revealAnswer} disabled={revealing} className="inline-flex items-center gap-1.5 font-medium text-slate-400 hover:text-slate-100 transition-colors disabled:opacity-50">
+                     <button onClick={revealAnswer} disabled={revealing} className="inline-flex items-center gap-1.5 font-medium text-white/50 hover:text-amber-200 transition-colors disabled:opacity-50">
                        {revealing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flag className="w-3.5 h-3.5" />}
                        Reveal answer
                      </button>

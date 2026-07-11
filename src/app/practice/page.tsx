@@ -20,11 +20,13 @@ interface PracticeProblem {
   isSolved: boolean;
 }
 
+// Difficulty as a single warm heat ramp (pale gold → gold → orange → red) so it
+// escalates without introducing off-palette colours.
 const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy: "text-emerald-300 border-emerald-400/30 bg-emerald-400/10",
-  Medium: "text-amber-300 border-amber-400/30 bg-amber-400/10",
-  Hard: "text-rose-300 border-rose-400/30 bg-rose-400/10",
-  Insane: "text-fuchsia-300 border-fuchsia-400/30 bg-fuchsia-400/10",
+  Easy: "text-amber-100/80 border-white/10 bg-white/[0.04]",
+  Medium: "text-amber-300 border-amber-400/25 bg-amber-500/10",
+  Hard: "text-orange-400 border-orange-400/25 bg-orange-500/10",
+  Insane: "text-red-400 border-red-400/25 bg-red-500/10",
 };
 
 // How many cards per page. The page renders exactly one page at a time, so the
@@ -94,7 +96,7 @@ function Pager({
             disabled={busy}
             className={`${PAGER_BTN} disabled:opacity-50 ${
               it === page
-                ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
+                ? "border-amber-400/40 bg-amber-500/10 text-amber-200"
                 : "border-white/10 text-white/60 hover:bg-white/[0.05] hover:text-white"
             }`}
           >
@@ -121,7 +123,7 @@ function Pager({
           onKeyDown={(e) => { if (e.key === "Enter") submitJump(); }}
           placeholder="Go to"
           aria-label="Go to page"
-          className="font-code w-[72px] bg-[#121a22] border border-white/10 rounded px-2 h-[34px] text-[12px] text-white/70 focus:outline-none focus:border-emerald-400/50"
+          className="font-code w-[72px] bg-[#141013] border border-white/10 rounded px-2 h-[34px] text-[12px] text-white/70 focus:outline-none focus:border-amber-400/50"
         />
         <button
           onClick={submitJump}
@@ -213,10 +215,10 @@ export default function PracticePage() {
   const hasFilters = topic || difficulty || knowledge;
 
   const selectCls =
-    "font-code bg-[#121a22] border border-white/10 rounded px-2 py-1 text-[12px] text-white/70 focus:outline-none focus:border-emerald-400/50";
+    "font-code bg-[#141013] border border-white/10 rounded px-2 py-1 text-[12px] text-white/70 focus:outline-none focus:border-amber-400/50";
 
   return (
-    <div className="min-h-screen bg-[#0a0f14] pt-24 pb-24">
+    <div className="min-h-screen bg-[#180f0e] pt-24 pb-24">
       <div className="max-w-6xl mx-auto px-6">
 
         {/* Header */}
@@ -232,7 +234,7 @@ export default function PracticePage() {
             knowledge level, then grind your way up the ranks.
           </p>
           {problems.length > 0 && (
-            <p className="font-code text-xs text-emerald-300/70 mt-3">
+            <p className="font-code text-xs text-amber-300/70 mt-3">
               {solvedCount}/{problems.length} solved on this page
               {totalPages > 1 && (
                 <span className="text-white/35"> · page {page} of {totalPages} · {total} total</span>
@@ -296,8 +298,8 @@ export default function PracticePage() {
                       href={`/practice/problems/${p.id}`}
                       className={`rounded-xl border px-4 py-3 no-underline transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${
                         p.isSolved
-                          ? "border-emerald-400/20 bg-emerald-400/[0.04] hover:border-emerald-400/40"
-                          : "border-white/[0.08] bg-white/[0.025] hover:bg-white/[0.05] hover:border-white/15"
+                          ? "border-amber-400/25 bg-amber-500/[0.05] hover:border-amber-400/45"
+                          : "border-white/[0.08] bg-[#141013]/70 hover:bg-[#1a1315] hover:border-white/15"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3 mb-2.5">
@@ -307,7 +309,7 @@ export default function PracticePage() {
                         <span className="flex shrink-0 items-center gap-1.5">
                           {p.hasProof && <CertifiedInfo interactive={false} />}
                           {p.isSolved && (
-                            <span className="font-code text-[10px] uppercase tracking-wider text-emerald-300">solved</span>
+                            <span className="font-code text-[10px] uppercase tracking-wider text-amber-300">solved</span>
                           )}
                         </span>
                       </div>

@@ -19,7 +19,7 @@ export function LevelInfo({ align = "right" }: { align?: "left" | "right" }) {
       <button
         type="button"
         aria-label="What do the levels mean?"
-        className="text-white/40 hover:text-emerald-300 transition-colors outline-none focus-visible:text-emerald-300"
+        className="text-white/40 hover:text-amber-300 transition-colors outline-none focus-visible:text-amber-300"
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
       >
@@ -29,7 +29,7 @@ export function LevelInfo({ align = "right" }: { align?: "left" | "right" }) {
       {open && (
         <div
           role="tooltip"
-          className={`absolute top-6 z-50 w-72 rounded-xl border border-white/10 bg-[#0d141b] p-4 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)] normal-case tracking-normal ${
+          className={`absolute top-6 z-50 w-72 rounded-xl border border-white/10 bg-[#141013] p-4 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)] normal-case tracking-normal ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
@@ -39,7 +39,7 @@ export function LevelInfo({ align = "right" }: { align?: "left" | "right" }) {
           <ul className="space-y-2.5">
             {LEVELS.map((l, i) => (
               <li key={l.value} className="flex gap-2.5">
-                <span className="font-code shrink-0 grid place-items-center h-5 w-5 rounded-md bg-emerald-400/10 border border-emerald-400/30 text-emerald-200 text-[11px]">
+                <span className="font-code shrink-0 grid place-items-center h-5 w-5 rounded-md bg-amber-400/10 border border-amber-400/30 text-amber-200 text-[11px]">
                   {i + 1}
                 </span>
                 <span className="min-w-0">

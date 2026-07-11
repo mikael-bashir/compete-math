@@ -22,7 +22,7 @@ export function CertifiedInfo({
   const [open, setOpen] = useState(false);
 
   const triggerCls =
-    "inline-flex text-slate-400 hover:text-slate-100 transition-colors outline-none focus-visible:text-slate-100";
+    "inline-flex text-amber-400/80 hover:text-amber-300 transition-colors outline-none focus-visible:text-amber-300";
 
   return (
     <span
@@ -52,11 +52,11 @@ export function CertifiedInfo({
       {open && (
         <div
           role="tooltip"
-          className={`absolute top-6 z-50 w-72 rounded-xl border border-white/10 bg-[#0d141b] p-4 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)] normal-case tracking-normal ${
+          className={`absolute top-6 z-50 w-72 rounded-xl border border-amber-400/20 bg-[#141013] p-4 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)] normal-case tracking-normal ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
-          <p className="font-code text-[10px] tracking-[0.25em] uppercase text-slate-400/80 mb-2">
+          <p className="font-code text-[10px] tracking-[0.25em] uppercase text-amber-400/70 mb-2">
             {"// proof certificate"}
           </p>
           <p className="text-[12px] text-white/70 leading-relaxed">
