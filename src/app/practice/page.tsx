@@ -25,16 +25,119 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   Insane: "text-fuchsia-300 border-fuchsia-400/30 bg-fuchsia-400/10",
 };
 
-// How many cards to pull per request. The page appends via "Load more" so the
-// DOM only ever holds what's been explicitly asked for — keeps the initial paint
-// cheap even when the pool is large.
+// How many cards per page. The page renders exactly one page at a time, so the
+// DOM only ever holds PAGE_SIZE cards — keeps the paint cheap even for a big pool.
 const PAGE_SIZE = 48;
+
+// Build the pager token list: always page 1 + last page, a window around the
+// current page, and "…" for the gaps. e.g. [1, "…", 4, 5, 6, "…", 20].
+function pageItems(current: number, totalPages: number): (number | "…")[] {
+  const delta = 1; // neighbours shown on each side of the current page
+  const pages: number[] = [];
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= current - delta && i <= current + delta)) {
+      pages.push(i);
+    }
+  }
+  const out: (number | "…")[] = [];
+  let prev = 0;
+  for (const i of pages) {
+    if (prev) {
+      if (i - prev === 2) out.push(prev + 1); // single gap ⇒ show the number
+      else if (i - prev > 2) out.push("…");
+    }
+    out.push(i);
+    prev = i;
+  }
+  return out;
+}
+
+const PAGER_BTN =
+  "font-code text-[13px] min-w-[34px] h-[34px] px-2 rounded-lg border transition-colors inline-flex items-center justify-center";
+
+function Pager({
+  page,
+  totalPages,
+  busy,
+  onGo,
+}: {
+  page: number;
+  totalPages: number;
+  busy: boolean;
+  onGo: (p: number) => void;
+}) {
+  const [jump, setJump] = useState("");
+  const submitJump = () => {
+    const n = Number.parseInt(jump, 10);
+    if (Number.isFinite(n)) onGo(n);
+    setJump("");
+  };
+  return (
+    <nav className="flex flex-wrap items-center justify-center gap-1.5 mt-12">
+      <button
+        onClick={() => onGo(page - 1)}
+        disabled={busy || page <= 1}
+        aria-label="Previous page"
+        className={`${PAGER_BTN} border-white/10 text-white/60 hover:bg-white/[0.05] hover:text-white disabled:opacity-30`}
+      >
+        ‹
+      </button>
+      {pageItems(page, totalPages).map((it, i) =>
+        it === "…" ? (
+          <span key={`e${i}`} className="font-code text-white/30 px-1 select-none">…</span>
+        ) : (
+          <button
+            key={it}
+            onClick={() => onGo(it)}
+            disabled={busy}
+            className={`${PAGER_BTN} disabled:opacity-50 ${
+              it === page
+                ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
+                : "border-white/10 text-white/60 hover:bg-white/[0.05] hover:text-white"
+            }`}
+          >
+            {it}
+          </button>
+        ),
+      )}
+      <button
+        onClick={() => onGo(page + 1)}
+        disabled={busy || page >= totalPages}
+        aria-label="Next page"
+        className={`${PAGER_BTN} border-white/10 text-white/60 hover:bg-white/[0.05] hover:text-white disabled:opacity-30`}
+      >
+        ›
+      </button>
+      {/* Jump to an arbitrary page. */}
+      <span className="inline-flex items-center gap-1 ml-2">
+        <input
+          type="number"
+          min={1}
+          max={totalPages}
+          value={jump}
+          onChange={(e) => setJump(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submitJump(); }}
+          placeholder="Go to"
+          aria-label="Go to page"
+          className="font-code w-[72px] bg-[#121a22] border border-white/10 rounded px-2 h-[34px] text-[12px] text-white/70 focus:outline-none focus:border-emerald-400/50"
+        />
+        <button
+          onClick={submitJump}
+          disabled={busy || !jump}
+          className={`${PAGER_BTN} border-white/10 text-white/60 hover:bg-white/[0.05] hover:text-white disabled:opacity-40`}
+        >
+          Go
+        </button>
+      </span>
+    </nav>
+  );
+}
 
 export default function PracticePage() {
   const [problems, setProblems] = useState<PracticeProblem[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [topic, setTopic] = useState("");
   const [difficulty, setDifficulty] = useState("");
   const [knowledge, setKnowledge] = useState("");
@@ -58,34 +161,40 @@ export default function PracticePage() {
     [topic, difficulty, knowledge],
   );
 
-  // Reset to the first page whenever the filters change.
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetchPage(0)
-      .then(({ items, total }) => {
-        if (cancelled) return;
+  // Load one 1-indexed page, replacing the current view.
+  const load = useCallback(
+    async (targetPage: number) => {
+      setLoading(true);
+      try {
+        const { items, total } = await fetchPage((targetPage - 1) * PAGE_SIZE);
         setProblems(items);
         setTotal(total);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchPage]);
+        setPage(targetPage);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchPage],
+  );
 
-  const loadMore = useCallback(async () => {
-    setLoadingMore(true);
-    try {
-      const { items, total } = await fetchPage(problems.length);
-      setProblems((prev) => [...prev, ...items]);
-      setTotal(total);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [fetchPage, problems.length]);
+  // Filters changed ⇒ jump back to page one (load's identity tracks the filters).
+  useEffect(() => {
+    load(1);
+  }, [load]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const goToPage = useCallback(
+    (p: number) => {
+      if (!Number.isFinite(p)) return;
+      const clamped = Math.min(Math.max(Math.trunc(p), 1), totalPages);
+      if (clamped === page) return;
+      load(clamped);
+      // Bring the top of the list into view after switching pages.
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [load, totalPages, page],
+  );
 
   // Group by topic for the "sorted by concept" presentation.
   const grouped = useMemo(() => {
@@ -122,9 +231,9 @@ export default function PracticePage() {
           </p>
           {problems.length > 0 && (
             <p className="font-code text-xs text-emerald-300/70 mt-3">
-              {solvedCount}/{problems.length} solved
-              {total > problems.length && (
-                <span className="text-white/35"> · showing {problems.length} of {total}</span>
+              {solvedCount}/{problems.length} solved on this page
+              {totalPages > 1 && (
+                <span className="text-white/35"> · page {page} of {totalPages} · {total} total</span>
               )}
             </p>
           )}
@@ -158,7 +267,7 @@ export default function PracticePage() {
         </div>
 
         {/* Grouped problem list */}
-        {loading ? (
+        {loading && problems.length === 0 ? (
           <div className="flex items-center justify-center py-24 text-white/40">
             <Loader2 className="w-6 h-6 animate-spin mr-3" /> Loading problems…
           </div>
@@ -170,7 +279,7 @@ export default function PracticePage() {
           </div>
         ) : (
           <>
-          <div className="space-y-12">
+          <div className={`space-y-12 ${loading ? "opacity-50 transition-opacity pointer-events-none" : "transition-opacity"}`}>
             {grouped.map(([topicName, list]) => (
               <section key={topicName}>
                 <div className="flex items-center gap-3 mb-3">
@@ -216,23 +325,9 @@ export default function PracticePage() {
             ))}
           </div>
 
-          {/* Load more — only when there are further pages to pull. */}
-          {problems.length < total && (
-            <div className="flex justify-center mt-12">
-              <button
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="font-code text-[13px] text-white/70 border border-white/10 rounded-lg px-5 py-2 hover:bg-white/[0.05] hover:border-white/20 hover:text-white transition-colors disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {loadingMore ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Loading…
-                  </>
-                ) : (
-                  <>Load more ({total - problems.length} left)</>
-                )}
-              </button>
-            </div>
+          {/* Numbered page selector — only when the pool spans multiple pages. */}
+          {totalPages > 1 && (
+            <Pager page={page} totalPages={totalPages} busy={loading} onGo={goToPage} />
           )}
           </>
         )}
