@@ -84,6 +84,9 @@ export async function POST() {
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS proof TEXT;`;
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "mintedAt" TIMESTAMPTZ;`;
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "provedAt" TIMESTAMPTZ;`;
+    // When the CERTIFICATE was first minted (the moment its signature was first
+    // generated), stamped lazily on first issuance — distinct from proof authoring.
+    await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "certMintedAt" TIMESTAMPTZ;`;
     // "Gave up" is terminal, like solving: once a user reveals the answer, the
     // problem locks (no more attempts) and the revealed state persists forever.
     await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS "gaveUp" BOOLEAN NOT NULL DEFAULT FALSE;`;

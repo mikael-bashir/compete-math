@@ -1,9 +1,10 @@
 // Proof certificates ---------------------------------------------------------
 // Every practice problem sourced from the Leak prover ships a machine-checked
 // Lean proof. We present that proof as a CERTIFICATE: the proof script plus the
-// provenance a reader needs to trust it — when it was minted, when it was
-// enforced (machine-checked), the exact toolchain it was enforced against, and
-// a support contact. Toolchain/Mathlib/email are hardcoded for now.
+// provenance a reader needs to trust it — when it was minted (the moment this
+// certificate's signature was first generated), when the proof was enforced
+// (machine-checked), the exact toolchain it was enforced against, and a support
+// contact. Toolchain/Mathlib/email are hardcoded for now.
 
 export const CERTIFICATE = {
   issuer: "CompeteMath",

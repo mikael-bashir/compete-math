@@ -9,17 +9,32 @@ import { markGaveUp } from '@/app/lib/data/problems';
 // Build the unlocked payload: answer + signed certificate for a question.
 async function buildUnlockedResponse(questionId: number, solved: boolean, gaveUp: boolean) {
   const q = await sql`
-    SELECT "questionTitle", answer, proof, "mintedAt", "provedAt"
+    SELECT "questionTitle", answer, proof, "provedAt", "certMintedAt"
     FROM questions WHERE "questionId" = ${questionId}
   `;
   if (q.rows.length === 0) return null;
   const row = q.rows[0];
+  const hasProof = typeof row.proof === 'string' && row.proof.trim().length > 0;
+
+  // "Minted" = the exact time this certificate's signature was FIRST generated.
+  // Stamp it once (lazily, on first issuance) with an atomic COALESCE so it's
+  // race-safe, then reuse forever — keeping the signed content (and therefore
+  // the deterministic Ed25519 signature) stable and verifiable.
+  let certMintedAt = row.certMintedAt as string | Date | null;
+  if (hasProof && !certMintedAt) {
+    const upd = await sql`
+      UPDATE questions SET "certMintedAt" = COALESCE("certMintedAt", now())
+      WHERE "questionId" = ${questionId}
+      RETURNING "certMintedAt"
+    `;
+    certMintedAt = upd.rows[0]?.certMintedAt ?? null;
+  }
+
   const meta = {
     title: row.questionTitle as string | null,
-    mintedAt: row.mintedAt ? new Date(row.mintedAt).toISOString() : null,
+    mintedAt: certMintedAt ? new Date(certMintedAt).toISOString() : null,
     provedAt: row.provedAt ? new Date(row.provedAt).toISOString() : null,
   };
-  const hasProof = typeof row.proof === 'string' && row.proof.trim().length > 0;
 
   // Build + SIGN the certificate. `canonical` is the exact byte sequence the
   // Ed25519 signature covers (header + full proof); `full` is the copyable,
