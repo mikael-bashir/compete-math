@@ -19,6 +19,9 @@ interface PracticeProblem {
   knowledge: string | null;
   hasProof?: boolean;
   isSolved: boolean;
+  // Terminal reveal without solving: the answer was shown, so the card is locked
+  // (no further attempts). Distinct from solved and from an untouched card.
+  gaveUp?: boolean;
 }
 
 // Difficulty as a single warm heat ramp (pale gold → gold → orange → red) so it
@@ -298,9 +301,11 @@ export default function PracticePage() {
                     <Link
                       key={p.id}
                       href={`/practice/problems/${p.id}`}
-                      className={`rounded-xl border px-4 py-3 no-underline transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${
+                      className={`rounded-xl border px-4 py-3 no-underline transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${
                         p.isSolved
                           ? "border-amber-400/25 bg-amber-500/[0.05] hover:border-amber-400/45"
+                          : p.gaveUp
+                          ? "border-white/10 bg-white/[0.015] opacity-65 hover:opacity-90 hover:border-white/20"
                           : "border-white/[0.08] bg-[#141013]/70 hover:bg-[#1a1315] hover:border-white/15"
                       }`}
                     >
@@ -310,9 +315,11 @@ export default function PracticePage() {
                         </h3>
                         <span className="flex shrink-0 items-center gap-1.5">
                           {p.hasProof && <CertifiedInfo interactive={false} />}
-                          {p.isSolved && (
+                          {p.isSolved ? (
                             <span className="font-code text-[10px] uppercase tracking-wider text-amber-300">solved</span>
-                          )}
+                          ) : p.gaveUp ? (
+                            <span className="font-code text-[10px] uppercase tracking-wider text-white/40">revealed</span>
+                          ) : null}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 font-code text-[10px] uppercase tracking-wider">

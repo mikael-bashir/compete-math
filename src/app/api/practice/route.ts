@@ -40,7 +40,13 @@ export async function GET(request: NextRequest) {
           SELECT 1 FROM submissions s
           WHERE s."questionId" = q."questionId"
             AND s.username = ${userId} AND s."isCorrect" = TRUE
-        )) AS "isSolved"
+        )) AS "isSolved",
+        -- Terminal "gave up" (answer revealed without solving): locks the card.
+        (${userId}::text IS NOT NULL AND EXISTS (
+          SELECT 1 FROM submissions s
+          WHERE s."questionId" = q."questionId"
+            AND s.username = ${userId} AND s."gaveUp" = TRUE AND s."isCorrect" = FALSE
+        )) AS "gaveUp"
       FROM questions q
       WHERE (${topic}::text IS NULL OR q.topic = ${topic})
         AND (${difficulty}::text IS NULL OR q.difficulty = ${difficulty})
@@ -59,6 +65,7 @@ export async function GET(request: NextRequest) {
       knowledge: r.knowledge,
       hasProof: r.hasProof,
       isSolved: r.isSolved,
+      gaveUp: r.gaveUp,
     }));
     return NextResponse.json({ items, total });
   } catch (error) {

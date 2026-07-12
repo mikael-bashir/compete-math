@@ -9,7 +9,7 @@ import { markGaveUp } from '@/app/lib/data/problems';
 // Build the unlocked payload: answer + signed certificate for a question.
 async function buildUnlockedResponse(questionId: number, solved: boolean, gaveUp: boolean) {
   const q = await sql`
-    SELECT "questionTitle", answer, proof, "provedAt", "certMintedAt"
+    SELECT "questionTitle", answer, proof, "provedAt", "certMintedAt", insight
     FROM questions WHERE "questionId" = ${questionId}
   `;
   if (q.rows.length === 0) return null;
@@ -54,7 +54,14 @@ async function buildUnlockedResponse(questionId: number, solved: boolean, gaveUp
     };
   }
 
-  return { unlocked: true, solved, gaveUp, answer: row.answer, hasProof, certificate };
+  // `insight` (the key idea) is gated exactly like the answer — only present in
+  // this unlocked payload, never in the public problem view. Null when absent.
+  const insight =
+    typeof row.insight === 'string' && row.insight.trim().length > 0
+      ? row.insight
+      : null;
+
+  return { unlocked: true, solved, gaveUp, answer: row.answer, hasProof, insight, certificate };
 }
 
 async function readSession(id: string) {

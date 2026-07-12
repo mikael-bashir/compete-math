@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import {
   ArrowLeft, Send, CheckCircle2, RotateCcw, Loader2, Lock, LogIn, X,
-  ShieldCheck, Copy, Check, Flag, ScrollText
+  ShieldCheck, Copy, Check, Flag, ScrollText, Lightbulb
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
@@ -255,6 +255,9 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
   const [certOpen, setCertOpen] = useState(false);
   const [revealing, setRevealing] = useState(false);
   const [gaveUp, setGaveUp] = useState(false);
+  // The solver-facing key idea, revealed alongside the answer once the problem
+  // is terminal (solved or given up). Null until the gated endpoint returns it.
+  const [insight, setInsight] = useState<string | null>(null);
 
   // Admin taxonomy editor (theme / difficulty / level), prefilled from the problem.
   const [editTopic, setEditTopic] = useState("");
@@ -301,6 +304,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
           setCanReveal(true);
           setCertAnswer(d.answer != null ? String(d.answer) : null);
           if (d.certificate) setCert(d.certificate);
+          if (d.insight) setInsight(d.insight);
         }
       } catch { /* leave locked */ }
     })();
@@ -321,6 +325,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         setCanReveal(true);
         setCertAnswer(d.answer != null ? String(d.answer) : null);
         if (d.certificate) setCert(d.certificate);
+        if (d.insight) setInsight(d.insight);
         setGaveUp(true);
       } else {
         if (typeof d.attemptsUsed === 'number') setAttemptCount(d.attemptsUsed);
@@ -345,6 +350,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         setCanReveal(true);
         setCertAnswer(d.answer != null ? String(d.answer) : null);
         if (d.certificate) setCert(d.certificate);
+        if (d.insight) setInsight(d.insight);
         setCertOpen(true);
       } else {
         toast.error('The certificate is not available yet.');
@@ -400,6 +406,18 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         setIsSolved(true);
         setCanReveal(true);
         setStatus('idle');
+
+        // Just solved: pull the now-unlocked payload so the key insight (and
+        // certificate) appear immediately without a refresh.
+        try {
+          const pr = await fetch(`/api/proofs/${id}`);
+          const pd = await pr.json();
+          if (pd.unlocked) {
+            if (pd.answer != null) setCertAnswer(String(pd.answer));
+            if (pd.certificate) setCert(pd.certificate);
+            if (pd.insight) setInsight(pd.insight);
+          }
+        } catch { /* insight is best-effort; panel still shows without it */ }
 
         // --- HANDLE TOASTS ---
         if (result.newBadges && result.newBadges.length > 0) {
@@ -544,6 +562,21 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                       view certificate
                     </button>
                   )}
+               </div>
+             )}
+
+             {/* Key insight — the solution's core idea, revealed once the problem
+                 is terminal (solved or given up). Sits beneath the status panel. */}
+             {authStatus === 'authenticated' && (isSolved || gaveUp) && insight && (
+               <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-500/[0.04] p-4 animate-in fade-in slide-in-from-top-1 duration-300">
+                 <div className="flex items-center gap-1.5 mb-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/70">
+                   <Lightbulb className="w-3 h-3" /> Key insight
+                 </div>
+                 <div className="prose prose-invert max-w-none text-[13px] leading-relaxed text-amber-100/85 [&_p]:my-0 [&_p]:leading-relaxed">
+                   <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                     {insight}
+                   </ReactMarkdown>
+                 </div>
                </div>
              )}
 

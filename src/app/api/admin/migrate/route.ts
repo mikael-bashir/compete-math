@@ -87,6 +87,9 @@ export async function POST() {
     // When the CERTIFICATE was first minted (the moment its signature was first
     // generated), stamped lazily on first issuance — distinct from proof authoring.
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "certMintedAt" TIMESTAMPTZ;`;
+    // Solver-facing key idea (the "insight" from the generation pipeline). Shown
+    // to the user only after they solve or give up — gated like the answer.
+    await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS insight TEXT;`;
     // "Gave up" is terminal, like solving: once a user reveals the answer, the
     // problem locks (no more attempts) and the revealed state persists forever.
     await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS "gaveUp" BOOLEAN NOT NULL DEFAULT FALSE;`;
