@@ -102,12 +102,29 @@ export default function HomePage() {
                 </p>
               </div>
               <p className="text-lg text-gray-300 mt-4 max-w-lg mx-auto"> {/* Ensured centered */}
-                Climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted math competitions right here on the site.
+                Work through a bottomless pool of fresh problems, climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted competitions. Every solve pushes you up the ranks.
               </p>
             </div>
           </div>
 
-          {/* Feature 2: Community (Centered) */}
+          {/* Feature 2: Practice — never stay stuck (insight + Lean proof) */}
+          <div className="flex flex-col items-center gap-12">
+            {/* Text Content */}
+            <div className="flex-1 text-center"> {/* Centered text */}
+              <div className="inline-flex items-center gap-3 mb-2">
+                <p className="font-display text-4xl md:text-5xl font-bold text-white! text-center">
+                  Never stay <span className="italic">stuck</span>
+                </p>
+              </div>
+              <p className="text-lg text-gray-300 mt-4 max-w-xl mx-auto"> {/* Ensured centered */}
+                Doubt a problem? You&rsquo;re never left guessing. After a few honest attempts, every practice problem reveals its{" "}
+                <span className="text-amber-200/90">key insight</span> — the core idea behind the answer — backed by a{" "}
+                <span className="text-amber-200/90">machine-checked formal proof in Lean&nbsp;4</span> you can open, copy, and verify yourself. No hand-waving, no &ldquo;trust me.&rdquo;
+              </p>
+            </div>
+          </div>
+
+          {/* Feature 3: Community (discussion / contest answers) */}
           <div className="flex flex-col items-center gap-12">
             {/* Text Content */}
             <div className="flex-1 text-center"> {/* Centered text */}
@@ -117,24 +134,25 @@ export default function HomePage() {
                   Grow with the Community
                 </p>
               </div>
-              <p className="text-lg text-gray-300 mt-4 max-w-lg mx-auto"> {/* Ensured centered */}
-                It's not just about winning. See how others solved complex problems, share your own unique methods, and submit challenges for the entire community to solve.
+              <p className="text-lg text-gray-300 mt-4 max-w-xl mx-auto"> {/* Ensured centered */}
+                It&rsquo;s not just about winning. Submit your own challenges, and on every community problem join an open{" "}
+                <span className="text-amber-200/90">discussion</span> to contest an answer, suggest a sharper solution, and compare methods with solvers who see the problem differently.
               </p>
             </div>
           </div>
 
-          {/* Feature 3: Library (Centered) */}
+          {/* Feature 4: Quality you can trust (admin review + formal verification) */}
           <div className="flex flex-col items-center gap-12">
             {/* Text Content */}
             <div className="flex-1 text-center"> {/* Centered text */}
               <div className="inline-flex items-center gap-3 mb-2">
-                {/* <Library className="w-6 h-6 text-sky-400" /> */}
+                {/* <ShieldCheck className="w-6 h-6 text-amber-400" /> */}
                 <p className="font-display text-4xl md:text-5xl font-bold text-white! text-center">
-                  A living Library
+                  Quality you can <span className="italic">trust</span>
                 </p>
               </div>
-              <p className="text-lg text-gray-300 mt-4 max-w-lg mx-auto"> {/* Ensured centered */}
-                Explore a vast library of theorems and problems. Our entire collection is open for community contributions and formally verified using Lean4 integration.
+              <p className="text-lg text-gray-300 mt-4 max-w-xl mx-auto"> {/* Ensured centered */}
+                Nothing goes live unchecked. Every question is reviewed by an admin for quality and correctness before it reaches you, and its answer is enforced by a formal Lean&nbsp;4 certificate — so the problems you train on are the real deal.
               </p>
             </div>
           </div>

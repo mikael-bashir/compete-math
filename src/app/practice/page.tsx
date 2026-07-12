@@ -127,7 +127,7 @@ function Pager({
           onKeyDown={(e) => { if (e.key === "Enter") submitJump(); }}
           placeholder="Go to"
           aria-label="Go to page"
-          className="font-code w-[72px] bg-[#141013] border border-white/10 rounded px-2 h-[34px] text-[12px] text-white/70 focus:outline-none focus:border-amber-400/50"
+          className="font-code w-[84px] bg-[#141013] border border-white/10 rounded px-2 h-[34px] text-[12px] text-white/70 focus:outline-none focus:border-amber-400/50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <button
           onClick={submitJump}
