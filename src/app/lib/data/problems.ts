@@ -59,28 +59,36 @@ export const getProblems = async () => {
 // };
 
 // Fetch the problem content (excluding the answer)
-export async function getProblemById(id: number): Promise<{ questionId: string, subtitle: string, questionTitle: string, difficulty: string, points: string, questionProblem: string }> {
+export async function getProblemById(id: number): Promise<{ questionId: string, subtitle: string, questionTitle: string, difficulty: string, points: string, questionProblem: string, topic: string | null, knowledge: string | null, hasProof: boolean }> {
   try {
-    // Vercel SQL returns a result object where .rows is the array of data
+    // Vercel SQL returns a result object where .rows is the array of data.
+    // NOTE: the proof itself is deliberately NOT selected here — only a boolean
+    // `hasProof` flag. The proof (large) is served on demand by /api/proofs/:id.
     const result = await sql`
-      SELECT 
-        "questionId", 
+      SELECT
+        "questionId",
         subtitle,
-        "questionTitle", 
+        "questionTitle",
         difficulty,
         points,
-        "questionProblem" 
+        "questionProblem",
+        topic,
+        knowledge,
+        (proof IS NOT NULL AND length(trim(proof)) > 0) AS "hasProof"
       FROM questions
       WHERE "questionId" = ${id}
     `;
 
-    return { 
-      questionId: result.rows[0].questionId, 
-      subtitle: result.rows[0].subtitle, 
-      questionTitle: result.rows[0].questionTitle, 
-      difficulty: result.rows[0].difficulty, 
-      questionProblem: result.rows[0].questionProblem, 
-      points: result.rows[0].points 
+    return {
+      questionId: result.rows[0].questionId,
+      subtitle: result.rows[0].subtitle,
+      questionTitle: result.rows[0].questionTitle,
+      difficulty: result.rows[0].difficulty,
+      questionProblem: result.rows[0].questionProblem,
+      points: result.rows[0].points,
+      topic: result.rows[0].topic ?? null,
+      knowledge: result.rows[0].knowledge ?? null,
+      hasProof: !!result.rows[0].hasProof
     };
 
   } catch (error) {
@@ -127,18 +135,72 @@ export async function getUserProblemStatus(userId: string, questionId: number): 
   }
 }
 
+// The user's running submission state for a problem: how many attempts they've
+// made and whether they've solved it. Drives the attempt gate + reveal, and —
+// critically — lets that state survive a refresh / navigation (it's read back
+// from the DB on load rather than living only in React state).
+export async function getUserSubmissionState(
+  userId: string,
+  questionId: number,
+): Promise<{ attemptCount: number; isCorrect: boolean; gaveUp: boolean }> {
+  try {
+    const result = await sql`
+      SELECT "attemptCount", "isCorrect", "gaveUp"
+      FROM submissions
+      WHERE username = ${userId} AND "questionId" = ${questionId}
+    `;
+    if (result.rows.length === 0) return { attemptCount: 0, isCorrect: false, gaveUp: false };
+    return {
+      attemptCount: Number(result.rows[0].attemptCount) || 0,
+      isCorrect: !!result.rows[0].isCorrect,
+      gaveUp: !!result.rows[0].gaveUp,
+    };
+  } catch (error) {
+    console.error("Error retrieving submission state:", error);
+    return { attemptCount: 0, isCorrect: false, gaveUp: false };
+  }
+}
+
+// Mark a problem as "given up" — terminal, like solving. Only permitted once the
+// user has genuinely used up their attempts (gate enforced by the caller). After
+// this, the answer is revealed permanently and further attempts are refused.
+export async function markGaveUp(userId: string, questionId: number): Promise<void> {
+  try {
+    await sql`
+      UPDATE submissions SET "gaveUp" = TRUE
+      WHERE username = ${userId} AND "questionId" = ${questionId}
+    `;
+  } catch (error) {
+    console.error("Error marking gave-up:", error);
+    throw new Error("Failed to record give-up.");
+  }
+}
+
 export async function recordSubmission(userId: string, questionId: number, userAttempt: string): Promise<SubmissionResult> {
   try {
     // 1. CHECK IF ALREADY SOLVED
     // We check this first to prevent unnecessary processing
     const existing = await sql`
-      SELECT "isCorrect" 
-      FROM submissions 
+      SELECT "isCorrect", "attemptCount", "gaveUp"
+      FROM submissions
       WHERE username = ${userId} AND "questionId" = ${questionId}
     `;
 
     if (existing.rows.length > 0 && existing.rows[0].isCorrect) {
-      return { success: false, message: 'Problem already solved' };
+      return {
+        success: false,
+        message: 'Problem already solved',
+        attemptCount: Number(existing.rows[0].attemptCount) || 0,
+      };
+    }
+
+    // Terminal once the user has given up: the answer is revealed, so no retries.
+    if (existing.rows.length > 0 && existing.rows[0].gaveUp) {
+      return {
+        success: false,
+        message: 'Answer already revealed',
+        attemptCount: Number(existing.rows[0].attemptCount) || 0,
+      };
     }
 
     // 2. FETCH CORRECT ANSWER (Internal verification)
@@ -156,24 +218,26 @@ export async function recordSubmission(userId: string, questionId: number, userA
     const isCorrect = userAttempt.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
     const solvedAt = isCorrect ? new Date().toISOString() : null;
 
-    // 3. UPSERT: Record the attempt securely
-    await sql`
+    // 3. UPSERT: Record the attempt securely, returning the running attempt total
+    // (drives the "attempt 3 times before you can reveal" gate on the client).
+    const upsert = await sql`
       INSERT INTO submissions (username, "questionId", "attemptCount", "isCorrect", "solvedAt")
       VALUES (${userId}, ${questionId}, 1, ${isCorrect}, ${solvedAt})
       ON CONFLICT (username, "questionId")
       DO UPDATE SET
         "attemptCount" = submissions."attemptCount" + 1,
-        "isCorrect" = CASE 
-                          WHEN EXCLUDED."isCorrect" = TRUE THEN TRUE 
-                          ELSE submissions."isCorrect" 
+        "isCorrect" = CASE
+                          WHEN EXCLUDED."isCorrect" = TRUE THEN TRUE
+                          ELSE submissions."isCorrect"
                         END,
-        "solvedAt" = CASE 
-                          WHEN EXCLUDED."isCorrect" = TRUE AND submissions."solvedAt" IS NULL THEN EXCLUDED."solvedAt" 
-                          ELSE submissions."solvedAt" 
-                        END;
+        "solvedAt" = CASE
+                          WHEN EXCLUDED."isCorrect" = TRUE AND submissions."solvedAt" IS NULL THEN EXCLUDED."solvedAt"
+                          ELSE submissions."solvedAt"
+                        END
+      RETURNING "attemptCount";
     `;
 
-    return { success: true, isCorrect };
+    return { success: true, isCorrect, attemptCount: Number(upsert.rows[0]?.attemptCount) || 1 };
 
   } catch (error) {
     console.error("Submission Error:", error);

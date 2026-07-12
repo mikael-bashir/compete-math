@@ -76,7 +76,7 @@ export default function Navbar() {
   const linkCls = (active: boolean) =>
     `${linkBase} ${
       active
-        ? "text-emerald-200 bg-emerald-400/10 shadow-[inset_0_-2px_0_rgba(52,211,153,0.6)]"
+        ? "text-amber-200 bg-amber-400/10 shadow-[inset_0_-2px_0_rgba(251,191,36,0.6)]"
         : "text-white/60 hover:text-white hover:bg-white/5"
     }`
 
@@ -161,7 +161,7 @@ export default function Navbar() {
                 href={link.href}
                 className={`${linkBase} text-center ${
                   isActive(link.href)
-                    ? "text-emerald-200 bg-emerald-400/10"
+                    ? "text-amber-200 bg-amber-400/10"
                     : "text-white/70 hover:text-white hover:bg-white/5"
                 }`}
               >

@@ -8,6 +8,7 @@ import { Eye, Send, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { MathMarkdown } from "../lib/components/community/math-markdown";
 import { UserChip } from "../lib/components/community/user-chip";
+import { StaticArtBackground } from "../lib/components/home/static-art-background";
 import {
   PROBLEM_TOPICS, DIFFICULTY_LEVELS, KNOWLEDGE_LEVELS, isAdminEmail,
 } from "../lib/constants/site";
@@ -29,10 +30,10 @@ interface CommunityProblem {
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy: "text-emerald-300 border-emerald-400/30 bg-emerald-400/10",
-  Medium: "text-amber-300 border-amber-400/30 bg-amber-400/10",
-  Hard: "text-rose-300 border-rose-400/30 bg-rose-400/10",
-  Insane: "text-fuchsia-300 border-fuchsia-400/30 bg-fuchsia-400/10",
+  Easy: "text-amber-100/80 border-white/10 bg-white/[0.04]",
+  Medium: "text-amber-300 border-amber-400/25 bg-amber-500/10",
+  Hard: "text-orange-400 border-orange-400/25 bg-orange-500/10",
+  Insane: "text-red-400 border-red-400/25 bg-red-500/10",
 };
 
 type Tab = "browse" | "drafts" | "review";
@@ -130,8 +131,9 @@ export default function CommunityPage() {
   }, [status, isAdmin]);
 
   return (
-    <div className="min-h-screen bg-[#0a0f14] pt-24 pb-24">
-      <div className="max-w-6xl mx-auto px-6">
+    <div className="relative min-h-screen overflow-hidden pt-24 pb-24">
+      <StaticArtBackground />
+      <div className="relative z-10 max-w-6xl mx-auto px-6">
 
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-10">
@@ -152,7 +154,7 @@ export default function CommunityPage() {
               if (status !== "authenticated") { router.push("/auth/login"); return; }
               setShowDraft(true);
             }}
-            className="font-code px-4 py-2 rounded-md bg-amber-100 hover:bg-amber-50 text-black font-medium text-[13px] transition-colors active:scale-95 self-start"
+            className="font-code px-4 py-2 rounded-md bg-amber-400 hover:bg-amber-300 text-[#160d0a] font-semibold text-[13px] transition-colors active:scale-95 self-start"
           >
             Draft a Problem
           </button>
@@ -176,7 +178,7 @@ export default function CommunityPage() {
           <select
             value={topicFilter}
             onChange={(e) => setTopicFilter(e.target.value)}
-            className="ml-auto font-code bg-[#121a22] border border-white/10 rounded px-2 py-1 text-[12px] text-white/70 focus:outline-none focus:border-emerald-400/50"
+            className="ml-auto font-code bg-[#0f0b0a] border border-white/10 rounded px-2 py-1 text-[12px] text-white/70 focus:outline-none focus:border-amber-400/50"
           >
             <option value="">All topics</option>
             {PROBLEM_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -254,14 +256,14 @@ export default function CommunityPage() {
       {/* ---- Draft modal with live preview ---- */}
       {showDraft && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 md:p-10">
-          <div className="w-full max-w-4xl rounded-2xl border border-white/10 bg-[#0d141b] shadow-2xl">
+          <div className="w-full max-w-4xl rounded-2xl border border-white/10 bg-[#141013] shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
               <h2 className="font-code text-lg text-white! font-semibold">Draft a Problem</h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPreview(!preview)}
                   className={`font-code inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs border transition-colors ${
-                    preview ? "bg-emerald-500/20 border-emerald-400/40 text-emerald-200" : "border-white/10 text-white/60 hover:text-white"
+                    preview ? "bg-amber-500/15 border-amber-400/40 text-amber-200" : "border-white/10 text-white/60 hover:text-white"
                   }`}
                 >
                   <Eye className="w-3.5 h-3.5" /> {preview ? "Editing preview" : "Preview"}
@@ -277,7 +279,7 @@ export default function CommunityPage() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Problem title — e.g. The Impossible Staircase"
-                className="font-code w-full bg-[#121a22] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-emerald-400/50 text-sm"
+                className="font-code w-full bg-[#0f0b0a] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-amber-400/50 text-sm"
               />
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -286,7 +288,7 @@ export default function CommunityPage() {
                   { label: "Difficulty", value: difficulty, set: setDifficulty, options: DIFFICULTY_LEVELS, info: false },
                   { label: "Level", value: knowledge, set: setKnowledge, options: KNOWLEDGE_LEVELS, info: true },
                 ].map((f) => (
-                  <label key={f.label} className="flex flex-col gap-1.5">
+                  <label key={f.label} className="flex min-w-0 flex-col gap-1.5">
                     <span className="font-code text-[10px] uppercase tracking-widest text-white/40 inline-flex items-center gap-1.5">
                       {f.label}
                       {f.info && <LevelInfo align="left" />}
@@ -294,7 +296,7 @@ export default function CommunityPage() {
                     <select
                       value={f.value}
                       onChange={(e) => f.set(e.target.value)}
-                      className="font-code bg-[#121a22] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white/90 focus:outline-none focus:border-emerald-400/50"
+                      className="font-code w-full bg-[#0f0b0a] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white/90 focus:outline-none focus:border-amber-400/50"
                     >
                       {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
@@ -303,7 +305,7 @@ export default function CommunityPage() {
               </div>
 
               {preview ? (
-                <div className="min-h-[180px] rounded-lg border border-emerald-400/20 bg-[#0a1015] p-5 text-white/90">
+                <div className="min-h-[180px] rounded-lg border border-amber-400/20 bg-[#0f0b0a] p-5 text-white/90">
                   {statement.trim() ? (
                     <MathMarkdown>{statement}</MathMarkdown>
                   ) : (
@@ -316,7 +318,7 @@ export default function CommunityPage() {
                   onChange={(e) => setStatement(e.target.value)}
                   rows={8}
                   placeholder={"State your problem. Markdown + LaTeX supported:\n\nProve that $a^2 + b^2 \\geq 2ab$ for all reals $a, b$."}
-                  className="w-full bg-[#121a22] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-emerald-400/50 text-sm leading-relaxed resize-y"
+                  className="w-full bg-[#0f0b0a] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-amber-400/50 text-sm leading-relaxed resize-y"
                 />
               )}
 
@@ -325,7 +327,7 @@ export default function CommunityPage() {
                 onChange={(e) => setProposedAnswer(e.target.value)}
                 inputMode="decimal"
                 placeholder="The answer — a single number (checked when solvers submit)"
-                className="w-full bg-[#121a22] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-emerald-400/50 text-sm"
+                className="w-full bg-[#0f0b0a] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-amber-400/50 text-sm"
               />
 
               <div className="flex items-center justify-between pt-2">
@@ -335,7 +337,7 @@ export default function CommunityPage() {
                 <button
                   onClick={submitDraft}
                   disabled={submitting}
-                  className="font-code inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-400 disabled:opacity-50 text-black font-semibold text-sm transition-all active:scale-95"
+                  className="font-code inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-[#160d0a] font-semibold text-sm transition-all active:scale-95"
                 >
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   Submit for review

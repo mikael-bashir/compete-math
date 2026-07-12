@@ -3,8 +3,9 @@
 import React, { useState, useEffect, use } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { 
-  ArrowLeft, Send, CheckCircle2, RotateCcw, Loader2, Lock, LogIn, X 
+import {
+  ArrowLeft, Send, CheckCircle2, RotateCcw, Loader2, Lock, LogIn, X,
+  ShieldCheck, Copy, Check, Flag, ScrollText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
@@ -15,6 +16,169 @@ import 'katex/dist/katex.min.css';
 // UI Components
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  isAdminEmail,
+  PROBLEM_TOPICS,
+  DIFFICULTY_LEVELS,
+  KNOWLEDGE_LEVELS,
+  PRACTICE_REVEAL_ATTEMPTS,
+} from "@/app/lib/constants/site"
+import { CERTIFICATE, fmtCertDate } from "@/app/lib/certificate"
+import { CertifiedInfo } from "@/app/lib/components/certified-info"
+
+// --- CERTIFICATE ---
+// Shown once a problem is complete (solved, or given up after the attempt gate).
+// Presents the machine-checked Lean proof as a verification certificate: the
+// answer, provenance (minted/enforced dates + toolchain), a support contact,
+// and the full proof script (copyable).
+interface CertPayload {
+  proof: string;
+  full: string;
+  signature?: string | null;
+  keyId?: string | null;
+  mintedAt?: string | null;
+  provedAt?: string | null;
+  title?: string | null;
+}
+
+// One label→value pair in the borderless provenance grid. A small gold bullet,
+// a mono uppercase label, and the value beneath.
+function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`min-w-0 ${className}`}>
+      <dt className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.15em] text-amber-400/60 mb-1">
+        <span className="text-amber-400/50 leading-none">•</span> {label}
+      </dt>
+      <dd className="font-mono text-[11px] text-white/75 break-words">{children}</dd>
+    </div>
+  );
+}
+// Rendered inline beneath the problem card (not a modal). Compact, small type.
+function CertificatePanel({
+  open, onClose, answer, cert,
+}: {
+  open: boolean;
+  onClose: () => void;
+  answer: React.ReactNode;
+  cert: CertPayload | null;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [verify, setVerify] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  if (!open) return null;
+
+  // Ask the server to check the certificate's Ed25519 signature against the
+  // published public key. Proves the artifact wasn't altered — tamper the
+  // copied text and this comes back invalid.
+  const runVerify = async () => {
+    if (!cert?.full) return;
+    setVerify('checking');
+    try {
+      const res = await fetch('/api/certificate/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ certificate: cert.full }),
+      });
+      const d = await res.json();
+      setVerify(d.valid ? 'valid' : 'invalid');
+    } catch {
+      setVerify('invalid');
+    }
+  };
+  return (
+    <div className="relative mt-4 overflow-hidden rounded-xl border border-amber-400/20 bg-[#141013] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] animate-in fade-in slide-in-from-top-2 duration-200">
+      {/* Close — anchored to the panel's top-right corner */}
+      <button onClick={onClose} aria-label="Close certificate" className="absolute top-3 right-3 z-10 text-white/40 hover:text-amber-200"><X size={14} /></button>
+
+      {/* Header — a gold seal */}
+      <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-4 py-3 pr-10">
+        <div className="grid place-items-center rounded-md border border-amber-400/30 bg-amber-500/10 h-7 w-7 shrink-0">
+          <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-[13px] font-semibold text-white leading-tight">Proof Certificate</h3>
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/60 truncate">{CERTIFICATE.issuer} · machine-checked formal proof</p>
+        </div>
+      </div>
+
+      <div className="px-4 py-4 space-y-4">
+        {/* Provenance — borderless bulleted grid (answer included, same style) */}
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+          <Field label="Answer">
+            <span className="text-[13px] text-amber-200">{answer}</span>
+          </Field>
+          <Field label="Minted">{fmtCertDate(cert?.mintedAt)}</Field>
+          <Field label="Enforced · machine-checked">{fmtCertDate(cert?.provedAt)}</Field>
+          <Field label="Enforcer">
+            <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30 inline-flex items-center gap-1">
+              {CERTIFICATE.prover} <span aria-hidden>↗</span>
+            </a>
+          </Field>
+          <Field label="Toolchain">{CERTIFICATE.toolchain} · {CERTIFICATE.mathlib}</Field>
+          <Field label="Support" className="sm:col-span-2">
+            <a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30 break-all">{CERTIFICATE.supportEmail}</a>
+          </Field>
+          {cert?.signature && (
+            <Field label={`Signature · Ed25519 · key ${cert.keyId ?? CERTIFICATE.keyId}`} className="sm:col-span-2">
+              <span className="flex items-start gap-2">
+                <code className="min-w-0 flex-1 text-white/55 break-all leading-relaxed">{cert.signature}</code>
+                <button
+                  onClick={runVerify}
+                  disabled={verify === 'checking'}
+                  className={`shrink-0 inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] transition-colors ${
+                    verify === 'valid'
+                      ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
+                      : verify === 'invalid'
+                      ? 'border-red-400/30 bg-red-500/10 text-red-300'
+                      : 'border-amber-400/25 bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/12'
+                  }`}
+                >
+                  {verify === 'checking' ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : verify === 'valid' ? <Check className="w-3 h-3" />
+                    : verify === 'invalid' ? <X className="w-3 h-3" />
+                    : <ShieldCheck className="w-3 h-3" />}
+                  {verify === 'valid' ? 'Signature valid' : verify === 'invalid' ? 'Invalid' : verify === 'checking' ? 'Checking…' : 'Verify'}
+                </button>
+              </span>
+            </Field>
+          )}
+        </dl>
+
+        {/* Proof script */}
+        {cert?.proof ? (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/60 flex items-center gap-1.5">
+                <ScrollText className="w-3 h-3" /> Proof script · Lean 4
+              </p>
+              <button
+                onClick={async () => {
+                  try { await navigator.clipboard.writeText(cert.full); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-amber-400/25 bg-amber-500/[0.06] px-2 py-0.5 text-[10px] text-amber-200 hover:bg-amber-500/12 transition-colors"
+              >
+                {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                {copied ? 'Copied' : 'Copy certificate'}
+              </button>
+            </div>
+            <pre className="max-h-80 overflow-auto rounded-lg border border-white/[0.08] bg-[#0d0908] p-3 font-mono text-[10px] leading-relaxed text-slate-300 whitespace-pre">
+              {cert.proof}
+            </pre>
+          </div>
+        ) : (
+          <p className="text-[11px] text-white/40 italic">No proof certificate is attached to this problem.</p>
+        )}
+
+        <p className="text-[10px] leading-relaxed text-white/40 border-t border-white/[0.06] pt-3">
+          <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30">{CERTIFICATE.prover}</a> found this proof and machine-checked it in Lean against the toolchain above:
+          the stated answer follows from a script that compiles with no errors or unproven goals.
+          The whole certificate — the proof included — is signed with CompeteMath&rsquo;s Ed25519
+          key; altering any byte invalidates the signature, and it cannot be re-signed without the
+          private key, so tampering is detectable by anyone verifying against the public key.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // --- 1. BADGE COMPONENT ---
 const UserBadge = ({ url, name, className }: { url: string, name: string, className?: string }) => {
@@ -71,13 +235,32 @@ const showBadgeToast = (badgeName: string, badgeUrl: string) => {
 
 export default function ProblemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { status: authStatus } = useSession();
+  const { data: session, status: authStatus } = useSession();
+  const isAdmin = isAdminEmail(session?.user?.email);
 
   const [problem, setProblem] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [isSolved, setIsSolved] = useState(false);
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState<'idle' | 'submitting' | 'wrong'>('idle');
+
+  // Attempt gate + certificate reveal. `attemptCount` drives "attempt N of 3
+  // before you can give up"; `canReveal` unlocks the answer + certificate (after
+  // solving, or PRACTICE_REVEAL_ATTEMPTS tries). `cert`/`certAnswer` hold the
+  // revealed payload once fetched from the gated /api/proofs endpoint.
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [canReveal, setCanReveal] = useState(false);
+  const [cert, setCert] = useState<CertPayload | null>(null);
+  const [certAnswer, setCertAnswer] = useState<string | null>(null);
+  const [certOpen, setCertOpen] = useState(false);
+  const [revealing, setRevealing] = useState(false);
+  const [gaveUp, setGaveUp] = useState(false);
+
+  // Admin taxonomy editor (theme / difficulty / level), prefilled from the problem.
+  const [editTopic, setEditTopic] = useState("");
+  const [editDifficulty, setEditDifficulty] = useState("");
+  const [editKnowledge, setEditKnowledge] = useState("");
+  const [savingMeta, setSavingMeta] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -86,12 +269,115 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         if (!res.ok) throw new Error('Failed to fetch');
         const data = await res.json();
         setProblem(data);
+        setEditTopic(data.topic || "");
+        setEditDifficulty(data.difficulty || "");
+        setEditKnowledge(data.knowledge && data.knowledge !== "None" ? data.knowledge : "");
         if (data.isSolved) setIsSolved(true);
-      } catch (error) { console.error(error); } 
+        // Restore the attempt gate + terminal states from the server so they
+        // survive refresh / nav. `gaveUp` is permanent, like solving.
+        if (typeof data.attemptCount === "number") setAttemptCount(data.attemptCount);
+        if (data.canReveal) setCanReveal(true);
+        if (data.gaveUp) setGaveUp(true);
+      } catch (error) { console.error(error); }
       finally { setLoadingData(false); }
     };
     fetchData();
   }, [id]);
+
+  // On load (signed in): read the gate state from the certificate endpoint —
+  // how many attempts the user has used, and whether the reveal is already
+  // unlocked (solved earlier / hit the attempt cap). Does NOT auto-show anything.
+  useEffect(() => {
+    if (authStatus !== 'authenticated') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/proofs/${id}`);
+        const d = await res.json();
+        if (cancelled) return;
+        if (typeof d.attemptsUsed === 'number') setAttemptCount(d.attemptsUsed);
+        if (d.gaveUp) setGaveUp(true);
+        if (d.unlocked) {
+          setCanReveal(true);
+          setCertAnswer(d.answer != null ? String(d.answer) : null);
+          if (d.certificate) setCert(d.certificate);
+        }
+      } catch { /* leave locked */ }
+    })();
+    return () => { cancelled = true; };
+  }, [id, authStatus]);
+
+  // The "give up" action: reveal the plain answer once the attempt gate is
+  // cleared. Deliberately does NOT open or mention the certificate — it just
+  // surfaces the answer. The server re-checks the gate, so this can't leak early.
+  const revealAnswer = async () => {
+    if (gaveUp && certAnswer != null) return; // already given up
+    setRevealing(true);
+    try {
+      // POST records the give-up as terminal (no more attempts, revealed forever).
+      const res = await fetch(`/api/proofs/${id}`, { method: 'POST' });
+      const d = await res.json();
+      if (d.unlocked) {
+        setCanReveal(true);
+        setCertAnswer(d.answer != null ? String(d.answer) : null);
+        if (d.certificate) setCert(d.certificate);
+        setGaveUp(true);
+      } else {
+        if (typeof d.attemptsUsed === 'number') setAttemptCount(d.attemptsUsed);
+        toast.error(`${d.attemptsLeft ?? PRACTICE_REVEAL_ATTEMPTS} more attempt(s) before you can reveal the answer.`);
+      }
+    } catch {
+      toast.error('Could not load the answer.');
+    } finally {
+      setRevealing(false);
+    }
+  };
+
+  // Open the full proof certificate (fetching it on demand if not already loaded).
+  // A separate, opt-in action — the certificate is never pushed on the user.
+  const viewCertificate = async () => {
+    if (cert || certAnswer != null) { setCertOpen(true); return; }
+    setRevealing(true);
+    try {
+      const res = await fetch(`/api/proofs/${id}`);
+      const d = await res.json();
+      if (d.unlocked) {
+        setCanReveal(true);
+        setCertAnswer(d.answer != null ? String(d.answer) : null);
+        if (d.certificate) setCert(d.certificate);
+        setCertOpen(true);
+      } else {
+        toast.error('The certificate is not available yet.');
+      }
+    } catch {
+      toast.error('Could not load the certificate.');
+    } finally {
+      setRevealing(false);
+    }
+  };
+
+  const saveMeta = async () => {
+    setSavingMeta(true);
+    try {
+      const res = await fetch(`/api/problems/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: editTopic || null,
+          difficulty: editDifficulty || null,
+          knowledge: editKnowledge || null,
+        }),
+      });
+      const out = await res.json();
+      if (!res.ok) { toast.error(out.error || 'Save failed'); return; }
+      setProblem((p: any) => ({ ...p, topic: out.topic, difficulty: out.difficulty, knowledge: out.knowledge }));
+      toast.success('Problem updated');
+    } catch {
+      toast.error('Save failed');
+    } finally {
+      setSavingMeta(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,10 +392,15 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
       
       const result = await res.json();
 
-      if (result.correct || (result.success === false && result.message === 'Question was already solved')) {
+      // Track the running attempt total + whether the reveal is now unlocked.
+      if (typeof result.attemptCount === 'number') setAttemptCount(result.attemptCount);
+      if (result.canReveal) setCanReveal(true);
+
+      if (result.correct || (result.success === false && result.message === 'Problem already solved')) {
         setIsSolved(true);
+        setCanReveal(true);
         setStatus('idle');
-        
+
         // --- HANDLE TOASTS ---
         if (result.newBadges && result.newBadges.length > 0) {
           result.newBadges.forEach((badge: { badgeName: string, badgeUrl: string }) => {
@@ -125,85 +416,180 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
     }
   };
 
-  if (authStatus === 'loading' || loadingData) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-emerald-600 w-8 h-8" /></div>;
+  if (authStatus === 'loading' || loadingData) return <div className="min-h-screen bg-[#180f0e] flex items-center justify-center"><Loader2 className="animate-spin text-amber-500 w-8 h-8" /></div>;
 
-  if (!problem) return <div className="min-h-screen bg-[#050505] text-slate-500 flex items-center justify-center">Problem not found.</div>;
+  if (!problem) return <div className="min-h-screen bg-[#180f0e] text-white/50 flex items-center justify-center">Problem not found.</div>;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-emerald-500/30 mt-3.75 placeholder-violet-100 pt-10">
-      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#1a120b_0%,#050505_60%)]" />
+    <div className="min-h-screen bg-[#180f0e] text-slate-300 font-sans selection:bg-amber-500/30 mt-3.75 pt-10">
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#241413_0%,#140c0b_60%)]" />
       <div className="relative z-10 container max-w-4xl mx-auto px-4 py-12">
-        <Link href="/practice" className="inline-flex items-center text-emerald-700 hover:text-emerald-500 transition-colors mb-8 group font-medium text-sm">
+        <Link href="/practice" className="inline-flex items-center text-amber-400/70 hover:text-amber-300 transition-colors mb-8 group font-medium text-sm">
           <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" /> Back to Archives
         </Link>
 
-        <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-2xl overflow-hidden shadow-2xl">
-          <div className="bg-[#111] border-b border-[#222] px-8 py-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        {isAdmin && (
+          <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-4">
+            <p className="text-[11px] uppercase tracking-widest font-semibold text-amber-400/80 mb-3">
+              Admin · edit taxonomy
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wider text-slate-400">
+                Theme
+                <select
+                  value={editTopic}
+                  onChange={(e) => setEditTopic(e.target.value)}
+                  className="bg-[#050505] border border-[#333] rounded px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500/60"
+                >
+                  <option value="">General</option>
+                  {PROBLEM_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wider text-slate-400">
+                Difficulty
+                <select
+                  value={editDifficulty}
+                  onChange={(e) => setEditDifficulty(e.target.value)}
+                  className="bg-[#050505] border border-[#333] rounded px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500/60"
+                >
+                  <option value="">—</option>
+                  {DIFFICULTY_LEVELS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wider text-slate-400">
+                Level
+                <select
+                  value={editKnowledge}
+                  onChange={(e) => setEditKnowledge(e.target.value)}
+                  className="bg-[#050505] border border-[#333] rounded px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500/60"
+                >
+                  <option value="">None</option>
+                  {KNOWLEDGE_LEVELS.map((k) => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </label>
+              <Button
+                onClick={saveMeta}
+                disabled={savingMeta}
+                variant="outline"
+                className="border-amber-400/25 bg-amber-400/[0.06] text-amber-200 hover:bg-amber-400/10 font-medium"
+              >
+                {savingMeta ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-[#141013]/92 border border-white/[0.08] rounded-2xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+          <div className="bg-[#1a1315] border-b border-white/[0.06] px-8 py-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
              <div>
-               <h1 className="text-3xl text-slate-100 font-serif font-bold tracking-tight mb-1">{problem.title}</h1>
-               <div className="flex items-center gap-3 text-xs uppercase tracking-widest font-semibold text-emerald-600/80">
+               <h1 className="font-code text-3xl text-white font-bold tracking-tight mb-1">{problem.title}</h1>
+               <div className="flex items-center gap-3 text-xs uppercase tracking-widest font-semibold text-amber-400/70">
                  <span>Problem {problem.id}</span>
-                 {/* {problem.difficulty || problem.points &&
-                  <span className="w-1 h-1 rounded-full bg-emerald-800" />
-                 } */}
+                 <span className="w-1 h-1 rounded-full bg-amber-400/40" />
                  <span>{problem.subtitle}</span>
                </div>
             </div>
             <div className="flex items-center gap-3">
+              {problem.hasProof && <CertifiedInfo />}
               {problem.difficulty &&
-                <span className="px-3 py-1 rounded-full border border-emerald-900/30 bg-emerald-900/10 text-emerald-500 text-xs font-bold uppercase tracking-wider">{problem.difficulty}</span>
+                <span className="px-3 py-1 rounded-full border border-white/10 bg-white/[0.04] text-white/70 text-xs font-bold uppercase tracking-wider">{problem.difficulty}</span>
               }
               {problem.points &&
-                <span className="px-3 py-1 rounded-full border border-amber-900/30 bg-amber-900/10 text-amber-500 text-xs font-bold uppercase tracking-wider">{problem.points} Pts</span>
+                <span className="px-3 py-1 rounded-full border border-amber-400/25 bg-amber-500/10 text-amber-200 text-xs font-bold uppercase tracking-wider">{problem.points} Pts</span>
               }
             </div>
           </div>
 
-          <div className="px-8 py-10 prose prose-invert prose-emerald max-w-none">
+          <div className="px-8 py-10 prose prose-invert max-w-none">
             <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{
                 p: ({node, ...props}) => <p className="text-lg leading-relaxed text-slate-300 mb-6" {...props} />,
-                h3: ({node, ...props}) => <h3 className="text-xl font-serif text-emerald-100 mt-8 mb-4 border-b border-emerald-900/30 pb-2" {...props} />,
+                h3: ({node, ...props}) => <h3 className="text-xl text-amber-100/90 mt-8 mb-4 border-b border-white/10 pb-2" {...props} />,
               }}>
               {problem.content}
             </ReactMarkdown>
           </div>
 
-          <div className="bg-[#0f0f0f] border-t border-[#222] p-8 min-h-35 flex flex-col justify-center">
+          <div className="bg-[#0f0b0a] border-t border-white/[0.06] p-8 min-h-35 flex flex-col justify-center">
              {authStatus === 'unauthenticated' && (
-               <div className="flex items-center justify-between bg-[#151515] border border-[#333] rounded-lg p-4">
-                 <div className="flex items-center gap-4 text-slate-400">
-                    <Lock className="w-5 h-5 text-slate-500" />
+               <div className="flex items-center justify-between bg-white/[0.02] border border-white/10 rounded-lg p-4">
+                 <div className="flex items-center gap-4 text-white/50">
+                    <Lock className="w-5 h-5 text-white/40" />
                     <span className="text-sm font-medium">Authentication required to submit answers.</span>
                  </div>
-                 <Link href="/api/auth/signin"><Button variant="outline" className="border-[#333] hover:bg-[#222] text-slate-200"><LogIn className="w-4 h-4 mr-2" /> Log In</Button></Link>
+                 <Link href="/api/auth/signin"><Button variant="outline" className="border-white/15 hover:bg-white/[0.06] text-slate-200"><LogIn className="w-4 h-4 mr-2" /> Log In</Button></Link>
                </div>
              )}
 
              {authStatus === 'authenticated' && isSolved && (
-               <div className="bg-emerald-950/20 border border-emerald-900/50 rounded-lg p-4 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
-                  <div className="p-2 bg-emerald-900/30 rounded-full"><CheckCircle2 className="w-6 h-6 text-emerald-500" /></div>
-                  <div><h4 className="text-emerald-400 font-bold text-sm tracking-wide">Problem Solved</h4><p className="text-emerald-600/80 text-xs">Your proof has been verified and recorded.</p></div>
+               <div className="relative bg-amber-500/[0.06] border border-amber-400/25 rounded-lg p-3.5 pb-5 flex items-center gap-3 animate-in fade-in zoom-in-95 duration-300">
+                  <div className="p-1.5 bg-amber-500/15 border border-amber-400/25 rounded-full shrink-0"><CheckCircle2 className="w-4 h-4 text-amber-400" /></div>
+                  <div className="flex-1"><h4 className="text-amber-200 font-semibold text-xs tracking-wide">Problem Solved</h4><p className="text-amber-300/60 text-[11px]">Nicely done — your answer is correct.</p></div>
+                  {problem.hasProof && (
+                    <button onClick={viewCertificate} disabled={revealing} style={{ fontSize: '8pt' }} className="absolute bottom-1.5 right-3 leading-none tracking-wide text-white/30 hover:text-white/70 underline underline-offset-2 decoration-white/15 transition-colors disabled:opacity-50">
+                      view certificate
+                    </button>
+                  )}
                </div>
              )}
 
-             {authStatus === 'authenticated' && !isSolved && (
+             {authStatus === 'authenticated' && !isSolved && gaveUp && (
+               <div className="relative bg-white/[0.02] border border-white/10 rounded-lg p-3.5 pb-5 flex items-center gap-3 animate-in fade-in zoom-in-95 duration-300">
+                  <div className="p-1.5 bg-white/[0.04] rounded-full border border-white/10 shrink-0"><Flag className="w-4 h-4 text-amber-400/70" /></div>
+                  <div className="flex-1">
+                    <h4 className="text-slate-200 font-semibold text-xs tracking-wide">Answer revealed</h4>
+                    <p className="text-[11px] text-white/45">The correct answer is <span className="font-mono text-amber-200">{certAnswer ?? '—'}</span>.</p>
+                  </div>
+                  {problem.hasProof && (
+                    <button onClick={viewCertificate} disabled={revealing} style={{ fontSize: '8pt' }} className="absolute bottom-1.5 right-3 leading-none tracking-wide text-white/30 hover:text-white/70 underline underline-offset-2 decoration-white/15 transition-colors disabled:opacity-50">
+                      view certificate
+                    </button>
+                  )}
+               </div>
+             )}
+
+             {authStatus === 'authenticated' && !isSolved && !gaveUp && (
                <>
-                 {/* <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4"></h4> */}
                  <form onSubmit={handleSubmit} className="relative max-w-xl">
                    <div className="flex gap-3">
                       <div className="relative grow">
-                        <Input value={answer} onChange={(e) => { setAnswer(e.target.value); if(status === 'wrong') setStatus('idle'); }} placeholder="Enter answer here..." className="bg-[#050505] border-[#333] text-slate-200 placeholder:text-slate-700 focus:border-emerald-600 focus:ring-emerald-900/20 font-mono" />
+                        <Input value={answer} onChange={(e) => { setAnswer(e.target.value); if(status === 'wrong') setStatus('idle'); }} placeholder="Enter answer here..." className="bg-[#0f0b0a] border-white/12 text-slate-200 placeholder:text-white/25 focus:border-amber-500/60 focus:ring-amber-900/20 font-mono" />
                       </div>
-                      <Button type="submit" disabled={status === 'submitting' || !answer} className={`min-w-30 font-bold transition-all duration-300 ${status === 'wrong' ? 'bg-red-900/50 text-red-200 hover:bg-red-900/70 border border-red-800' : 'bg-[#cfa86e] hover:bg-[#deb87f] text-black'}`}>
+                      <Button type="submit" disabled={status === 'submitting' || !answer} className={`min-w-30 font-medium transition-colors duration-200 border ${status === 'wrong' ? 'bg-red-500/10 text-rose-300 hover:bg-red-500/15 border-red-500/30' : 'bg-amber-500/10 text-amber-200 hover:bg-amber-500/15 border-amber-400/25'}`}>
                         {status === 'submitting' ? <span className="animate-pulse">Verifying...</span> : status === 'wrong' ? <span className="flex items-center gap-2"><RotateCcw size={16} /> Retry</span> : <span className="flex items-center gap-2">Submit <Send size={14} /></span>}
                       </Button>
                    </div>
-                   {status === 'wrong' && <p className="absolute -bottom-8 left-0 text-sm text-red-500 font-medium animate-in slide-in-from-top-1 fade-in">Incorrect answer. Double check your calculations.</p>}
+                   {status === 'wrong' && <p className="absolute -bottom-8 left-0 text-sm text-rose-400 font-medium animate-in slide-in-from-top-1 fade-in">Incorrect answer. Double check your calculations.</p>}
                  </form>
+
+                 {/* Attempt gate: must genuinely try PRACTICE_REVEAL_ATTEMPTS times
+                     before the answer + certificate can be revealed. */}
+                 <div className="mt-10 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                   <span className="font-mono text-white/40">
+                     Attempt <span className="text-amber-200/90">{attemptCount}</span> / {PRACTICE_REVEAL_ATTEMPTS}
+                   </span>
+                   {canReveal ? (
+                     <button onClick={revealAnswer} disabled={revealing} className="inline-flex items-center gap-1.5 font-medium text-white/50 hover:text-amber-200 transition-colors disabled:opacity-50">
+                       {revealing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Flag className="w-3.5 h-3.5" />}
+                       Reveal answer
+                     </button>
+                   ) : (
+                     <span className="text-slate-600">
+                       {Math.max(0, PRACTICE_REVEAL_ATTEMPTS - attemptCount)} more attempt(s) before you can give up and see the answer.
+                     </span>
+                   )}
+                 </div>
                </>
              )}
           </div>
         </div>
+
+        {/* Certificate — revealed inline beneath the problem, not as a modal. */}
+        <CertificatePanel
+          open={certOpen}
+          onClose={() => setCertOpen(false)}
+          answer={certAnswer ?? '—'}
+          cert={cert}
+        />
       </div>
     </div>
   );

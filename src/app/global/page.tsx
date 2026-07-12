@@ -6,6 +6,7 @@ import {
   ChevronDown, Calendar, Timer, Loader2, Trophy as Star, Flame
 } from 'lucide-react';
 import Image from 'next/image';
+import { StaticArtBackground } from '../lib/components/home/static-art-background';
 
 // --- BADGE CONFIGURATION ---
 const BADGE_MAP: Record<string, React.ElementType> = {
@@ -81,8 +82,8 @@ export default function LeaderboardPage() {
   }, [selectedProblem]);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-emerald-500/30">
-      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#1a120b_0%,#050505_60%)]" />
+    <div className="relative min-h-screen overflow-hidden text-slate-300 font-sans selection:bg-amber-500/30">
+      <StaticArtBackground />
 
       <div className="relative z-10 container max-w-5xl mx-auto px-4 py-12">
         

@@ -12,6 +12,6 @@ export interface Problem {
 }
 
 // Define a return type to handle the different outcomes
-export type SubmissionResult = 
-  | { success: false, message: string }
-  | { success: true, isCorrect: boolean };
+export type SubmissionResult =
+  | { success: false, message: string, attemptCount?: number }
+  | { success: true, isCorrect: boolean, attemptCount: number };
