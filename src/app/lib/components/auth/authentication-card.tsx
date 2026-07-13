@@ -38,6 +38,9 @@ export default function AuthenticationCard() {
   const [mode, setMode] = useState<AuthMode>("login")
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  // Whether the 24h verification email went out (drives the success message).
+  const [verificationSent, setVerificationSent] = useState(false)
+  const [signupEmail, setSignupEmail] = useState("")
 
   const { update } = useSession()
   const router = useRouter()
@@ -95,8 +98,10 @@ export default function AuthenticationCard() {
           toast.error(result.error);
         } else {
             toast.success('Account created successfully');
+            setVerificationSent(!!result?.verificationSent);
+            setSignupEmail(data.email);
             // Move to success step or login step
-            setStep("success"); 
+            setStep("success");
         }
     } catch (error) {
         console.error(error);
@@ -414,10 +419,24 @@ export default function AuthenticationCard() {
                 <Check className="w-8 h-8 text-white" />
               </div>
               <div className="text-center space-y-2">
-                <h1 className="text-2xl font-semibold text-white">Success!</h1>
-                <p className="text-white/70">
-                  {mode === "signup" ? "Account created successfully." : "Action completed."}
-                </p>
+                <h1 className="text-2xl font-semibold text-white">
+                  {mode === "signup" ? "Account created" : "Success!"}
+                </h1>
+                {mode === "signup" ? (
+                  <p className="text-white/70">
+                    {verificationSent ? (
+                      <>
+                        We sent a verification link to{" "}
+                        <span className="text-white">{signupEmail}</span>. Confirm
+                        it within 24 hours to verify your email.
+                      </>
+                    ) : (
+                      <>Your account is ready — you can sign in now.</>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-white/70">Action completed.</p>
+                )}
               </div>
               <Button
                 onClick={() => setStep("login")}

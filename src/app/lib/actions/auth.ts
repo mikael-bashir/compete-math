@@ -7,6 +7,7 @@ import { LoginFormData } from "../types/form";
 import { signUpSchema } from '../zod';
 import { ZodError } from 'zod';
 import { RegisterFormData } from '../types/auth';
+import { issueVerification } from '../email/verification';
 
 export async function signUpAction(data: RegisterFormData) {
     try {
@@ -42,8 +43,23 @@ export async function signUpAction(data: RegisterFormData) {
         RETURNING id, username, email
         `;
 
+        const newUser = result.rows[0];
+
+        // Fire the 24h verification email. Best-effort ONLY — the account is
+        // already created and must never fail because email is down.
+        let verificationSent = false;
+        try {
+            verificationSent = await issueVerification(
+                String(newUser.id),
+                String(newUser.email ?? data.email),
+            );
+        } catch (e) {
+            console.error('verification email failed (account still created):', e);
+        }
+
         return {
-            user: result.rows[0],
+            user: newUser,
+            verificationSent,
             error: undefined
         };
     } catch (error) {

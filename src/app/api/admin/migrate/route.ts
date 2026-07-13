@@ -90,6 +90,18 @@ export async function POST() {
     // Solver-facing key idea (the "insight" from the generation pipeline). Shown
     // to the user only after they solve or give up — gated like the answer.
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS insight TEXT;`;
+    // Email verification: a nullable timestamp on users (set when verified) and a
+    // single-use 24h token store. Nothing is gated on this yet — we only record it.
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified TIMESTAMPTZ;`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS email_verification_tokens (
+        token      TEXT PRIMARY KEY,
+        user_id    TEXT NOT NULL,
+        email      TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `;
     // "Gave up" is terminal, like solving: once a user reveals the answer, the
     // problem locks (no more attempts) and the revealed state persists forever.
     await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS "gaveUp" BOOLEAN NOT NULL DEFAULT FALSE;`;
