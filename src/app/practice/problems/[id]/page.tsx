@@ -512,6 +512,9 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
               {problem.difficulty &&
                 <span className="px-3 py-1 rounded-full border border-white/10 bg-white/[0.04] text-white/70 text-xs font-bold uppercase tracking-wider">{problem.difficulty}</span>
               }
+              {problem.knowledge && problem.knowledge !== "None" &&
+                <span className="px-3 py-1 rounded-full border border-white/10 bg-white/[0.04] text-white/60 text-xs font-bold uppercase tracking-wider">{problem.knowledge}</span>
+              }
               {problem.points &&
                 <span className="px-3 py-1 rounded-full border border-amber-400/25 bg-amber-500/10 text-amber-200 text-xs font-bold uppercase tracking-wider">{problem.points} Pts</span>
               }
@@ -607,7 +610,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                      </button>
                    ) : (
                      <span className="text-slate-600">
-                       {Math.max(0, PRACTICE_REVEAL_ATTEMPTS - attemptCount)} more attempt(s) before you can give up and see the answer.
+                       {Math.max(0, PRACTICE_REVEAL_ATTEMPTS - attemptCount)} more attempt(s) before you can give up to see the answer{problem.hasProof ? " and its proof" : ""}.
                      </span>
                    )}
                  </div>

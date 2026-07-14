@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { BadgeCheck } from "lucide-react";
 import { CERTIFICATE } from "../certificate";
+import { PRACTICE_REVEAL_ATTEMPTS } from "../constants/site";
 
 // A small verification mark that reveals a transient popover on hover / focus —
 // same interaction and styling as <LevelInfo>, so it appears instantly rather
@@ -62,8 +63,9 @@ export function CertifiedInfo({
           <p className="text-[12px] text-white/70 leading-relaxed">
             This problem&rsquo;s answer is backed by a formal proof of correctness,
             machine-checked in Lean against {CERTIFICATE.toolchain} ·{" "}
-            {CERTIFICATE.mathlib}. The full certificate — proof script and
-            provenance — is available once the problem is complete.
+            {CERTIFICATE.mathlib}. You can request the full certificate — proof
+            script and provenance — once you answer correctly, or after its answer
+            is revealed following {PRACTICE_REVEAL_ATTEMPTS} attempts.
           </p>
         </div>
       )}
