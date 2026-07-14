@@ -82,7 +82,7 @@ export function WeeklyProblem() {
         <div className="mt-6 pt-4 border-t border-white/[0.06] flex justify-end">
           <Link
             href={href}
-            className="font-code group inline-flex items-center gap-2 rounded-lg bg-amber-400 hover:bg-amber-300 px-5 py-2.5 text-sm font-semibold text-[#160d0a] transition-all hover:scale-[1.02] active:scale-95 no-underline"
+            className="font-code group inline-flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/15 hover:bg-amber-500/25 px-5 py-2.5 text-sm font-semibold text-amber-200 transition-all hover:scale-[1.02] active:scale-95 no-underline"
           >
             Attempt this problem
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

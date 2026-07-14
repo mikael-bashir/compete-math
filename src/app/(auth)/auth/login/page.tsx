@@ -19,8 +19,8 @@ export default function Login() {
       />
 
       {/* 2. OVERLAY */}
-      {/* Sit on top of the image but behind the content */}
-      <div className="absolute inset-0 bg-black/20 z-0" />
+      {/* Darkened so the card's white text keeps contrast over the bright art. */}
+      <div className="absolute inset-0 bg-black/50 z-0" />
 
       {/* 3. CONTENT */}
       {/* 'z-10' ensures inputs are clickable and sit above the image/overlay */}

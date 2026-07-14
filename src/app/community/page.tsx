@@ -154,7 +154,7 @@ export default function CommunityPage() {
               if (status !== "authenticated") { router.push("/auth/login"); return; }
               setShowDraft(true);
             }}
-            className="font-code px-4 py-2 rounded-md bg-amber-400 hover:bg-amber-300 text-[#160d0a] font-semibold text-[13px] transition-colors active:scale-95 self-start"
+            className="font-code px-4 py-2 rounded-md border border-amber-400/30 bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 font-semibold text-[13px] transition-colors active:scale-95 self-start"
           >
             Draft a Problem
           </button>
@@ -337,7 +337,7 @@ export default function CommunityPage() {
                 <button
                   onClick={submitDraft}
                   disabled={submitting}
-                  className="font-code inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-[#160d0a] font-semibold text-sm transition-all active:scale-95"
+                  className="font-code inline-flex items-center gap-2 px-6 py-2.5 rounded-lg border border-amber-400/30 bg-amber-500/15 hover:bg-amber-500/25 disabled:opacity-50 text-amber-200 font-semibold text-sm transition-all active:scale-95"
                 >
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   Submit for review

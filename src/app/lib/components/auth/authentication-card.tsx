@@ -159,7 +159,7 @@ export default function AuthenticationCard() {
     <div className={`w-full max-w-135 transition-all duration-700 ease-out ${getCardHeight()}`}>
       <div className="relative h-full">
         {/* Glass morphism card */}
-        <div className="absolute inset-0 bg-white/5 backdrop-blur-none rounded-3xl border border-white/20 shadow-2xl">
+        <div className="absolute inset-0 bg-black/35 backdrop-blur-md rounded-3xl border border-white/20 shadow-2xl">
           <div className="absolute inset-0 bg-linear-to-br from-white/20 via-white/10 to-transparent rounded-3xl" />
         </div>
 
