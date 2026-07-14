@@ -159,7 +159,7 @@ export default function AuthenticationCard() {
     <div className={`w-full max-w-135 transition-all duration-700 ease-out ${getCardHeight()}`}>
       <div className="relative h-full">
         {/* Glass morphism card */}
-        <div className="absolute inset-0 bg-black/35 backdrop-blur-md rounded-3xl border border-white/20 shadow-2xl">
+        <div className="absolute inset-0 bg-white/5 backdrop-blur-none rounded-3xl border border-white/20 shadow-2xl">
           <div className="absolute inset-0 bg-linear-to-br from-white/20 via-white/10 to-transparent rounded-3xl" />
         </div>
 
@@ -388,7 +388,7 @@ export default function AuthenticationCard() {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="text-center space-y-2">
-                <h1 className="text-2xl font-semibold text-white">Reset Password</h1>
+                <h1 className="text-2xl font-semibold text-white!">Reset Password</h1>
                 <p className="text-white/70">Enter your email to receive reset instructions</p>
               </div>
               <form onSubmit={handleGenericSubmit} className="space-y-4">
@@ -419,7 +419,7 @@ export default function AuthenticationCard() {
                 <Check className="w-8 h-8 text-white" />
               </div>
               <div className="text-center space-y-2">
-                <h1 className="text-2xl font-semibold text-white">
+                <h1 className="text-2xl font-semibold text-white!">
                   {mode === "signup" ? "Account created" : "Success!"}
                 </h1>
                 {mode === "signup" ? (
