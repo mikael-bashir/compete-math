@@ -26,18 +26,30 @@ export interface EmailMessage {
 let transporterPromise: Promise<import('nodemailer').Transporter | null> | null =
   null;
 
+// Self-hosted VPS relay defaults (postfix submission on the leak box). Everything
+// here is NON-secret and baked in, so the ONLY thing that has to be configured to
+// go live is SMTP_PASS. Override any of these with env if the relay ever moves.
+const SMTP_HOST = process.env.SMTP_HOST || 'leak.competemath.com';
+const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
+const SMTP_USER = process.env.SMTP_USER || 'noreply@leak.competemath.com';
+
 async function getTransporter(): Promise<import('nodemailer').Transporter | null> {
-  if (!process.env.SMTP_HOST) return null; // console mode
+  // SMTP_PASS is the single secret that activates real sending. Unset ⇒ console
+  // mode (dev / not yet configured) — links still print, nothing blocks signup.
+  const pass = process.env.SMTP_PASS;
+  if (!pass) return null;
   if (!transporterPromise) {
     transporterPromise = (async () => {
       const nodemailer = (await import('nodemailer')).default;
       return nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: process.env.SMTP_USER
-          ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-          : undefined,
+        host: SMTP_HOST,
+        port: SMTP_PORT,
+        secure: process.env.SMTP_SECURE === 'true', // false ⇒ STARTTLS on 587
+        requireTLS: true,
+        auth: { user: SMTP_USER, pass },
+        // The VPS submission port presents a self-signed cert (Vercel → our own
+        // box); don't fail the internal hop on host/CA verification.
+        tls: { rejectUnauthorized: false },
       });
     })().catch((e) => {
       console.error('SMTP transporter init failed:', e);
