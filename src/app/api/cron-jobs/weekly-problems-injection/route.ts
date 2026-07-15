@@ -35,6 +35,12 @@ interface ProblemPayload {
   proof?: string | null;
   mintedAt?: string | null;
   verifiedAt?: string | null;
+  // Certificate signed in the leak admin right after verification. When present
+  // we store it verbatim (no re-signing) so the published signature is the one
+  // minted seconds after the kernel checked the proof. `certMintedAt` = sign time.
+  signature?: string | null;
+  signatureKeyId?: string | null;
+  certMintedAt?: string | null;
   // Solver-facing key idea (1-3 sentences); revealed only after solve/give-up.
   insight?: string | null;
 }
@@ -58,29 +64,36 @@ async function ingestOne(raw: unknown): Promise<string> {
     throw new Error('payload missing questionTitle/questionProblem');
   }
 
-  // Sign the certificate NOW, at ingestion — the earliest point CompeteMath holds
-  // the verified proof — rather than lazily on first view. Two independent times:
-  //   provedAt     = when the Lean kernel verified it (from the verifier), and
-  //   certMintedAt = when we signed it here (a few ms later).
-  // The signature covers the exact canonical bytes (header + proof); /api/proofs
-  // rebuilds the same bytes from these stored fields and serves the stored sig.
+  // Certificate provenance. The proof is signed in the leak admin the instant the
+  // kernel verifies it, and rides through the payload — so here we just STORE the
+  // pre-signed signature verbatim (no re-signing), giving the semantic assurance
+  // that the signature was minted seconds after verification. Two times:
+  //   provedAt     = when the Lean kernel verified it, and
+  //   certMintedAt = when the certificate was signed (in the leak admin).
+  // Fallback: if a payload has no pre-signed cert (older/non-leak paths), sign
+  // here at ingestion so the certificate is never left unsigned.
   let provedAt: string | null = null;
   let certMintedAt: string | null = null;
   let signature: string | null = null;
   let signatureKeyId: string | null = null;
   if (p.proof) {
-    const now = new Date().toISOString();
-    provedAt = p.verifiedAt ?? now; // real kernel-verify time (fallback: now)
-    certMintedAt = now; // signing moment
-    const canonical = fullCertificate(p.proof, {
-      title: p.questionTitle,
-      mintedAt: certMintedAt,
-      provedAt,
-    }).trimEnd();
-    const sig = signCertificate(canonical);
-    if (sig) {
-      signature = sig.signature;
-      signatureKeyId = sig.keyId;
+    provedAt = p.verifiedAt ?? new Date().toISOString();
+    if (p.signature && p.certMintedAt) {
+      signature = p.signature;
+      signatureKeyId = p.signatureKeyId ?? null;
+      certMintedAt = p.certMintedAt;
+    } else {
+      certMintedAt = new Date().toISOString();
+      const canonical = fullCertificate(p.proof, {
+        title: p.questionTitle,
+        mintedAt: certMintedAt,
+        provedAt,
+      }).trimEnd();
+      const sig = signCertificate(canonical);
+      if (sig) {
+        signature = sig.signature;
+        signatureKeyId = sig.keyId;
+      }
     }
   }
 
