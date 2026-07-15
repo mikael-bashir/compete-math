@@ -99,14 +99,22 @@ export const authConfig = {
                     const parsedCallback = new URL(callbackUrl);
                     
                     // 2. Define exactly who is allowed in the VIP room
-                    const allowedHosts = [
-                        'competemath.com',
-                        'leak.competemath.com',
-                        'localhost' // Keep this for your local testing
-                    ];
 
-                    // 3. Check if the domain they want to go to is on the list
-                    if (allowedHosts.includes(parsedCallback.hostname)) {
+                    const isAllowed = (h: string) =>
+                        h === 'competemath.com' ||
+                        h.endsWith('.competemath.com') ||  // covers leak. and all *.preview.leak.
+                        h === 'localhost';
+
+                    if (isAllowed(parsedCallback.hostname)) {
+
+                    // const allowedHosts = [
+                    //     'competemath.com',
+                    //     'leak.competemath.com',
+                    //     'localhost' // Keep this for your local testing
+                    // ];
+
+                    // // 3. Check if the domain they want to go to is on the list
+                    // if (allowedHosts.includes(parsedCallback.hostname)) {
                         return Response.redirect(parsedCallback);
                     } else {
                         console.warn(`Blocked malicious redirect attempt to: ${parsedCallback.hostname}`);
