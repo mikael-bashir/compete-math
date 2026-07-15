@@ -106,8 +106,8 @@ function CertificatePanel({
           <Field label="Answer">
             <span className="text-[13px] text-amber-200">{answer}</span>
           </Field>
-          <Field label="Minted">{fmtCertDate(cert?.mintedAt)}</Field>
-          <Field label="Enforced · machine-checked">{fmtCertDate(cert?.provedAt)}</Field>
+          <Field label="Verified · machine-checked">{fmtCertDate(cert?.provedAt)}</Field>
+          <Field label="Minted · signed">{fmtCertDate(cert?.mintedAt)}</Field>
           <Field label="Enforcer">
             <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30 inline-flex items-center gap-1">
               {CERTIFICATE.prover} <span aria-hidden>↗</span>

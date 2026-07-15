@@ -2,32 +2,51 @@ import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 import { auth } from '@/app/(auth)/auth';
 import { PRACTICE_REVEAL_ATTEMPTS } from '@/app/lib/constants/site';
-import { fullCertificate } from '@/app/lib/certificate';
+import { fullCertificate, CERTIFICATE } from '@/app/lib/certificate';
 import { signCertificate, buildSignedText } from '@/app/lib/certificate-sign';
 import { markGaveUp } from '@/app/lib/data/problems';
 
 // Build the unlocked payload: answer + signed certificate for a question.
 async function buildUnlockedResponse(questionId: number, solved: boolean, gaveUp: boolean) {
   const q = await sql`
-    SELECT "questionTitle", answer, proof, "provedAt", "certMintedAt", insight
+    SELECT "questionTitle", answer, proof, "provedAt", "certMintedAt",
+           signature, "signatureKeyId", insight
     FROM questions WHERE "questionId" = ${questionId}
   `;
   if (q.rows.length === 0) return null;
   const row = q.rows[0];
   const hasProof = typeof row.proof === 'string' && row.proof.trim().length > 0;
 
-  // "Minted" = the exact time this certificate's signature was FIRST generated.
-  // Stamp it once (lazily, on first issuance) with an atomic COALESCE so it's
-  // race-safe, then reuse forever — keeping the signed content (and therefore
-  // the deterministic Ed25519 signature) stable and verifiable.
+  // Certificates are now signed once at INGESTION and the signature is stored, so
+  // a view just serves the SAME signature over the SAME bytes. Older rows (no
+  // stored signature) are backfilled lazily on first view: stamp certMintedAt +
+  // sign once + persist, then reuse forever. `certMintedAt` = signing time.
   let certMintedAt = row.certMintedAt as string | Date | null;
-  if (hasProof && !certMintedAt) {
+  let signature = (row.signature as string | null) ?? null;
+  let signatureKeyId = (row.signatureKeyId as string | null) ?? null;
+
+  if (hasProof && !signature) {
     const upd = await sql`
       UPDATE questions SET "certMintedAt" = COALESCE("certMintedAt", now())
       WHERE "questionId" = ${questionId}
       RETURNING "certMintedAt"
     `;
-    certMintedAt = upd.rows[0]?.certMintedAt ?? null;
+    certMintedAt = upd.rows[0]?.certMintedAt ?? certMintedAt;
+    const canonical = fullCertificate(row.proof, {
+      title: row.questionTitle as string | null,
+      mintedAt: certMintedAt ? new Date(certMintedAt).toISOString() : null,
+      provedAt: row.provedAt ? new Date(row.provedAt).toISOString() : null,
+    }).trimEnd();
+    const sig = signCertificate(canonical);
+    if (sig) {
+      signature = sig.signature;
+      signatureKeyId = sig.keyId;
+      // Persist so every future view serves this exact signature (idempotent).
+      await sql`
+        UPDATE questions SET signature = ${signature}, "signatureKeyId" = ${signatureKeyId}
+        WHERE "questionId" = ${questionId} AND signature IS NULL
+      `;
+    }
   }
 
   const meta = {
@@ -36,21 +55,25 @@ async function buildUnlockedResponse(questionId: number, solved: boolean, gaveUp
     provedAt: row.provedAt ? new Date(row.provedAt).toISOString() : null,
   };
 
-  // Build + SIGN the certificate. `canonical` is the exact byte sequence the
-  // Ed25519 signature covers (header + full proof); `full` is the copyable,
-  // self-verifiable artifact. The signature makes tampering detectable — a
-  // forger can't re-sign altered content without the private key.
+  // Serve the stored signature over the rebuilt canonical bytes (header + proof).
+  // The header uses minute-resolution times, so the rebuilt bytes are identical
+  // to what was signed → the signature verifies. No signing key ⇒ unsigned cert.
   let certificate = null;
   if (hasProof) {
     const canonical = fullCertificate(row.proof, meta).trimEnd();
-    const sig = signCertificate(canonical);
-    const full = sig ? buildSignedText(canonical, sig) : canonical + '\n';
+    const full = signature
+      ? buildSignedText(canonical, {
+          signature,
+          keyId: signatureKeyId ?? CERTIFICATE.keyId,
+          publicKey: CERTIFICATE.publicKey,
+        })
+      : canonical + '\n';
     certificate = {
       ...meta,
       proof: row.proof,
       full,
-      signature: sig?.signature ?? null,
-      keyId: sig?.keyId ?? null,
+      signature: signature ?? null,
+      keyId: signature ? (signatureKeyId ?? CERTIFICATE.keyId) : null,
     };
   }
 

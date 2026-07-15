@@ -84,9 +84,15 @@ export async function POST() {
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS proof TEXT;`;
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "mintedAt" TIMESTAMPTZ;`;
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "provedAt" TIMESTAMPTZ;`;
-    // When the CERTIFICATE was first minted (the moment its signature was first
-    // generated), stamped lazily on first issuance — distinct from proof authoring.
+    // When the CERTIFICATE was minted (the moment its signature was generated).
+    // Now stamped at INGESTION (see the weekly-problems cron) rather than lazily
+    // on first view; older rows may still be stamped on first view.
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "certMintedAt" TIMESTAMPTZ;`;
+    // The Ed25519 certificate signature, computed once at ingestion over the
+    // canonical bytes (header + proof) and stored so every view serves the SAME
+    // signature instead of re-signing. `signatureKeyId` records which key signed.
+    await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS signature TEXT;`;
+    await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS "signatureKeyId" TEXT;`;
     // Solver-facing key idea (the "insight" from the generation pipeline). Shown
     // to the user only after they solve or give up — gated like the answer.
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS insight TEXT;`;
