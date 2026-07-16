@@ -9,7 +9,7 @@ export default function Home() {
       {/* Vibrant Background */}
       <div className="fixed inset-0 -z-10">
         <img
-          src="/images/true-masterpiece.png"
+          src="/images/true-masterpiece-extended.png"
           alt="Background"
           className="w-full h-full object-cover"
         />

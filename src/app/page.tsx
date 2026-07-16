@@ -17,7 +17,7 @@ export default function HomePage() {
       <div className="relative h-screen w-full bg-[#12170d]">
         {/* Full Screen Art */}
         <Image
-          src={'/images/true-masterpiece.png'}
+          src={'/images/true-masterpiece-extended.png'}
           alt="A dark sky with a bright full moon and wispy clouds"
           fill // This prop makes the image fill its parent container
           style={{
