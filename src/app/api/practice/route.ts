@@ -51,7 +51,14 @@ export async function GET(request: NextRequest) {
       WHERE (${topic}::text IS NULL OR q.topic = ${topic})
         AND (${difficulty}::text IS NULL OR q.difficulty = ${difficulty})
         AND (${knowledge}::text IS NULL OR q.knowledge = ${knowledge})
-      ORDER BY COALESCE(q.topic, 'General') ASC, q."questionId" DESC
+      ORDER BY CASE q.difficulty
+          WHEN 'Easy' THEN 0
+          WHEN 'Medium' THEN 1
+          WHEN 'Hard' THEN 2
+          WHEN 'Insane' THEN 3
+          ELSE 4
+        END ASC,
+        q."questionId" DESC
       LIMIT ${limit} OFFSET ${offset};
     `;
     // COUNT(*) OVER() gives the full matched size on every row (0 rows ⇒ empty).

@@ -41,7 +41,7 @@ export function WeeklyProblem() {
   if (!problem) {
     return (
       <div className="rounded-xl border border-white/[0.07] bg-[#141013]/85 p-8 text-center text-sm text-white/50">
-        No featured problem yet — check back once the community pool fills up.
+        No featured problem yet — head to Practice to start solving.
       </div>
     )
   }
@@ -54,7 +54,7 @@ export function WeeklyProblem() {
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="font-code text-[10px] tracking-[0.3em] uppercase text-rose-300/70 mb-2">
-              // problem of the week
+              // featured problem
             </p>
             <p className="font-display text-xl md:text-2xl font-semibold text-white leading-tight">
               {problem.title}

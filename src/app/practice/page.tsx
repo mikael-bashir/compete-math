@@ -204,15 +204,22 @@ export default function PracticePage() {
     [load, totalPages, page],
   );
 
-  // Group by topic for the "sorted by concept" presentation.
+  // Group by difficulty for an easy-first on-ramp: a newcomer sees Easy problems
+  // at the top, then Medium → Hard → Insane. (The API also orders by difficulty
+  // so this stays consistent across the paginated pages.)
   const grouped = useMemo(() => {
+    const order = ["Easy", "Medium", "Hard", "Insane"];
+    const rank = (d: string) => {
+      const i = order.indexOf(d);
+      return i === -1 ? order.length : i;
+    };
     const map = new Map<string, PracticeProblem[]>();
     for (const p of problems) {
-      const key = p.topic || "General";
+      const key = p.difficulty || "Unrated";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(p);
     }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    return Array.from(map.entries()).sort(([a], [b]) => rank(a) - rank(b));
   }, [problems]);
 
   const solvedCount = problems.filter((p) => p.isSolved).length;
@@ -235,8 +242,8 @@ export default function PracticePage() {
             Training Grounds
           </h1>
           <p className="text-white/50 mt-3 max-w-xl text-sm leading-relaxed">
-            Freshly generated problems, sorted by concept. Filter by difficulty and
-            knowledge level, then grind your way up the ranks.
+            Freshly generated problems, easiest first. Filter by topic, difficulty
+            and knowledge level, then grind your way up the ranks.
           </p>
           {problems.length > 0 && (
             <p className="font-code text-xs text-amber-300/70 mt-3">
