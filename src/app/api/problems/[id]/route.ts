@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getProblemById, getUserSubmissionState, recordSubmission } from '@/app/lib/data/problems';
+import { getProblemById, getUserSubmissionState, recordSubmission, verifyAnswer, getFeaturedProblem } from '@/app/lib/data/problems';
 import { formatProblem } from '@/app/lib/utils';
 import { auth } from '../../../(auth)/auth';
 import { rewardBadges } from '@/app/lib/data/problems';
@@ -46,6 +46,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
   const canReveal = attemptCount >= PRACTICE_REVEAL_ATTEMPTS;
 
+  // Is this the current featured problem? If so the client lets a logged-OUT
+  // visitor attempt it (see the POST exception below). Recomputed server-side so
+  // the client can't spoof it.
+  const featured = await getFeaturedProblem();
+  const isFeatured = featured?.id === questionId;
+
   // 3. Return Combined Data. `hasProof` is a boolean flag (folded into the single
   // getProblemById query); the proof itself is served by /api/proofs/:id only.
   // `gaveUp` is terminal — like `isSolved`, it locks the problem permanently.
@@ -56,6 +62,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     attemptCount,
     canReveal,
     gaveUp,
+    isFeatured,
   });
 }
 
@@ -130,12 +137,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
+  const username = session?.user?.username;
 
-  if (!session || !session?.user?.username) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const userId = session.user.username; 
   const { id } = await params;
   const questionId = parseInt(id);
   const body = await request.json();
@@ -144,6 +147,29 @@ export async function POST(
   if (!attempt) {
     return NextResponse.json({ error: "Attempt required" }, { status: 400 });
   }
+
+  // Unauthenticated attempts are permitted ONLY on the current featured problem —
+  // a no-strings taste to hook new visitors. The featured id is recomputed
+  // server-side (never trusted from the client). Nothing is written (no user, no
+  // submission row, no points/badges), the answer is never revealed, and every
+  // other problem still 401s. Blast radius: an anon can check their answer to ONE
+  // easy problem.
+  if (!username) {
+    const featured = await getFeaturedProblem();
+    if (!featured || featured.id !== questionId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const isCorrect = await verifyAnswer(String(questionId), String(attempt));
+    return NextResponse.json({
+      success: true,
+      correct: !!isCorrect,
+      anonymous: true,
+      attemptCount: 0,
+      canReveal: false,
+    });
+  }
+
+  const userId = username;
 
   try {
     const result = await recordSubmission(userId, questionId, attempt);

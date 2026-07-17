@@ -243,6 +243,10 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
   const [isSolved, setIsSolved] = useState(false);
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState<'idle' | 'submitting' | 'wrong'>('idle');
+  // Featured problem: a logged-OUT visitor may attempt THIS one (the server
+  // enforces the scope). `anonSolved` drives the "correct — sign up to save" state.
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [anonSolved, setAnonSolved] = useState(false);
 
   // Attempt gate + certificate reveal. `attemptCount` drives "attempt N of 3
   // before you can give up"; `canReveal` unlocks the answer + certificate (after
@@ -276,6 +280,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         setEditDifficulty(data.difficulty || "");
         setEditKnowledge(data.knowledge && data.knowledge !== "None" ? data.knowledge : "");
         if (data.isSolved) setIsSolved(true);
+        if (data.isFeatured) setIsFeatured(true);
         // Restore the attempt gate + terminal states from the server so they
         // survive refresh / nav. `gaveUp` is permanent, like solving.
         if (typeof data.attemptCount === "number") setAttemptCount(data.attemptCount);
@@ -397,6 +402,14 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
       });
       
       const result = await res.json();
+
+      // Unauthenticated attempt on the featured problem: no attempt gate, no
+      // certificate — just right/wrong, then a nudge to sign up.
+      if (result.anonymous) {
+        if (result.correct) { setAnonSolved(true); setStatus('idle'); }
+        else setStatus('wrong');
+        return;
+      }
 
       // Track the running attempt total + whether the reveal is now unlocked.
       if (typeof result.attemptCount === 'number') setAttemptCount(result.attemptCount);
@@ -531,13 +544,26 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
           </div>
 
           <div className="bg-[#0f0b0a] border-t border-white/[0.06] p-8 min-h-35 flex flex-col justify-center">
-             {authStatus === 'unauthenticated' && (
+             {authStatus === 'unauthenticated' && !isFeatured && (
                <div className="flex items-center justify-between bg-white/[0.02] border border-white/10 rounded-lg p-4">
                  <div className="flex items-center gap-4 text-white/50">
                     <Lock className="w-5 h-5 text-white/40" />
                     <span className="text-sm font-medium">Authentication required to submit answers.</span>
                  </div>
                  <Link href="/api/auth/signin"><Button variant="outline" className="border-white/15 hover:bg-white/[0.06] text-slate-200"><LogIn className="w-4 h-4 mr-2" /> Log In</Button></Link>
+               </div>
+             )}
+
+             {authStatus === 'unauthenticated' && isFeatured && anonSolved && (
+               <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-400/25 bg-amber-500/[0.06] p-4 animate-in fade-in zoom-in-95 duration-300">
+                 <div className="flex items-center gap-3">
+                    <div className="p-1.5 bg-amber-500/15 border border-amber-400/25 rounded-full shrink-0"><CheckCircle2 className="w-4 h-4 text-amber-400" /></div>
+                    <div>
+                      <h4 className="text-amber-200 font-semibold text-xs tracking-wide">Correct — nicely done!</h4>
+                      <p className="text-amber-300/60 text-[11px]">Create a free account to save your progress, keep a streak, and unlock the solution.</p>
+                    </div>
+                 </div>
+                 <Link href="/api/auth/signin"><Button variant="outline" className="border-amber-400/30 hover:bg-amber-500/[0.1] text-amber-200 shrink-0"><LogIn className="w-4 h-4 mr-2" /> Sign up</Button></Link>
                </div>
              )}
 
@@ -583,8 +609,15 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                </div>
              )}
 
-             {authStatus === 'authenticated' && !isSolved && !gaveUp && (
+             {(authStatus === 'authenticated' || (authStatus === 'unauthenticated' && isFeatured)) && !isSolved && !gaveUp && !anonSolved && (
                <>
+                 {authStatus === 'unauthenticated' && (
+                   <p className="mb-4 text-xs text-amber-300/70">
+                     Free preview — no account needed to try this one.{' '}
+                     <Link href="/api/auth/signin" className="underline underline-offset-2 hover:text-amber-200">Sign up</Link>{' '}
+                     to save your progress and unlock the solution.
+                   </p>
+                 )}
                  <form onSubmit={handleSubmit} className="relative max-w-xl">
                    <div className="flex gap-3">
                       <div className="relative grow">
@@ -598,7 +631,9 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                  </form>
 
                  {/* Attempt gate: must genuinely try PRACTICE_REVEAL_ATTEMPTS times
-                     before the answer + certificate can be revealed. */}
+                     before the answer + certificate can be revealed. Signed-in
+                     only — the give-up / reveal machinery needs an account. */}
+                 {authStatus === 'authenticated' && (
                  <div className="mt-10 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
                    <span className="font-mono text-white/40">
                      Attempt <span className="text-amber-200/90">{attemptCount}</span> / {PRACTICE_REVEAL_ATTEMPTS}
@@ -614,6 +649,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
                      </span>
                    )}
                  </div>
+                 )}
                </>
              )}
           </div>

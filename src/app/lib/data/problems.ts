@@ -119,6 +119,57 @@ export async function verifyAnswer(id: string, userAnswer: string): Promise<Bool
   }
 }
 
+export interface FeaturedProblem {
+  id: number;
+  title: string;
+  subtitle: string | null;
+  content: string;
+  difficulty: string;
+}
+
+// The one "featured problem" — an approachable brain-teaser from the practice
+// pool, rotated weekly over the easiest tier. THIS is the single source of truth
+// for which problem is featured: the home card, the GET `isFeatured` flag, and
+// the unauthenticated-attempt exception all derive the id from here, so they can
+// never drift apart. Recomputed each call (no stored flag to keep in sync).
+export async function getFeaturedProblem(): Promise<FeaturedProblem | null> {
+  try {
+    const result = await sql`
+      SELECT
+        "questionId" AS id,
+        "questionTitle" AS title,
+        subtitle,
+        "questionProblem" AS content,
+        difficulty
+      FROM questions
+      ORDER BY CASE difficulty
+          WHEN 'Easy' THEN 0
+          WHEN 'Medium' THEN 1
+          WHEN 'Hard' THEN 2
+          WHEN 'Insane' THEN 3
+          ELSE 4
+        END ASC,
+        "questionId" DESC
+      LIMIT 20;
+    `;
+    const rows = result.rows;
+    if (rows.length === 0) return null;
+    // Weekly rotation over the easiest tier: fresh each week, always low-effort.
+    const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+    const p = rows[week % rows.length];
+    return {
+      id: Number(p.id),
+      title: p.title,
+      subtitle: p.subtitle ?? null,
+      content: p.content,
+      difficulty: p.difficulty,
+    };
+  } catch (error) {
+    console.error("Featured problem lookup failed:", error);
+    return null;
+  }
+}
+
 export async function getUserProblemStatus(userId: string, questionId: number): Promise<boolean> {
   try {
   const result = await sql`
