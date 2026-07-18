@@ -307,3 +307,75 @@ export async function rewardBadges(username: string, questionId: number) {
 
   return newBadges;
 }
+
+// ── "Push prove" — problems that were promoted live without a proof, so a
+// later Leak proof can be attached to the ALREADY-LIVE row. Without this,
+// a promote-before-prove problem would sit unproven forever: the ingestion
+// cron only INSERTs once, and nothing else ever writes `proof` back in.
+
+export interface UnprovenLiveProblem {
+  questionId: number;
+  title: string;
+  subtitle: string | null;
+  content: string;
+  difficulty: string;
+  topic: string | null;
+  knowledge: string | null;
+}
+
+export async function getUnprovenLiveProblems(): Promise<UnprovenLiveProblem[]> {
+  const result = await sql`
+    SELECT
+      "questionId" AS id,
+      "questionTitle" AS title,
+      subtitle,
+      "questionProblem" AS content,
+      difficulty,
+      topic,
+      knowledge
+    FROM questions
+    WHERE proof IS NULL
+    ORDER BY "mintedAt" DESC NULLS LAST, "questionId" DESC;
+  `;
+  return result.rows.map((p) => ({
+    questionId: Number(p.id),
+    title: p.title,
+    subtitle: p.subtitle ?? null,
+    content: p.content,
+    difficulty: p.difficulty,
+    topic: p.topic ?? null,
+    knowledge: p.knowledge ?? null,
+  }));
+}
+
+export interface AttachProofInput {
+  title: string;
+  proof: string;
+  provedAt: string; // ISO — when the kernel actually verified it
+  certMintedAt: string; // ISO — when the certificate was signed
+  signature: string | null;
+  signatureKeyId: string | null;
+}
+
+// Matches by EXACT title (Leak never learns the CompeteMath-assigned
+// questionId at promote time — promotion is an async queue drain, not a
+// direct call — so title is the only shared key both sides have). The
+// `proof IS NULL` guard makes this idempotent and refuses to ever clobber an
+// existing proof: a retry or a stale title match is a no-op, not a corruption.
+export async function attachProofToLiveProblem(
+  input: AttachProofInput,
+): Promise<{ questionId: number } | null> {
+  const result = await sql`
+    UPDATE questions
+    SET
+      proof = ${input.proof},
+      "provedAt" = ${input.provedAt},
+      "certMintedAt" = ${input.certMintedAt},
+      signature = ${input.signature},
+      "signatureKeyId" = ${input.signatureKeyId}
+    WHERE "questionTitle" = ${input.title} AND proof IS NULL
+    RETURNING "questionId";
+  `;
+  if (result.rows.length === 0) return null;
+  return { questionId: Number(result.rows[0].questionId) };
+}
