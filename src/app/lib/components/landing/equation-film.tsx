@@ -123,7 +123,7 @@ vec3 warmTint(float h){
   return vec3(0.95, 0.42, 0.22);
 }
 
-vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain){
+vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens){
   vec2 base = floor(g + 0.5);
   float bestD = 1e9;
   vec2 bestCell = vec2(1e9);
@@ -134,7 +134,7 @@ vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain)
       bool home = isMain && cell.x == 0.0 && cell.y == 0.0;
       float h1 = hash21(cell + 3.7);
       float clump = hash21(floor(cell / 3.0) + 51.3); // clusters and voids
-      float density = 0.15 + 0.75 * clump * clump;
+      float density = (0.15 + 0.75 * clump * clump) * dens;
       bool exists = home
         || (h1 < density && !(isMain && abs(cell.x) <= 1.0 && abs(cell.y) <= 1.0));
       if (!exists) continue;
@@ -244,17 +244,18 @@ void main(){
   vec3 col = vec3(0.0);
   if (life > 0.004){
     // near layer (carries the home galaxy)
-    vec3 field = bodyField(world, t, cHome, reveal, zp, true);
+    // close range runs thinner than the deep field - the eye needs room
+    vec3 field = bodyField(world, t, cHome, reveal, zp, true, 0.75);
     // two more independent layers at incommensurate scales and parallax:
     // slow giants far behind, quick small fry drifting in front. Their
     // superposition is what finally kills any lattice feel. Universe only -
     // both retire as the dolly lands.
     float bgw = 1.0 - smoothstep(0.45, 0.85, zp);
     if (bgw > 0.004){
-      field += bodyField(world * 0.42 + vec2(7.3, 4.1), t, cHome, reveal, zp, false) * bgw * 0.5;
-      field += bodyField(world * 1.63 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false) * bgw * 0.65;
+      field += bodyField(world * 0.42 + vec2(7.3, 4.1), t, cHome, reveal, zp, false, 1.0) * bgw * 0.5;
+      field += bodyField(world * 1.63 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false, 0.7) * bgw * 0.65;
       // ultra-distant shoal: small-to-medium bodies, dim and slow
-      field += bodyField(world * 2.6 + vec2(23.1, -17.9), t, cHome, reveal, zp, false) * bgw * 0.34;
+      field += bodyField(world * 2.6 + vec2(23.1, -17.9), t, cHome, reveal, zp, false, 1.0) * bgw * 0.34;
     }
 
     // copy-protection ring: only once the close-up has landed, released by
