@@ -86,9 +86,9 @@ float hash21(vec2 p){
 }
 
 // THE equation. The whole film is this one function seen at different
-// magnifications and parameter values: a universe of its copies (ch1), one
-// copy filling the frame (ch2), its Cantor-dust regime (ch3), and its
-// evaporation (finale).
+// magnifications and parameter values: a universe of celestial bodies all
+// drawn from it (ch1), one copy filling the frame (ch2), its Cantor-dust
+// regime (ch3), and its evaporation into the final heart.
 vec3 juliaCore(vec2 z, vec2 c){
   float trap = 1e9;
   float m = 56.0;
@@ -106,6 +106,78 @@ vec3 juliaCore(vec2 z, vec2 c){
   return col;
 }
 
+// One layer of the universe: celestial bodies on a jittered lattice, every
+// one still the same equation. h3 picks the body: spiral galaxies (some
+// squashed edge-on into Milky-Way bands), dendrite supernovae, basilica
+// black holes with blazing accretion rims, bare stars, dim ellipticals.
+// allowHome pins the canonical home galaxy at cell (0,0).
+vec3 galaxyLayer(vec2 g, float t, vec2 cHome, float reveal, float zp, bool allowHome){
+  vec2 cell = floor(g + 0.5);
+  bool home = allowHome && cell.x == 0.0 && cell.y == 0.0;
+  float h1 = hash21(cell + 3.7);
+  float h2 = hash21(cell + 9.1);
+  float h3 = hash21(cell + 13.9);
+  float h4 = hash21(cell + 27.2);
+  if (!home && h1 > 0.86) return vec3(0.0); // empty sky
+  vec2 jitter = home ? vec2(0.0) : (vec2(h1, h2) - 0.5) * 0.34;
+  vec2 local = g - cell - jitter;
+  float ang = home ? 0.0 : h2 * 6.28318;
+  float ca = cos(ang), sa = sin(ang);
+  local = vec2(ca * local.x - sa * local.y, sa * local.x + ca * local.y);
+  float rr = 0.0;
+
+  if (home){
+    float gs = 0.22;
+    vec2 z = (local / gs) * (1.0 + 0.15 * reveal);
+    vec3 f = juliaCore(z, cHome);
+    rr = dot(local, local) / (gs * gs);
+    // matches its kin while far away; full canonical brightness on arrival
+    return f * mix(1.0, 0.3 + 0.7 * exp(-rr * 1.3), 1.0 - zp);
+  }
+
+  if (h3 < 0.30){
+    // spiral galaxy; roughly 1 in 4 seen edge-on as a thin luminous band
+    float gs = 0.22 * (0.5 + 0.6 * h1);
+    if (h4 > 0.75) local = vec2(local.x * 0.7, local.y * 2.8);
+    vec3 f = juliaCore(local / gs, cHome + (vec2(h1, h2) - 0.5) * 0.02);
+    rr = dot(local, local) / (gs * gs);
+    f *= 0.3 + 0.7 * exp(-rr * 1.3);
+    f *= mix(vec3(1.0, 0.8, 0.55), vec3(1.0, 0.97, 0.85), h2);
+    f += AMBER * exp(-rr * 2.2) * 0.05;
+    return f * (0.35 + 0.65 * h1);
+  } else if (h3 < 0.52){
+    // dendrite supernova - detonating filaments of the same equation
+    float gs = 0.20 * (0.45 + 0.5 * h2);
+    vec3 f = juliaCore(local / gs, vec2(0.0, 0.78 + 0.06 * (h4 - 0.5)));
+    rr = dot(local, local) / (gs * gs);
+    f *= 0.25 + 0.75 * exp(-rr * 0.9);
+    f *= vec3(1.0, 0.95, 0.8);
+    f += vec3(1.0, 0.9, 0.7) * exp(-rr * 6.0) * 0.25; // the detonating core
+    return f * (0.4 + 0.6 * h1);
+  } else if (h3 < 0.68){
+    // black hole - the basilica set, centre devoured, rim ablaze
+    float gs = 0.16 * (0.5 + 0.7 * h1);
+    vec3 f = juliaCore(local / gs, vec2(-1.0, 0.0)) * 0.35;
+    float r = length(local) / gs;
+    f *= smoothstep(0.10, 0.45, r); // nothing escapes the centre
+    f += vec3(1.0, 0.72, 0.35) * exp(-abs(r - 0.30) * 22.0) * 0.9; // accretion rim
+    f += GOLD * exp(-r * 1.6) * 0.10 * smoothstep(0.2, 0.5, r);    // haze
+    return f * (0.4 + 0.6 * h2);
+  } else if (h3 < 0.86){
+    // a bare star
+    rr = dot(local, local);
+    vec3 f = vec3(1.0, 0.95, 0.82) * exp(-rr * 2600.0 * (0.5 + h4)) * 1.2;
+    f += AMBER * exp(-rr * 300.0) * 0.10;
+    return f;
+  } else {
+    // dim elliptical - a soft far smudge
+    float gs = 0.10 * (0.5 + 0.8 * h2);
+    vec3 f = juliaCore(local / gs, cHome + vec2(0.015, -0.01));
+    rr = dot(local, local) / (gs * gs);
+    return f * exp(-rr * 1.8) * vec3(1.0, 0.85, 0.65) * 0.35;
+  }
+}
+
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
   float t = uTime;
@@ -118,17 +190,15 @@ void main(){
   float gone   = smoothstep(0.78, 0.88, P); // ...until it evaporates into black
   float life   = 1.0 - smoothstep(0.82, 0.90, P); // the field's overall presence
 
-  // ONE camera for chapters 1-2: an exponential dolly from a universe of
-  // galaxies into the hard-coded home galaxy at cell (0,0). By construction
-  // the landing frame IS chapter 2's framing - the join cannot show.
+  // ONE camera for chapters 1-2: an exponential dolly from deep space into
+  // the hard-coded home galaxy at cell (0,0). Quadratic camera convergence
+  // keeps home centred through the approach; by construction the landing
+  // frame IS chapter 2's framing - the join cannot show.
   const float S_T = 0.22;    // home galaxy scale in world units
-  const float Z0  = 0.28;    // universe view
+  const float Z0  = 0.10;    // deep space - galaxies are barely-grown points
   const float Z1  = 3.3670;  // = 1/(1.35*S_T): the close-up framing
-  float zp = smoothstep(0.02, 0.30, P);
+  float zp = smoothstep(0.06, 0.32, P);
   float zoomP = exp(mix(log(Z0), log(Z1), zp));
-  // Quadratic convergence: the camera reaches home well before the zoom
-  // finishes, so the target galaxy holds centre frame through the approach
-  // instead of hiding in a corner until the last moment.
   vec2 camC = vec2(2.3, 3.1) * (1.0 - zp) * (1.0 - zp);
   vec2 world = camC + uv / zoomP;
 
@@ -142,48 +212,22 @@ void main(){
 
   vec3 col = vec3(0.0);
   if (life > 0.004){
-    // every pixel belongs to one galaxy: the copy of the equation in its cell
-    vec2 cell = floor(world + 0.5);
-    bool home = cell.x == 0.0 && cell.y == 0.0;
-    float h1 = hash21(cell + 3.7);
-    float h2 = hash21(cell + 9.1);
-    vec3 field = vec3(0.0);
-    // ~1 in 5 cells is empty space - a sky, not wallpaper
-    if (home || h1 < 0.82){
-      vec2 jitter = home ? vec2(0.0) : (vec2(h1, h2) - 0.5) * 0.3;
-      float gs = home ? S_T : S_T * (0.55 + 0.45 * h1);
-      float ang = home ? 0.0 : h2 * 6.28318;
-      vec2 local = world - cell - jitter;
-      float ca = cos(ang), sa = sin(ang);
-      local = vec2(ca * local.x - sa * local.y, sa * local.x + ca * local.y);
-      vec2 z = (local / gs) * (1.0 + 0.15 * reveal); // slight recede during the shatter
-      vec2 cGal = home ? cHome : cHome + (vec2(h1, h2) - 0.5) * 0.02;
-      field = juliaCore(z, cGal);
-      // luminous core fading outward - a glow, not a cardboard cutout. The
-      // home galaxy keeps full brightness so the dolly lands on chapter 2's
-      // exact look (the falloff and tint retire as we arrive).
-      if (!home){
-        float rr = dot(local, local) / (gs * gs);
-        field *= 0.3 + 0.7 * exp(-rr * 1.3);
-        field *= mix(vec3(1.0, 0.8, 0.55), vec3(1.0, 0.97, 0.85), h2); // hue variety
-        field *= 0.4 + 0.6 * h1;                                       // depth variety
-        field += AMBER * exp(-rr * 2.2) * 0.05;                        // core bloom
-      } else {
-        float homeDim = 1.0 - zp; // while far away, the home galaxy matches its kin
-        float rr = dot(local, local) / (gs * gs);
-        field *= mix(1.0, (0.3 + 0.7 * exp(-rr * 1.3)), homeDim);
-      }
-    }
+    // near layer (carries the home galaxy)
+    vec3 field = galaxyLayer(world, t, cHome, reveal, zp, true);
+    // far layer: giant structures on a slower parallax, universe view only
+    float bgw = 1.0 - smoothstep(0.45, 0.85, zp);
+    if (bgw > 0.004)
+      field += galaxyLayer(world * 0.35 + vec2(7.3, 4.1), t, cHome, reveal, zp, false) * bgw * 0.55;
 
     // copy-protection ring: only once the close-up has landed, released by
     // the shatter; floored so the stage stays translucent, never a hole
     float ring = mix(0.45, 1.0, smoothstep(0.26, 0.48, length(uv * vec2(1.0, 1.3))));
-    float maskOn = smoothstep(0.30, 0.36, P);
+    float maskOn = smoothstep(0.32, 0.38, P);
     float mask = mix(1.0, max(ring, reveal), maskOn);
     col += life * (BG * 0.9 + mask * field);
 
-    // sparse star specks between the galaxies, universe view only
-    float uvw = 1.0 - smoothstep(0.24, 0.34, P);
+    // sparse star specks between the bodies, universe view only
+    float uvw = 1.0 - smoothstep(0.26, 0.36, P);
     if (uvw > 0.004){
       vec2 sp = world * 24.0;
       float sh = hash21(floor(sp));
@@ -196,8 +240,12 @@ void main(){
     }
   }
 
-  // Frame one develops out of the hero's own backdrop.
-  col = mix(HERO, col, smoothstep(0.0, 0.07, P));
+  // The dive: the hero art peels away, the camera pushes through its green
+  // backdrop, the green deepens into space, and the universe fades in
+  // already zooming - one continuous plunge from page to cosmos.
+  float dive = smoothstep(0.0, 0.10, P);
+  vec3 back = HERO * (1.0 - 0.93 * dive);
+  col = mix(back, col, smoothstep(0.06, 0.16, P));
 
   // The finale heart: near-pixel points, CPU-animated, GPU-splatted.
   if (uHeartAmt > 0.004){
@@ -244,7 +292,7 @@ type Beat = {
 // Timings are in STORY progress (post-hero).
 const BEATS: Beat[] = [
   {
-    in: 0.03, peak: 0.1, out: 0.21,
+    in: 0.07, peak: 0.14, out: 0.24,
     kicker: "// competition",
     title: (
       <>Learn through <span className="italic">Competition</span></>
@@ -252,7 +300,7 @@ const BEATS: Beat[] = [
     body: "Work through a bottomless pool of fresh problems, climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted competitions. Every solve pushes you up the ranks.",
   },
   {
-    in: 0.31, peak: 0.38, out: 0.5,
+    in: 0.33, peak: 0.4, out: 0.52,
     kicker: "// practice",
     title: (
       <>Never stay <span className="italic">stuck</span></>
@@ -475,7 +523,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     function updateHero(raw: number) {
       const a = 1 - sstep(0.02, 0.1, raw)
       hero!.style.opacity = String(a)
-      hero!.style.transform = `translateY(${(1 - a) * -6}vh) scale(${1 + (1 - a) * 0.04})`
+      hero!.style.transform = `translateY(${(1 - a) * -6}vh) scale(${1 + (1 - a) * 0.14})`
       hero!.style.pointerEvents = a > 0.5 ? "auto" : "none"
     }
 
