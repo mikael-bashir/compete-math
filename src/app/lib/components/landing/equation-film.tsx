@@ -550,7 +550,9 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     // hard (accelerating, origin up toward the sky) while holding opacity
     // until deep in the zoom, so the green fully swallows the frame before
     // space begins - a rocket departure, not a crossfade.
-    hero.style.transformOrigin = "50% 28%"
+    // Aim the launch at the DARK upper-left sky - flying into the glowing
+    // moon would land us in light, and space is on the other side of dark.
+    hero.style.transformOrigin = "24% 16%"
     function updateHero(raw: number) {
       const z = sstep(0.0, 0.115, raw)
       const a = 1 - sstep(0.055, 0.105, raw)
