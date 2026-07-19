@@ -16,8 +16,9 @@ import HeroContent from "./hero"
 //   Chapter 1 — the arena      golden ink-chaos with drifting embers
 //   Chapter 2 — the insight    a rim-lit Julia set condenses out of the ink
 //                              and FRAMES the copy (masked off the centre),
-//                              then sails off screen with the camera's rise,
-//                              arms trailing, revealing the starfield
+//                              then its parameter c is driven OUT of the
+//                              Mandelbrot set and the Fatou-Julia dichotomy
+//                              shatters it into Cantor dust -> the stars
 //   Chapter 3 — the community  a starfield with faint cell walls (voronoi)
 //   Chapter 4 — the proof      the SAME stars slide into alignment and the
 //                              SAME cell walls straighten into the lattice;
@@ -121,18 +122,19 @@ vec3 ink(vec2 p, float t){
 
 // Chapter 2 - the insight. Rim-lit Julia filigree, returned as PURE LIGHT
 // (no base) so main() can mask it into a frame around the copy. 'condense'
-// pulls it out of the ink's smoke; 'reveal' sends the whole set sailing off
-// screen (up-left, with the camera's rise), horizontally stretched so its
-// arms trail behind - a directed exit, not a fade.
+// pulls it out of the ink's smoke. 'reveal' is the exit, and the exit is a
+// theorem: c is pushed OUT of the Mandelbrot set, so by the Fatou-Julia
+// dichotomy the set stops being connected and shatters into Cantor dust,
+// thinning and evaporating as c travels further - the mathematics itself
+// performs the dissolve, no wipe, no slide, no fade.
 vec3 julia(vec2 u, float t, float drive, float condense, float reveal){
   vec2 smoke = vec2(fbm(u * 1.8 + 0.1 * t), fbm(u * 1.8 + vec2(4.7, 2.9)));
-  float zoom = mix(1.35, 1.9, reveal);
-  vec2 uu = u + reveal * reveal * vec2(2.6, -1.6); // the set sails off up-left
-  uu.x /= 1.0 + 0.45 * reveal;                     // trailing stretch - the arms leave last
-  vec2 z = (uu + (smoke - 0.5) * (1.0 - condense) * 0.9) * zoom;
+  float zoom = mix(1.35, 1.55, reveal);
+  vec2 z = (u + (smoke - 0.5) * (1.0 - condense) * 0.9) * zoom;
   vec2 c = vec2(-0.745, 0.186)
          + 0.045 * vec2(cos(0.19 * t + drive * 2.6), sin(0.15 * t + drive * 2.1))
-         * (1.0 - 0.5 * drive);
+         * (1.0 - 0.5 * drive)
+         + reveal * reveal * vec2(-0.50, 0.19); // c leaves the Mandelbrot set: lace -> Cantor dust -> gone
   float trap = 1e9;
   float m = 56.0;
   for (int i = 0; i < 56; i++){
