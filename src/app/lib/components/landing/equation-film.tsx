@@ -75,6 +75,9 @@ uniform float uLz;       // log(zoom) - CPU-eased toward the scroll target, so t
                          // camera lands like exponential decay and never snaps still
 uniform float uText;     // beat-copy visibility 0..1 - carves a quiet stage for the text
 uniform float uHeartAmt; // finale heart 0..1
+uniform float uHeartS;   // aspect-adaptive heart scale (matches the CPU points)
+uniform vec2  uMouse;    // cursor in uv space - the finale bends around it
+uniform float uMouseAmt; // 1 once the cursor has moved
 uniform vec4  uHeart[96]; // xy = point pos, z = glow, w = size scale; CPU-animated
 out vec4 outColor;
 
@@ -125,6 +128,107 @@ vec3 warmTint(float h){
   if (h < 0.70) return vec3(1.0, 0.80, 0.55);
   if (h < 0.90) return vec3(1.0, 0.62, 0.30);
   return vec3(0.95, 0.42, 0.22);
+}
+
+// The finale bloom: the heart as fractal-flame architecture. A black
+// heart-shaped void behind the trust copy, rimmed in white-gold; around
+// it, nested heart-shaped shells carry counter-rotating streams of ember
+// dashes - the multi-layered particle orbit - flaring wider below the
+// lobes like folded wings; a gold crest and a thin beam crown the notch;
+// two whisper-thin rings of sparks circle everything. All ANALYTIC: the
+// shells are level sets of the SAME parametric heart the fireflies trace,
+// so no particle buffers - each pixel finds its own shell, band and dash.
+vec2 heartPos(float th, float S){
+  float sn = sin(th);
+  return vec2(0.16 * sn * sn * sn * S,
+              0.013 * (13.0 * cos(th) - 5.0 * cos(2.0 * th) - 2.0 * cos(3.0 * th) - cos(4.0 * th)) * S + 0.03);
+}
+
+vec3 heartOrbits(vec2 p, float S, float hA, float t, vec2 m, float mAmt, out float voidM){
+  vec2 c = vec2(0.0, 0.02);
+  // the cursor bends the WHOLE structure, and lights what it bends
+  vec2 dm = p - m;
+  float md2 = dot(dm, dm);
+  p += (dm / max(length(dm), 1e-3)) * (0.05 * mAmt * exp(-md2 * 30.0));
+  float ignite = 1.0 + 2.0 * mAmt * exp(-md2 * 40.0);
+
+  vec2 pm = vec2(abs(p.x), p.y) - c; // bilateral symmetry, like the reference
+  float rp = max(length(pm), 1e-4);
+  vec2 dir = pm / rp;
+  // which point of the curve lies along this pixel's ray? (the heart is
+  // star-shaped about c, so the direction-match is unique)
+  float bestTh = 1.5708;
+  float bestDot = -2.0;
+  for (int i = 0; i < 16; i++){
+    float th = (float(i) + 0.5) * 0.19635; // pi/16 steps over the right half
+    float d = dot(dir, normalize(heartPos(th, S) - c));
+    if (d > bestDot){ bestDot = d; bestTh = th; }
+  }
+  for (int i = 0; i < 3; i++){
+    float st = 0.19635 * pow(0.5, float(i) + 1.0);
+    for (int j = 0; j < 2; j++){
+      float th2 = bestTh + (j == 0 ? -st : st);
+      float d2 = dot(dir, normalize(heartPos(th2, S) - c));
+      if (d2 > bestDot){ bestDot = d2; bestTh = th2; }
+    }
+  }
+  float R = max(length(heartPos(bestTh, S) - c), 1e-4);
+  float s = rp / R;                                    // shell coordinate: 1 = the rim
+  float arc = p.x >= 0.0 ? bestTh : 6.28318 - bestTh;  // continuous around the loop
+
+  vec3 col = vec3(0.0);
+  // the void: the interior falls to near-black - the copy's stage
+  voidM = smoothstep(1.02, 0.93, s) * smoothstep(0.15, 0.55, hA) * hA;
+
+  // the rim: crisp white-gold with a soft ember halo
+  float rd = (s - 1.0) * R;
+  float rimA = smoothstep(0.2, 0.55, hA);
+  col += vec3(1.0, 0.88, 0.58) * exp(-rd * rd * 9000.0) * 1.1 * rimA;
+  col += vec3(0.85, 0.25, 0.10) * exp(-rd * rd * 700.0) * 0.30 * rimA;
+
+  // the orbit shells: nested layers of flowing ember dashes, counter-
+  // rotating, igniting outward one by one as the heart finishes forming
+  float wing = 1.0 + 0.6 * smoothstep(0.1, -0.9, dir.y);
+  float u = (s - 1.0) / (0.115 * wing);
+  if (u > 0.45 && u < 8.0){
+    float band = floor(u);
+    float fb = fract(u);
+    float tb = clamp(band / 6.0, 0.0, 1.0);
+    float bandA = smoothstep(0.35 + tb * 0.45, 0.55 + tb * 0.45, hA);
+    if (bandA > 0.004){
+      float dirn = mod(band, 2.0) < 1.0 ? 1.0 : -1.0;
+      float ph = arc * (8.0 + band * 3.0) - t * (0.55 - 0.05 * band) * dirn
+               + hash21(vec2(band, 3.7)) * 6.28318; // decorrelate the bands
+      float g = fract(ph);
+      float hsh = hash21(vec2(band * 7.3, floor(ph)));
+      float dash = smoothstep(0.0, 0.18, g) * (1.0 - smoothstep(0.80, 1.0, g));
+      float fil = exp(-(fb - 0.5) * (fb - 0.5) * 30.0);
+      vec3 bandCol = mix(vec3(1.0, 0.72, 0.32), vec3(0.72, 0.07, 0.045), smoothstep(0.05, 0.85, tb));
+      col += bandCol * fil * dash * (0.4 + 0.6 * hsh) * exp(-tb * 1.5) * 0.85 * bandA * ignite;
+    }
+  }
+
+  // the crest: a gold flame at the notch, a thin beam rising through it
+  vec2 cp = vec2(0.0, 0.065 * S + 0.03);
+  vec2 dcp = (p - cp) * vec2(1.6, 1.0);
+  float crestA = smoothstep(0.62, 0.95, hA);
+  col += vec3(1.0, 0.80, 0.30) * exp(-dot(dcp, dcp) * 260.0) * 0.9 * crestA;
+  col += vec3(1.0, 0.92, 0.70) * exp(-p.x * p.x * 7000.0)
+       * smoothstep(-0.02, 0.06, p.y - cp.y) * 0.16 * crestA;
+
+  // two whisper-thin orbital rings, a slow procession of sparks
+  float ringA = smoothstep(0.75, 1.0, hA);
+  if (ringA > 0.004){
+    float re = length((p - c) * vec2(1.0, 1.30));
+    float ang = atan(p.y - c.y, p.x);
+    for (int i = 0; i < 2; i++){
+      float fi = float(i);
+      float Rr = (0.175 + 0.028 * fi) * S;
+      float shim = 0.6 + 0.4 * sin(ang * (14.0 + fi * 5.0) + t * (0.3 - 0.6 * fi));
+      col += vec3(1.0, 0.94, 0.82) * exp(-(re - Rr) * (re - Rr) * 26000.0) * 0.085 * shim * ringA;
+    }
+  }
+  return col * hA;
 }
 
 // The far-LOD of a universe layer: bodies smaller than ~a dozen pixels are
@@ -434,8 +538,14 @@ void main(){
   vec3 back = HERO * (1.0 - 0.93 * dive);
   col = mix(back, col, smoothstep(0.10, 0.16, P)); // the warp punches through the darkening sky
 
-  // The finale heart: near-pixel points, CPU-animated, GPU-splatted.
+  // The finale: fractal-flame heart architecture (heartOrbits) with the
+  // 96 CPU-animated fireflies tracing its rim - the void swallows what
+  // little light is left, and the copy rests inside the black heart.
   if (uHeartAmt > 0.004){
+    float voidM = 0.0;
+    vec3 orbit = heartOrbits(uv, uHeartS, uHeartAmt, t, uMouse, uMouseAmt, voidM);
+    col = mix(col, col * 0.10, voidM);
+    col += orbit;
     for (int i = 0; i < 96; i++){
       vec2 d = uv - uHeart[i].xy;
       float dd = dot(d, d);
@@ -589,6 +699,9 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     const uLz = gl.getUniformLocation(prog, "uLz")
     const uText = gl.getUniformLocation(prog, "uText")
     const uHeartAmt = gl.getUniformLocation(prog, "uHeartAmt")
+    const uHeartS = gl.getUniformLocation(prog, "uHeartS")
+    const uMouse = gl.getUniformLocation(prog, "uMouse")
+    const uMouseAmt = gl.getUniformLocation(prog, "uMouseAmt")
     const uHeart = gl.getUniformLocation(prog, "uHeart[0]")
 
     // ---- state ----
@@ -737,6 +850,10 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       if (heartAmt > 0.004) {
         animateHeart(heartAmt, tSec)
         gl!.uniform4fv(uHeart, heartData)
+        const aspect = cssW / cssH
+        gl!.uniform1f(uHeartS, 2.6 * Math.min(1, (0.5 * aspect - 0.05) / 0.46))
+        gl!.uniform2f(uMouse, (smoothMX - 0.5 * cssW) / cssH, (0.5 * cssH - smoothMY) / cssH)
+        gl!.uniform1f(uMouseAmt, mouseAmt)
       }
       gl!.drawArrays(gl!.TRIANGLES, 0, 3)
     }
