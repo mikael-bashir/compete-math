@@ -69,6 +69,8 @@ precision highp float;
 uniform vec2  uRes;
 uniform float uTime;
 uniform float uProg;     // STORY progress 0..1 (the hero segment is already removed)
+uniform float uTrav;     // warp travel distance - CPU-integrated, flows in real time
+uniform float uVel;      // warp velocity 0..1 - eased on the CPU, never snaps
 uniform float uText;     // beat-copy visibility 0..1 - carves a quiet stage for the text
 uniform float uHeartAmt; // finale heart 0..1
 uniform vec4  uHeart[96]; // xy = point pos, z = glow, w = size scale; CPU-animated
@@ -123,48 +125,63 @@ vec3 warmTint(float h){
   return vec3(0.95, 0.42, 0.22);
 }
 
-// Fast travel, the honest kind: a persistent field of real distant stars,
-// small bodies only - no local fractals in the traffic. Each star is born
-// near the vanishing point and accelerates outward on true perspective
-// (screen radius = impact parameter / depth). Its streak is the path it
-// just covered: it originates AT the body and tapers back toward where it
-// came from, so every line on screen belongs to a star you can watch
-// arrive. When the travel halts each streak collapses into its star and
-// the stars REMAIN - they are the distant population chapter 1's universe
-// assembles around, drifting gently outward with the dolly.
-vec3 flyField(vec2 uv, float trav, float speed, float persist){
+// Fast travel, rebuilt to the space-warp.o2b.dev model and aimed AT the
+// story. Every star is a persistent body on an angular lane: born far, it
+// fades in across the far half, sweeps past on true perspective (screen
+// radius = impact parameter / depth) and respawns behind. Its streak is a
+// genuine 3D capsule - the star stretched along its own path - projected:
+// round caps, thickness AND brightness falling away toward the far end,
+// because the far end IS farther away. Streak length rides on the same
+// CPU-integrated velocity that advances the travel, one source of truth,
+// and that velocity has a floor: the field never freezes, it coasts -
+// which is what carries it alive through the handoff into chapter 1.
+vec3 flyField(vec2 uv, float trav, float vel, float persist){
   float an = atan(uv.y, uv.x) / 6.28318 + 0.5;
   float r = max(length(uv), 1e-3);
   vec3 col = vec3(0.0);
-  for (int i = 0; i < 3; i++){
+  for (int i = 0; i < 4; i++){
     float fi = float(i);
-    float sectors = 60.0 + fi * 50.0;
+    float sectors = 55.0 + fi * 45.0;
+    float arck = 6.28318 / sectors; // lane width in radians
     float lp = an * sectors;
-    for (int j = -1; j <= 1; j++){
+    for (int j = -2; j <= 2; j++){
       float lane = floor(lp) + float(j);
       float li = mod(lane, sectors); // wrap the angular seam
       vec2 seed = vec2(li, fi * 9.7 + 3.1);
       float h1 = hash21(seed + 1.7);
-      if (h1 > 0.62) continue; // empty lane
+      if (h1 > 0.72) continue; // empty lane
       float h2 = hash21(seed + 7.3);
       float h3 = hash21(seed + 13.1);
       float h4 = hash21(seed + 21.9);
-      float z = fract(h2 - trav * (0.7 + 0.6 * h3)); // its depth right now
-      float b = 0.05 + 0.30 * h4 * h4;               // impact parameter
-      float head = b / max(z, 0.02);                 // the star is HERE
-      float tail = b / (z + 0.14 * speed + 1e-3);    // it was just there
+      float rate = 0.7 + 0.6 * h3;
+      float z = fract(h2 - trav * rate);        // its depth right now
+      float b = 0.05 + 0.30 * h4 * h4;          // impact parameter
+      float w = 0.0012 + 0.0035 * h4 * h4;      // world radius: most small, few grand
+      float head = b / max(z, 0.02);            // the star is HERE
+      float tail = b / (z + vel * 0.16 * rate); // its own path this instant
       float da = lp - lane - 0.5 - (h3 - 0.5) * 0.5;
-      float depthGlow = mix(0.3, 1.0, 1.0 - z) * smoothstep(0.0, 0.045, z);
-      // the body: a hot point with a soft halo, swelling as it nears
-      float pw = 0.0022 + min(0.02, 0.0045 * b / max(z, 0.05));
-      float dr = r - head;
-      float body = exp(-dr * dr / (pw * pw)) * exp(-da * da * 22.0);
-      float halo = exp(-dr * dr / (pw * pw * 90.0)) * 0.06 * exp(-da * da * 14.0);
-      // the trail: thin, brightest at the body, tapering back to its origin
-      float along = clamp((r - tail) / max(head - tail, 1e-4), 0.0, 1.0);
-      float trail = (step(tail, r) - step(head, r)) * along * along
-                  * exp(-da * da * 70.0) * min(speed * 2.2, 1.0) * 0.8;
-      col += warmTint(h4) * (body + halo + trail) * depthGlow * (0.4 + 0.6 * h1);
+      // nearest point of the swept capsule, in true projection: thickness
+      // and brightness at that point belong to ITS depth, not the head's
+      float rc = clamp(r, tail, head);
+      float zc = b / rc;
+      float pw = w / zc;
+      float dr = r - rc;
+      float arcd = da * arck * rc; // true tangential distance on screen
+      // tangential widths are capped inside the +-2-lane search window:
+      // a gaussian clipped at the window's straight edge paints dark
+      // radial spokes across the whole field
+      float wCap = arck * rc * 1.15;
+      float pt = min(pw, wCap);
+      float g = exp(-(dr * dr / (pw * pw) + arcd * arcd / (pt * pt)));
+      float lum = smoothstep(1.0, 0.5, zc)   // fades in across the far half
+                * smoothstep(0.0, 0.03, z);  // blinks out slipping past the camera
+      float dh = r - head;
+      float arch = da * arck * head;
+      float hw = pw * 5.9;
+      float ht = min(hw, arck * head * 1.15);
+      float halo = exp(-(dh * dh / (hw * hw) + arch * arch / (ht * ht))) * 0.05;
+      vec3 tint = mix(warmTint(h4), vec3(1.0, 0.97, 0.90), (1.0 - z) * 0.55);
+      col += tint * (g * (0.55 + 0.45 * h1) + halo) * lum;
     }
   }
   return col * persist;
@@ -288,11 +305,8 @@ void main(){
              + drift * vec2(-0.20, 0.08)
              + gone * vec2(-0.55, 0.22);
 
-  // The warp: full speed while the green is still clearing, decelerating
-  // into arrival - the universe resolves exactly as the streaks die.
-  float speed = smoothstep(0.09, 0.14, P) * (1.0 - smoothstep(0.17, 0.24, P));
-  float trav  = 7.0 * smoothstep(0.09, 0.24, P); // ~7 full depth passes per shell
-  float uniViz = smoothstep(0.16, 0.24, P); // arrival, tied to the deceleration
+  // Arrival: the universe's own bodies develop as the travel decelerates.
+  float uniViz = smoothstep(0.16, 0.24, P);
 
   vec3 col = vec3(0.0);
   if (life > 0.004){
@@ -341,13 +355,15 @@ void main(){
     }
   }
 
-  // The deposited star field outlives the warp: after the halt it hangs
-  // among chapter 1's arriving bodies and drifts outward with the dolly
-  // (distant parallax), yielding to the universe's own stars only slowly.
+  // ONE camera story: the warp's vanishing point is the home galaxy's own
+  // screen position - we are flying AT the destination the dolly will
+  // finish reaching. After the halt the deposited stars coast on, drift
+  // outward with the dolly (distant parallax), and yield only slowly.
   float persist = 1.0 - smoothstep(0.25, 0.35, P);
   if (persist > 0.004 && P > 0.06){
+    vec2 vpH = -camC * zoomP; // where home sits on screen right now
     float sdrift = 1.0 + 0.45 * log(zoomP / Z0);
-    col += flyField(uv / sdrift, trav, speed, persist);
+    col += flyField((uv - vpH) / sdrift, uTrav, uVel, persist);
   }
 
   // The dive: the hero art peels away, the camera pushes through its green
@@ -506,6 +522,8 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     const uRes = gl.getUniformLocation(prog, "uRes")
     const uTime = gl.getUniformLocation(prog, "uTime")
     const uProg = gl.getUniformLocation(prog, "uProg")
+    const uTrav = gl.getUniformLocation(prog, "uTrav")
+    const uVel = gl.getUniformLocation(prog, "uVel")
     const uText = gl.getUniformLocation(prog, "uText")
     const uHeartAmt = gl.getUniformLocation(prog, "uHeartAmt")
     const uHeart = gl.getUniformLocation(prog, "uHeart[0]")
@@ -614,10 +632,29 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       }
     }
 
+    // ---- the warp engine (o2b model): scroll position sets the THROTTLE,
+    // time does the travelling. Velocity eases toward the throttle and has
+    // a floor while the field is alive, so the stars never freeze - at
+    // "rest" they coast, exactly like the reference. Streak length in the
+    // shader rides on this same velocity: one source of truth.
+    let warpVel = 0
+    let warpTrav = 0
+    function warpThrottle(pStory: number): number {
+      const burst = sstep(0.09, 0.14, pStory) * (1 - sstep(0.17, 0.24, pStory))
+      const coast = pStory > 0.1 && pStory < 0.35 ? 0.012 : 0
+      return Math.max(burst, coast)
+    }
+    function warpStep(pStory: number, dt: number) {
+      warpVel += (warpThrottle(pStory) - warpVel) * Math.min(1, dt * 2.8)
+      warpTrav += dt * warpVel * 1.9
+    }
+
     function draw(pStory: number, tSec: number) {
       gl!.uniform2f(uRes, glW, glH)
       gl!.uniform1f(uTime, tSec)
       gl!.uniform1f(uProg, pStory)
+      gl!.uniform1f(uTrav, warpTrav)
+      gl!.uniform1f(uVel, warpVel)
       gl!.uniform1f(uText, textAmt)
       const heartAmt = sstep(0.84, 0.97, pStory)
       gl!.uniform1f(uHeartAmt, heartAmt)
@@ -632,10 +669,11 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     // hard (accelerating, origin up toward the sky) while holding opacity
     // until deep in the zoom, so the green fully swallows the frame before
     // space begins - a rocket departure, not a crossfade.
-    // Aim the launch deep into the dark upper-left corner sky, and zoom
-    // until the WHOLE frame is that green sky (moon and wordmark pushed
-    // fully offscreen) before any fade or dimming is allowed to start.
-    hero.style.transformOrigin = "12% 10%"
+    // Aim the launch at the upper-RIGHT sky - the art's one clean stretch
+    // of open green (the moon, its halo wisps and the pink cloudbank all
+    // live left and low) - and zoom until the WHOLE frame is that sky
+    // before any fade or dimming is allowed to start.
+    hero.style.transformOrigin = "82% 12%"
     function updateHero(raw: number) {
       const z = sstep(0.0, 0.16, raw)
       const a = 1 - sstep(0.13, 0.165, raw)
@@ -703,6 +741,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       }
     }
 
+    let lastTickAt = 0
     function tick(now: number) {
       if (disposed) return
       target = progress()
@@ -711,6 +750,9 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       const rect = driver!.getBoundingClientRect()
       const pinned = rect.top <= 0 && -rect.top < rect.height - cssH
       const pStory = story(current)
+      const dt = lastTickAt > 0 ? Math.min(0.05, (now - lastTickAt) / 1000) : 0.016
+      lastTickAt = now
+      warpStep(pStory, dt)
       smoothMX = lerp(smoothMX, mouseX, 0.1)
       smoothMY = lerp(smoothMY, mouseY, 0.1)
       updateOverlays(pStory) // before draw: textAmt feeds this frame's uText
@@ -771,6 +813,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     ;(window as unknown as { __ready?: boolean }).__ready = true
     ;(window as unknown as { __filmState?: () => object }).__filmState = () => ({
       raw: current, story: story(current), quality: QUALITY_STEPS[qualityStep], res: [glW, glH], visible,
+      warpVel, warpTrav,
     })
 
     function cleanup() {
