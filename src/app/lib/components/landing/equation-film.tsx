@@ -130,15 +130,17 @@ vec3 ink(vec2 p, float t){
 // Fatou-Julia dichotomy the lace shatters into Cantor dust - sparkling
 // ring-glows that ARE chapter 3, held and shimmering on the time orbit.
 // 'gone' pushes c far deeper so the dust evaporates into the green settle.
-vec3 julia(vec2 u, float t, float drive, float condense, float reveal, float gone){
+vec3 julia(vec2 u, float t, float drive, float condense, float reveal, float drift, float gone){
+  u.y += 0.16 * drift;                              // the camera never stops rising past the dust
   vec2 smoke = vec2(fbm(u * 1.8 + 0.1 * t), fbm(u * 1.8 + vec2(4.7, 2.9)));
-  float zoom = mix(1.35, 1.55, reveal);
+  float zoom = mix(1.35, 1.55, reveal) - 0.16 * drift; // and the dust keeps slowly swelling
   vec2 z = (u + (smoke - 0.5) * (1.0 - condense) * 0.9) * zoom;
   vec2 c = vec2(-0.745, 0.186)
          + 0.045 * vec2(cos(0.19 * t + drive * 2.6), sin(0.15 * t + drive * 2.1))
          * (1.0 - 0.5 * drive)
          + reveal * reveal * vec2(-0.50, 0.19)  // c leaves the Mandelbrot set: lace -> Cantor dust
-         + gone * vec2(-0.55, 0.22);            // ...and finally past the dust into nothing
+         + drift * vec2(-0.20, 0.08)            // ...and keeps devolving through ALL of chapter 3,
+         + gone * vec2(-0.55, 0.22);            // reaching peak dust just as the evaporation begins
   float trap = 1e9;
   float m = 56.0;
   for (int i = 0; i < 56; i++){
@@ -169,7 +171,8 @@ void main(){
   float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.82, 0.90, P));
   float condense = smoothstep(0.26, 0.42, P);
   float reveal   = smoothstep(0.44, 0.58, P); // lace shatters into the dust regime...
-  float gone     = smoothstep(0.78, 0.88, P); // ...which is HELD until it evaporates here
+  float drift    = smoothstep(0.56, 0.80, P); // ...which never sits still: c devolves all chapter
+  float gone     = smoothstep(0.78, 0.88, P); // ...until the dust evaporates into the green
 
   vec3 col = vec3(0.0);
   if (w1 > 0.004) col += w1 * ink(p, t);
@@ -179,7 +182,7 @@ void main(){
     // faintly visible through the copy - a translucent stage, never a hole.
     float ring = mix(0.45, 1.0, smoothstep(0.26, 0.48, length(uv * vec2(1.0, 1.3))));
     float mask = max(ring, reveal);
-    vec3 jc = julia(uv, t, clamp((P - 0.26) / 0.21, 0.0, 1.0), condense, reveal, gone);
+    vec3 jc = julia(uv, t, clamp((P - 0.26) / 0.21, 0.0, 1.0), condense, reveal, drift, gone);
     col += w2 * (BG * 0.9 + mask * jc);
   }
 
