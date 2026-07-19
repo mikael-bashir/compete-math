@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from "react"
+import Link from "next/link"
 import HeroContent from "./hero"
 
 // ---------------------------------------------------------------------------
@@ -19,10 +20,12 @@ import HeroContent from "./hero"
 //                              then its parameter c is driven OUT of the
 //                              Mandelbrot set and the Fatou-Julia dichotomy
 //                              shatters it into Cantor dust -> the stars
-//   Chapter 3 — the community  a starfield with faint cell walls (voronoi)
-//   Chapter 4 — the proof      the SAME stars slide into alignment and the
-//                              SAME cell walls straighten into the lattice;
-//                              a certification wave stills every twinkle
+//   Chapter 3 — the community  the Cantor-dust regime ITSELF, held: the
+//                              insight dissolved into countless sparkling
+//                              ring-glows — one insight becomes everyone's
+//   Chapter 4 — the proof      the dust evaporates into the calm green
+//                              backdrop; the trust copy closes the film with
+//                              a Start-solving call to action
 //
 // Transitions are morphs with a shared element, never crossfades. While a
 // story beat is on screen the shader dims a soft stage behind the copy
@@ -120,21 +123,22 @@ vec3 ink(vec2 p, float t){
   return col;
 }
 
-// Chapter 2 - the insight. Rim-lit Julia filigree, returned as PURE LIGHT
-// (no base) so main() can mask it into a frame around the copy. 'condense'
-// pulls it out of the ink's smoke. 'reveal' is the exit, and the exit is a
-// theorem: c is pushed OUT of the Mandelbrot set, so by the Fatou-Julia
-// dichotomy the set stops being connected and shatters into Cantor dust,
-// thinning and evaporating as c travels further - the mathematics itself
-// performs the dissolve, no wipe, no slide, no fade.
-vec3 julia(vec2 u, float t, float drive, float condense, float reveal){
+// Chapters 2 AND 3 - one function, two regimes of the same theorem.
+// Rim-lit Julia filigree, returned as PURE LIGHT (no base) so main() can
+// mask it into a frame around the copy. 'condense' pulls it out of the
+// ink's smoke. 'reveal' pushes c OUT of the Mandelbrot set: by the
+// Fatou-Julia dichotomy the lace shatters into Cantor dust - sparkling
+// ring-glows that ARE chapter 3, held and shimmering on the time orbit.
+// 'gone' pushes c far deeper so the dust evaporates into the green settle.
+vec3 julia(vec2 u, float t, float drive, float condense, float reveal, float gone){
   vec2 smoke = vec2(fbm(u * 1.8 + 0.1 * t), fbm(u * 1.8 + vec2(4.7, 2.9)));
   float zoom = mix(1.35, 1.55, reveal);
   vec2 z = (u + (smoke - 0.5) * (1.0 - condense) * 0.9) * zoom;
   vec2 c = vec2(-0.745, 0.186)
          + 0.045 * vec2(cos(0.19 * t + drive * 2.6), sin(0.15 * t + drive * 2.1))
          * (1.0 - 0.5 * drive)
-         + reveal * reveal * vec2(-0.50, 0.19); // c leaves the Mandelbrot set: lace -> Cantor dust -> gone
+         + reveal * reveal * vec2(-0.50, 0.19)  // c leaves the Mandelbrot set: lace -> Cantor dust
+         + gone * vec2(-0.55, 0.22);            // ...and finally past the dust into nothing
   float trap = 1e9;
   float m = 56.0;
   for (int i = 0; i < 56; i++){
@@ -151,38 +155,6 @@ vec3 julia(vec2 u, float t, float drive, float condense, float reveal){
   return col;
 }
 
-// Chapters 3 & 4 are ONE field, returned as pure light. 'order' slides every
-// star to its lattice position - and the voronoi cell walls STRAIGHTEN INTO
-// THE GRID on their own (the walls of aligned cells are exact rows and
-// columns). No second grid is drawn; the walls persist and become it.
-// 'cert' (from the radial certification wave) stills the twinkle and
-// whitens the light.
-vec3 stars(vec2 p, float t, float scale, float order, float cert){
-  vec2 g = p * scale;
-  vec2 i = floor(g), f = fract(g);
-  float f1 = 8.0, f2 = 8.0;
-  for (int y = -1; y <= 1; y++){
-    for (int x = -1; x <= 1; x++){
-      vec2 o = vec2(float(x), float(y));
-      vec2 hrnd = vec2(hash21(i + o), hash21(i + o + 7.7));
-      vec2 drift = 0.5 + 0.4 * sin(0.6 * t + 6.2831 * hrnd);
-      vec2 h = mix(drift, vec2(0.5), order);
-      float d = length(o + h - f);
-      if (d < f1){ f2 = f1; f1 = d; } else if (d < f2){ f2 = d; }
-    }
-  }
-  float twinkle = 0.5 + 0.5 * sin(1.4 * t + (f1 + f2) * 7.0);
-  float steady = mix(twinkle, 1.0, max(order * 0.35, cert));
-  float node = exp(-f1 * f1 * 140.0);
-  float halo = exp(-f1 * f1 * 22.0) * 0.10;
-  float ridge = exp(-abs(f2 - f1) * 30.0);
-  vec3 starCol = mix(AMBER, CERT, cert * 0.85);
-  vec3 col = vec3(0.0);
-  col += starCol * (node * (0.35 + 0.65 * steady) + halo);
-  col += GOLD * ridge * (0.14 + 0.12 * order + 0.2 * cert); // walls clarify as they straighten
-  return col;
-}
-
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
   float t = uTime;
@@ -191,48 +163,35 @@ void main(){
   // One continuous camera rise across the whole film.
   vec2 p = uv + vec2(0.0, P * 1.1);
 
-  // Strictly sequential handoff: chapter 2 owns the screen through its full
-  // dust dissolution; the starfield only enters once the dust is gone.
+  // Timeline: ink -> lace -> HELD Cantor dust (chapter 3) -> green settle.
+  // The julia field spans chapters 2 and 3; 'gone' evaporates it at the end.
   float w1 = 1.0 - smoothstep(0.22, 0.32, P);
-  float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.60, 0.66, P));
-  float w3 = smoothstep(0.66, 0.74, P);
+  float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.82, 0.90, P));
   float condense = smoothstep(0.26, 0.42, P);
-  float reveal   = smoothstep(0.44, 0.60, P); // the dissolution gets its full, unhurried window
-  float order    = smoothstep(0.78, 0.87, P);
-  float wave     = max(0.0, (P - 0.87) / 0.10) * 1.9;
-
-  float rWave = length(uv - vec2(0.0, -0.05));
-  float cert = wave <= 0.0 ? 0.0 : smoothstep(rWave, rWave + 0.4, wave);
+  float reveal   = smoothstep(0.44, 0.58, P); // lace shatters into the dust regime...
+  float gone     = smoothstep(0.78, 0.88, P); // ...which is HELD until it evaporates here
 
   vec3 col = vec3(0.0);
   if (w1 > 0.004) col += w1 * ink(p, t);
   if (w2 > 0.004){
-    // The frame mask: filigree renders only OUTSIDE the copy's ellipse, so
-    // the fireworks surround the story and can never touch it. The mask is
-    // released as 'reveal' zooms the set down to its final point of light.
-    // Floor at 0.28, never 0: the filigree stays faintly visible THROUGH the
-    // copy's ellipse - a translucent stage, not a solid hole. The carve +
-    // scrim on top keep the text readable.
-    float ring = mix(0.28, 1.0, smoothstep(0.30, 0.50, length(uv * vec2(1.0, 1.3))));
+    // The frame mask keeps the lace off the copy during chapter 2 and is
+    // released for the dust chapter. Floored well above 0 so the field stays
+    // faintly visible through the copy - a translucent stage, never a hole.
+    float ring = mix(0.45, 1.0, smoothstep(0.26, 0.48, length(uv * vec2(1.0, 1.3))));
     float mask = max(ring, reveal);
-    vec3 jc = julia(uv, t, clamp((P - 0.26) / 0.21, 0.0, 1.0), condense, reveal);
+    vec3 jc = julia(uv, t, clamp((P - 0.26) / 0.21, 0.0, 1.0), condense, reveal, gone);
     col += w2 * (BG * 0.9 + mask * jc);
-  }
-  if (w3 > 0.004){
-    vec3 s = stars(p, t, 24.0, order, cert); // one fine field - the coarse layer read as a clumsy dual grid
-    s += AMBER * exp(-abs(rWave - wave) * 4.5) * step(0.001, wave) * step(wave, 2.4) * 0.4;
-    col += w3 * (BG * 0.85 + s);
   }
 
   // Frame one develops out of the hero's own backdrop (the hero -> film join).
   col = mix(HERO, col, smoothstep(0.0, 0.07, P));
-  // And the last frame settles into the sections below (the film -> page join).
-  col = mix(col, SETTLE, smoothstep(0.94, 1.0, P));
+  // The finale IS the backdrop: the dust evaporates into the calm green the
+  // rest of the site lives on, and the closing copy + CTA land there.
+  col = mix(col, SETTLE, smoothstep(0.80, 0.90, P));
 
-  // The text stage: while a story beat is visible, dim the field behind the
-  // copy so the shader highlights the words instead of fighting them.
+  // The text stage: a gentle dim behind visible copy - subtle by design.
   float dTS = length((uv - vec2(0.0, -0.02)) * vec2(1.0, 1.4));
-  col *= 1.0 - uText * 0.4 * (1.0 - smoothstep(0.26, 0.68, dTS));
+  col *= 1.0 - uText * 0.22 * (1.0 - smoothstep(0.2, 0.72, dTS));
 
   float vig = 1.0 - 0.45 * smoothstep(0.45, 1.1, length(uv));
   col *= vig;
@@ -252,11 +211,12 @@ const CHAPTER_LABELS = ["compete", "insight", "community", "trust"] as const
 type Beat = {
   in: number
   peak: number
-  out: number
+  out: number // > 1.5 means the beat holds to the end of the film (finale)
   kicker: string
   title: React.ReactNode
   body: React.ReactNode
   lean?: string
+  cta?: boolean // render the Start-solving call to action (finale beat)
 }
 
 // The four stories — same copy as the static sections this film replaces.
@@ -287,7 +247,7 @@ const BEATS: Beat[] = [
     lean: `theorem am_gm (a b : ℝ) :\n    a * b ≤ ((a + b) / 2) ^ 2 := by\n  nlinarith [sq_nonneg (a - b)]`,
   },
   {
-    in: 0.7, peak: 0.76, out: 0.84,
+    in: 0.6, peak: 0.67, out: 0.78,
     kicker: "// community",
     title: "Grow with the Community",
     body: (
@@ -299,7 +259,7 @@ const BEATS: Beat[] = [
     ),
   },
   {
-    in: 0.86, peak: 0.9, out: 0.99,
+    in: 0.88, peak: 0.94, out: 2, cta: true,
     kicker: "// quality",
     title: (
       <>Quality you can <span className="italic">trust</span></>
@@ -445,18 +405,20 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
         let a = 0
         if (pStory >= bIn && pStory <= bOut) {
           a = pStory < bPeak ? (pStory - bIn) / Math.max(1e-4, bPeak - bIn)
+            : bOut > 1.5 ? 1 // finale: holds to the end of the film
             : 1 - (pStory - bPeak) / Math.max(1e-4, bOut - bPeak)
         }
         a = clamp01(a)
         maxA = Math.max(maxA, a)
         el.style.opacity = String(a)
         el.style.transform = `translateY(${(1 - a) * 16}px)`
+        el.style.pointerEvents = a > 0.5 ? "auto" : "none" // the finale CTA must be clickable
       }
       textAmt = maxA // the shader dims its field behind visible copy
       if (captionRef.current) {
         captionRef.current.style.opacity = String(clamp01(1 - pStory / 0.18) * clamp01(pStory / 0.02) * 0.8)
       }
-      const ch = pStory < 0.24 ? 0 : pStory < 0.63 ? 1 : pStory < 0.8 ? 2 : 3
+      const ch = pStory < 0.24 ? 0 : pStory < 0.56 ? 1 : pStory < 0.84 ? 2 : 3
       if (ch !== activeChapter) {
         activeChapter = ch
         labelRefs.current.forEach((el, i) => {
@@ -591,7 +553,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
           >
             {/* Radial scrim: guarantees legibility even where the field is
                 bright, second line of defence after the shader's own carve. */}
-            <div className="flex flex-col items-center [background:radial-gradient(ellipse_58%_48%_at_50%_50%,rgba(4,3,1,0.3),transparent_78%)] px-16 py-14 rounded-full">
+            <div className="flex flex-col items-center [background:radial-gradient(ellipse_60%_50%_at_50%_50%,rgba(4,3,1,0.18),transparent_82%)] px-16 py-14 rounded-full">
               <p className="font-code text-amber-300/70 text-xs tracking-[0.25em] uppercase mb-3">
                 {b.kicker}
               </p>
@@ -606,6 +568,24 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
                 <pre className="mt-6 font-code text-left text-[13px] leading-relaxed text-emerald-200/90 bg-black/45 border border-amber-200/10 rounded-lg px-5 py-4 whitespace-pre">
                   {b.lean}
                 </pre>
+              )}
+              {b.cta && (
+                <Link
+                  href="/home"
+                  className="
+                    mt-8 px-7 py-2 rounded-full
+                    bg-amber-50/95 text-black!
+                    font-medium tracking-widest uppercase text-xs
+                    inline-block text-center
+                    shadow-[0_0_20px_rgba(255,255,255,0.3)]
+                    transition-all duration-500 ease-out will-change-transform
+                    hover:scale-105 hover:bg-amber-50
+                    hover:shadow-[0_0_60px_rgba(255,255,255,0.7)]
+                    active:scale-95 active:duration-150
+                  "
+                >
+                  Start solving
+                </Link>
               )}
             </div>
           </div>
