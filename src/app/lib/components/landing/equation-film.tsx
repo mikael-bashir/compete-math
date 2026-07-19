@@ -191,13 +191,15 @@ void main(){
   // One continuous camera rise across the whole film.
   vec2 p = uv + vec2(0.0, P * 1.1);
 
+  // Strictly sequential handoff: chapter 2 owns the screen through its full
+  // dust dissolution; the starfield only enters once the dust is gone.
   float w1 = 1.0 - smoothstep(0.22, 0.32, P);
-  float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.56, 0.63, P)); // fades only AFTER the zoom-out lands at dot size
-  float w3 = smoothstep(0.47, 0.57, P); // arrives under the departing set - no dead black gap
+  float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.60, 0.66, P));
+  float w3 = smoothstep(0.66, 0.74, P);
   float condense = smoothstep(0.26, 0.42, P);
-  float reveal   = smoothstep(0.44, 0.58, P);
-  float order    = smoothstep(0.72, 0.82, P);
-  float wave     = max(0.0, (P - 0.80) / 0.15) * 1.9;
+  float reveal   = smoothstep(0.44, 0.60, P); // the dissolution gets its full, unhurried window
+  float order    = smoothstep(0.78, 0.87, P);
+  float wave     = max(0.0, (P - 0.87) / 0.10) * 1.9;
 
   float rWave = length(uv - vec2(0.0, -0.05));
   float cert = wave <= 0.0 ? 0.0 : smoothstep(rWave, rWave + 0.4, wave);
@@ -266,7 +268,7 @@ const BEATS: Beat[] = [
     body: "Work through a bottomless pool of fresh problems, climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted competitions. Every solve pushes you up the ranks.",
   },
   {
-    in: 0.31, peak: 0.38, out: 0.46,
+    in: 0.31, peak: 0.38, out: 0.5,
     kicker: "// practice",
     title: (
       <>Never stay <span className="italic">stuck</span></>
@@ -282,7 +284,7 @@ const BEATS: Beat[] = [
     lean: `theorem am_gm (a b : ℝ) :\n    a * b ≤ ((a + b) / 2) ^ 2 := by\n  nlinarith [sq_nonneg (a - b)]`,
   },
   {
-    in: 0.58, peak: 0.64, out: 0.78,
+    in: 0.7, peak: 0.76, out: 0.84,
     kicker: "// community",
     title: "Grow with the Community",
     body: (
@@ -294,7 +296,7 @@ const BEATS: Beat[] = [
     ),
   },
   {
-    in: 0.8, peak: 0.85, out: 0.99,
+    in: 0.86, peak: 0.9, out: 0.99,
     kicker: "// quality",
     title: (
       <>Quality you can <span className="italic">trust</span></>
@@ -451,7 +453,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       if (captionRef.current) {
         captionRef.current.style.opacity = String(clamp01(1 - pStory / 0.18) * clamp01(pStory / 0.02) * 0.8)
       }
-      const ch = pStory < 0.25 ? 0 : pStory < 0.5 ? 1 : pStory < 0.75 ? 2 : 3
+      const ch = pStory < 0.24 ? 0 : pStory < 0.63 ? 1 : pStory < 0.8 ? 2 : 3
       if (ch !== activeChapter) {
         activeChapter = ch
         labelRefs.current.forEach((el, i) => {
