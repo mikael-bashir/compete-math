@@ -123,79 +123,51 @@ vec3 warmTint(float h){
   return vec3(0.95, 0.42, 0.22);
 }
 
-// Fast travel - REAL bodies, not painted lines. Six recycling depth shells
-// fly through the camera: each shell is a sparse lattice of actual bodies
-// (the same equation, on a briefer orbit) whose screen size and radial
-// slide both come from one geometric fact, q = uv * k(z) - as a shell's
-// depth z runs down, k shrinks, so every body on it grows AND accelerates
-// outward past the frame edge, true perspective. Motion blur is a radial
-// compression of the sampling plane itself: the bodies smear along their
-// own direction of travel, and when the travel decelerates they sharpen
-// back into crisp bodies. The trav sweep is enormous relative to the
-// scroll that drives it - a wheel-notch sends whole shells streaming past.
-vec3 flyCore(vec2 z, vec2 c){
-  float trap = 1e9;
-  float m = 24.0;
-  for (int i = 0; i < 24; i++){
-    z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
-    trap = min(trap, abs(length(z) - 0.4));
-    if (dot(z, z) > 16.0){ m = float(i); break; }
-  }
-  float edge = m / 24.0;
-  return GOLD * exp(-trap * 7.0) * 0.55
-       + AMBER * pow(edge, 5.0) * 0.9
-       + vec3(0.35, 0.22, 0.08) * pow(edge, 2.0) * 0.3;
-}
-
-vec3 flyField(vec2 uv, float trav, float speed){
-  float stretch = 3.5 * speed;
-  float r = length(uv);
-  vec2 dir = uv / max(r, 1e-4);
-  // radial smear = motion blur: magnify radially, but scale the lattice by
-  // sqrt(1+stretch) so body AREA is conserved - each body elongates into a
-  // smear along its own travel without the field emptying out
-  vec2 suv = dir * (r / (1.0 + stretch));
-  float ksm = sqrt(1.0 + stretch);
+// Fast travel, the honest kind: a persistent field of real distant stars,
+// small bodies only - no local fractals in the traffic. Each star is born
+// near the vanishing point and accelerates outward on true perspective
+// (screen radius = impact parameter / depth). Its streak is the path it
+// just covered: it originates AT the body and tapers back toward where it
+// came from, so every line on screen belongs to a star you can watch
+// arrive. When the travel halts each streak collapses into its star and
+// the stars REMAIN - they are the distant population chapter 1's universe
+// assembles around, drifting gently outward with the dolly.
+vec3 flyField(vec2 uv, float trav, float speed, float persist){
+  float an = atan(uv.y, uv.x) / 6.28318 + 0.5;
+  float r = max(length(uv), 1e-3);
   vec3 col = vec3(0.0);
-  for (int i = 0; i < 8; i++){
+  for (int i = 0; i < 3; i++){
     float fi = float(i);
-    float z = fract(fi * 0.125 + fi * 0.618 - trav * (0.85 + 0.3 * hash21(vec2(fi, 4.7))));
-    // spawn far and dim, pass the camera bright, slip behind it cleanly
-    float depth = smoothstep(1.0, 0.80, z) * smoothstep(0.0, 0.07, z);
-    if (depth < 0.004) continue;
-    float k = 0.7 * pow(10.0, z) * ksm; // exponential depth->scale: perspective
-    vec2 off = vec2(hash21(vec2(fi, 1.3)), hash21(vec2(fi, 8.9))) * 19.0;
-    vec2 q = suv * k + off;
-    vec2 site = floor(q + 0.5);
-    float h1 = hash21(site + 3.7 + fi * 7.31);
-    if (h1 > 0.50) continue; // open space between passing bodies
-    vec2 pos = site + (vec2(hash21(site + 7.7 + fi), hash21(site + 15.1 + fi)) - 0.5) * 0.34;
-    vec2 local = q - pos;
-    float d2 = dot(local, local);
-    if (d2 > 0.10) continue;
-    float h2 = hash21(site + 9.1 + fi);
-    float h3 = hash21(site + 13.9 + fi);
-    float bright = depth * mix(0.25, 1.0, 1.0 - z)   // distance attenuation
-                 / (1.0 + 0.3 * stretch)             // smeared light spreads
-                 * min(speed * 2.5, 1.0);            // traffic thins as we slow
-    vec3 f;
-    if (h3 < 0.45){
-      // a passing star
-      f = vec3(1.0, 0.95, 0.82) * exp(-d2 * (900.0 + 2600.0 * h2)) * 1.9;
-    } else {
-      float angb = h2 * 6.28318;
-      float cb = cos(angb), sb = sin(angb);
-      vec2 lb = vec2(cb * local.x - sb * local.y, sb * local.x + cb * local.y);
-      float gs = 0.10 + 0.16 * h2;
-      vec2 c = h3 < 0.80
-        ? vec2(-0.745, 0.186) + (vec2(h2, h3) - 0.5) * 0.06  // spiral kin of home
-        : vec2(0.0, 0.78 + 0.05 * (h2 - 0.5));               // passing dendrite
-      f = flyCore(lb / gs, c) * (0.3 + 0.7 * exp(-d2 / (gs * gs) * 1.3));
-      f *= warmTint(hash21(site + 33.3 + fi));
+    float sectors = 60.0 + fi * 50.0;
+    float lp = an * sectors;
+    for (int j = -1; j <= 1; j++){
+      float lane = floor(lp) + float(j);
+      float li = mod(lane, sectors); // wrap the angular seam
+      vec2 seed = vec2(li, fi * 9.7 + 3.1);
+      float h1 = hash21(seed + 1.7);
+      if (h1 > 0.62) continue; // empty lane
+      float h2 = hash21(seed + 7.3);
+      float h3 = hash21(seed + 13.1);
+      float h4 = hash21(seed + 21.9);
+      float z = fract(h2 - trav * (0.7 + 0.6 * h3)); // its depth right now
+      float b = 0.05 + 0.30 * h4 * h4;               // impact parameter
+      float head = b / max(z, 0.02);                 // the star is HERE
+      float tail = b / (z + 0.14 * speed + 1e-3);    // it was just there
+      float da = lp - lane - 0.5 - (h3 - 0.5) * 0.5;
+      float depthGlow = mix(0.3, 1.0, 1.0 - z) * smoothstep(0.0, 0.045, z);
+      // the body: a hot point with a soft halo, swelling as it nears
+      float pw = 0.0022 + min(0.02, 0.0045 * b / max(z, 0.05));
+      float dr = r - head;
+      float body = exp(-dr * dr / (pw * pw)) * exp(-da * da * 22.0);
+      float halo = exp(-dr * dr / (pw * pw * 90.0)) * 0.06 * exp(-da * da * 14.0);
+      // the trail: thin, brightest at the body, tapering back to its origin
+      float along = clamp((r - tail) / max(head - tail, 1e-4), 0.0, 1.0);
+      float trail = (step(tail, r) - step(head, r)) * along * along
+                  * exp(-da * da * 70.0) * min(speed * 2.2, 1.0) * 0.8;
+      col += warmTint(h4) * (body + halo + trail) * depthGlow * (0.4 + 0.6 * h1);
     }
-    col += f * bright;
   }
-  return col * 1.05;
+  return col * persist;
 }
 
 vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens){
@@ -369,7 +341,14 @@ void main(){
     }
   }
 
-  if (speed > 0.004) col += flyField(uv, trav, speed); // real bodies whizzing past
+  // The deposited star field outlives the warp: after the halt it hangs
+  // among chapter 1's arriving bodies and drifts outward with the dolly
+  // (distant parallax), yielding to the universe's own stars only slowly.
+  float persist = 1.0 - smoothstep(0.25, 0.35, P);
+  if (persist > 0.004 && P > 0.06){
+    float sdrift = 1.0 + 0.45 * log(zoomP / Z0);
+    col += flyField(uv / sdrift, trav, speed, persist);
+  }
 
   // The dive: the hero art peels away, the camera pushes through its green
   // backdrop, the green deepens into space, and the universe fades in
