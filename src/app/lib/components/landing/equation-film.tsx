@@ -16,7 +16,8 @@ import HeroContent from "./hero"
 //   Chapter 1 — the arena      golden ink-chaos with drifting embers
 //   Chapter 2 — the insight    a rim-lit Julia set condenses out of the ink
 //                              and FRAMES the copy (masked off the centre),
-//                              then zooms away to a single point of light
+//                              then sails off screen with the camera's rise,
+//                              arms trailing, revealing the starfield
 //   Chapter 3 — the community  a starfield with faint cell walls (voronoi)
 //   Chapter 4 — the proof      the SAME stars slide into alignment and the
 //                              SAME cell walls straighten into the lattice;
@@ -120,12 +121,15 @@ vec3 ink(vec2 p, float t){
 
 // Chapter 2 - the insight. Rim-lit Julia filigree, returned as PURE LIGHT
 // (no base) so main() can mask it into a frame around the copy. 'condense'
-// pulls it out of the ink's smoke; 'reveal' zooms it out hard (to 10x) so
-// the whole set collapses into a single glowing point among the stars.
+// pulls it out of the ink's smoke; 'reveal' sends the whole set sailing off
+// screen (up-left, with the camera's rise), horizontally stretched so its
+// arms trail behind - a directed exit, not a fade.
 vec3 julia(vec2 u, float t, float drive, float condense, float reveal){
   vec2 smoke = vec2(fbm(u * 1.8 + 0.1 * t), fbm(u * 1.8 + vec2(4.7, 2.9)));
-  float zoom = mix(1.35, 18.0, reveal * reveal);
-  vec2 z = (u + (smoke - 0.5) * (1.0 - condense) * 0.9) * zoom;
+  float zoom = mix(1.35, 1.9, reveal);
+  vec2 uu = u + reveal * reveal * vec2(2.6, -1.6); // the set sails off up-left
+  uu.x /= 1.0 + 0.45 * reveal;                     // trailing stretch - the arms leave last
+  vec2 z = (uu + (smoke - 0.5) * (1.0 - condense) * 0.9) * zoom;
   vec2 c = vec2(-0.745, 0.186)
          + 0.045 * vec2(cos(0.19 * t + drive * 2.6), sin(0.15 * t + drive * 2.1))
          * (1.0 - 0.5 * drive);
@@ -187,7 +191,7 @@ void main(){
 
   float w1 = 1.0 - smoothstep(0.22, 0.32, P);
   float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.56, 0.63, P)); // fades only AFTER the zoom-out lands at dot size
-  float w3 = smoothstep(0.50, 0.60, P);
+  float w3 = smoothstep(0.47, 0.57, P); // arrives under the departing set - no dead black gap
   float condense = smoothstep(0.26, 0.42, P);
   float reveal   = smoothstep(0.44, 0.58, P);
   float order    = smoothstep(0.72, 0.82, P);
@@ -205,13 +209,10 @@ void main(){
     float ring = smoothstep(0.30, 0.50, length(uv * vec2(1.0, 1.3)));
     float mask = max(ring, reveal);
     vec3 jc = julia(uv, t, clamp((P - 0.26) / 0.21, 0.0, 1.0), condense, reveal);
-    jc += AMBER * exp(-length(uv) * 7.0) * reveal * 0.7; // the condensing point
     col += w2 * (BG * 0.9 + mask * jc);
   }
   if (w3 > 0.004){
-    float scale = mix(11.0, 13.0, smoothstep(0.50, 0.62, P));
-    vec3 s = stars(p, t, scale, order, cert);
-    s += stars(p + vec2(3.7, 1.9), t * 0.7, 27.0, order, cert) * 0.35; // distant layer
+    vec3 s = stars(p, t, 24.0, order, cert); // one fine field - the coarse layer read as a clumsy dual grid
     s += AMBER * exp(-abs(rWave - wave) * 4.5) * step(0.001, wave) * step(wave, 2.4) * 0.4;
     col += w3 * (BG * 0.85 + s);
   }
