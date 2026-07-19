@@ -1,8 +1,7 @@
 'use client';
 
-import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useRef, useState, type ComponentType } from "react";
+import HeroContent from "@/app/lib/components/landing/hero";
 
 /**
  * Device gate for the shader film. Every check errs toward the static page —
@@ -63,64 +62,10 @@ export default function HomePage() {
 
   return (
     <div className="font-serif">
-      {/* bg color = requested landing fallback; shows as the
-          suspense fallback until the (large) art paints. */}
-      <div className="relative h-screen w-full bg-[#12170d]">
-        {/* Full Screen Art */}
-        <Image
-          src={'/images/true-masterpiece-extended.png'}
-          alt="A dark sky with a bright full moon and wispy clouds"
-          fill // This prop makes the image fill its parent container
-          style={{
-            objectFit: 'cover', // This prevents the image from stretching/distorting
-          }}
-          sizes="100vw"
-          quality={100}
-          unoptimized
-          priority
-        />
-
-        {/* Overlay Content */}
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-4">
-          <h1 className="font-display text-4xl md:text-6xl font-semibold text-white tracking-tight">
-            <div className="opacity-90 pt-5 md:text-[58pt] xs:text-[36pt] text-[26pt] tracking-tight font-bold text-white">
-              Competition<span className="text-amber-300">.</span>
-            </div>
-          </h1>
-          <div className="pb-7">
-            <p className="font-code text-white/75 text-base md:text-lg">
-              <span className="text-amber-300/80">$</span> the best way to master mathematics
-            </p>
-          </div>
-
-          <Link
-            href="/home"
-            className="
-              px-7 py-2
-              rounded-full
-              bg-amber-50/95
-              text-black!
-              font-medium
-              tracking-widest uppercase text-xs
-              inline-block text-center
-              shadow-[0_0_20px_rgba(255,255,255,0.3)]
-              transition-all duration-500 ease-out
-              will-change-transform
-              hover:scale-105
-              hover:bg-amber-50
-              hover:shadow-[0_0_60px_rgba(255,255,255,0.7)]
-              active:scale-95
-              active:duration-150
-            "
-          >
-            Start solving
-          </Link>
-        </div>
-      </div>
-
-      {/* Below the hero: the live-equation scroll film on capable desktops,
-          the plain sections everywhere else (and for crawlers — this is what
-          the server renders). Same four stories either way. */}
+      {/* Film mode: the hero lives INSIDE the film's pinned stage (it is the
+          film's opening frame, dissolving into the shader on scroll), so the
+          film replaces both hero and sections. Static mode (server render,
+          phones, weak GPUs): plain hero + plain sections, unchanged. */}
       {Film ? (
         <Film
           onAbort={() => {
@@ -129,7 +74,14 @@ export default function HomePage() {
           }}
         />
       ) : (
-        <StaticStories />
+        <>
+          {/* bg color = requested landing fallback; shows as the
+              suspense fallback until the (large) art paints. */}
+          <div className="relative h-screen w-full bg-[#12170d]">
+            <HeroContent />
+          </div>
+          <StaticStories />
+        </>
       )}
     </div>
   );

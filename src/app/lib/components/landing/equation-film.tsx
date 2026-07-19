@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from "react"
+import HeroContent from "./hero"
 
 // ---------------------------------------------------------------------------
 // The equation-film: the landing page's four stories told by ONE live GLSL
@@ -8,32 +9,39 @@ import { useEffect, useRef } from "react"
 // computed on the GPU from the same equation, which is the point: on a site
 // about mathematics, the film itself is mathematics.
 //
-//   Chapter 1 — the arena      golden ink-chaos with drifting embers
-//   Chapter 2 — the insight    a rim-lit Julia set condenses OUT of the ink,
-//                              then recedes into one star among many
-//   Chapter 3 — the community  a drifting constellation (voronoi stars)
-//   Chapter 4 — the proof      the SAME stars slide into perfect alignment
-//                              and a certification wave stills their twinkle
+// The HERO LIVES INSIDE THE FILM. The stage pins from scroll 0 with the moon
+// hero rendered as its top layer; scrolling fades and lifts the hero away
+// while the ink develops on the canvas beneath it — the hero IS frame one.
 //
-// Transitions are morphs with a shared element, never crossfades. Frame one
-// develops out of the hero's backdrop colour; the last frame settles into
-// the sections below. While a story beat is on screen the shader dims a soft
-// stage behind the copy (uText) — the film highlights the words, never
-// fights them.
+//   Chapter 1 — the arena      golden ink-chaos with drifting embers
+//   Chapter 2 — the insight    a rim-lit Julia set condenses out of the ink
+//                              and FRAMES the copy (masked off the centre),
+//                              then zooms away to a single point of light
+//   Chapter 3 — the community  a starfield with faint cell walls (voronoi)
+//   Chapter 4 — the proof      the SAME stars slide into alignment and the
+//                              SAME cell walls straighten into the lattice;
+//                              a certification wave stills every twinkle
+//
+// Transitions are morphs with a shared element, never crossfades. While a
+// story beat is on screen the shader dims a soft stage behind the copy
+// (uText) and each beat carries a radial scrim — the film highlights the
+// words, never fights them.
 //
 // Mounted ONLY after the device gate in page.tsx passes (big screen, fine
 // pointer, real GPU, no reduced-motion) — phones never download this module.
 // A runtime watchdog measures frame-time p95 and steps internal resolution
 // down, aborting to the static page if the device still can't hold 60fps.
 //
-// Pinning is manual (fixed/absolute switch) — `position: sticky` silently
-// never engages inside the root layout's overflow-hidden wrapper. Programmatic
-// scrolls must use behavior:'instant' to bypass atomix's global
-// `scroll-behavior: smooth`. Both learned the hard way in the scroll-film
-// build; see PR #3.
+// Pinning is manual (fixed/absolute switch) — position:sticky silently never
+// engages inside the root layout's overflow-hidden wrapper. Programmatic
+// scrolls must use behavior:'instant' to bypass atomix's global smooth
+// scroll. GLSL comments must never contain backticks (they terminate the
+// template literal). Never loseContext() in cleanup (StrictMode remounts
+// reuse the canvas; a lost context fails every compile with empty logs).
 // ---------------------------------------------------------------------------
 
-const DRIVER_VH = 520 // total scroll distance of the film
+const DRIVER_VH = 600 // total scroll distance: hero handoff + four chapters
+const HERO_SEG = 0.1 // first fraction of the driver: hero dissolves into frame one
 const MAX_INTERNAL_WIDTH = 1600 // shader render width cap; CSS upscales — invisible for this content, huge perf win
 const QUALITY_STEPS = [1, 0.82, 0.66] // watchdog degrade ladder (internal-res multipliers)
 const P95_DEGRADE_MS = 27 // step down when p95 frame time exceeds this
@@ -49,16 +57,16 @@ const FRAG = `#version 300 es
 precision highp float;
 uniform vec2  uRes;
 uniform float uTime;
-uniform float uProg;  // film progress 0..1
-uniform float uText;  // beat-copy visibility 0..1 — carves a quiet stage for the text
+uniform float uProg;  // STORY progress 0..1 (the hero segment is already removed)
+uniform float uText;  // beat-copy visibility 0..1 - carves a quiet stage for the text
 out vec4 outColor;
 
 const vec3 BG     = vec3(0.043, 0.027, 0.012); // warm near-black
-const vec3 HERO   = vec3(0.071, 0.090, 0.051); // #12170d — the hero backdrop the film develops from
+const vec3 HERO   = vec3(0.071, 0.090, 0.051); // #12170d - the hero backdrop the film develops from
 const vec3 AMBER  = vec3(1.00, 0.78, 0.42);
 const vec3 GOLD   = vec3(0.98, 0.62, 0.19);
-const vec3 CERT   = vec3(1.00, 0.93, 0.74);    // certified starlight — calmer, whiter
-const vec3 SETTLE = vec3(0.075, 0.090, 0.051); // #13170d — the sections below
+const vec3 CERT   = vec3(1.00, 0.93, 0.74);    // certified starlight - calmer, whiter
+const vec3 SETTLE = vec3(0.075, 0.090, 0.051); // #13170d - the sections below
 
 float hash21(vec2 p){
   p = fract(p * vec2(234.34, 435.345));
@@ -85,40 +93,38 @@ float fbm(vec2 p){
   return v;
 }
 
-// Chapter 1 — the arena. Domain-warped golden ink with fine filaments and
-// sparse embers drifting upward through it: thousands of attempts, beautiful
-// chaos.
+// Chapter 1 - the arena. Domain-warped golden ink with drifting embers.
+// Embers are clamped to their cell interiors: centres near a cell edge got
+// their glow clipped square, which read as smudge artifacts.
 vec3 ink(vec2 p, float t){
+  p *= 1.35;
   vec2 q = vec2(fbm(p + 0.15 * t), fbm(p + vec2(5.2, 1.3) - 0.11 * t));
   vec2 r = vec2(fbm(p + 2.6 * q + vec2(1.7, 9.2) + 0.09 * t),
                 fbm(p + 2.6 * q + vec2(8.3, 2.8)));
   float f = fbm(p + 2.2 * r);
-  vec3 col = mix(BG, GOLD * 0.8, smoothstep(0.38, 0.95, f));
-  col = mix(col, AMBER * 0.9, smoothstep(0.6, 1.0, f * length(q)) * 0.5);
-  float fil = fbm(p * 3.1 + r * 1.5 - 0.05 * t);
-  col += GOLD * 0.22 * smoothstep(0.62, 0.9, fil) * smoothstep(0.3, 0.6, f);
-  // sparse embers advected by the same flow
-  vec2 ep = p * 7.0 + q * 1.8 + vec2(0.0, -0.45 * t);
+  vec3 col = mix(BG, GOLD * 0.8, smoothstep(0.42, 0.98, f));
+  col = mix(col, AMBER * 0.85, smoothstep(0.78, 1.0, f) * 0.35);
+  float fil = fbm(p * 2.6 + r * 1.4 - 0.05 * t);
+  col += GOLD * 0.16 * smoothstep(0.66, 0.92, fil) * smoothstep(0.35, 0.6, f);
+  vec2 ep = p * 5.0 + q * 1.6 + vec2(0.0, -0.45 * t);
   vec2 ei = floor(ep), ef = fract(ep);
   float eh = hash21(ei);
-  if (eh > 0.962){
-    vec2 ec = vec2(fract(eh * 13.7), fract(eh * 7.31));
+  if (eh > 0.955){
+    vec2 ec = vec2(0.25) + 0.5 * vec2(fract(eh * 13.7), fract(eh * 7.31));
     float ed = length(ef - ec);
-    float tw = 0.6 + 0.4 * sin(t * 2.0 + eh * 40.0);
-    col += AMBER * exp(-ed * ed * 60.0) * 0.5 * tw;
+    col += AMBER * exp(-ed * ed * 90.0) * 0.45 * (0.6 + 0.4 * sin(t * 2.0 + eh * 40.0));
   }
   return col;
 }
 
-// Chapter 2 — the insight. A Julia set as rim-lit filigree: only the
-// boundary glows, the interior stays dark, so the story copy owns the frame.
-// 'condense' pulls it out of the ink's smoke (the logical join from ch1);
-// 'reveal' zooms it away as it hands over to the constellation (the join to
-// ch3 — the insight recedes into one star among many).
-vec3 julia(vec2 p, float t, float drive, float condense, float reveal){
-  vec2 smoke = vec2(fbm(p * 1.8 + 0.1 * t), fbm(p * 1.8 + vec2(4.7, 2.9)));
-  float zoom = mix(1.5, 2.7, reveal);
-  vec2 z = (p + (smoke - 0.5) * (1.0 - condense) * 0.9) * zoom;
+// Chapter 2 - the insight. Rim-lit Julia filigree, returned as PURE LIGHT
+// (no base) so main() can mask it into a frame around the copy. 'condense'
+// pulls it out of the ink's smoke; 'reveal' zooms it out hard (to 10x) so
+// the whole set collapses into a single glowing point among the stars.
+vec3 julia(vec2 u, float t, float drive, float condense, float reveal){
+  vec2 smoke = vec2(fbm(u * 1.8 + 0.1 * t), fbm(u * 1.8 + vec2(4.7, 2.9)));
+  float zoom = mix(1.35, 10.0, reveal * reveal);
+  vec2 z = (u + (smoke - 0.5) * (1.0 - condense) * 0.9) * zoom;
   vec2 c = vec2(-0.745, 0.186)
          + 0.045 * vec2(cos(0.19 * t + drive * 2.6), sin(0.15 * t + drive * 2.1))
          * (1.0 - 0.5 * drive);
@@ -131,18 +137,19 @@ vec3 julia(vec2 p, float t, float drive, float condense, float reveal){
   }
   float edge = m / 56.0;
   float fil = exp(-trap * 9.0);
-  vec3 col = BG * 0.9;
-  col += GOLD * fil * 0.5;                        // dim filigree lace
-  col += AMBER * pow(edge, 6.0) * 0.85;           // only the finest boundary shimmer
-  col += vec3(0.35, 0.22, 0.08) * pow(edge, 2.5) * 0.3; // faint warm haze
+  vec3 col = vec3(0.0);
+  col += GOLD * fil * 0.5;
+  col += AMBER * pow(edge, 6.0) * 0.85;
+  col += vec3(0.35, 0.22, 0.08) * pow(edge, 2.5) * 0.3;
   return col;
 }
 
-// Chapters 3 & 4 are ONE field. 'order' 0 → organic community drift;
-// 1 → every node slides to its lattice position and light beams form between
-// aligned neighbours. 'cert' (per-pixel, from the radial certification wave)
-// stills the twinkle and whitens the light: uncertain shimmer becomes
-// verified, steady starlight.
+// Chapters 3 & 4 are ONE field, returned as pure light. 'order' slides every
+// star to its lattice position - and the voronoi cell walls STRAIGHTEN INTO
+// THE GRID on their own (the walls of aligned cells are exact rows and
+// columns). No second grid is drawn; the walls persist and become it.
+// 'cert' (from the radial certification wave) stills the twinkle and
+// whitens the light.
 vec3 stars(vec2 p, float t, float scale, float order, float cert){
   vec2 g = p * scale;
   vec2 i = floor(g), f = fract(g);
@@ -152,23 +159,20 @@ vec3 stars(vec2 p, float t, float scale, float order, float cert){
       vec2 o = vec2(float(x), float(y));
       vec2 hrnd = vec2(hash21(i + o), hash21(i + o + 7.7));
       vec2 drift = 0.5 + 0.4 * sin(0.6 * t + 6.2831 * hrnd);
-      vec2 h = mix(drift, vec2(0.5), order);      // the alignment IS the transition
+      vec2 h = mix(drift, vec2(0.5), order);
       float d = length(o + h - f);
       if (d < f1){ f2 = f1; f1 = d; } else if (d < f2){ f2 = d; }
     }
   }
   float twinkle = 0.5 + 0.5 * sin(1.4 * t + (f1 + f2) * 7.0);
-  float steady = mix(twinkle, 1.0, max(order * 0.35, cert)); // certified stars burn still
-  float node = exp(-f1 * f1 * 90.0);
-  float halo = exp(-f1 * f1 * 14.0) * 0.22;
-  float ridge = exp(-abs(f2 - f1) * 26.0);
-  vec2 q = abs(f - 0.5);
-  float beams = (1.0 - smoothstep(0.012, 0.05, min(q.x, q.y))) * order;
+  float steady = mix(twinkle, 1.0, max(order * 0.35, cert));
+  float node = exp(-f1 * f1 * 140.0);
+  float halo = exp(-f1 * f1 * 22.0) * 0.10;
+  float ridge = exp(-abs(f2 - f1) * 30.0);
   vec3 starCol = mix(AMBER, CERT, cert * 0.85);
-  vec3 col = BG * 0.85;
+  vec3 col = vec3(0.0);
   col += starCol * (node * (0.35 + 0.65 * steady) + halo);
-  col += GOLD * ridge * 0.22 * (1.0 - order);     // organic web fades as order rises
-  col += GOLD * beams * (0.22 + 0.3 * cert);      // beams brighten once certified
+  col += GOLD * ridge * (0.14 + 0.12 * order + 0.2 * cert); // walls clarify as they straighten
   return col;
 }
 
@@ -180,29 +184,35 @@ void main(){
   // One continuous camera rise across the whole film.
   vec2 p = uv + vec2(0.0, P * 1.1);
 
-  // Story timeline. Transitions are morphs with a shared element, not fades:
-  // ink condenses INTO the fractal; the fractal recedes INTO the field of
-  // stars; the stars ALIGN into the verified lattice.
   float w1 = 1.0 - smoothstep(0.22, 0.32, P);
-  float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.47, 0.58, P));
-  float w3 = smoothstep(0.47, 0.58, P);
+  float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.50, 0.60, P));
+  float w3 = smoothstep(0.50, 0.60, P);
   float condense = smoothstep(0.26, 0.42, P);
   float reveal   = smoothstep(0.44, 0.58, P);
   float order    = smoothstep(0.72, 0.82, P);
-  float wave     = max(0.0, (P - 0.80) / 0.15) * 1.9; // certification sweep radius
+  float wave     = max(0.0, (P - 0.80) / 0.15) * 1.9;
 
   float rWave = length(uv - vec2(0.0, -0.05));
   float cert = wave <= 0.0 ? 0.0 : smoothstep(rWave, rWave + 0.4, wave);
 
   vec3 col = vec3(0.0);
   if (w1 > 0.004) col += w1 * ink(p, t);
-  if (w2 > 0.004) col += w2 * julia(p, t, clamp((P - 0.26) / 0.21, 0.0, 1.0), condense, reveal);
+  if (w2 > 0.004){
+    // The frame mask: filigree renders only OUTSIDE the copy's ellipse, so
+    // the fireworks surround the story and can never touch it. The mask is
+    // released as 'reveal' zooms the set down to its final point of light.
+    float ring = smoothstep(0.30, 0.50, length(uv * vec2(1.0, 1.3)));
+    float mask = max(ring, reveal);
+    vec3 jc = julia(uv, t, clamp((P - 0.26) / 0.21, 0.0, 1.0), condense, reveal);
+    jc += AMBER * exp(-length(uv) * 5.0) * reveal * 0.6; // the condensing point
+    col += w2 * (BG * 0.9 + mask * jc);
+  }
   if (w3 > 0.004){
-    float scale = mix(7.0, 8.5, smoothstep(0.47, 0.6, P)); // settles as it arrives
+    float scale = mix(11.0, 13.0, smoothstep(0.50, 0.62, P));
     vec3 s = stars(p, t, scale, order, cert);
-    // the wavefront itself: a ring of amber passing through the lattice
+    s += stars(p + vec2(3.7, 1.9), t * 0.7, 27.0, order, cert) * 0.35; // distant layer
     s += AMBER * exp(-abs(rWave - wave) * 4.5) * step(0.001, wave) * step(wave, 2.4) * 0.4;
-    col += w3 * s;
+    col += w3 * (BG * 0.85 + s);
   }
 
   // Frame one develops out of the hero's own backdrop (the hero -> film join).
@@ -223,6 +233,10 @@ void main(){
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v))
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
+const sstep = (e0: number, e1: number, x: number) => {
+  const t = clamp01((x - e0) / (e1 - e0))
+  return t * t * (3 - 2 * t)
+}
 
 const CHAPTER_LABELS = ["compete", "insight", "community", "trust"] as const
 
@@ -237,6 +251,7 @@ type Beat = {
 }
 
 // The four stories — same copy as the static sections this film replaces.
+// Timings are in STORY progress (post-hero).
 const BEATS: Beat[] = [
   {
     in: 0.03, peak: 0.1, out: 0.21,
@@ -263,7 +278,7 @@ const BEATS: Beat[] = [
     lean: `theorem am_gm (a b : ℝ) :\n    a * b ≤ ((a + b) / 2) ^ 2 := by\n  nlinarith [sq_nonneg (a - b)]`,
   },
   {
-    in: 0.57, peak: 0.63, out: 0.71,
+    in: 0.6, peak: 0.66, out: 0.73,
     kicker: "// community",
     title: "Grow with the Community",
     body: (
@@ -294,6 +309,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
   const driverRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const heroRef = useRef<HTMLDivElement>(null)
   const beatRefs = useRef<Array<HTMLDivElement | null>>([])
   const captionRef = useRef<HTMLDivElement>(null)
   const labelRefs = useRef<Array<HTMLSpanElement | null>>([])
@@ -302,9 +318,9 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     const driver = driverRef.current
     const stage = stageRef.current
     const canvas = canvasRef.current
-    if (!driver || !stage || !canvas) return
+    const hero = heroRef.current
+    if (!driver || !stage || !canvas || !hero) return
 
-    // ---- WebGL setup (gate already probed WebGL2; this is the real context) ----
     const gl = canvas.getContext("webgl2", {
       alpha: false,
       antialias: false,
@@ -348,7 +364,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     // ---- state ----
     let qualityStep = 0
     let cssW = 0, cssH = 0, glW = 0, glH = 0
-    let current = 0, target = 0
+    let current = 0, target = 0 // raw driver progress (hero segment included)
     let rafId = 0
     let visible = false
     let disposed = false
@@ -357,6 +373,8 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     let immersed = false
     let activeChapter = -1
     const started = performance.now()
+
+    const story = (raw: number) => clamp01((raw - HERO_SEG) / (1 - HERO_SEG))
 
     function resize() {
       cssW = window.innerWidth
@@ -377,7 +395,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       return total <= 0 ? 0 : clamp01(-rect.top / total)
     }
 
-    // Manual pin — see file header for why this is not `position: sticky`.
+    // Manual pin — see file header for why this is not position:sticky.
     function updatePin() {
       const rect = driver!.getBoundingClientRect()
       const maxScroll = Math.max(0, rect.height - cssH)
@@ -390,15 +408,24 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       }
     }
 
-    function draw(p: number, tSec: number) {
+    function draw(pStory: number, tSec: number) {
       gl!.uniform2f(uRes, glW, glH)
       gl!.uniform1f(uTime, tSec)
-      gl!.uniform1f(uProg, p)
+      gl!.uniform1f(uProg, pStory)
       gl!.uniform1f(uText, textAmt)
       gl!.drawArrays(gl!.TRIANGLES, 0, 3)
     }
 
-    function updateOverlays(p: number) {
+    // The hero dissolves and lifts away over the first stretch of scroll,
+    // revealing the film developing beneath it — the hero IS frame one.
+    function updateHero(raw: number) {
+      const a = 1 - sstep(0.02, 0.1, raw)
+      hero!.style.opacity = String(a)
+      hero!.style.transform = `translateY(${(1 - a) * -6}vh) scale(${1 + (1 - a) * 0.04})`
+      hero!.style.pointerEvents = a > 0.5 ? "auto" : "none"
+    }
+
+    function updateOverlays(pStory: number) {
       let maxA = 0
       for (const el of beatRefs.current) {
         if (!el) continue
@@ -406,9 +433,9 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
         const bPeak = parseFloat(el.dataset.peak || "0")
         const bOut = parseFloat(el.dataset.out || "1")
         let a = 0
-        if (p >= bIn && p <= bOut) {
-          a = p < bPeak ? (p - bIn) / Math.max(1e-4, bPeak - bIn)
-            : 1 - (p - bPeak) / Math.max(1e-4, bOut - bPeak)
+        if (pStory >= bIn && pStory <= bOut) {
+          a = pStory < bPeak ? (pStory - bIn) / Math.max(1e-4, bPeak - bIn)
+            : 1 - (pStory - bPeak) / Math.max(1e-4, bOut - bPeak)
         }
         a = clamp01(a)
         maxA = Math.max(maxA, a)
@@ -417,9 +444,9 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       }
       textAmt = maxA // the shader dims its field behind visible copy
       if (captionRef.current) {
-        captionRef.current.style.opacity = String(clamp01(1 - p / 0.18) * 0.8)
+        captionRef.current.style.opacity = String(clamp01(1 - pStory / 0.18) * clamp01(pStory / 0.02) * 0.8)
       }
-      const ch = p < 0.25 ? 0 : p < 0.5 ? 1 : p < 0.75 ? 2 : 3
+      const ch = pStory < 0.25 ? 0 : pStory < 0.5 ? 1 : pStory < 0.75 ? 2 : 3
       if (ch !== activeChapter) {
         activeChapter = ch
         labelRefs.current.forEach((el, i) => {
@@ -428,8 +455,8 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       }
     }
 
-    function updateImmersion(pinned: boolean, p: number) {
-      const want = pinned && p > 0.015 && p < 0.985 && !navHover
+    function updateImmersion(pinned: boolean, pStory: number) {
+      const want = pinned && pStory > 0.01 && pStory < 0.985 && !navHover
       if (want !== immersed) {
         immersed = want
         if (want) document.body.setAttribute("data-film-immersed", "1")
@@ -465,9 +492,11 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       updatePin()
       const rect = driver!.getBoundingClientRect()
       const pinned = rect.top <= 0 && -rect.top < rect.height - cssH
-      draw(current, (now - started) / 1000)
-      updateOverlays(current)
-      updateImmersion(pinned, current)
+      const pStory = story(current)
+      updateOverlays(pStory) // before draw: textAmt feeds this frame's uText
+      draw(pStory, (now - started) / 1000)
+      updateHero(current)
+      updateImmersion(pinned, pStory)
       watchdog(now)
       rafId = requestAnimationFrame(tick)
     }
@@ -482,7 +511,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       } else if (!nowVisible && visible) {
         visible = false
         cancelAnimationFrame(rafId)
-        updateImmersion(false, current)
+        updateImmersion(false, story(current))
       }
     }, { rootMargin: "25%" })
     io.observe(driver)
@@ -494,7 +523,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     }
     window.addEventListener("mousemove", onMouse, { passive: true })
 
-    const onResize = () => { resize(); if (!visible) { updatePin(); draw(current, (performance.now() - started) / 1000) } }
+    const onResize = () => { resize(); if (!visible) { updatePin(); draw(story(current), (performance.now() - started) / 1000) } }
     window.addEventListener("resize", onResize)
 
     resize()
@@ -510,12 +539,13 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       updatePin()
     }
 
-    draw(current, 0) // warm frame — first scroll never shows an empty canvas
-    updateOverlays(current)
+    updateOverlays(story(current))
+    draw(story(current), 0) // warm frame — first scroll never shows an empty canvas
+    updateHero(current)
 
     ;(window as unknown as { __ready?: boolean }).__ready = true
     ;(window as unknown as { __filmState?: () => object }).__filmState = () => ({
-      progress: current, quality: QUALITY_STEPS[qualityStep], res: [glW, glH], visible,
+      raw: current, story: story(current), quality: QUALITY_STEPS[qualityStep], res: [glW, glH], visible,
     })
 
     function cleanup() {
@@ -527,10 +557,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       window.removeEventListener("resize", onResize)
       document.body.removeAttribute("data-film-immersed")
       delete (window as unknown as { __filmState?: unknown }).__filmState
-      // Deliberately NOT losing the GL context here: React StrictMode
-      // remounts effects on the same canvas, and a lost context poisons the
-      // remount (getContext returns the dead context; compiles fail with
-      // empty logs). The context is reclaimed with the canvas on unmount.
+      // Deliberately NOT losing the GL context here — see file header.
     }
     return cleanup
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -540,7 +567,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
   // both continue it, so hero -> film is one unbroken surface.
   return (
     <div ref={driverRef} style={{ height: `${DRIVER_VH}vh` }} className="relative bg-[#12170d]">
-      <div ref={stageRef} className="absolute top-0 left-0 right-0 h-screen w-full overflow-hidden">
+      <div ref={stageRef} className="absolute top-0 left-0 right-0 h-screen w-full overflow-hidden bg-[#12170d]">
         <canvas ref={canvasRef} className="absolute inset-0" />
 
         {BEATS.map((b, i) => (
@@ -552,28 +579,33 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
             data-out={b.out}
             className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center opacity-0 pointer-events-none"
           >
-            <p className="font-code text-amber-300/70 text-xs tracking-[0.25em] uppercase mb-3">
-              {b.kicker}
-            </p>
-            <p className="font-display text-4xl md:text-5xl font-bold text-white! [text-shadow:0_2px_24px_rgba(0,0,0,0.7)]">
-              {b.title}
-            </p>
-            <div className="mt-6 mx-auto h-px w-16 bg-linear-to-r from-transparent via-amber-300/40 to-transparent" />
-            <p className="text-lg text-gray-200 mt-6 max-w-xl mx-auto [text-shadow:0_1px_12px_rgba(0,0,0,0.8)]">
-              {b.body}
-            </p>
-            {b.lean && (
-              <pre className="mt-6 font-code text-left text-[13px] leading-relaxed text-emerald-200/90 bg-black/45 border border-amber-200/10 rounded-lg px-5 py-4 whitespace-pre">
-                {b.lean}
-              </pre>
-            )}
+            {/* Radial scrim: guarantees legibility even where the field is
+                bright, second line of defence after the shader's own carve. */}
+            <div className="flex flex-col items-center [background:radial-gradient(ellipse_55%_46%_at_50%_50%,rgba(4,3,1,0.52),transparent_72%)] px-16 py-14 rounded-full">
+              <p className="font-code text-amber-300/70 text-xs tracking-[0.25em] uppercase mb-3">
+                {b.kicker}
+              </p>
+              <p className="font-display text-4xl md:text-5xl font-bold text-white! [text-shadow:0_2px_24px_rgba(0,0,0,0.7)]">
+                {b.title}
+              </p>
+              <div className="mt-6 mx-auto h-px w-16 bg-linear-to-r from-transparent via-amber-300/40 to-transparent" />
+              <p className="text-lg text-gray-200 mt-6 max-w-xl mx-auto [text-shadow:0_1px_12px_rgba(0,0,0,0.8)]">
+                {b.body}
+              </p>
+              {b.lean && (
+                <pre className="mt-6 font-code text-left text-[13px] leading-relaxed text-emerald-200/90 bg-black/45 border border-amber-200/10 rounded-lg px-5 py-4 whitespace-pre">
+                  {b.lean}
+                </pre>
+              )}
+            </div>
           </div>
         ))}
 
-        {/* The stump, stated plainly. Fades out as chapter 1 ends. */}
+        {/* The stump, stated plainly. Appears as the hero clears, fades as
+            chapter 1 ends. */}
         <div
           ref={captionRef}
-          className="absolute bottom-6 right-6 z-10 text-right font-code text-[11px] leading-relaxed text-white/60 pointer-events-none"
+          className="absolute bottom-6 right-6 z-10 text-right font-code text-[11px] leading-relaxed text-white/60 pointer-events-none opacity-0"
         >
           <p>// no video, no images — one equation, rendered live</p>
         </div>
@@ -588,6 +620,11 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
               </span>
             </span>
           ))}
+        </div>
+
+        {/* The hero — the film's true frame one, dissolving away on scroll. */}
+        <div ref={heroRef} className="absolute inset-0 z-20 will-change-transform">
+          <HeroContent />
         </div>
       </div>
     </div>
