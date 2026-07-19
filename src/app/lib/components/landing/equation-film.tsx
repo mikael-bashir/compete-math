@@ -14,18 +14,23 @@ import HeroContent from "./hero"
 // hero rendered as its top layer; scrolling fades and lifts the hero away
 // while the ink develops on the canvas beneath it — the hero IS frame one.
 //
-//   Chapter 1 — the arena      golden ink-chaos with drifting embers
-//   Chapter 2 — the insight    a rim-lit Julia set condenses out of the ink
-//                              and FRAMES the copy (masked off the centre),
-//                              then its parameter c is driven OUT of the
-//                              Mandelbrot set and the Fatou-Julia dichotomy
-//                              shatters it into Cantor dust -> the stars
+//   Chapter 1 — the arena      a universe of galaxies, every one a copy of
+//                              the SAME Julia equation, zoomed far out
+//   Chapter 2 — the insight    one exponential camera dolly into the home
+//                              galaxy at cell (0,0) - the landing frame IS
+//                              chapter 2's framing, seamless by construction.
+//                              Then c is driven OUT of the Mandelbrot set and
+//                              the Fatou-Julia dichotomy shatters the lace
 //   Chapter 3 — the community  the Cantor-dust regime ITSELF, held: the
 //                              insight dissolved into countless sparkling
 //                              ring-glows — one insight becomes everyone's
-//   Chapter 4 — the proof      the dust evaporates into black; the trust
-//                              copy closes the film with a Start-solving
-//                              call to action
+//   Chapter 4 — the proof      the dust condenses into one last equation:
+//                              a parametric heart of glimmering points, a
+//                              black heart outlined in light around the
+//                              trust copy and the Start-solving CTA. The
+//                              film's only resting state - and the one
+//                              place it invites the cursor: points shy
+//                              away from it and ignite as it approaches
 //
 // Transitions are morphs with a shared element, never crossfades. While a
 // story beat is on screen the shader dims a soft stage behind the copy
@@ -63,82 +68,32 @@ const FRAG = `#version 300 es
 precision highp float;
 uniform vec2  uRes;
 uniform float uTime;
-uniform float uProg;  // STORY progress 0..1 (the hero segment is already removed)
-uniform float uText;  // beat-copy visibility 0..1 - carves a quiet stage for the text
+uniform float uProg;     // STORY progress 0..1 (the hero segment is already removed)
+uniform float uTrav;     // warp travel distance - CPU-integrated, flows in real time
+uniform float uVel;      // warp velocity 0..1 - eased on the CPU, never snaps
+uniform float uLz;       // log(zoom) - CPU-eased toward the scroll target, so the
+                         // camera lands like exponential decay and never snaps still
+uniform float uText;     // beat-copy visibility 0..1 - carves a quiet stage for the text
+uniform float uHeartAmt; // finale heart 0..1
+uniform vec4  uHeart[96]; // xy = point pos, z = glow, w = size scale; CPU-animated
 out vec4 outColor;
 
-const vec3 BG     = vec3(0.043, 0.027, 0.012); // warm near-black
-const vec3 HERO   = vec3(0.071, 0.090, 0.051); // #12170d - the hero backdrop the film develops from
-const vec3 AMBER  = vec3(1.00, 0.78, 0.42);
-const vec3 GOLD   = vec3(0.98, 0.62, 0.19);
+const vec3 BG    = vec3(0.043, 0.027, 0.012); // warm near-black
+const vec3 HERO  = vec3(0.071, 0.090, 0.051); // #12170d - the hero backdrop
+const vec3 AMBER = vec3(1.00, 0.78, 0.42);
+const vec3 GOLD  = vec3(0.98, 0.62, 0.19);
 
 float hash21(vec2 p){
   p = fract(p * vec2(234.34, 435.345));
   p += dot(p, p + 34.23);
   return fract(p.x * p.y);
 }
-float vnoise(vec2 p){
-  vec2 i = floor(p), f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  float a = hash21(i);
-  float b = hash21(i + vec2(1.0, 0.0));
-  float c = hash21(i + vec2(0.0, 1.0));
-  float d = hash21(i + vec2(1.0, 1.0));
-  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
-float fbm(vec2 p){
-  float v = 0.0, a = 0.5;
-  mat2 rot = mat2(0.8, -0.6, 0.6, 0.8);
-  for (int i = 0; i < 5; i++){
-    v += a * vnoise(p);
-    p = rot * p * 2.03;
-    a *= 0.5;
-  }
-  return v;
-}
 
-// Chapter 1 - the arena. Domain-warped golden ink with drifting embers.
-// Embers are clamped to their cell interiors: centres near a cell edge got
-// their glow clipped square, which read as smudge artifacts.
-vec3 ink(vec2 p, float t){
-  p *= 1.35;
-  vec2 q = vec2(fbm(p + 0.15 * t), fbm(p + vec2(5.2, 1.3) - 0.11 * t));
-  vec2 r = vec2(fbm(p + 2.6 * q + vec2(1.7, 9.2) + 0.09 * t),
-                fbm(p + 2.6 * q + vec2(8.3, 2.8)));
-  float f = fbm(p + 2.2 * r);
-  vec3 col = mix(BG, GOLD * 0.8, smoothstep(0.42, 0.98, f));
-  col = mix(col, AMBER * 0.85, smoothstep(0.78, 1.0, f) * 0.35);
-  float fil = fbm(p * 2.6 + r * 1.4 - 0.05 * t);
-  col += GOLD * 0.16 * smoothstep(0.66, 0.92, fil) * smoothstep(0.35, 0.6, f);
-  vec2 ep = p * 5.0 + q * 1.6 + vec2(0.0, -0.45 * t);
-  vec2 ei = floor(ep), ef = fract(ep);
-  float eh = hash21(ei);
-  if (eh > 0.955){
-    vec2 ec = vec2(0.25) + 0.5 * vec2(fract(eh * 13.7), fract(eh * 7.31));
-    float ed = length(ef - ec);
-    col += AMBER * exp(-ed * ed * 90.0) * 0.45 * (0.6 + 0.4 * sin(t * 2.0 + eh * 40.0));
-  }
-  return col;
-}
-
-// Chapters 2 AND 3 - one function, two regimes of the same theorem.
-// Rim-lit Julia filigree, returned as PURE LIGHT (no base) so main() can
-// mask it into a frame around the copy. 'condense' pulls it out of the
-// ink's smoke. 'reveal' pushes c OUT of the Mandelbrot set: by the
-// Fatou-Julia dichotomy the lace shatters into Cantor dust - sparkling
-// ring-glows that ARE chapter 3, held and shimmering on the time orbit.
-// 'gone' pushes c far deeper so the dust evaporates into black.
-vec3 julia(vec2 u, float t, float drive, float condense, float reveal, float drift, float gone){
-  u.y += 0.16 * drift;                              // the camera never stops rising past the dust
-  vec2 smoke = vec2(fbm(u * 1.8 + 0.1 * t), fbm(u * 1.8 + vec2(4.7, 2.9)));
-  float zoom = mix(1.35, 1.55, reveal) - 0.16 * drift; // and the dust keeps slowly swelling
-  vec2 z = (u + (smoke - 0.5) * (1.0 - condense) * 0.9) * zoom;
-  vec2 c = vec2(-0.745, 0.186)
-         + 0.045 * vec2(cos(0.19 * t + drive * 2.6), sin(0.15 * t + drive * 2.1))
-         * (1.0 - 0.5 * drive)
-         + reveal * reveal * vec2(-0.50, 0.19)  // c leaves the Mandelbrot set: lace -> Cantor dust
-         + drift * vec2(-0.20, 0.08)            // ...and keeps devolving through ALL of chapter 3,
-         + gone * vec2(-0.55, 0.22);            // reaching peak dust just as the evaporation begins
+// THE equation. The whole film is this one function seen at different
+// magnifications and parameter values: a universe of celestial bodies all
+// drawn from it (ch1), one copy filling the frame (ch2), its Cantor-dust
+// regime (ch3), and its evaporation into the final heart.
+vec3 juliaCore(vec2 z, vec2 c){
   float trap = 1e9;
   float m = 56.0;
   for (int i = 0; i < 56; i++){
@@ -155,40 +110,340 @@ vec3 julia(vec2 u, float t, float drive, float condense, float reveal, float dri
   return col;
 }
 
+// One layer of the universe. No grid: each lattice site MAY hold a body
+// (clumpy density - clusters and voids), and bodies wander more than half a
+// cell from their site. Every pixel searches its 3x3 neighbourhood for the
+// nearest body and evaluates only that one - bodies never collide (same-
+// layer spacing stays above their extents) yet the layout reads as thrown,
+// not placed. Body types are all the same equation: spiral galaxies (some
+// edge-on Milky-Way bands), dendrite supernovae, basilica black holes with
+// blazing rims, bare stars, dim ellipticals. isMain pins the canonical home
+// galaxy at (0,0) and clears its neighbourhood for a clean final approach.
+// The warm spectrum: gold, amber, orange, ember red - hashed per body.
+vec3 warmTint(float h){
+  if (h < 0.40) return vec3(1.0, 0.95, 0.80);
+  if (h < 0.70) return vec3(1.0, 0.80, 0.55);
+  if (h < 0.90) return vec3(1.0, 0.62, 0.30);
+  return vec3(0.95, 0.42, 0.22);
+}
+
+// The far-LOD of a universe layer: bodies smaller than ~a dozen pixels are
+// warm gaussian dots - same existence, position and tint hashes as
+// bodyField, so every dust grain GROWS INTO exactly the body it already
+// was. No rotation, no type branches, no escape loop: at dust scale the
+// full equation is sub-pixel anyway, and skipping it kills the warp
+// divergence that made the deep field expensive (neighbouring pixels land
+// in different cells, so every branch serializes on the GPU).
+vec3 dustField(vec2 g, bool isMain, float dens){
+  vec2 base = floor(g + 0.5);
+  bool home = isMain && base.x == 0.0 && base.y == 0.0;
+  float h1 = hash21(base + 3.7);
+  float clump = hash21(floor(base / 3.0) + 51.3);
+  float density = (0.15 + 0.75 * clump * clump) * dens;
+  bool exists = home
+    || (h1 < density && !(isMain && abs(base.x) <= 1.0 && abs(base.y) <= 1.0));
+  if (!exists) return vec3(0.0);
+  vec2 pos = home
+    ? base
+    : base + (vec2(hash21(base + 7.7), hash21(base + 15.1)) - 0.5) * 0.56;
+  vec2 d = g - pos;
+  float gs = home ? 0.22 : 0.10 + 0.10 * h1;
+  float rr = dot(d, d) / (gs * gs);
+  vec3 tint = home ? vec3(1.0, 0.90, 0.65) : warmTint(hash21(base + 33.3));
+  return tint * exp(-rr * 1.8) * (home ? 0.9 : 0.35 + 0.65 * h1);
+}
+
+// One universe layer at whatever LOD its on-screen cell size has earned:
+// nothing below 2.5px, gaussian dust to ~11px, the full equation from
+// ~17px, a short crossfade between. cellPx is uniform across the frame,
+// so these branches cost nothing in divergence.
+vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens);
+vec3 layerField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens, float cellPx){
+  float onA = smoothstep(2.5, 6.0, cellPx);
+  if (onA < 0.004) return vec3(0.0);
+  float toB = smoothstep(11.0, 17.0, cellPx);
+  vec3 c = vec3(0.0);
+  if (toB < 0.996) c += dustField(g, isMain, dens) * onA * (1.0 - toB);
+  if (toB > 0.004) c += bodyField(g, t, cHome, reveal, zp, isMain, dens) * toB;
+  return c;
+}
+
+// Fast travel, rebuilt to the space-warp.o2b.dev model and aimed AT the
+// story. Every star is a persistent body on an angular lane: born far, it
+// fades in across the far half, sweeps past on true perspective (screen
+// radius = impact parameter / depth) and respawns behind. Its streak is a
+// genuine 3D capsule - the star stretched along its own path - projected:
+// round caps, thickness AND brightness falling away toward the far end,
+// because the far end IS farther away. Streak length rides on the same
+// CPU-integrated velocity that advances the travel, one source of truth,
+// and that velocity has a floor: the field never freezes, it coasts -
+// which is what carries it alive through the handoff into chapter 1.
+vec3 flyField(vec2 uv, float trav, float vel, float persist){
+  float an = atan(uv.y, uv.x) / 6.28318 + 0.5;
+  float r = max(length(uv), 1e-3);
+  vec3 col = vec3(0.0);
+  for (int i = 0; i < 4; i++){
+    float fi = float(i);
+    float sectors = 55.0 + fi * 45.0;
+    float arck = 6.28318 / sectors; // lane width in radians
+    float lp = an * sectors;
+    for (int j = -2; j <= 2; j++){
+      float lane = floor(lp) + float(j);
+      float li = mod(lane, sectors); // wrap the angular seam
+      vec2 seed = vec2(li, fi * 9.7 + 3.1);
+      float h1 = hash21(seed + 1.7);
+      if (h1 > 0.72) continue; // empty lane
+      float h2 = hash21(seed + 7.3);
+      float h3 = hash21(seed + 13.1);
+      float h4 = hash21(seed + 21.9);
+      float rate = 0.7 + 0.6 * h3;
+      float z = fract(h2 - trav * rate);        // its depth right now
+      float b = 0.05 + 0.30 * h4 * h4;          // impact parameter
+      float w = 0.00013 + 0.00037 * h4 * h4;    // world radius: pinpricks of light
+      float head = b / max(z, 0.02);            // the star is HERE
+      float tail = b / (z + vel * 0.16 * rate); // its own path this instant
+      float da = lp - lane - 0.5 - (h3 - 0.5) * 0.5;
+      // nearest point of the swept capsule, in true projection: thickness
+      // and brightness at that point belong to ITS depth, not the head's
+      float rc = clamp(r, tail, head);
+      float zc = b / rc;
+      // near passes swell but never balloon; the floor keeps the finest
+      // grains one drawable pixel instead of aliasing out of existence
+      float pw = clamp(w / zc, 0.7 / uRes.y, 0.0023);
+      float dr = r - rc;
+      float arcd = da * arck * rc; // true tangential distance on screen
+      // tangential widths are capped inside the +-2-lane search window:
+      // a gaussian clipped at the window's straight edge paints dark
+      // radial spokes across the whole field
+      float wCap = arck * rc * 1.15;
+      float pt = min(pw, wCap);
+      float g = exp(-(dr * dr / (pw * pw) + arcd * arcd / (pt * pt)));
+      float lum = smoothstep(1.0, 0.5, zc)   // fades in across the far half
+                * smoothstep(0.0, 0.03, z);  // blinks out slipping past the camera
+      float dh = r - head;
+      float arch = da * arck * head;
+      float hw = pw * 5.9;
+      float ht = min(hw, arck * head * 1.15);
+      float halo = exp(-(dh * dh / (hw * hw) + arch * arch / (ht * ht))) * 0.05;
+      vec3 tint = mix(warmTint(h4), vec3(1.0, 0.97, 0.90), (1.0 - z) * 0.55);
+      col += tint * (g * (0.55 + 0.45 * h1) + halo) * lum;
+    }
+  }
+  return col * persist;
+}
+
+vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens){
+  vec2 base = floor(g + 0.5);
+  float bestD = 1e9;
+  vec2 bestCell = vec2(1e9);
+  vec2 bestPos = vec2(0.0);
+  for (int oy = -1; oy <= 1; oy++){
+    for (int ox = -1; ox <= 1; ox++){
+      vec2 cell = base + vec2(float(ox), float(oy));
+      bool home = isMain && cell.x == 0.0 && cell.y == 0.0;
+      float h1 = hash21(cell + 3.7);
+      float clump = hash21(floor(cell / 3.0) + 51.3); // clusters and voids
+      float density = (0.15 + 0.75 * clump * clump) * dens;
+      bool exists = home
+        || (h1 < density && !(isMain && abs(cell.x) <= 1.0 && abs(cell.y) <= 1.0));
+      if (!exists) continue;
+      vec2 pos = home
+        ? cell
+        : cell + (vec2(hash21(cell + 7.7), hash21(cell + 15.1)) - 0.5) * 0.56;
+      float d = length(g - pos);
+      if (d < bestD){ bestD = d; bestCell = cell; bestPos = pos; }
+    }
+  }
+  if (bestD > 0.55) return vec3(0.0); // open space
+
+  bool home = isMain && bestCell.x == 0.0 && bestCell.y == 0.0;
+  float h1 = hash21(bestCell + 3.7);
+  float h2 = hash21(bestCell + 9.1);
+  float h3 = hash21(bestCell + 13.9);
+  float h4 = hash21(bestCell + 27.2);
+  vec2 local = g - bestPos;
+  float ang = home ? 0.0 : h2 * 6.28318;
+  float ca = cos(ang), sa = sin(ang);
+  local = vec2(ca * local.x - sa * local.y, sa * local.x + ca * local.y);
+  float rr = 0.0;
+
+  if (home){
+    float gs = 0.22;
+    vec2 z = (local / gs) * (1.0 + 0.15 * reveal);
+    vec3 f = juliaCore(z, cHome);
+    rr = dot(local, local) / (gs * gs);
+    return f * mix(1.0, 0.3 + 0.7 * exp(-rr * 1.3), 1.0 - zp);
+  }
+
+  if (h3 < 0.30){
+    // spiral galaxy; roughly 1 in 4 seen edge-on as a thin luminous band
+    float gs = 0.20 * (0.45 + 0.7 * h1);
+    if (h4 > 0.75) local = vec2(local.x * 0.7, local.y * 2.8);
+    vec3 f = juliaCore(local / gs, cHome + (vec2(h1, h2) - 0.5) * 0.02);
+    rr = dot(local, local) / (gs * gs);
+    f *= 0.3 + 0.7 * exp(-rr * 1.3);
+    f *= warmTint(hash21(bestCell + 33.3));
+    f += AMBER * exp(-rr * 2.2) * 0.05;
+    return f * (0.35 + 0.65 * h1);
+  } else if (h3 < 0.52){
+    // dendrite supernova - detonating filaments of the same equation
+    float gs = 0.18 * (0.4 + 0.6 * h2);
+    vec3 f = juliaCore(local / gs, vec2(0.0, 0.78 + 0.06 * (h4 - 0.5)));
+    rr = dot(local, local) / (gs * gs);
+    f *= 0.25 + 0.75 * exp(-rr * 0.9);
+    f *= vec3(1.0, 0.95, 0.8);
+    f += vec3(1.0, 0.9, 0.7) * exp(-rr * 6.0) * 0.25;
+    return f * (0.4 + 0.6 * h1);
+  } else if (h3 < 0.68){
+    // black hole - the basilica set, centre devoured, rim ablaze
+    float gs = 0.15 * (0.45 + 0.75 * h1);
+    vec3 f = juliaCore(local / gs, vec2(-1.0, 0.0)) * 0.35;
+    float r = length(local) / gs;
+    f *= smoothstep(0.10, 0.45, r);
+    f += vec3(1.0, 0.72, 0.35) * exp(-abs(r - 0.30) * 22.0) * 0.9;
+    f += GOLD * exp(-r * 1.6) * 0.10 * smoothstep(0.2, 0.5, r);
+    return f * (0.4 + 0.6 * h2);
+  } else if (h3 < 0.86){
+    // a bare star
+    rr = dot(local, local);
+    vec3 f = vec3(1.0, 0.95, 0.82) * exp(-rr * 2600.0 * (0.5 + h4)) * 1.2;
+    f += AMBER * exp(-rr * 300.0) * 0.10;
+    return f;
+  } else {
+    // dim elliptical - a soft far smudge
+    float gs = 0.09 * (0.45 + 0.9 * h2);
+    vec3 f = juliaCore(local / gs, cHome + vec2(0.015, -0.01));
+    rr = dot(local, local) / (gs * gs);
+    return f * exp(-rr * 1.8) * warmTint(hash21(bestCell + 41.1)) * 0.35;
+  }
+}
+
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
   float t = uTime;
   float P = uProg;
 
-  // One continuous camera rise across the whole film.
-  vec2 p = uv + vec2(0.0, P * 1.1);
+  // Story parameters - the one c's journey through the theorem.
+  float drive  = clamp((P - 0.32) / 0.20, 0.0, 1.0);
+  float reveal = smoothstep(0.50, 0.62, P); // lace shatters into the dust regime...
+  float drift  = smoothstep(0.61, 0.82, P); // ...which never sits still...
+  float gone   = smoothstep(0.81, 0.89, P); // ...until it evaporates into black
+  float life   = 1.0 - smoothstep(0.84, 0.91, P); // the field's overall presence
 
-  // Timeline: ink -> lace -> HELD Cantor dust (chapter 3) -> black finale.
-  // The julia field spans chapters 2 and 3; 'gone' evaporates it at the end.
-  float w1 = 1.0 - smoothstep(0.22, 0.32, P);
-  float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.82, 0.90, P));
-  float condense = smoothstep(0.26, 0.42, P);
-  float reveal   = smoothstep(0.44, 0.58, P); // lace shatters into the dust regime...
-  float drift    = smoothstep(0.56, 0.80, P); // ...which never sits still: c devolves all chapter
-  float gone     = smoothstep(0.78, 0.88, P); // ...until the dust evaporates into black
+  // ONE camera for the whole approach: warp tunnel, arrival and dolly all
+  // share a single CENTRED axis - the home galaxy at cell (0,0) sits dead
+  // centre from the universe's first frame to the close-up. The camera
+  // NEVER stands still: a slow 12x approach begins the moment the
+  // universe starts entering (it resolves while already nearing, and the
+  // long quiet glide is what sells the vastness), then the dive covers
+  // the remaining 140x. By construction the landing frame IS chapter 2's
+  // framing - the join cannot show.
+  const float S_T = 0.22;    // home galaxy scale in world units
+  const float Z0  = 0.002;   // TRUE deep space - 50x farther than any body
+                             // resolves; the universe is born as dust
+  const float Z1  = 3.3670;  // = 1/(1.35*S_T): the close-up framing
+  // The zoom curve (approach 0.17-0.32, dive 0.32-0.42) lives on the CPU,
+  // where it is EASED toward, not scrubbed: uLz already carries the
+  // exponential-decay landing.
+  float lz = uLz;
+  float zp = (lz - log(Z0)) / (log(Z1) - log(Z0)); // normalized dolly progress
+  float zoomP = exp(lz);
+  vec2 world = uv / zoomP;
+
+  // The home galaxy's c: the base orbit plus the whole dissolution journey.
+  vec2 cHome = vec2(-0.745, 0.186)
+             + 0.045 * vec2(cos(0.19 * t + drive * 2.6), sin(0.15 * t + drive * 2.1))
+             * (1.0 - 0.5 * drive)
+             + reveal * reveal * vec2(-0.50, 0.19)
+             + drift * vec2(-0.20, 0.08)
+             + gone * vec2(-0.55, 0.22);
+
+  // Arrival: the universe's own bodies develop as the travel decelerates.
+  float uniViz = smoothstep(0.16, 0.24, P);
 
   vec3 col = vec3(0.0);
-  if (w1 > 0.004) col += w1 * ink(p, t);
-  if (w2 > 0.004){
-    // The frame mask keeps the lace off the copy during chapter 2 and is
-    // released for the dust chapter. Floored well above 0 so the field stays
-    // faintly visible through the copy - a translucent stage, never a hole.
+  if (life > 0.004){
+    // Honest LOD for the 1700x total zoom: pixels per world unit. Each
+    // layer renders at whatever detail its on-screen cell size has earned
+    // (nothing -> gaussian dust -> the full equation) - from this deep a
+    // departure the universe is born as single-pixel dust among the
+    // deposited traffic, and the dolly grows it into galaxies. Nothing
+    // ever fades in as an already-formed shape.
+    float lodK = zoomP * uRes.y;
+    // near layer (carries the home galaxy)
+    // close range runs thinner than the deep field - the eye needs room
+    vec3 field = layerField(world, t, cHome, reveal, zp, true, 0.75, lodK) * uniViz;
+    // two more independent layers at incommensurate scales and parallax:
+    // slow giants far behind, quick small fry drifting in front. Their
+    // superposition is what finally kills any lattice feel. Universe only -
+    // both retire as the dolly lands.
+    float bgw = 1.0 - smoothstep(0.45, 0.85, zp);
+    if (bgw > 0.004){
+      field += layerField(world * 0.42 + vec2(7.3, 4.1), t, cHome, reveal, zp, false, 1.0, lodK / 0.42) * bgw * 0.5 * uniViz;
+      field += layerField(world * 1.63 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false, 0.7, lodK / 1.63) * bgw * 0.65 * uniViz;
+      // ultra-distant shoal: small-to-medium bodies, dim and slow
+      field += layerField(world * 2.6 + vec2(23.1, -17.9), t, cHome, reveal, zp, false, 1.0, lodK / 2.6) * bgw * 0.34 * uniViz;
+    }
+
+    // copy-protection ring: only once the close-up has landed, released by
+    // the shatter; floored so the stage stays translucent, never a hole
     float ring = mix(0.45, 1.0, smoothstep(0.26, 0.48, length(uv * vec2(1.0, 1.3))));
-    float mask = max(ring, reveal);
-    vec3 jc = julia(uv, t, clamp((P - 0.26) / 0.21, 0.0, 1.0), condense, reveal, drift, gone);
-    col += w2 * (BG * 0.9 + mask * jc);
+    float maskOn = smoothstep(0.42, 0.48, P);
+    float mask = mix(1.0, max(ring, reveal), maskOn);
+    col += life * (BG * 0.9 + mask * field);
+
+    // sparse star specks between the bodies, universe view only - LOD-gated
+    // like everything else so they resolve instead of fading in
+    float uvw = 1.0 - smoothstep(0.32, 0.42, P);
+    if (uvw > 0.004){
+      vec2 sp = world * 24.0;
+      float sh = hash21(floor(sp));
+      if (sh > 0.98){
+        vec2 sc = vec2(0.2) + 0.6 * vec2(fract(sh * 13.7), fract(sh * 7.31));
+        vec2 sd = fract(sp) - sc;
+        col += warmTint(fract(sh * 9.7)) * exp(-dot(sd, sd) * 90.0) * 0.35 * uvw
+             * smoothstep(2.5, 9.0, lodK / 24.0)
+             * (0.6 + 0.4 * sin(t * 1.5 + sh * 40.0));
+      }
+      // ultra-distant glimmer: a finer, denser dust of barely-there dots
+      vec2 sp2 = world * 57.0 + 31.7;
+      float sh2 = hash21(floor(sp2));
+      if (sh2 > 0.972){
+        vec2 sc2 = vec2(0.25) + 0.5 * vec2(fract(sh2 * 17.3), fract(sh2 * 5.9));
+        vec2 sd2 = fract(sp2) - sc2;
+        col += warmTint(fract(sh2 * 6.3)) * exp(-dot(sd2, sd2) * 160.0) * 0.16 * uvw * uniViz
+             * smoothstep(2.5, 9.0, lodK / 57.0)
+             * (0.5 + 0.5 * sin(t * 2.3 + sh2 * 60.0));
+      }
+    }
   }
 
-  // Frame one develops out of the hero's own backdrop (the hero -> film join).
-  col = mix(HERO, col, smoothstep(0.0, 0.07, P));
-  // No settle colour: once the dust evaporates the film simply ends on
-  // black, and the closing copy + CTA land there. (The footer below is
-  // near-black too, so the hand-off stays seamless.)
+  // The deposited stars BELONG to the universe: from the halt onward they
+  // are world-locked - they ride exactly the same zoom as every galaxy,
+  // so the traffic that flew past IS the starfield chapter 1 opens on,
+  // and the dolly carries it out of frame like everything else it passes.
+  float persist = 1.0 - smoothstep(0.30, 0.40, P);
+  if (persist > 0.004 && P > 0.06){
+    col += flyField(uv * (Z0 / zoomP), uTrav, uVel, persist);
+  }
+
+  // The dive: the hero art peels away, the camera pushes through its green
+  // backdrop, the green deepens into space, and the universe fades in
+  // already zooming - one continuous plunge from page to cosmos.
+  float dive = smoothstep(0.07, 0.16, P); // green holds until the zoom has finished
+  vec3 back = HERO * (1.0 - 0.93 * dive);
+  col = mix(back, col, smoothstep(0.10, 0.16, P)); // the warp punches through the darkening sky
+
+  // The finale heart: near-pixel points, CPU-animated, GPU-splatted.
+  if (uHeartAmt > 0.004){
+    for (int i = 0; i < 96; i++){
+      vec2 d = uv - uHeart[i].xy;
+      float dd = dot(d, d);
+      float g = exp(-dd * 400000.0 * uHeart[i].w) * 1.5 + 0.02 / (1.0 + dd * 30000.0);
+      vec3 pc = mix(AMBER, vec3(1.0, 0.93, 0.74), hash21(vec2(float(i), 91.7)));
+      col += pc * g * uHeart[i].z;
+    }
+  }
 
   // The text stage: a gentle dim behind visible copy - subtle by design.
   float dTS = length((uv - vec2(0.0, -0.02)) * vec2(1.0, 1.4));
@@ -212,6 +467,7 @@ const CHAPTER_LABELS = ["compete", "insight", "community", "trust"] as const
 type Beat = {
   in: number
   peak: number
+  hold: number // full-opacity plateau: the copy RESTS from peak to here
   out: number // > 1.5 means the beat holds to the end of the film (finale)
   kicker: string
   title: React.ReactNode
@@ -224,7 +480,7 @@ type Beat = {
 // Timings are in STORY progress (post-hero).
 const BEATS: Beat[] = [
   {
-    in: 0.03, peak: 0.1, out: 0.21,
+    in: 0.13, peak: 0.17, hold: 0.27, out: 0.315,
     kicker: "// competition",
     title: (
       <>Learn through <span className="italic">Competition</span></>
@@ -232,7 +488,7 @@ const BEATS: Beat[] = [
     body: "Work through a bottomless pool of fresh problems, climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted competitions. Every solve pushes you up the ranks.",
   },
   {
-    in: 0.31, peak: 0.38, out: 0.5,
+    in: 0.43, peak: 0.465, hold: 0.545, out: 0.585,
     kicker: "// practice",
     title: (
       <>Never stay <span className="italic">stuck</span></>
@@ -248,7 +504,7 @@ const BEATS: Beat[] = [
     lean: `theorem am_gm (a b : ℝ) :\n    a * b ≤ ((a + b) / 2) ^ 2 := by\n  nlinarith [sq_nonneg (a - b)]`,
   },
   {
-    in: 0.6, peak: 0.67, out: 0.78,
+    in: 0.63, peak: 0.665, hold: 0.755, out: 0.80,
     kicker: "// community",
     title: "Grow with the Community",
     body: (
@@ -260,7 +516,7 @@ const BEATS: Beat[] = [
     ),
   },
   {
-    in: 0.88, peak: 0.94, out: 2, cta: true,
+    in: 0.88, peak: 0.93, hold: 2, out: 2, cta: true,
     kicker: "// quality",
     title: (
       <>Quality you can <span className="italic">trust</span></>
@@ -328,7 +584,12 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     const uRes = gl.getUniformLocation(prog, "uRes")
     const uTime = gl.getUniformLocation(prog, "uTime")
     const uProg = gl.getUniformLocation(prog, "uProg")
+    const uTrav = gl.getUniformLocation(prog, "uTrav")
+    const uVel = gl.getUniformLocation(prog, "uVel")
+    const uLz = gl.getUniformLocation(prog, "uLz")
     const uText = gl.getUniformLocation(prog, "uText")
+    const uHeartAmt = gl.getUniformLocation(prog, "uHeartAmt")
+    const uHeart = gl.getUniformLocation(prog, "uHeart[0]")
 
     // ---- state ----
     let qualityStep = 0
@@ -339,6 +600,62 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     let disposed = false
     let navHover = false
     let textAmt = 0 // current beat-copy visibility, fed to uText
+    let mouseX = 1e5, mouseY = 1e5 // css px; far offscreen until the first move
+    let smoothMX = 1e5, smoothMY = 1e5 // lerped for trailing softness
+    let mouseAmt = 0
+
+    // The finale heart: 40 points on the classic parametric heart curve,
+    // animated entirely on the CPU each frame (formation from scattered dust,
+    // idle drift, cursor repulsion + ignition) and splatted by the GPU.
+    const N_HEART = 96 // near-pixel points need numbers to read as a curve
+    const heartBase = new Float32Array(N_HEART * 2) // UNIT curve; aspect-scaled per frame
+    const heartScatter = new Float32Array(N_HEART * 2)
+    const heartH1 = new Float32Array(N_HEART)
+    const heartH2 = new Float32Array(N_HEART)
+    for (let i = 0; i < N_HEART; i++) {
+      const th = ((i + 0.5) / N_HEART) * Math.PI * 2
+      heartBase[i * 2] = 0.16 * Math.pow(Math.sin(th), 3)
+      heartBase[i * 2 + 1] = 0.013 * (13 * Math.cos(th) - 5 * Math.cos(2 * th) - 2 * Math.cos(3 * th) - Math.cos(4 * th))
+      const s1 = Math.sin(i * 127.1 + 311.7) * 43758.5453
+      const s2 = Math.sin(i * 269.5 + 183.3) * 28001.8384
+      heartH1[i] = s1 - Math.floor(s1)
+      heartH2[i] = s2 - Math.floor(s2)
+      heartScatter[i * 2] = (heartH1[i] - 0.5) * 1.8
+      heartScatter[i * 2 + 1] = (heartH2[i] - 0.5) * 1.1
+    }
+    const heartData = new Float32Array(N_HEART * 4) // xy pos, z glow, w size
+
+    function animateHeart(amt: number, tSec: number) {
+      const muX = (smoothMX - 0.5 * cssW) / cssH
+      const muY = (0.5 * cssH - smoothMY) / cssH
+      // Aspect-adaptive: full size on wide screens, shrinking on narrow ones
+      // so the lobes never clip the viewport edges.
+      const aspect = cssW / cssH
+      const scale = 2.6 * Math.min(1, (0.5 * aspect - 0.05) / 0.46)
+      for (let i = 0; i < N_HEART; i++) {
+        const h1 = heartH1[i], h2 = heartH2[i]
+        const form = clamp01((amt - h1 * 0.5) / 0.5)
+        const f = form * form * (3 - 2 * form)
+        const bx = heartBase[i * 2] * scale
+        const by = heartBase[i * 2 + 1] * scale + 0.03
+        let px = heartScatter[i * 2] + (bx - heartScatter[i * 2]) * f
+        let py = heartScatter[i * 2 + 1] + (by - heartScatter[i * 2 + 1]) * f
+        px += 0.006 * Math.sin(tSec * (0.5 + h1) + h2 * 40)
+        py += 0.006 * Math.cos(tSec * (0.4 + h2) + h1 * 40)
+        const ax = px - muX, ay = py - muY
+        const md2 = ax * ax + ay * ay
+        const rep = 0.05 * Math.exp(-md2 * 55) * mouseAmt
+        const inv = 1 / Math.max(Math.sqrt(md2), 1e-3)
+        px += ax * inv * rep
+        py += ay * inv * rep
+        const excite = 1 + 1.7 * Math.exp(-md2 * 40) * mouseAmt
+        const tw = 0.55 + 0.45 * Math.sin(tSec * (0.8 + 1.4 * h1) + h2 * 6.28318)
+        heartData[i * 4] = px
+        heartData[i * 4 + 1] = py
+        heartData[i * 4 + 2] = 0.85 * tw * excite * amt
+        heartData[i * 4 + 3] = 0.7 + 0.7 * h2 // per-point size variety
+      }
+    }
     let immersed = false
     let activeChapter = -1
     const started = performance.now()
@@ -378,20 +695,66 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       }
     }
 
+    // ---- the motion engine (o2b model): scroll position sets TARGETS,
+    // time does the moving. The warp velocity eases toward its throttle
+    // and, past the deceleration, decays exponentially to a TRUE
+    // standstill - resting particles must not move while the scrubbed
+    // universe holds. The camera's log-zoom eases toward its scroll
+    // target the same way: the landing on the home galaxy is exponential
+    // decay, and after any scroll stops the camera is still gliding -
+    // ever slower, never a snap.
+    let warpVel = 0
+    let warpTrav = 0
+    let lzS: number | null = null // smoothed log(zoom)
+    const LZ0 = Math.log(0.002), LZM = Math.log(0.024), LZ1 = Math.log(3.3670)
+    function warpThrottle(pStory: number): number {
+      return sstep(0.09, 0.14, pStory) * (1 - sstep(0.17, 0.24, pStory))
+    }
+    function lzTarget(pStory: number): number {
+      const za = sstep(0.17, 0.32, pStory) // the approach - long and gentle
+      const zd = sstep(0.32, 0.42, pStory) // the dive - the plunge home
+      const a = LZ0 + (LZM - LZ0) * za
+      return a + (LZ1 - a) * zd
+    }
+    function warpStep(pStory: number, dt: number) {
+      warpVel += (warpThrottle(pStory) - warpVel) * Math.min(1, dt * 2.8)
+      warpTrav += dt * warpVel * 1.9
+      if (lzS === null) lzS = lzTarget(pStory) // first frame (and ?jump) snaps
+      else lzS += (lzTarget(pStory) - lzS) * (1 - Math.exp(-dt * 1.4))
+    }
+
     function draw(pStory: number, tSec: number) {
       gl!.uniform2f(uRes, glW, glH)
       gl!.uniform1f(uTime, tSec)
       gl!.uniform1f(uProg, pStory)
+      gl!.uniform1f(uTrav, warpTrav)
+      gl!.uniform1f(uVel, warpVel)
+      if (lzS === null) lzS = lzTarget(pStory) // warm frame renders pre-tick
+      gl!.uniform1f(uLz, lzS)
       gl!.uniform1f(uText, textAmt)
+      const heartAmt = sstep(0.86, 0.97, pStory)
+      gl!.uniform1f(uHeartAmt, heartAmt)
+      if (heartAmt > 0.004) {
+        animateHeart(heartAmt, tSec)
+        gl!.uniform4fv(uHeart, heartData)
+      }
       gl!.drawArrays(gl!.TRIANGLES, 0, 3)
     }
 
-    // The hero dissolves and lifts away over the first stretch of scroll,
-    // revealing the film developing beneath it — the hero IS frame one.
+    // The launch. The camera flies INTO the hero's green sky: the art zooms
+    // hard (accelerating, origin up toward the sky) while holding opacity
+    // until deep in the zoom, so the green fully swallows the frame before
+    // space begins - a rocket departure, not a crossfade.
+    // Aim the launch at the upper-RIGHT sky - the art's one clean stretch
+    // of open green (the moon, its halo wisps and the pink cloudbank all
+    // live left and low) - and zoom until the WHOLE frame is that sky
+    // before any fade or dimming is allowed to start.
+    hero.style.transformOrigin = "82% 12%"
     function updateHero(raw: number) {
-      const a = 1 - sstep(0.02, 0.1, raw)
+      const z = sstep(0.0, 0.16, raw)
+      const a = 1 - sstep(0.13, 0.165, raw)
       hero!.style.opacity = String(a)
-      hero!.style.transform = `translateY(${(1 - a) * -6}vh) scale(${1 + (1 - a) * 0.04})`
+      hero!.style.transform = `scale(${1 + z * z * 6})`
       hero!.style.pointerEvents = a > 0.5 ? "auto" : "none"
     }
 
@@ -401,12 +764,14 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
         if (!el) continue
         const bIn = parseFloat(el.dataset.in || "0")
         const bPeak = parseFloat(el.dataset.peak || "0")
+        const bHold = parseFloat(el.dataset.hold || el.dataset.peak || "0")
         const bOut = parseFloat(el.dataset.out || "1")
         let a = 0
         if (pStory >= bIn && pStory <= bOut) {
           a = pStory < bPeak ? (pStory - bIn) / Math.max(1e-4, bPeak - bIn)
             : bOut > 1.5 ? 1 // finale: holds to the end of the film
-            : 1 - (pStory - bPeak) / Math.max(1e-4, bOut - bPeak)
+            : pStory < bHold ? 1 // the plateau: copy RESTS at full opacity
+            : 1 - (pStory - bHold) / Math.max(1e-4, bOut - bHold)
         }
         a = clamp01(a)
         maxA = Math.max(maxA, a)
@@ -415,7 +780,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
         el.style.pointerEvents = a > 0.5 ? "auto" : "none" // the finale CTA must be clickable
       }
       textAmt = maxA // the shader dims its field behind visible copy
-      const ch = pStory < 0.24 ? 0 : pStory < 0.56 ? 1 : pStory < 0.84 ? 2 : 3
+      const ch = pStory < 0.37 ? 0 : pStory < 0.60 ? 1 : pStory < 0.85 ? 2 : 3
       if (ch !== activeChapter) {
         activeChapter = ch
         labelRefs.current.forEach((el, i) => {
@@ -454,6 +819,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       }
     }
 
+    let lastTickAt = 0
     function tick(now: number) {
       if (disposed) return
       target = progress()
@@ -462,6 +828,11 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       const rect = driver!.getBoundingClientRect()
       const pinned = rect.top <= 0 && -rect.top < rect.height - cssH
       const pStory = story(current)
+      const dt = lastTickAt > 0 ? Math.min(0.05, (now - lastTickAt) / 1000) : 0.016
+      lastTickAt = now
+      warpStep(pStory, dt)
+      smoothMX = lerp(smoothMX, mouseX, 0.1)
+      smoothMY = lerp(smoothMY, mouseY, 0.1)
       updateOverlays(pStory) // before draw: textAmt feeds this frame's uText
       draw(pStory, (now - started) / 1000)
       updateHero(current)
@@ -485,10 +856,15 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     }, { rootMargin: "25%" })
     io.observe(driver)
 
-    // Mouse is only chrome UX (top-edge navbar reveal) — the film itself
-    // deliberately ignores the cursor; nobody mouses mid-scroll.
+    // The film ignores the cursor while scrolling (nobody mouses mid-film) —
+    // EXCEPT at the resting finale, where the heart's points respond to it.
+    // The listener also drives the top-edge navbar reveal.
     const onMouse = (e: MouseEvent) => {
       navHover = e.clientY < 90
+      mouseX = e.clientX
+      mouseY = e.clientY
+      if (mouseAmt === 0) { smoothMX = e.clientX; smoothMY = e.clientY }
+      mouseAmt = 1
     }
     window.addEventListener("mousemove", onMouse, { passive: true })
 
@@ -515,6 +891,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     ;(window as unknown as { __ready?: boolean }).__ready = true
     ;(window as unknown as { __filmState?: () => object }).__filmState = () => ({
       raw: current, story: story(current), quality: QUALITY_STEPS[qualityStep], res: [glW, glH], visible,
+      warpVel, warpTrav, lz: lzS,
     })
 
     function cleanup() {
@@ -545,6 +922,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
             ref={(el) => { beatRefs.current[i] = el }}
             data-in={b.in}
             data-peak={b.peak}
+            data-hold={b.hold}
             data-out={b.out}
             className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center opacity-0 pointer-events-none"
           >
