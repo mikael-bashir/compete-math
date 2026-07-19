@@ -745,16 +745,22 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     // hard (accelerating, origin up toward the sky) while holding opacity
     // until deep in the zoom, so the green fully swallows the frame before
     // space begins - a rocket departure, not a crossfade.
-    // Aim the launch at the upper-RIGHT sky - the art's one clean stretch
-    // of open green (the moon, its halo wisps and the pink cloudbank all
-    // live left and low) - and zoom until the WHOLE frame is that sky
-    // before any fade or dimming is allowed to start.
-    hero.style.transformOrigin = "82% 12%"
+    // The launch is a MICROSCOPIC straight-ahead push. Pixel-scanning the
+    // art found its flattest dark-green patch nearly dead centre (50%,
+    // ~70% - measured RGB 20,25,15, a whisker off the shader's backdrop,
+    // with flat sky spanning ~40-60% x 66-74%), so the camera flies
+    // straight in with only a whisper of downward tilt - the same axis
+    // the warp and the dolly continue on. The zoom is exponential
+    // (constant zoom RATE, like the dolly's log-space camera) to 28x:
+    // deep inside the flat patch, the whole frame is monotone green long
+    // before the fade may begin. A bitmap has no zoom limit when the
+    // target is flat colour - magnified flatness is just flatness.
+    hero.style.transformOrigin = "50% 71%"
     function updateHero(raw: number) {
       const z = sstep(0.0, 0.16, raw)
       const a = 1 - sstep(0.13, 0.165, raw)
       hero!.style.opacity = String(a)
-      hero!.style.transform = `scale(${1 + z * z * 6})`
+      hero!.style.transform = `scale(${Math.exp(z * Math.log(28))})`
       hero!.style.pointerEvents = a > 0.5 ? "auto" : "none"
     }
 
