@@ -76,8 +76,6 @@ uniform float uLz;       // log(zoom) - CPU-eased toward the scroll target, so t
 uniform float uText;     // beat-copy visibility 0..1 - carves a quiet stage for the text
 uniform float uHeartAmt; // finale heart 0..1
 uniform float uHeartS;   // aspect-adaptive heart scale (matches the CPU points)
-uniform vec2  uMouse;    // cursor in uv space - the finale bends around it
-uniform float uMouseAmt; // 1 once the cursor has moved
 uniform vec4  uHeart[96]; // xy = point pos, z = glow, w = size scale; CPU-animated
 out vec4 outColor;
 
@@ -144,14 +142,8 @@ vec2 heartPos(float th, float S){
               0.013 * (13.0 * cos(th) - 5.0 * cos(2.0 * th) - 2.0 * cos(3.0 * th) - cos(4.0 * th)) * S + 0.03);
 }
 
-vec3 heartOrbits(vec2 p, float S, float hA, float t, vec2 m, float mAmt, out float voidM){
+vec3 heartOrbits(vec2 p, float S, float hA, float t, out float voidM){
   vec2 c = vec2(0.0, 0.02);
-  // the cursor bends the WHOLE structure, and lights what it bends
-  vec2 dm = p - m;
-  float md2 = dot(dm, dm);
-  p += (dm / max(length(dm), 1e-3)) * (0.05 * mAmt * exp(-md2 * 30.0));
-  float ignite = 1.0 + 2.0 * mAmt * exp(-md2 * 40.0);
-
   vec2 pm = vec2(abs(p.x), p.y) - c; // bilateral symmetry, like the reference
   float rp = max(length(pm), 1e-4);
   vec2 dir = pm / rp;
@@ -186,30 +178,40 @@ vec3 heartOrbits(vec2 p, float S, float hA, float t, vec2 m, float mAmt, out flo
   col += vec3(1.0, 0.88, 0.58) * exp(-rd * rd * 9000.0) * 1.1 * rimA;
   col += vec3(0.85, 0.25, 0.10) * exp(-rd * rd * 700.0) * 0.30 * rimA;
 
-  // the orbit shells: nested layers of flowing ember dashes, counter-
-  // rotating, igniting outward one by one as the heart finishes forming
-  float wing = 1.0 + 0.6 * smoothstep(0.1, -0.9, dir.y);
-  float u = (s - 1.0) / (0.115 * wing);
-  if (u > 0.45 && u < 8.0){
-    float band = floor(u);
-    float fb = fract(u);
-    float tb = clamp(band / 6.0, 0.0, 1.0);
-    float bandA = smoothstep(0.35 + tb * 0.45, 0.55 + tb * 0.45, hA);
-    if (bandA > 0.004){
-      float dirn = mod(band, 2.0) < 1.0 ? 1.0 : -1.0;
-      float ph = arc * (8.0 + band * 3.0) - t * (0.55 - 0.05 * band) * dirn
-               + hash21(vec2(band, 3.7)) * 6.28318; // decorrelate the bands
-      float g = fract(ph);
-      float hsh = hash21(vec2(band * 7.3, floor(ph)));
-      float dash = smoothstep(0.0, 0.18, g) * (1.0 - smoothstep(0.80, 1.0, g));
-      float fil = exp(-(fb - 0.5) * (fb - 0.5) * 30.0);
-      vec3 bandCol = mix(vec3(1.0, 0.72, 0.32), vec3(0.72, 0.07, 0.045), smoothstep(0.05, 0.85, tb));
-      col += bandCol * fil * dash * (0.4 + 0.6 * hsh) * exp(-tb * 1.5) * 0.85 * bandA * ignite;
+  // the plumage: layered feather shells of fine CONTINUOUS strands - no
+  // dashes, no cells. Shells sway organically along the arc, spread wider
+  // below the lobes and out to the sides (folded wings), and each layer
+  // is a bundle of hair-thin strands with a slow silk ripple flowing
+  // along it. Deep red rules; gold lives in a collar around the notch
+  // and in rare single gold hairs.
+  vec2 cp = vec2(0.0, 0.065 * S + 0.03);
+  float dCr2 = dot(p - cp, p - cp);
+  float wing = 1.0 + 0.65 * smoothstep(0.1, -0.9, dir.y)
+             + 0.30 * smoothstep(0.3, 1.0, abs(dir.x));
+  float sway = sin(arc * 3.0 + (s - 1.0) * 5.0) * 0.05 * (s - 1.0)
+             + sin(arc * 7.0 - (s - 1.0) * 9.0) * 0.02 * (s - 1.0);
+  float u = (s - 1.0 + sway) / (0.115 * wing);
+  if (u > 0.4 && u < 12.0){
+    float layer = floor(u);
+    float tb = clamp(layer / 9.0, 0.0, 1.0);
+    float layerA = smoothstep(0.30 + tb * 0.5, 0.50 + tb * 0.5, hA);
+    if (layerA > 0.004){
+      float fb = fract(u);
+      float env = smoothstep(0.05, 0.35, fb) * (1.0 - smoothstep(0.55, 1.0, fb));
+      float hu = u * 7.0; // hair-thin strands inside each feather
+      float hh = hash21(vec2(floor(hu), 17.1));
+      float fh = fract(hu) - 0.5;
+      float hair = exp(-fh * fh * 22.0) * (0.35 + 0.65 * hh);
+      float dirn = mod(layer, 2.0) < 1.0 ? 1.0 : -1.0;
+      float ripple = 0.7 + 0.3 * sin(arc * 5.0 - t * 0.4 * dirn + hh * 6.28318);
+      vec3 red = mix(vec3(0.95, 0.16, 0.07), vec3(0.42, 0.03, 0.03), tb);
+      float goldMix = clamp(0.9 * exp(-dCr2 * 14.0) + step(0.94, hh) * 0.55, 0.0, 1.0);
+      vec3 strandCol = mix(red, vec3(1.0, 0.78, 0.28), goldMix);
+      col += strandCol * env * hair * ripple * exp(-tb * 1.4) * 0.95 * layerA;
     }
   }
 
   // the crest: a gold flame at the notch, a thin beam rising through it
-  vec2 cp = vec2(0.0, 0.065 * S + 0.03);
   vec2 dcp = (p - cp) * vec2(1.6, 1.0);
   float crestA = smoothstep(0.62, 0.95, hA);
   col += vec3(1.0, 0.80, 0.30) * exp(-dot(dcp, dcp) * 260.0) * 0.9 * crestA;
@@ -543,7 +545,7 @@ void main(){
   // little light is left, and the copy rests inside the black heart.
   if (uHeartAmt > 0.004){
     float voidM = 0.0;
-    vec3 orbit = heartOrbits(uv, uHeartS, uHeartAmt, t, uMouse, uMouseAmt, voidM);
+    vec3 orbit = heartOrbits(uv, uHeartS, uHeartAmt, t, voidM);
     col = mix(col, col * 0.10, voidM);
     col += orbit;
     for (int i = 0; i < 96; i++){
@@ -700,8 +702,6 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     const uText = gl.getUniformLocation(prog, "uText")
     const uHeartAmt = gl.getUniformLocation(prog, "uHeartAmt")
     const uHeartS = gl.getUniformLocation(prog, "uHeartS")
-    const uMouse = gl.getUniformLocation(prog, "uMouse")
-    const uMouseAmt = gl.getUniformLocation(prog, "uMouseAmt")
     const uHeart = gl.getUniformLocation(prog, "uHeart[0]")
 
     // ---- state ----
@@ -739,10 +739,9 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     const heartData = new Float32Array(N_HEART * 4) // xy pos, z glow, w size
 
     function animateHeart(amt: number, tSec: number) {
-      const muX = (smoothMX - 0.5 * cssW) / cssH
-      const muY = (0.5 * cssH - smoothMY) / cssH
       // Aspect-adaptive: full size on wide screens, shrinking on narrow ones
-      // so the lobes never clip the viewport edges.
+      // so the lobes never clip the viewport edges. No cursor effects - the
+      // finale rests; only the twinkle lives on time.
       const aspect = cssW / cssH
       const scale = 2.6 * Math.min(1, (0.5 * aspect - 0.05) / 0.46)
       for (let i = 0; i < N_HEART; i++) {
@@ -755,17 +754,10 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
         let py = heartScatter[i * 2 + 1] + (by - heartScatter[i * 2 + 1]) * f
         px += 0.006 * Math.sin(tSec * (0.5 + h1) + h2 * 40)
         py += 0.006 * Math.cos(tSec * (0.4 + h2) + h1 * 40)
-        const ax = px - muX, ay = py - muY
-        const md2 = ax * ax + ay * ay
-        const rep = 0.05 * Math.exp(-md2 * 55) * mouseAmt
-        const inv = 1 / Math.max(Math.sqrt(md2), 1e-3)
-        px += ax * inv * rep
-        py += ay * inv * rep
-        const excite = 1 + 1.7 * Math.exp(-md2 * 40) * mouseAmt
         const tw = 0.55 + 0.45 * Math.sin(tSec * (0.8 + 1.4 * h1) + h2 * 6.28318)
         heartData[i * 4] = px
         heartData[i * 4 + 1] = py
-        heartData[i * 4 + 2] = 0.85 * tw * excite * amt
+        heartData[i * 4 + 2] = 0.85 * tw * amt
         heartData[i * 4 + 3] = 0.7 + 0.7 * h2 // per-point size variety
       }
     }
@@ -852,8 +844,6 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
         gl!.uniform4fv(uHeart, heartData)
         const aspect = cssW / cssH
         gl!.uniform1f(uHeartS, 2.6 * Math.min(1, (0.5 * aspect - 0.05) / 0.46))
-        gl!.uniform2f(uMouse, (smoothMX - 0.5 * cssW) / cssH, (0.5 * cssH - smoothMY) / cssH)
-        gl!.uniform1f(uMouseAmt, mouseAmt)
       }
       gl!.drawArrays(gl!.TRIANGLES, 0, 3)
     }
