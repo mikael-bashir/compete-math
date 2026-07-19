@@ -228,7 +228,7 @@ void main(){
   const float S_T = 0.22;    // home galaxy scale in world units
   const float Z0  = 0.10;    // deep space - galaxies are barely-grown points
   const float Z1  = 3.3670;  // = 1/(1.35*S_T): the close-up framing
-  float zp = smoothstep(0.06, 0.32, P);
+  float zp = smoothstep(0.14, 0.36, P);
   float zoomP = exp(mix(log(Z0), log(Z1), zp));
   vec2 camC = vec2(2.3, 3.1) * (1.0 - zp) * (1.0 - zp);
   vec2 world = camC + uv / zoomP;
@@ -261,7 +261,7 @@ void main(){
     // copy-protection ring: only once the close-up has landed, released by
     // the shatter; floored so the stage stays translucent, never a hole
     float ring = mix(0.45, 1.0, smoothstep(0.26, 0.48, length(uv * vec2(1.0, 1.3))));
-    float maskOn = smoothstep(0.32, 0.38, P);
+    float maskOn = smoothstep(0.36, 0.42, P);
     float mask = mix(1.0, max(ring, reveal), maskOn);
     col += life * (BG * 0.9 + mask * field);
 
@@ -291,9 +291,9 @@ void main(){
   // The dive: the hero art peels away, the camera pushes through its green
   // backdrop, the green deepens into space, and the universe fades in
   // already zooming - one continuous plunge from page to cosmos.
-  float dive = smoothstep(0.0, 0.10, P);
+  float dive = smoothstep(0.07, 0.18, P); // green holds until the zoom has finished
   vec3 back = HERO * (1.0 - 0.93 * dive);
-  col = mix(back, col, smoothstep(0.06, 0.16, P));
+  col = mix(back, col, smoothstep(0.14, 0.24, P));
 
   // The finale heart: near-pixel points, CPU-animated, GPU-splatted.
   if (uHeartAmt > 0.004){
@@ -340,7 +340,7 @@ type Beat = {
 // Timings are in STORY progress (post-hero).
 const BEATS: Beat[] = [
   {
-    in: 0.07, peak: 0.14, out: 0.24,
+    in: 0.15, peak: 0.21, out: 0.29,
     kicker: "// competition",
     title: (
       <>Learn through <span className="italic">Competition</span></>
@@ -348,7 +348,7 @@ const BEATS: Beat[] = [
     body: "Work through a bottomless pool of fresh problems, climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted competitions. Every solve pushes you up the ranks.",
   },
   {
-    in: 0.33, peak: 0.4, out: 0.52,
+    in: 0.37, peak: 0.43, out: 0.52,
     kicker: "// practice",
     title: (
       <>Never stay <span className="italic">stuck</span></>
@@ -570,14 +570,15 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     // hard (accelerating, origin up toward the sky) while holding opacity
     // until deep in the zoom, so the green fully swallows the frame before
     // space begins - a rocket departure, not a crossfade.
-    // Aim the launch at the DARK upper-left sky - flying into the glowing
-    // moon would land us in light, and space is on the other side of dark.
-    hero.style.transformOrigin = "24% 16%"
+    // Aim the launch deep into the dark upper-left corner sky, and zoom
+    // until the WHOLE frame is that green sky (moon and wordmark pushed
+    // fully offscreen) before any fade or dimming is allowed to start.
+    hero.style.transformOrigin = "12% 10%"
     function updateHero(raw: number) {
-      const z = sstep(0.0, 0.115, raw)
-      const a = 1 - sstep(0.055, 0.105, raw)
+      const z = sstep(0.0, 0.16, raw)
+      const a = 1 - sstep(0.13, 0.165, raw)
       hero!.style.opacity = String(a)
-      hero!.style.transform = `scale(${1 + z * z * 2.4})`
+      hero!.style.transform = `scale(${1 + z * z * 6})`
       hero!.style.pointerEvents = a > 0.5 ? "auto" : "none"
     }
 
@@ -601,7 +602,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
         el.style.pointerEvents = a > 0.5 ? "auto" : "none" // the finale CTA must be clickable
       }
       textAmt = maxA // the shader dims its field behind visible copy
-      const ch = pStory < 0.24 ? 0 : pStory < 0.56 ? 1 : pStory < 0.84 ? 2 : 3
+      const ch = pStory < 0.31 ? 0 : pStory < 0.56 ? 1 : pStory < 0.84 ? 2 : 3
       if (ch !== activeChapter) {
         activeChapter = ch
         labelRefs.current.forEach((el, i) => {
