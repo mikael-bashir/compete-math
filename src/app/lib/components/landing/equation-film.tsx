@@ -123,6 +123,31 @@ vec3 warmTint(float h){
   return vec3(0.95, 0.42, 0.22);
 }
 
+// Fast travel. Cheap polar star-streaks racing outward from the vanishing
+// point on three parallax shells - streak length rides on speed, so as the
+// warp decelerates the lines shrink back into points and the universe is
+// simply THERE, arrived at, not faded in.
+vec3 warp(vec2 uv, float trav, float speed){
+  float a = atan(uv.y, uv.x);
+  float r = max(length(uv), 1e-3);
+  vec3 col = vec3(0.0);
+  for (int i = 0; i < 3; i++){
+    float fi = float(i);
+    float sectors = 70.0 + fi * 42.0;
+    float sec = floor((a / 6.2831 + 0.5) * sectors);
+    float h = hash21(vec2(sec, fi * 7.3 + 11.0));
+    float h2 = hash21(vec2(sec, fi * 3.1 + 29.0));
+    float pos = fract(h + trav * (0.5 + 0.8 * h2) * (1.0 + fi * 0.35));
+    float sr = pos * pos * 1.4 + 0.03;
+    float len = speed * (0.06 + sr * 0.6);
+    float radial = smoothstep(sr - len, sr, r) * (1.0 - smoothstep(sr, sr + 0.012, r));
+    float da = fract((a / 6.2831 + 0.5) * sectors) - 0.5;
+    float ang = exp(-da * da * 60.0);
+    col += warmTint(h2) * radial * ang * (0.35 + 0.65 * h) * min(speed * 3.0, 1.0);
+  }
+  return col * 0.85;
+}
+
 vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens){
   vec2 base = floor(g + 0.5);
   float bestD = 1e9;
@@ -228,7 +253,7 @@ void main(){
   const float S_T = 0.22;    // home galaxy scale in world units
   const float Z0  = 0.10;    // deep space - galaxies are barely-grown points
   const float Z1  = 3.3670;  // = 1/(1.35*S_T): the close-up framing
-  float zp = smoothstep(0.14, 0.36, P);
+  float zp = smoothstep(0.20, 0.36, P); // the dolly is the tail of the deceleration
   float zoomP = exp(mix(log(Z0), log(Z1), zp));
   vec2 camC = vec2(2.3, 3.1) * (1.0 - zp) * (1.0 - zp);
   vec2 world = camC + uv / zoomP;
@@ -241,21 +266,27 @@ void main(){
              + drift * vec2(-0.20, 0.08)
              + gone * vec2(-0.55, 0.22);
 
+  // The warp: full speed while the green is still clearing, decelerating
+  // into arrival - the universe resolves exactly as the streaks die.
+  float speed = smoothstep(0.09, 0.14, P) * (1.0 - smoothstep(0.17, 0.24, P));
+  float trav  = 2.4 * smoothstep(0.09, 0.24, P);
+  float uniViz = smoothstep(0.16, 0.24, P); // arrival, tied to the deceleration
+
   vec3 col = vec3(0.0);
   if (life > 0.004){
     // near layer (carries the home galaxy)
     // close range runs thinner than the deep field - the eye needs room
-    vec3 field = bodyField(world, t, cHome, reveal, zp, true, 0.75);
+    vec3 field = bodyField(world, t, cHome, reveal, zp, true, 0.75) * uniViz;
     // two more independent layers at incommensurate scales and parallax:
     // slow giants far behind, quick small fry drifting in front. Their
     // superposition is what finally kills any lattice feel. Universe only -
     // both retire as the dolly lands.
     float bgw = 1.0 - smoothstep(0.45, 0.85, zp);
     if (bgw > 0.004){
-      field += bodyField(world * 0.42 + vec2(7.3, 4.1), t, cHome, reveal, zp, false, 1.0) * bgw * 0.5;
-      field += bodyField(world * 1.63 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false, 0.7) * bgw * 0.65;
+      field += bodyField(world * 0.42 + vec2(7.3, 4.1), t, cHome, reveal, zp, false, 1.0) * bgw * 0.5 * uniViz;
+      field += bodyField(world * 1.63 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false, 0.7) * bgw * 0.65 * uniViz;
       // ultra-distant shoal: small-to-medium bodies, dim and slow
-      field += bodyField(world * 2.6 + vec2(23.1, -17.9), t, cHome, reveal, zp, false, 1.0) * bgw * 0.34;
+      field += bodyField(world * 2.6 + vec2(23.1, -17.9), t, cHome, reveal, zp, false, 1.0) * bgw * 0.34 * uniViz;
     }
 
     // copy-protection ring: only once the close-up has landed, released by
@@ -282,18 +313,20 @@ void main(){
       if (sh2 > 0.972){
         vec2 sc2 = vec2(0.25) + 0.5 * vec2(fract(sh2 * 17.3), fract(sh2 * 5.9));
         vec2 sd2 = fract(sp2) - sc2;
-        col += warmTint(fract(sh2 * 6.3)) * exp(-dot(sd2, sd2) * 160.0) * 0.16 * uvw
+        col += warmTint(fract(sh2 * 6.3)) * exp(-dot(sd2, sd2) * 160.0) * 0.16 * uvw * uniViz
              * (0.5 + 0.5 * sin(t * 2.3 + sh2 * 60.0));
       }
     }
   }
 
+  if (speed > 0.004) col += warp(uv, trav, speed); // the fast-travel streaks
+
   // The dive: the hero art peels away, the camera pushes through its green
   // backdrop, the green deepens into space, and the universe fades in
   // already zooming - one continuous plunge from page to cosmos.
-  float dive = smoothstep(0.07, 0.18, P); // green holds until the zoom has finished
+  float dive = smoothstep(0.07, 0.16, P); // green holds until the zoom has finished
   vec3 back = HERO * (1.0 - 0.93 * dive);
-  col = mix(back, col, smoothstep(0.14, 0.24, P));
+  col = mix(back, col, smoothstep(0.10, 0.16, P)); // the warp punches through the darkening sky
 
   // The finale heart: near-pixel points, CPU-animated, GPU-splatted.
   if (uHeartAmt > 0.004){
@@ -340,7 +373,7 @@ type Beat = {
 // Timings are in STORY progress (post-hero).
 const BEATS: Beat[] = [
   {
-    in: 0.15, peak: 0.21, out: 0.29,
+    in: 0.14, peak: 0.2, out: 0.28,
     kicker: "// competition",
     title: (
       <>Learn through <span className="italic">Competition</span></>
