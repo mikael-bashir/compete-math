@@ -285,17 +285,17 @@ void main(){
   float gone   = smoothstep(0.78, 0.88, P); // ...until it evaporates into black
   float life   = 1.0 - smoothstep(0.82, 0.90, P); // the field's overall presence
 
-  // ONE camera for chapters 1-2: an exponential dolly from deep space into
-  // the hard-coded home galaxy at cell (0,0). Quadratic camera convergence
-  // keeps home centred through the approach; by construction the landing
-  // frame IS chapter 2's framing - the join cannot show.
+  // ONE camera for the whole approach: warp tunnel, arrival and dolly all
+  // share a single CENTRED axis - the home galaxy at cell (0,0) sits dead
+  // centre from the universe's first frame to the close-up, and the
+  // exponential dolly flies straight down that axis. By construction the
+  // landing frame IS chapter 2's framing - the join cannot show.
   const float S_T = 0.22;    // home galaxy scale in world units
   const float Z0  = 0.10;    // deep space - galaxies are barely-grown points
   const float Z1  = 3.3670;  // = 1/(1.35*S_T): the close-up framing
   float zp = smoothstep(0.20, 0.36, P); // the dolly is the tail of the deceleration
   float zoomP = exp(mix(log(Z0), log(Z1), zp));
-  vec2 camC = vec2(2.3, 3.1) * (1.0 - zp) * (1.0 - zp);
-  vec2 world = camC + uv / zoomP;
+  vec2 world = uv / zoomP;
 
   // The home galaxy's c: the base orbit plus the whole dissolution journey.
   vec2 cHome = vec2(-0.745, 0.186)
@@ -355,15 +355,13 @@ void main(){
     }
   }
 
-  // ONE camera story: the warp's vanishing point is the home galaxy's own
-  // screen position - we are flying AT the destination the dolly will
-  // finish reaching. After the halt the deposited stars coast on, drift
-  // outward with the dolly (distant parallax), and yield only slowly.
+  // The deposited stars BELONG to the universe: from the halt onward they
+  // are world-locked - they ride exactly the same zoom as every galaxy,
+  // so the traffic that flew past IS the starfield chapter 1 opens on,
+  // and the dolly carries it out of frame like everything else it passes.
   float persist = 1.0 - smoothstep(0.25, 0.35, P);
   if (persist > 0.004 && P > 0.06){
-    vec2 vpH = -camC * zoomP; // where home sits on screen right now
-    float sdrift = 1.0 + 0.45 * log(zoomP / Z0);
-    col += flyField((uv - vpH) / sdrift, uTrav, uVel, persist);
+    col += flyField(uv * (Z0 / zoomP), uTrav, uVel, persist);
   }
 
   // The dive: the hero art peels away, the camera pushes through its green
