@@ -125,6 +125,47 @@ vec3 warmTint(float h){
   return vec3(0.95, 0.42, 0.22);
 }
 
+// The far-LOD of a universe layer: bodies smaller than ~a dozen pixels are
+// warm gaussian dots - same existence, position and tint hashes as
+// bodyField, so every dust grain GROWS INTO exactly the body it already
+// was. No rotation, no type branches, no escape loop: at dust scale the
+// full equation is sub-pixel anyway, and skipping it kills the warp
+// divergence that made the deep field expensive (neighbouring pixels land
+// in different cells, so every branch serializes on the GPU).
+vec3 dustField(vec2 g, bool isMain, float dens){
+  vec2 base = floor(g + 0.5);
+  bool home = isMain && base.x == 0.0 && base.y == 0.0;
+  float h1 = hash21(base + 3.7);
+  float clump = hash21(floor(base / 3.0) + 51.3);
+  float density = (0.15 + 0.75 * clump * clump) * dens;
+  bool exists = home
+    || (h1 < density && !(isMain && abs(base.x) <= 1.0 && abs(base.y) <= 1.0));
+  if (!exists) return vec3(0.0);
+  vec2 pos = home
+    ? base
+    : base + (vec2(hash21(base + 7.7), hash21(base + 15.1)) - 0.5) * 0.56;
+  vec2 d = g - pos;
+  float gs = home ? 0.22 : 0.10 + 0.10 * h1;
+  float rr = dot(d, d) / (gs * gs);
+  vec3 tint = home ? vec3(1.0, 0.90, 0.65) : warmTint(hash21(base + 33.3));
+  return tint * exp(-rr * 1.8) * (home ? 0.9 : 0.35 + 0.65 * h1);
+}
+
+// One universe layer at whatever LOD its on-screen cell size has earned:
+// nothing below 2.5px, gaussian dust to ~11px, the full equation from
+// ~17px, a short crossfade between. cellPx is uniform across the frame,
+// so these branches cost nothing in divergence.
+vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens);
+vec3 layerField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens, float cellPx){
+  float onA = smoothstep(2.5, 6.0, cellPx);
+  if (onA < 0.004) return vec3(0.0);
+  float toB = smoothstep(11.0, 17.0, cellPx);
+  vec3 c = vec3(0.0);
+  if (toB < 0.996) c += dustField(g, isMain, dens) * onA * (1.0 - toB);
+  if (toB > 0.004) c += bodyField(g, t, cHome, reveal, zp, isMain, dens) * toB;
+  return c;
+}
+
 // Fast travel, rebuilt to the space-warp.o2b.dev model and aimed AT the
 // story. Every star is a persistent body on an angular lane: born far, it
 // fades in across the far half, sweeps past on true perspective (screen
@@ -156,7 +197,7 @@ vec3 flyField(vec2 uv, float trav, float vel, float persist){
       float rate = 0.7 + 0.6 * h3;
       float z = fract(h2 - trav * rate);        // its depth right now
       float b = 0.05 + 0.30 * h4 * h4;          // impact parameter
-      float w = 0.0012 + 0.0035 * h4 * h4;      // world radius: most small, few grand
+      float w = 0.0007 + 0.0018 * h4 * h4;      // world radius: fine grains, few grand
       float head = b / max(z, 0.02);            // the star is HERE
       float tail = b / (z + vel * 0.16 * rate); // its own path this instant
       float da = lp - lane - 0.5 - (h3 - 0.5) * 0.5;
@@ -164,7 +205,7 @@ vec3 flyField(vec2 uv, float trav, float vel, float persist){
       // and brightness at that point belong to ITS depth, not the head's
       float rc = clamp(r, tail, head);
       float zc = b / rc;
-      float pw = w / zc;
+      float pw = min(w / zc, 0.010); // near passes swell, but never balloon
       float dr = r - rc;
       float arcd = da * arck * rc; // true tangential distance on screen
       // tangential widths are capped inside the +-2-lane search window:
@@ -291,9 +332,11 @@ void main(){
   // exponential dolly flies straight down that axis. By construction the
   // landing frame IS chapter 2's framing - the join cannot show.
   const float S_T = 0.22;    // home galaxy scale in world units
-  const float Z0  = 0.10;    // deep space - galaxies are barely-grown points
+  const float Z0  = 0.002;   // TRUE deep space - 50x farther than any body
+                             // resolves; the universe is born as dust
   const float Z1  = 3.3670;  // = 1/(1.35*S_T): the close-up framing
-  float zp = smoothstep(0.20, 0.36, P); // the dolly is the tail of the deceleration
+  float zp = smoothstep(0.24, 0.36, P); // the dolly ignites only after the
+                                        // traffic has fully come to rest
   float zoomP = exp(mix(log(Z0), log(Z1), zp));
   vec2 world = uv / zoomP;
 
@@ -310,19 +353,26 @@ void main(){
 
   vec3 col = vec3(0.0);
   if (life > 0.004){
+    // Honest LOD for the 1700x total zoom: pixels per world unit. Each
+    // layer renders at whatever detail its on-screen cell size has earned
+    // (nothing -> gaussian dust -> the full equation) - from this deep a
+    // departure the universe is born as single-pixel dust among the
+    // deposited traffic, and the dolly grows it into galaxies. Nothing
+    // ever fades in as an already-formed shape.
+    float lodK = zoomP * uRes.y;
     // near layer (carries the home galaxy)
     // close range runs thinner than the deep field - the eye needs room
-    vec3 field = bodyField(world, t, cHome, reveal, zp, true, 0.75) * uniViz;
+    vec3 field = layerField(world, t, cHome, reveal, zp, true, 0.75, lodK) * uniViz;
     // two more independent layers at incommensurate scales and parallax:
     // slow giants far behind, quick small fry drifting in front. Their
     // superposition is what finally kills any lattice feel. Universe only -
     // both retire as the dolly lands.
     float bgw = 1.0 - smoothstep(0.45, 0.85, zp);
     if (bgw > 0.004){
-      field += bodyField(world * 0.42 + vec2(7.3, 4.1), t, cHome, reveal, zp, false, 1.0) * bgw * 0.5 * uniViz;
-      field += bodyField(world * 1.63 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false, 0.7) * bgw * 0.65 * uniViz;
+      field += layerField(world * 0.42 + vec2(7.3, 4.1), t, cHome, reveal, zp, false, 1.0, lodK / 0.42) * bgw * 0.5 * uniViz;
+      field += layerField(world * 1.63 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false, 0.7, lodK / 1.63) * bgw * 0.65 * uniViz;
       // ultra-distant shoal: small-to-medium bodies, dim and slow
-      field += bodyField(world * 2.6 + vec2(23.1, -17.9), t, cHome, reveal, zp, false, 1.0) * bgw * 0.34 * uniViz;
+      field += layerField(world * 2.6 + vec2(23.1, -17.9), t, cHome, reveal, zp, false, 1.0, lodK / 2.6) * bgw * 0.34 * uniViz;
     }
 
     // copy-protection ring: only once the close-up has landed, released by
@@ -332,7 +382,8 @@ void main(){
     float mask = mix(1.0, max(ring, reveal), maskOn);
     col += life * (BG * 0.9 + mask * field);
 
-    // sparse star specks between the bodies, universe view only
+    // sparse star specks between the bodies, universe view only - LOD-gated
+    // like everything else so they resolve instead of fading in
     float uvw = 1.0 - smoothstep(0.26, 0.36, P);
     if (uvw > 0.004){
       vec2 sp = world * 24.0;
@@ -341,6 +392,7 @@ void main(){
         vec2 sc = vec2(0.2) + 0.6 * vec2(fract(sh * 13.7), fract(sh * 7.31));
         vec2 sd = fract(sp) - sc;
         col += warmTint(fract(sh * 9.7)) * exp(-dot(sd, sd) * 90.0) * 0.35 * uvw
+             * smoothstep(2.5, 9.0, lodK / 24.0)
              * (0.6 + 0.4 * sin(t * 1.5 + sh * 40.0));
       }
       // ultra-distant glimmer: a finer, denser dust of barely-there dots
@@ -350,6 +402,7 @@ void main(){
         vec2 sc2 = vec2(0.25) + 0.5 * vec2(fract(sh2 * 17.3), fract(sh2 * 5.9));
         vec2 sd2 = fract(sp2) - sc2;
         col += warmTint(fract(sh2 * 6.3)) * exp(-dot(sd2, sd2) * 160.0) * 0.16 * uvw * uniViz
+             * smoothstep(2.5, 9.0, lodK / 57.0)
              * (0.5 + 0.5 * sin(t * 2.3 + sh2 * 60.0));
       }
     }
@@ -359,7 +412,7 @@ void main(){
   // are world-locked - they ride exactly the same zoom as every galaxy,
   // so the traffic that flew past IS the starfield chapter 1 opens on,
   // and the dolly carries it out of frame like everything else it passes.
-  float persist = 1.0 - smoothstep(0.25, 0.35, P);
+  float persist = 1.0 - smoothstep(0.27, 0.36, P);
   if (persist > 0.004 && P > 0.06){
     col += flyField(uv * (Z0 / zoomP), uTrav, uVel, persist);
   }
