@@ -210,7 +210,10 @@ void main(){
     // The frame mask: filigree renders only OUTSIDE the copy's ellipse, so
     // the fireworks surround the story and can never touch it. The mask is
     // released as 'reveal' zooms the set down to its final point of light.
-    float ring = smoothstep(0.30, 0.50, length(uv * vec2(1.0, 1.3)));
+    // Floor at 0.28, never 0: the filigree stays faintly visible THROUGH the
+    // copy's ellipse - a translucent stage, not a solid hole. The carve +
+    // scrim on top keep the text readable.
+    float ring = mix(0.28, 1.0, smoothstep(0.30, 0.50, length(uv * vec2(1.0, 1.3))));
     float mask = max(ring, reveal);
     vec3 jc = julia(uv, t, clamp((P - 0.26) / 0.21, 0.0, 1.0), condense, reveal);
     col += w2 * (BG * 0.9 + mask * jc);
