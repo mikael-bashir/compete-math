@@ -23,9 +23,9 @@ import HeroContent from "./hero"
 //   Chapter 3 — the community  the Cantor-dust regime ITSELF, held: the
 //                              insight dissolved into countless sparkling
 //                              ring-glows — one insight becomes everyone's
-//   Chapter 4 — the proof      the dust evaporates into the calm green
-//                              backdrop; the trust copy closes the film with
-//                              a Start-solving call to action
+//   Chapter 4 — the proof      the dust evaporates into black; the trust
+//                              copy closes the film with a Start-solving
+//                              call to action
 //
 // Transitions are morphs with a shared element, never crossfades. While a
 // story beat is on screen the shader dims a soft stage behind the copy
@@ -71,8 +71,6 @@ const vec3 BG     = vec3(0.043, 0.027, 0.012); // warm near-black
 const vec3 HERO   = vec3(0.071, 0.090, 0.051); // #12170d - the hero backdrop the film develops from
 const vec3 AMBER  = vec3(1.00, 0.78, 0.42);
 const vec3 GOLD   = vec3(0.98, 0.62, 0.19);
-const vec3 CERT   = vec3(1.00, 0.93, 0.74);    // certified starlight - calmer, whiter
-const vec3 SETTLE = vec3(0.075, 0.090, 0.051); // #13170d - the sections below
 
 float hash21(vec2 p){
   p = fract(p * vec2(234.34, 435.345));
@@ -129,7 +127,7 @@ vec3 ink(vec2 p, float t){
 // ink's smoke. 'reveal' pushes c OUT of the Mandelbrot set: by the
 // Fatou-Julia dichotomy the lace shatters into Cantor dust - sparkling
 // ring-glows that ARE chapter 3, held and shimmering on the time orbit.
-// 'gone' pushes c far deeper so the dust evaporates into the green settle.
+// 'gone' pushes c far deeper so the dust evaporates into black.
 vec3 julia(vec2 u, float t, float drive, float condense, float reveal, float drift, float gone){
   u.y += 0.16 * drift;                              // the camera never stops rising past the dust
   vec2 smoke = vec2(fbm(u * 1.8 + 0.1 * t), fbm(u * 1.8 + vec2(4.7, 2.9)));
@@ -165,14 +163,14 @@ void main(){
   // One continuous camera rise across the whole film.
   vec2 p = uv + vec2(0.0, P * 1.1);
 
-  // Timeline: ink -> lace -> HELD Cantor dust (chapter 3) -> green settle.
+  // Timeline: ink -> lace -> HELD Cantor dust (chapter 3) -> black finale.
   // The julia field spans chapters 2 and 3; 'gone' evaporates it at the end.
   float w1 = 1.0 - smoothstep(0.22, 0.32, P);
   float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.82, 0.90, P));
   float condense = smoothstep(0.26, 0.42, P);
   float reveal   = smoothstep(0.44, 0.58, P); // lace shatters into the dust regime...
   float drift    = smoothstep(0.56, 0.80, P); // ...which never sits still: c devolves all chapter
-  float gone     = smoothstep(0.78, 0.88, P); // ...until the dust evaporates into the green
+  float gone     = smoothstep(0.78, 0.88, P); // ...until the dust evaporates into black
 
   vec3 col = vec3(0.0);
   if (w1 > 0.004) col += w1 * ink(p, t);
@@ -188,9 +186,9 @@ void main(){
 
   // Frame one develops out of the hero's own backdrop (the hero -> film join).
   col = mix(HERO, col, smoothstep(0.0, 0.07, P));
-  // The finale IS the backdrop: the dust evaporates into the calm green the
-  // rest of the site lives on, and the closing copy + CTA land there.
-  col = mix(col, SETTLE, smoothstep(0.80, 0.90, P));
+  // No settle colour: once the dust evaporates the film simply ends on
+  // black, and the closing copy + CTA land there. (The footer below is
+  // near-black too, so the hand-off stays seamless.)
 
   // The text stage: a gentle dim behind visible copy - subtle by design.
   float dTS = length((uv - vec2(0.0, -0.02)) * vec2(1.0, 1.4));
