@@ -8,11 +8,18 @@ import { useEffect, useRef } from "react"
 // computed on the GPU from the same equation, which is the point: on a site
 // about mathematics, the film itself is mathematics.
 //
-//   Chapter 1 — the arena      golden ink-chaos (domain-warped fbm)
-//   Chapter 2 — the insight    a Julia set crystallises out of the chaos
-//   Chapter 3 — the community  a drifting constellation network (voronoi)
-//   Chapter 4 — the proof      a lattice with a verification wave, settling
-//                              into the page background for the handoff
+//   Chapter 1 — the arena      golden ink-chaos with drifting embers
+//   Chapter 2 — the insight    a rim-lit Julia set condenses OUT of the ink,
+//                              then recedes into one star among many
+//   Chapter 3 — the community  a drifting constellation (voronoi stars)
+//   Chapter 4 — the proof      the SAME stars slide into perfect alignment
+//                              and a certification wave stills their twinkle
+//
+// Transitions are morphs with a shared element, never crossfades. Frame one
+// develops out of the hero's backdrop colour; the last frame settles into
+// the sections below. While a story beat is on screen the shader dims a soft
+// stage behind the copy (uText) — the film highlights the words, never
+// fights them.
 //
 // Mounted ONLY after the device gate in page.tsx passes (big screen, fine
 // pointer, real GPU, no reduced-motion) — phones never download this module.
@@ -42,15 +49,16 @@ const FRAG = `#version 300 es
 precision highp float;
 uniform vec2  uRes;
 uniform float uTime;
-uniform float uProg;     // film progress 0..1
-uniform vec2  uMouse;    // internal-resolution pixels, GL origin (bottom-left)
-uniform float uMouseAmt; // 0 until the first real mousemove
+uniform float uProg;  // film progress 0..1
+uniform float uText;  // beat-copy visibility 0..1 — carves a quiet stage for the text
 out vec4 outColor;
 
 const vec3 BG     = vec3(0.043, 0.027, 0.012); // warm near-black
+const vec3 HERO   = vec3(0.071, 0.090, 0.051); // #12170d — the hero backdrop the film develops from
 const vec3 AMBER  = vec3(1.00, 0.78, 0.42);
 const vec3 GOLD   = vec3(0.98, 0.62, 0.19);
-const vec3 SETTLE = vec3(0.075, 0.090, 0.051); // #13170d — the section bg below
+const vec3 CERT   = vec3(1.00, 0.93, 0.74);    // certified starlight — calmer, whiter
+const vec3 SETTLE = vec3(0.075, 0.090, 0.051); // #13170d — the sections below
 
 float hash21(vec2 p){
   p = fract(p * vec2(234.34, 435.345));
@@ -77,79 +85,90 @@ float fbm(vec2 p){
   return v;
 }
 
-// Chapter 1 — the arena. Domain-warped golden ink: thousands of attempts,
-// beautiful chaos.
+// Chapter 1 — the arena. Domain-warped golden ink with fine filaments and
+// sparse embers drifting upward through it: thousands of attempts, beautiful
+// chaos.
 vec3 ink(vec2 p, float t){
   vec2 q = vec2(fbm(p + 0.15 * t), fbm(p + vec2(5.2, 1.3) - 0.11 * t));
   vec2 r = vec2(fbm(p + 2.6 * q + vec2(1.7, 9.2) + 0.09 * t),
                 fbm(p + 2.6 * q + vec2(8.3, 2.8)));
   float f = fbm(p + 2.2 * r);
-  vec3 col = mix(BG, GOLD * 0.85, smoothstep(0.35, 0.95, f));
-  col = mix(col, AMBER, smoothstep(0.62, 1.0, f * length(q)) * 0.55);
+  vec3 col = mix(BG, GOLD * 0.8, smoothstep(0.38, 0.95, f));
+  col = mix(col, AMBER * 0.9, smoothstep(0.6, 1.0, f * length(q)) * 0.5);
+  float fil = fbm(p * 3.1 + r * 1.5 - 0.05 * t);
+  col += GOLD * 0.22 * smoothstep(0.62, 0.9, fil) * smoothstep(0.3, 0.6, f);
+  // sparse embers advected by the same flow
+  vec2 ep = p * 7.0 + q * 1.8 + vec2(0.0, -0.45 * t);
+  vec2 ei = floor(ep), ef = fract(ep);
+  float eh = hash21(ei);
+  if (eh > 0.962){
+    vec2 ec = vec2(fract(eh * 13.7), fract(eh * 7.31));
+    float ed = length(ef - ec);
+    float tw = 0.6 + 0.4 * sin(t * 2.0 + eh * 40.0);
+    col += AMBER * exp(-ed * ed * 60.0) * 0.5 * tw;
+  }
   return col;
 }
 
-// Chapter 2 — the insight. A Julia set: literal live mathematics emerging
-// from the ink. The parameter c travels as the chapter progresses — the
-// structure visibly "resolves".
-vec3 julia(vec2 p, float t, float drive){
-  vec2 z = p * 1.45;
+// Chapter 2 — the insight. A Julia set as rim-lit filigree: only the
+// boundary glows, the interior stays dark, so the story copy owns the frame.
+// 'condense' pulls it out of the ink's smoke (the logical join from ch1);
+// 'reveal' zooms it away as it hands over to the constellation (the join to
+// ch3 — the insight recedes into one star among many).
+vec3 julia(vec2 p, float t, float drive, float condense, float reveal){
+  vec2 smoke = vec2(fbm(p * 1.8 + 0.1 * t), fbm(p * 1.8 + vec2(4.7, 2.9)));
+  float zoom = mix(1.5, 2.7, reveal);
+  vec2 z = (p + (smoke - 0.5) * (1.0 - condense) * 0.9) * zoom;
   vec2 c = vec2(-0.745, 0.186)
-         + 0.055 * vec2(cos(0.21 * t + drive * 3.2), sin(0.17 * t + drive * 2.5))
+         + 0.045 * vec2(cos(0.19 * t + drive * 2.6), sin(0.15 * t + drive * 2.1))
          * (1.0 - 0.5 * drive);
   float trap = 1e9;
   float m = 56.0;
   for (int i = 0; i < 56; i++){
     z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
-    trap = min(trap, abs(length(z) - 0.35));
+    trap = min(trap, abs(length(z) - 0.4));
     if (dot(z, z) > 16.0){ m = float(i); break; }
   }
-  float glow = exp(-trap * 6.5);
   float edge = m / 56.0;
-  vec3 col = BG;
-  col += GOLD * glow * 0.85;
-  col += AMBER * pow(edge, 3.0) * 0.8;
+  float fil = exp(-trap * 9.0);
+  vec3 col = BG * 0.9;
+  col += GOLD * fil * 0.5;                        // dim filigree lace
+  col += AMBER * pow(edge, 6.0) * 0.85;           // only the finest boundary shimmer
+  col += vec3(0.35, 0.22, 0.08) * pow(edge, 2.5) * 0.3; // faint warm haze
   return col;
 }
 
-// Chapter 3 — the community. A slowly drifting constellation: nodes are
-// solvers, thin voronoi ridges are the discussions connecting them.
-vec3 network(vec2 p, float t){
-  vec2 g = p * 8.5;
+// Chapters 3 & 4 are ONE field. 'order' 0 → organic community drift;
+// 1 → every node slides to its lattice position and light beams form between
+// aligned neighbours. 'cert' (per-pixel, from the radial certification wave)
+// stills the twinkle and whitens the light: uncertain shimmer becomes
+// verified, steady starlight.
+vec3 stars(vec2 p, float t, float scale, float order, float cert){
+  vec2 g = p * scale;
   vec2 i = floor(g), f = fract(g);
   float f1 = 8.0, f2 = 8.0;
   for (int y = -1; y <= 1; y++){
     for (int x = -1; x <= 1; x++){
       vec2 o = vec2(float(x), float(y));
-      vec2 h = vec2(hash21(i + o), hash21(i + o + 7.7));
-      h = 0.5 + 0.4 * sin(0.6 * t + 6.2831 * h);
+      vec2 hrnd = vec2(hash21(i + o), hash21(i + o + 7.7));
+      vec2 drift = 0.5 + 0.4 * sin(0.6 * t + 6.2831 * hrnd);
+      vec2 h = mix(drift, vec2(0.5), order);      // the alignment IS the transition
       float d = length(o + h - f);
       if (d < f1){ f2 = f1; f1 = d; } else if (d < f2){ f2 = d; }
     }
   }
-  float node = exp(-f1 * f1 * 90.0);           // small bright stars, not blobs
-  float halo = exp(-f1 * f1 * 14.0) * 0.22;    // faint glow around each
-  float edge = exp(-abs(f2 - f1) * 26.0);      // thin connecting ridges
-  float pulse = 0.5 + 0.5 * sin(1.4 * t + (f1 + f2) * 7.0);
+  float twinkle = 0.5 + 0.5 * sin(1.4 * t + (f1 + f2) * 7.0);
+  float steady = mix(twinkle, 1.0, max(order * 0.35, cert)); // certified stars burn still
+  float node = exp(-f1 * f1 * 90.0);
+  float halo = exp(-f1 * f1 * 14.0) * 0.22;
+  float ridge = exp(-abs(f2 - f1) * 26.0);
+  vec2 q = abs(f - 0.5);
+  float beams = (1.0 - smoothstep(0.012, 0.05, min(q.x, q.y))) * order;
+  vec3 starCol = mix(AMBER, CERT, cert * 0.85);
   vec3 col = BG * 0.85;
-  col += AMBER * (node * (0.75 + 0.4 * pulse) + halo);
-  col += GOLD * edge * 0.22;
-  return col;
-}
-
-// Chapter 4 — the proof. Everything snaps to a lattice; a radial
-// verification wave sweeps through; the field settles to the exact colour
-// of the content below (the seam handoff).
-vec3 lattice(vec2 p, float t, float drive){
-  vec2 g = p * 6.0;
-  vec2 f = abs(fract(g) - 0.5);
-  float line = smoothstep(0.44, 0.5, max(f.x, f.y));
-  float wave = exp(-abs(length(p) - drive * 2.1) * 3.2);
-  float breathe = 0.5 + 0.5 * sin(0.8 * t);
-  vec3 col = mix(BG, SETTLE, drive);
-  col += GOLD * line * (0.18 + 0.85 * wave) * (1.0 - 0.25 * breathe);
-  col += AMBER * wave * 0.12;
-  col = mix(col, SETTLE, smoothstep(0.78, 1.0, drive));
+  col += starCol * (node * (0.35 + 0.65 * steady) + halo);
+  col += GOLD * ridge * 0.22 * (1.0 - order);     // organic web fades as order rises
+  col += GOLD * beams * (0.22 + 0.3 * cert);      // beams brighten once certified
   return col;
 }
 
@@ -159,27 +178,42 @@ void main(){
   float P = uProg;
 
   // One continuous camera rise across the whole film.
-  vec2 p = uv + vec2(0.0, P * 1.2);
+  vec2 p = uv + vec2(0.0, P * 1.1);
 
-  // Mouse warp — the proof it's live, not video. Gentle displacement field
-  // around the cursor; zero until the first real mousemove.
-  vec2 m = (uMouse - 0.5 * uRes) / uRes.y;
-  vec2 away = uv - m;
-  float md = length(away);
-  p += (away / max(md, 1e-3)) * exp(-md * 3.0) * 0.055 * uMouseAmt;
+  // Story timeline. Transitions are morphs with a shared element, not fades:
+  // ink condenses INTO the fractal; the fractal recedes INTO the field of
+  // stars; the stars ALIGN into the verified lattice.
+  float w1 = 1.0 - smoothstep(0.22, 0.32, P);
+  float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.47, 0.58, P));
+  float w3 = smoothstep(0.47, 0.58, P);
+  float condense = smoothstep(0.26, 0.42, P);
+  float reveal   = smoothstep(0.44, 0.58, P);
+  float order    = smoothstep(0.72, 0.82, P);
+  float wave     = max(0.0, (P - 0.80) / 0.15) * 1.9; // certification sweep radius
 
-  // Chapter weights with crossfades.
-  float w1 = 1.0 - smoothstep(0.20, 0.30, P);
-  float w2 = smoothstep(0.20, 0.30, P) * (1.0 - smoothstep(0.45, 0.55, P));
-  float w3 = smoothstep(0.45, 0.55, P) * (1.0 - smoothstep(0.70, 0.80, P));
-  float w4 = smoothstep(0.70, 0.80, P);
+  float rWave = length(uv - vec2(0.0, -0.05));
+  float cert = wave <= 0.0 ? 0.0 : smoothstep(rWave, rWave + 0.4, wave);
 
-  // Uniform-driven branches: outside its crossfade a chapter costs nothing.
   vec3 col = vec3(0.0);
-  if (w1 > 0.003) col += w1 * ink(p, t);
-  if (w2 > 0.003) col += w2 * julia(p, t, clamp((P - 0.25) / 0.25, 0.0, 1.0));
-  if (w3 > 0.003) col += w3 * network(p, t);
-  if (w4 > 0.003) col += w4 * lattice(uv, t, clamp((P - 0.75) / 0.25, 0.0, 1.0));
+  if (w1 > 0.004) col += w1 * ink(p, t);
+  if (w2 > 0.004) col += w2 * julia(p, t, clamp((P - 0.26) / 0.21, 0.0, 1.0), condense, reveal);
+  if (w3 > 0.004){
+    float scale = mix(7.0, 8.5, smoothstep(0.47, 0.6, P)); // settles as it arrives
+    vec3 s = stars(p, t, scale, order, cert);
+    // the wavefront itself: a ring of amber passing through the lattice
+    s += AMBER * exp(-abs(rWave - wave) * 4.5) * step(0.001, wave) * step(wave, 2.4) * 0.4;
+    col += w3 * s;
+  }
+
+  // Frame one develops out of the hero's own backdrop (the hero -> film join).
+  col = mix(HERO, col, smoothstep(0.0, 0.07, P));
+  // And the last frame settles into the sections below (the film -> page join).
+  col = mix(col, SETTLE, smoothstep(0.94, 1.0, P));
+
+  // The text stage: while a story beat is visible, dim the field behind the
+  // copy so the shader highlights the words instead of fighting them.
+  float dTS = length((uv - vec2(0.0, -0.02)) * vec2(1.0, 1.4));
+  col *= 1.0 - uText * 0.62 * (1.0 - smoothstep(0.32, 0.6, dTS));
 
   float vig = 1.0 - 0.45 * smoothstep(0.45, 1.1, length(uv));
   col *= vig;
@@ -205,7 +239,7 @@ type Beat = {
 // The four stories — same copy as the static sections this film replaces.
 const BEATS: Beat[] = [
   {
-    in: 0.02, peak: 0.09, out: 0.2,
+    in: 0.03, peak: 0.1, out: 0.21,
     kicker: "// competition",
     title: (
       <>Learn through <span className="italic">Competition</span></>
@@ -213,7 +247,7 @@ const BEATS: Beat[] = [
     body: "Work through a bottomless pool of fresh problems, climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted competitions. Every solve pushes you up the ranks.",
   },
   {
-    in: 0.27, peak: 0.35, out: 0.46,
+    in: 0.31, peak: 0.38, out: 0.46,
     kicker: "// practice",
     title: (
       <>Never stay <span className="italic">stuck</span></>
@@ -229,7 +263,7 @@ const BEATS: Beat[] = [
     lean: `theorem am_gm (a b : ℝ) :\n    a * b ≤ ((a + b) / 2) ^ 2 := by\n  nlinarith [sq_nonneg (a - b)]`,
   },
   {
-    in: 0.52, peak: 0.6, out: 0.71,
+    in: 0.57, peak: 0.63, out: 0.71,
     kicker: "// community",
     title: "Grow with the Community",
     body: (
@@ -241,7 +275,7 @@ const BEATS: Beat[] = [
     ),
   },
   {
-    in: 0.77, peak: 0.85, out: 0.96,
+    in: 0.79, peak: 0.86, out: 0.97,
     kicker: "// quality",
     title: (
       <>Quality you can <span className="italic">trust</span></>
@@ -309,8 +343,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     const uRes = gl.getUniformLocation(prog, "uRes")
     const uTime = gl.getUniformLocation(prog, "uTime")
     const uProg = gl.getUniformLocation(prog, "uProg")
-    const uMouse = gl.getUniformLocation(prog, "uMouse")
-    const uMouseAmt = gl.getUniformLocation(prog, "uMouseAmt")
+    const uText = gl.getUniformLocation(prog, "uText")
 
     // ---- state ----
     let qualityStep = 0
@@ -319,8 +352,8 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     let rafId = 0
     let visible = false
     let disposed = false
-    let mouseX = -1e5, mouseY = -1e5, mouseAmt = 0, mouseAmtTarget = 0
     let navHover = false
+    let textAmt = 0 // current beat-copy visibility, fed to uText
     let immersed = false
     let activeChapter = -1
     const started = performance.now()
@@ -361,13 +394,12 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       gl!.uniform2f(uRes, glW, glH)
       gl!.uniform1f(uTime, tSec)
       gl!.uniform1f(uProg, p)
-      const r = glW / cssW
-      gl!.uniform2f(uMouse, mouseX * r, glH - mouseY * r)
-      gl!.uniform1f(uMouseAmt, mouseAmt)
+      gl!.uniform1f(uText, textAmt)
       gl!.drawArrays(gl!.TRIANGLES, 0, 3)
     }
 
     function updateOverlays(p: number) {
+      let maxA = 0
       for (const el of beatRefs.current) {
         if (!el) continue
         const bIn = parseFloat(el.dataset.in || "0")
@@ -379,9 +411,11 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
             : 1 - (p - bPeak) / Math.max(1e-4, bOut - bPeak)
         }
         a = clamp01(a)
+        maxA = Math.max(maxA, a)
         el.style.opacity = String(a)
         el.style.transform = `translateY(${(1 - a) * 16}px)`
       }
+      textAmt = maxA // the shader dims its field behind visible copy
       if (captionRef.current) {
         captionRef.current.style.opacity = String(clamp01(1 - p / 0.18) * 0.8)
       }
@@ -431,7 +465,6 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       updatePin()
       const rect = driver!.getBoundingClientRect()
       const pinned = rect.top <= 0 && -rect.top < rect.height - cssH
-      mouseAmt = lerp(mouseAmt, mouseAmtTarget, 0.06)
       draw(current, (now - started) / 1000)
       updateOverlays(current)
       updateImmersion(pinned, current)
@@ -454,10 +487,9 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     }, { rootMargin: "25%" })
     io.observe(driver)
 
+    // Mouse is only chrome UX (top-edge navbar reveal) — the film itself
+    // deliberately ignores the cursor; nobody mouses mid-scroll.
     const onMouse = (e: MouseEvent) => {
-      mouseX = e.clientX
-      mouseY = e.clientY
-      mouseAmtTarget = 1
       navHover = e.clientY < 90
     }
     window.addEventListener("mousemove", onMouse, { passive: true })
@@ -504,8 +536,10 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // #12170d = the hero's backdrop — the pre-pin peek and shader frame one
+  // both continue it, so hero -> film is one unbroken surface.
   return (
-    <div ref={driverRef} style={{ height: `${DRIVER_VH}vh` }} className="relative bg-[#0b0703]">
+    <div ref={driverRef} style={{ height: `${DRIVER_VH}vh` }} className="relative bg-[#12170d]">
       <div ref={stageRef} className="absolute top-0 left-0 right-0 h-screen w-full overflow-hidden">
         <canvas ref={canvasRef} className="absolute inset-0" />
 
@@ -542,7 +576,6 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
           className="absolute bottom-6 right-6 z-10 text-right font-code text-[11px] leading-relaxed text-white/60 pointer-events-none"
         >
           <p>// no video, no images — one equation, rendered live</p>
-          <p className="text-amber-300/60">move your mouse</p>
         </div>
 
         {/* Quiet chapter readout */}
