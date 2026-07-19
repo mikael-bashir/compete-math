@@ -71,6 +71,8 @@ uniform float uTime;
 uniform float uProg;     // STORY progress 0..1 (the hero segment is already removed)
 uniform float uTrav;     // warp travel distance - CPU-integrated, flows in real time
 uniform float uVel;      // warp velocity 0..1 - eased on the CPU, never snaps
+uniform float uLz;       // log(zoom) - CPU-eased toward the scroll target, so the
+                         // camera lands like exponential decay and never snaps still
 uniform float uText;     // beat-copy visibility 0..1 - carves a quiet stage for the text
 uniform float uHeartAmt; // finale heart 0..1
 uniform vec4  uHeart[96]; // xy = point pos, z = glow, w = size scale; CPU-animated
@@ -197,7 +199,7 @@ vec3 flyField(vec2 uv, float trav, float vel, float persist){
       float rate = 0.7 + 0.6 * h3;
       float z = fract(h2 - trav * rate);        // its depth right now
       float b = 0.05 + 0.30 * h4 * h4;          // impact parameter
-      float w = 0.0007 + 0.0018 * h4 * h4;      // world radius: fine grains, few grand
+      float w = 0.0004 + 0.0011 * h4 * h4;      // world radius: true grains of light
       float head = b / max(z, 0.02);            // the star is HERE
       float tail = b / (z + vel * 0.16 * rate); // its own path this instant
       float da = lp - lane - 0.5 - (h3 - 0.5) * 0.5;
@@ -205,7 +207,7 @@ vec3 flyField(vec2 uv, float trav, float vel, float persist){
       // and brightness at that point belong to ITS depth, not the head's
       float rc = clamp(r, tail, head);
       float zc = b / rc;
-      float pw = min(w / zc, 0.010); // near passes swell, but never balloon
+      float pw = min(w / zc, 0.007); // near passes swell, but never balloon
       float dr = r - rc;
       float arcd = da * arck * rc; // true tangential distance on screen
       // tangential widths are capped inside the +-2-lane search window:
@@ -337,11 +339,11 @@ void main(){
   const float S_T = 0.22;    // home galaxy scale in world units
   const float Z0  = 0.002;   // TRUE deep space - 50x farther than any body
                              // resolves; the universe is born as dust
-  const float Zm  = 0.024;   // end of the slow approach: 12x closer
   const float Z1  = 3.3670;  // = 1/(1.35*S_T): the close-up framing
-  float za = smoothstep(0.17, 0.32, P); // the approach - long and gentle
-  float zd = smoothstep(0.32, 0.42, P); // the dive - the plunge home
-  float lz = mix(mix(log(Z0), log(Zm), za), log(Z1), zd);
+  // The zoom curve (approach 0.17-0.32, dive 0.32-0.42) lives on the CPU,
+  // where it is EASED toward, not scrubbed: uLz already carries the
+  // exponential-decay landing.
+  float lz = uLz;
   float zp = (lz - log(Z0)) / (log(Z1) - log(Z0)); // normalized dolly progress
   float zoomP = exp(lz);
   vec2 world = uv / zoomP;
@@ -581,6 +583,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     const uProg = gl.getUniformLocation(prog, "uProg")
     const uTrav = gl.getUniformLocation(prog, "uTrav")
     const uVel = gl.getUniformLocation(prog, "uVel")
+    const uLz = gl.getUniformLocation(prog, "uLz")
     const uText = gl.getUniformLocation(prog, "uText")
     const uHeartAmt = gl.getUniformLocation(prog, "uHeartAmt")
     const uHeart = gl.getUniformLocation(prog, "uHeart[0]")
@@ -689,21 +692,32 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       }
     }
 
-    // ---- the warp engine (o2b model): scroll position sets the THROTTLE,
-    // time does the travelling. Velocity eases toward the throttle and has
-    // a floor while the field is alive, so the stars never freeze - at
-    // "rest" they coast, exactly like the reference. Streak length in the
-    // shader rides on this same velocity: one source of truth.
+    // ---- the motion engine (o2b model): scroll position sets TARGETS,
+    // time does the moving. The warp velocity eases toward its throttle
+    // and, past the deceleration, decays exponentially to a TRUE
+    // standstill - resting particles must not move while the scrubbed
+    // universe holds. The camera's log-zoom eases toward its scroll
+    // target the same way: the landing on the home galaxy is exponential
+    // decay, and after any scroll stops the camera is still gliding -
+    // ever slower, never a snap.
     let warpVel = 0
     let warpTrav = 0
+    let lzS: number | null = null // smoothed log(zoom)
+    const LZ0 = Math.log(0.002), LZM = Math.log(0.024), LZ1 = Math.log(3.3670)
     function warpThrottle(pStory: number): number {
-      const burst = sstep(0.09, 0.14, pStory) * (1 - sstep(0.17, 0.24, pStory))
-      const coast = pStory > 0.1 && pStory < 0.4 ? 0.012 : 0
-      return Math.max(burst, coast)
+      return sstep(0.09, 0.14, pStory) * (1 - sstep(0.17, 0.24, pStory))
+    }
+    function lzTarget(pStory: number): number {
+      const za = sstep(0.17, 0.32, pStory) // the approach - long and gentle
+      const zd = sstep(0.32, 0.42, pStory) // the dive - the plunge home
+      const a = LZ0 + (LZM - LZ0) * za
+      return a + (LZ1 - a) * zd
     }
     function warpStep(pStory: number, dt: number) {
       warpVel += (warpThrottle(pStory) - warpVel) * Math.min(1, dt * 2.8)
       warpTrav += dt * warpVel * 1.9
+      if (lzS === null) lzS = lzTarget(pStory) // first frame (and ?jump) snaps
+      else lzS += (lzTarget(pStory) - lzS) * (1 - Math.exp(-dt * 1.4))
     }
 
     function draw(pStory: number, tSec: number) {
@@ -712,6 +726,8 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       gl!.uniform1f(uProg, pStory)
       gl!.uniform1f(uTrav, warpTrav)
       gl!.uniform1f(uVel, warpVel)
+      if (lzS === null) lzS = lzTarget(pStory) // warm frame renders pre-tick
+      gl!.uniform1f(uLz, lzS)
       gl!.uniform1f(uText, textAmt)
       const heartAmt = sstep(0.86, 0.97, pStory)
       gl!.uniform1f(uHeartAmt, heartAmt)
@@ -870,7 +886,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     ;(window as unknown as { __ready?: boolean }).__ready = true
     ;(window as unknown as { __filmState?: () => object }).__filmState = () => ({
       raw: current, story: story(current), quality: QUALITY_STEPS[qualityStep], res: [glW, glH], visible,
-      warpVel, warpTrav,
+      warpVel, warpTrav, lz: lzS,
     })
 
     function cleanup() {
