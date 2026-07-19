@@ -23,9 +23,13 @@ import HeroContent from "./hero"
 //   Chapter 3 — the community  the Cantor-dust regime ITSELF, held: the
 //                              insight dissolved into countless sparkling
 //                              ring-glows — one insight becomes everyone's
-//   Chapter 4 — the proof      the dust evaporates into black; the trust
-//                              copy closes the film with a Start-solving
-//                              call to action
+//   Chapter 4 — the proof      the dust condenses into one last equation:
+//                              a parametric heart of glimmering points, a
+//                              black heart outlined in light around the
+//                              trust copy and the Start-solving CTA. The
+//                              film's only resting state - and the one
+//                              place it invites the cursor: points shy
+//                              away from it and ignite as it approaches
 //
 // Transitions are morphs with a shared element, never crossfades. While a
 // story beat is on screen the shader dims a soft stage behind the copy
@@ -65,6 +69,9 @@ uniform vec2  uRes;
 uniform float uTime;
 uniform float uProg;  // STORY progress 0..1 (the hero segment is already removed)
 uniform float uText;  // beat-copy visibility 0..1 - carves a quiet stage for the text
+uniform float uHeartAmt; // finale heart 0..1
+uniform vec2  uPts[40];  // heart points, fully animated on the CPU (drift,
+uniform float uGlow[40]; // formation, cursor repulsion) - the GPU only splats
 out vec4 outColor;
 
 const vec3 BG     = vec3(0.043, 0.027, 0.012); // warm near-black
@@ -155,6 +162,24 @@ vec3 julia(vec2 u, float t, float drive, float condense, float reveal, float dri
   return col;
 }
 
+// The last equation. The classic parametric heart, drawn as glimmering
+// points that condense out of the evaporating dust - a black heart around
+// the closing words, and the one place the film listens to the cursor
+// (points shy away and ignite near it). All point animation happens on the
+// CPU; this loop is a pure splat - the in-shader version cost enough to
+// trip the watchdog at full resolution.
+vec3 heartSplat(vec2 uv){
+  vec3 col = vec3(0.0);
+  for (int i = 0; i < 40; i++){
+    vec2 d = uv - uPts[i];
+    float dd = dot(d, d);
+    float g = exp(-dd * 5200.0) + 0.045 / (1.0 + dd * 2600.0);
+    vec3 pc = mix(AMBER, vec3(1.0, 0.93, 0.74), hash21(vec2(float(i), 91.7)));
+    col += pc * g * uGlow[i];
+  }
+  return col;
+}
+
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
   float t = uTime;
@@ -186,9 +211,11 @@ void main(){
 
   // Frame one develops out of the hero's own backdrop (the hero -> film join).
   col = mix(HERO, col, smoothstep(0.0, 0.07, P));
+  if (uHeartAmt > 0.004) col += heartSplat(uv);
+
   // No settle colour: once the dust evaporates the film simply ends on
-  // black, and the closing copy + CTA land there. (The footer below is
-  // near-black too, so the hand-off stays seamless.)
+  // black - the heart and the closing copy + CTA land there. (The footer
+  // below is near-black too, so the hand-off stays seamless.)
 
   // The text stage: a gentle dim behind visible copy - subtle by design.
   float dTS = length((uv - vec2(0.0, -0.02)) * vec2(1.0, 1.4));
@@ -329,6 +356,9 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     const uTime = gl.getUniformLocation(prog, "uTime")
     const uProg = gl.getUniformLocation(prog, "uProg")
     const uText = gl.getUniformLocation(prog, "uText")
+    const uHeartAmt = gl.getUniformLocation(prog, "uHeartAmt")
+    const uPts = gl.getUniformLocation(prog, "uPts[0]")
+    const uGlow = gl.getUniformLocation(prog, "uGlow[0]")
 
     // ---- state ----
     let qualityStep = 0
@@ -339,6 +369,56 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     let disposed = false
     let navHover = false
     let textAmt = 0 // current beat-copy visibility, fed to uText
+    let mouseX = 1e5, mouseY = 1e5 // css px; far offscreen until the first move
+    let smoothMX = 1e5, smoothMY = 1e5 // lerped for trailing softness
+    let mouseAmt = 0
+
+    // The finale heart: 40 points on the classic parametric heart curve,
+    // animated entirely on the CPU each frame (formation from scattered dust,
+    // idle drift, cursor repulsion + ignition) and splatted by the GPU.
+    const N_HEART = 40
+    const heartBase = new Float32Array(N_HEART * 2)
+    const heartScatter = new Float32Array(N_HEART * 2)
+    const heartH1 = new Float32Array(N_HEART)
+    const heartH2 = new Float32Array(N_HEART)
+    for (let i = 0; i < N_HEART; i++) {
+      const th = ((i + 0.5) / N_HEART) * Math.PI * 2
+      heartBase[i * 2] = 0.16 * Math.pow(Math.sin(th), 3) * 2.6
+      heartBase[i * 2 + 1] = 0.013 * (13 * Math.cos(th) - 5 * Math.cos(2 * th) - 2 * Math.cos(3 * th) - Math.cos(4 * th)) * 2.6 + 0.03
+      const s1 = Math.sin(i * 127.1 + 311.7) * 43758.5453
+      const s2 = Math.sin(i * 269.5 + 183.3) * 28001.8384
+      heartH1[i] = s1 - Math.floor(s1)
+      heartH2[i] = s2 - Math.floor(s2)
+      heartScatter[i * 2] = (heartH1[i] - 0.5) * 1.8
+      heartScatter[i * 2 + 1] = (heartH2[i] - 0.5) * 1.1
+    }
+    const heartPts = new Float32Array(N_HEART * 2)
+    const heartGlow = new Float32Array(N_HEART)
+
+    function animateHeart(amt: number, tSec: number) {
+      const muX = (smoothMX - 0.5 * cssW) / cssH
+      const muY = (0.5 * cssH - smoothMY) / cssH
+      for (let i = 0; i < N_HEART; i++) {
+        const h1 = heartH1[i], h2 = heartH2[i]
+        const form = clamp01((amt - h1 * 0.5) / 0.5)
+        const f = form * form * (3 - 2 * form)
+        let px = heartScatter[i * 2] + (heartBase[i * 2] - heartScatter[i * 2]) * f
+        let py = heartScatter[i * 2 + 1] + (heartBase[i * 2 + 1] - heartScatter[i * 2 + 1]) * f
+        px += 0.006 * Math.sin(tSec * (0.5 + h1) + h2 * 40)
+        py += 0.006 * Math.cos(tSec * (0.4 + h2) + h1 * 40)
+        const ax = px - muX, ay = py - muY
+        const md2 = ax * ax + ay * ay
+        const rep = 0.05 * Math.exp(-md2 * 55) * mouseAmt
+        const inv = 1 / Math.max(Math.sqrt(md2), 1e-3)
+        px += ax * inv * rep
+        py += ay * inv * rep
+        heartPts[i * 2] = px
+        heartPts[i * 2 + 1] = py
+        const excite = 1 + 1.7 * Math.exp(-md2 * 40) * mouseAmt
+        const tw = 0.55 + 0.45 * Math.sin(tSec * (0.8 + 1.4 * h1) + h2 * 6.28318)
+        heartGlow[i] = 0.85 * tw * excite * amt
+      }
+    }
     let immersed = false
     let activeChapter = -1
     const started = performance.now()
@@ -383,6 +463,13 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       gl!.uniform1f(uTime, tSec)
       gl!.uniform1f(uProg, pStory)
       gl!.uniform1f(uText, textAmt)
+      const heartAmt = sstep(0.84, 0.97, pStory)
+      gl!.uniform1f(uHeartAmt, heartAmt)
+      if (heartAmt > 0.004) {
+        animateHeart(heartAmt, tSec)
+        gl!.uniform2fv(uPts, heartPts)
+        gl!.uniform1fv(uGlow, heartGlow)
+      }
       gl!.drawArrays(gl!.TRIANGLES, 0, 3)
     }
 
@@ -462,6 +549,8 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       const rect = driver!.getBoundingClientRect()
       const pinned = rect.top <= 0 && -rect.top < rect.height - cssH
       const pStory = story(current)
+      smoothMX = lerp(smoothMX, mouseX, 0.1)
+      smoothMY = lerp(smoothMY, mouseY, 0.1)
       updateOverlays(pStory) // before draw: textAmt feeds this frame's uText
       draw(pStory, (now - started) / 1000)
       updateHero(current)
@@ -485,10 +574,15 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     }, { rootMargin: "25%" })
     io.observe(driver)
 
-    // Mouse is only chrome UX (top-edge navbar reveal) — the film itself
-    // deliberately ignores the cursor; nobody mouses mid-scroll.
+    // The film ignores the cursor while scrolling (nobody mouses mid-film) —
+    // EXCEPT at the resting finale, where the heart's points respond to it.
+    // The listener also drives the top-edge navbar reveal.
     const onMouse = (e: MouseEvent) => {
       navHover = e.clientY < 90
+      mouseX = e.clientX
+      mouseY = e.clientY
+      if (mouseAmt === 0) { smoothMX = e.clientX; smoothMY = e.clientY }
+      mouseAmt = 1
     }
     window.addEventListener("mousemove", onMouse, { passive: true })
 
