@@ -320,24 +320,30 @@ void main(){
   float P = uProg;
 
   // Story parameters - the one c's journey through the theorem.
-  float drive  = clamp((P - 0.26) / 0.21, 0.0, 1.0);
-  float reveal = smoothstep(0.44, 0.58, P); // lace shatters into the dust regime...
-  float drift  = smoothstep(0.56, 0.80, P); // ...which never sits still...
-  float gone   = smoothstep(0.78, 0.88, P); // ...until it evaporates into black
-  float life   = 1.0 - smoothstep(0.82, 0.90, P); // the field's overall presence
+  float drive  = clamp((P - 0.32) / 0.20, 0.0, 1.0);
+  float reveal = smoothstep(0.50, 0.62, P); // lace shatters into the dust regime...
+  float drift  = smoothstep(0.61, 0.82, P); // ...which never sits still...
+  float gone   = smoothstep(0.81, 0.89, P); // ...until it evaporates into black
+  float life   = 1.0 - smoothstep(0.84, 0.91, P); // the field's overall presence
 
   // ONE camera for the whole approach: warp tunnel, arrival and dolly all
   // share a single CENTRED axis - the home galaxy at cell (0,0) sits dead
-  // centre from the universe's first frame to the close-up, and the
-  // exponential dolly flies straight down that axis. By construction the
-  // landing frame IS chapter 2's framing - the join cannot show.
+  // centre from the universe's first frame to the close-up. The camera
+  // NEVER stands still: a slow 12x approach begins the moment the
+  // universe starts entering (it resolves while already nearing, and the
+  // long quiet glide is what sells the vastness), then the dive covers
+  // the remaining 140x. By construction the landing frame IS chapter 2's
+  // framing - the join cannot show.
   const float S_T = 0.22;    // home galaxy scale in world units
   const float Z0  = 0.002;   // TRUE deep space - 50x farther than any body
                              // resolves; the universe is born as dust
+  const float Zm  = 0.024;   // end of the slow approach: 12x closer
   const float Z1  = 3.3670;  // = 1/(1.35*S_T): the close-up framing
-  float zp = smoothstep(0.24, 0.36, P); // the dolly ignites only after the
-                                        // traffic has fully come to rest
-  float zoomP = exp(mix(log(Z0), log(Z1), zp));
+  float za = smoothstep(0.17, 0.32, P); // the approach - long and gentle
+  float zd = smoothstep(0.32, 0.42, P); // the dive - the plunge home
+  float lz = mix(mix(log(Z0), log(Zm), za), log(Z1), zd);
+  float zp = (lz - log(Z0)) / (log(Z1) - log(Z0)); // normalized dolly progress
+  float zoomP = exp(lz);
   vec2 world = uv / zoomP;
 
   // The home galaxy's c: the base orbit plus the whole dissolution journey.
@@ -378,13 +384,13 @@ void main(){
     // copy-protection ring: only once the close-up has landed, released by
     // the shatter; floored so the stage stays translucent, never a hole
     float ring = mix(0.45, 1.0, smoothstep(0.26, 0.48, length(uv * vec2(1.0, 1.3))));
-    float maskOn = smoothstep(0.36, 0.42, P);
+    float maskOn = smoothstep(0.42, 0.48, P);
     float mask = mix(1.0, max(ring, reveal), maskOn);
     col += life * (BG * 0.9 + mask * field);
 
     // sparse star specks between the bodies, universe view only - LOD-gated
     // like everything else so they resolve instead of fading in
-    float uvw = 1.0 - smoothstep(0.26, 0.36, P);
+    float uvw = 1.0 - smoothstep(0.32, 0.42, P);
     if (uvw > 0.004){
       vec2 sp = world * 24.0;
       float sh = hash21(floor(sp));
@@ -412,7 +418,7 @@ void main(){
   // are world-locked - they ride exactly the same zoom as every galaxy,
   // so the traffic that flew past IS the starfield chapter 1 opens on,
   // and the dolly carries it out of frame like everything else it passes.
-  float persist = 1.0 - smoothstep(0.27, 0.36, P);
+  float persist = 1.0 - smoothstep(0.30, 0.40, P);
   if (persist > 0.004 && P > 0.06){
     col += flyField(uv * (Z0 / zoomP), uTrav, uVel, persist);
   }
@@ -469,7 +475,7 @@ type Beat = {
 // Timings are in STORY progress (post-hero).
 const BEATS: Beat[] = [
   {
-    in: 0.14, peak: 0.2, out: 0.28,
+    in: 0.14, peak: 0.2, out: 0.30,
     kicker: "// competition",
     title: (
       <>Learn through <span className="italic">Competition</span></>
@@ -477,7 +483,7 @@ const BEATS: Beat[] = [
     body: "Work through a bottomless pool of fresh problems, climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted competitions. Every solve pushes you up the ranks.",
   },
   {
-    in: 0.37, peak: 0.43, out: 0.52,
+    in: 0.43, peak: 0.49, out: 0.57,
     kicker: "// practice",
     title: (
       <>Never stay <span className="italic">stuck</span></>
@@ -493,7 +499,7 @@ const BEATS: Beat[] = [
     lean: `theorem am_gm (a b : ℝ) :\n    a * b ≤ ((a + b) / 2) ^ 2 := by\n  nlinarith [sq_nonneg (a - b)]`,
   },
   {
-    in: 0.6, peak: 0.67, out: 0.78,
+    in: 0.64, peak: 0.70, out: 0.80,
     kicker: "// community",
     title: "Grow with the Community",
     body: (
@@ -692,7 +698,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     let warpTrav = 0
     function warpThrottle(pStory: number): number {
       const burst = sstep(0.09, 0.14, pStory) * (1 - sstep(0.17, 0.24, pStory))
-      const coast = pStory > 0.1 && pStory < 0.35 ? 0.012 : 0
+      const coast = pStory > 0.1 && pStory < 0.4 ? 0.012 : 0
       return Math.max(burst, coast)
     }
     function warpStep(pStory: number, dt: number) {
@@ -707,7 +713,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       gl!.uniform1f(uTrav, warpTrav)
       gl!.uniform1f(uVel, warpVel)
       gl!.uniform1f(uText, textAmt)
-      const heartAmt = sstep(0.84, 0.97, pStory)
+      const heartAmt = sstep(0.86, 0.97, pStory)
       gl!.uniform1f(uHeartAmt, heartAmt)
       if (heartAmt > 0.004) {
         animateHeart(heartAmt, tSec)
@@ -753,7 +759,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
         el.style.pointerEvents = a > 0.5 ? "auto" : "none" // the finale CTA must be clickable
       }
       textAmt = maxA // the shader dims its field behind visible copy
-      const ch = pStory < 0.31 ? 0 : pStory < 0.56 ? 1 : pStory < 0.84 ? 2 : 3
+      const ch = pStory < 0.37 ? 0 : pStory < 0.60 ? 1 : pStory < 0.85 ? 2 : 3
       if (ch !== activeChapter) {
         activeChapter = ch
         labelRefs.current.forEach((el, i) => {
