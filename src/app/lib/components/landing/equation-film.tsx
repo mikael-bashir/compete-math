@@ -115,6 +115,14 @@ vec3 juliaCore(vec2 z, vec2 c){
 // edge-on Milky-Way bands), dendrite supernovae, basilica black holes with
 // blazing rims, bare stars, dim ellipticals. isMain pins the canonical home
 // galaxy at (0,0) and clears its neighbourhood for a clean final approach.
+// The warm spectrum: gold, amber, orange, ember red - hashed per body.
+vec3 warmTint(float h){
+  if (h < 0.40) return vec3(1.0, 0.95, 0.80);
+  if (h < 0.70) return vec3(1.0, 0.80, 0.55);
+  if (h < 0.90) return vec3(1.0, 0.62, 0.30);
+  return vec3(0.95, 0.42, 0.22);
+}
+
 vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain){
   vec2 base = floor(g + 0.5);
   float bestD = 1e9;
@@ -165,7 +173,7 @@ vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain)
     vec3 f = juliaCore(local / gs, cHome + (vec2(h1, h2) - 0.5) * 0.02);
     rr = dot(local, local) / (gs * gs);
     f *= 0.3 + 0.7 * exp(-rr * 1.3);
-    f *= mix(vec3(1.0, 0.8, 0.55), vec3(1.0, 0.97, 0.85), h2);
+    f *= warmTint(hash21(bestCell + 33.3));
     f += AMBER * exp(-rr * 2.2) * 0.05;
     return f * (0.35 + 0.65 * h1);
   } else if (h3 < 0.52){
@@ -197,7 +205,7 @@ vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain)
     float gs = 0.09 * (0.45 + 0.9 * h2);
     vec3 f = juliaCore(local / gs, cHome + vec2(0.015, -0.01));
     rr = dot(local, local) / (gs * gs);
-    return f * exp(-rr * 1.8) * vec3(1.0, 0.85, 0.65) * 0.35;
+    return f * exp(-rr * 1.8) * warmTint(hash21(bestCell + 41.1)) * 0.35;
   }
 }
 
@@ -245,6 +253,8 @@ void main(){
     if (bgw > 0.004){
       field += bodyField(world * 0.42 + vec2(7.3, 4.1), t, cHome, reveal, zp, false) * bgw * 0.5;
       field += bodyField(world * 1.63 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false) * bgw * 0.65;
+      // ultra-distant shoal: small-to-medium bodies, dim and slow
+      field += bodyField(world * 2.6 + vec2(23.1, -17.9), t, cHome, reveal, zp, false) * bgw * 0.34;
     }
 
     // copy-protection ring: only once the close-up has landed, released by
@@ -259,11 +269,20 @@ void main(){
     if (uvw > 0.004){
       vec2 sp = world * 24.0;
       float sh = hash21(floor(sp));
-      if (sh > 0.985){
+      if (sh > 0.98){
         vec2 sc = vec2(0.2) + 0.6 * vec2(fract(sh * 13.7), fract(sh * 7.31));
         vec2 sd = fract(sp) - sc;
-        col += vec3(1.0, 0.93, 0.74) * exp(-dot(sd, sd) * 90.0) * 0.35 * uvw
+        col += warmTint(fract(sh * 9.7)) * exp(-dot(sd, sd) * 90.0) * 0.35 * uvw
              * (0.6 + 0.4 * sin(t * 1.5 + sh * 40.0));
+      }
+      // ultra-distant glimmer: a finer, denser dust of barely-there dots
+      vec2 sp2 = world * 57.0 + 31.7;
+      float sh2 = hash21(floor(sp2));
+      if (sh2 > 0.972){
+        vec2 sc2 = vec2(0.25) + 0.5 * vec2(fract(sh2 * 17.3), fract(sh2 * 5.9));
+        vec2 sd2 = fract(sp2) - sc2;
+        col += warmTint(fract(sh2 * 6.3)) * exp(-dot(sd2, sd2) * 160.0) * 0.16 * uvw
+             * (0.5 + 0.5 * sin(t * 2.3 + sh2 * 60.0));
       }
     }
   }
