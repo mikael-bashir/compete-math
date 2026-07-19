@@ -283,7 +283,6 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const heroRef = useRef<HTMLDivElement>(null)
   const beatRefs = useRef<Array<HTMLDivElement | null>>([])
-  const captionRef = useRef<HTMLDivElement>(null)
   const labelRefs = useRef<Array<HTMLSpanElement | null>>([])
 
   useEffect(() => {
@@ -418,9 +417,6 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
         el.style.pointerEvents = a > 0.5 ? "auto" : "none" // the finale CTA must be clickable
       }
       textAmt = maxA // the shader dims its field behind visible copy
-      if (captionRef.current) {
-        captionRef.current.style.opacity = String(clamp01(1 - pStory / 0.18) * clamp01(pStory / 0.02) * 0.8)
-      }
       const ch = pStory < 0.24 ? 0 : pStory < 0.56 ? 1 : pStory < 0.84 ? 2 : 3
       if (ch !== activeChapter) {
         activeChapter = ch
@@ -593,15 +589,6 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
             </div>
           </div>
         ))}
-
-        {/* The stump, stated plainly. Appears as the hero clears, fades as
-            chapter 1 ends. */}
-        <div
-          ref={captionRef}
-          className="absolute bottom-6 right-6 z-10 text-right font-code text-[11px] leading-relaxed text-white/60 pointer-events-none opacity-0"
-        >
-          <p>// no video, no images — one equation, rendered live</p>
-        </div>
 
         {/* Quiet chapter readout */}
         <div className="absolute bottom-6 left-6 z-10 hidden md:flex items-center gap-2 font-code text-[10px] tracking-[0.2em] uppercase text-white/70 pointer-events-none">
