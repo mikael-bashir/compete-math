@@ -199,7 +199,7 @@ vec3 flyField(vec2 uv, float trav, float vel, float persist){
       float rate = 0.7 + 0.6 * h3;
       float z = fract(h2 - trav * rate);        // its depth right now
       float b = 0.05 + 0.30 * h4 * h4;          // impact parameter
-      float w = 0.0004 + 0.0011 * h4 * h4;      // world radius: true grains of light
+      float w = 0.00013 + 0.00037 * h4 * h4;    // world radius: pinpricks of light
       float head = b / max(z, 0.02);            // the star is HERE
       float tail = b / (z + vel * 0.16 * rate); // its own path this instant
       float da = lp - lane - 0.5 - (h3 - 0.5) * 0.5;
@@ -207,7 +207,9 @@ vec3 flyField(vec2 uv, float trav, float vel, float persist){
       // and brightness at that point belong to ITS depth, not the head's
       float rc = clamp(r, tail, head);
       float zc = b / rc;
-      float pw = min(w / zc, 0.007); // near passes swell, but never balloon
+      // near passes swell but never balloon; the floor keeps the finest
+      // grains one drawable pixel instead of aliasing out of existence
+      float pw = clamp(w / zc, 0.7 / uRes.y, 0.0023);
       float dr = r - rc;
       float arcd = da * arck * rc; // true tangential distance on screen
       // tangential widths are capped inside the +-2-lane search window:
@@ -465,6 +467,7 @@ const CHAPTER_LABELS = ["compete", "insight", "community", "trust"] as const
 type Beat = {
   in: number
   peak: number
+  hold: number // full-opacity plateau: the copy RESTS from peak to here
   out: number // > 1.5 means the beat holds to the end of the film (finale)
   kicker: string
   title: React.ReactNode
@@ -477,7 +480,7 @@ type Beat = {
 // Timings are in STORY progress (post-hero).
 const BEATS: Beat[] = [
   {
-    in: 0.14, peak: 0.2, out: 0.30,
+    in: 0.13, peak: 0.17, hold: 0.27, out: 0.315,
     kicker: "// competition",
     title: (
       <>Learn through <span className="italic">Competition</span></>
@@ -485,7 +488,7 @@ const BEATS: Beat[] = [
     body: "Work through a bottomless pool of fresh problems, climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted competitions. Every solve pushes you up the ranks.",
   },
   {
-    in: 0.43, peak: 0.49, out: 0.57,
+    in: 0.43, peak: 0.465, hold: 0.545, out: 0.585,
     kicker: "// practice",
     title: (
       <>Never stay <span className="italic">stuck</span></>
@@ -501,7 +504,7 @@ const BEATS: Beat[] = [
     lean: `theorem am_gm (a b : ℝ) :\n    a * b ≤ ((a + b) / 2) ^ 2 := by\n  nlinarith [sq_nonneg (a - b)]`,
   },
   {
-    in: 0.64, peak: 0.70, out: 0.80,
+    in: 0.63, peak: 0.665, hold: 0.755, out: 0.80,
     kicker: "// community",
     title: "Grow with the Community",
     body: (
@@ -513,7 +516,7 @@ const BEATS: Beat[] = [
     ),
   },
   {
-    in: 0.88, peak: 0.94, out: 2, cta: true,
+    in: 0.88, peak: 0.93, hold: 2, out: 2, cta: true,
     kicker: "// quality",
     title: (
       <>Quality you can <span className="italic">trust</span></>
@@ -761,12 +764,14 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
         if (!el) continue
         const bIn = parseFloat(el.dataset.in || "0")
         const bPeak = parseFloat(el.dataset.peak || "0")
+        const bHold = parseFloat(el.dataset.hold || el.dataset.peak || "0")
         const bOut = parseFloat(el.dataset.out || "1")
         let a = 0
         if (pStory >= bIn && pStory <= bOut) {
           a = pStory < bPeak ? (pStory - bIn) / Math.max(1e-4, bPeak - bIn)
             : bOut > 1.5 ? 1 // finale: holds to the end of the film
-            : 1 - (pStory - bPeak) / Math.max(1e-4, bOut - bPeak)
+            : pStory < bHold ? 1 // the plateau: copy RESTS at full opacity
+            : 1 - (pStory - bHold) / Math.max(1e-4, bOut - bHold)
         }
         a = clamp01(a)
         maxA = Math.max(maxA, a)
@@ -917,6 +922,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
             ref={(el) => { beatRefs.current[i] = el }}
             data-in={b.in}
             data-peak={b.peak}
+            data-hold={b.hold}
             data-out={b.out}
             className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center opacity-0 pointer-events-none"
           >
