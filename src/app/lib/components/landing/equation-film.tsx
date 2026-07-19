@@ -42,7 +42,8 @@ import HeroContent from "./hero"
 
 const DRIVER_VH = 600 // total scroll distance: hero handoff + four chapters
 const HERO_SEG = 0.1 // first fraction of the driver: hero dissolves into frame one
-const MAX_INTERNAL_WIDTH = 1600 // shader render width cap; CSS upscales — invisible for this content, huge perf win
+const MAX_INTERNAL_WIDTH = 2560 // shader render width cap (device px). DPR is respected up to 2x —
+// ignoring it made the star/grid chapters visibly soft on retina displays.
 const QUALITY_STEPS = [1, 0.82, 0.66] // watchdog degrade ladder (internal-res multipliers)
 const P95_DEGRADE_MS = 27 // step down when p95 frame time exceeds this
 const P95_ABORT_MS = 45 // at the last step, give up and restore the static page
@@ -123,7 +124,7 @@ vec3 ink(vec2 p, float t){
 // the whole set collapses into a single glowing point among the stars.
 vec3 julia(vec2 u, float t, float drive, float condense, float reveal){
   vec2 smoke = vec2(fbm(u * 1.8 + 0.1 * t), fbm(u * 1.8 + vec2(4.7, 2.9)));
-  float zoom = mix(1.35, 10.0, reveal * reveal);
+  float zoom = mix(1.35, 18.0, reveal * reveal);
   vec2 z = (u + (smoke - 0.5) * (1.0 - condense) * 0.9) * zoom;
   vec2 c = vec2(-0.745, 0.186)
          + 0.045 * vec2(cos(0.19 * t + drive * 2.6), sin(0.15 * t + drive * 2.1))
@@ -185,7 +186,7 @@ void main(){
   vec2 p = uv + vec2(0.0, P * 1.1);
 
   float w1 = 1.0 - smoothstep(0.22, 0.32, P);
-  float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.50, 0.60, P));
+  float w2 = smoothstep(0.22, 0.32, P) * (1.0 - smoothstep(0.56, 0.63, P)); // fades only AFTER the zoom-out lands at dot size
   float w3 = smoothstep(0.50, 0.60, P);
   float condense = smoothstep(0.26, 0.42, P);
   float reveal   = smoothstep(0.44, 0.58, P);
@@ -204,7 +205,7 @@ void main(){
     float ring = smoothstep(0.30, 0.50, length(uv * vec2(1.0, 1.3)));
     float mask = max(ring, reveal);
     vec3 jc = julia(uv, t, clamp((P - 0.26) / 0.21, 0.0, 1.0), condense, reveal);
-    jc += AMBER * exp(-length(uv) * 5.0) * reveal * 0.6; // the condensing point
+    jc += AMBER * exp(-length(uv) * 7.0) * reveal * 0.7; // the condensing point
     col += w2 * (BG * 0.9 + mask * jc);
   }
   if (w3 > 0.004){
@@ -223,7 +224,7 @@ void main(){
   // The text stage: while a story beat is visible, dim the field behind the
   // copy so the shader highlights the words instead of fighting them.
   float dTS = length((uv - vec2(0.0, -0.02)) * vec2(1.0, 1.4));
-  col *= 1.0 - uText * 0.62 * (1.0 - smoothstep(0.32, 0.6, dTS));
+  col *= 1.0 - uText * 0.4 * (1.0 - smoothstep(0.26, 0.68, dTS));
 
   float vig = 1.0 - 0.45 * smoothstep(0.45, 1.1, length(uv));
   col *= vig;
@@ -278,7 +279,7 @@ const BEATS: Beat[] = [
     lean: `theorem am_gm (a b : ℝ) :\n    a * b ≤ ((a + b) / 2) ^ 2 := by\n  nlinarith [sq_nonneg (a - b)]`,
   },
   {
-    in: 0.6, peak: 0.66, out: 0.73,
+    in: 0.58, peak: 0.64, out: 0.78,
     kicker: "// community",
     title: "Grow with the Community",
     body: (
@@ -290,7 +291,7 @@ const BEATS: Beat[] = [
     ),
   },
   {
-    in: 0.79, peak: 0.86, out: 0.97,
+    in: 0.8, peak: 0.85, out: 0.99,
     kicker: "// quality",
     title: (
       <>Quality you can <span className="italic">trust</span></>
@@ -379,7 +380,8 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     function resize() {
       cssW = window.innerWidth
       cssH = window.innerHeight
-      const scale = (Math.min(cssW, MAX_INTERNAL_WIDTH) / cssW) * QUALITY_STEPS[qualityStep]
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const scale = (Math.min(cssW * dpr, MAX_INTERNAL_WIDTH) / cssW) * QUALITY_STEPS[qualityStep]
       glW = Math.max(2, Math.round(cssW * scale))
       glH = Math.max(2, Math.round(cssH * scale))
       canvas!.width = glW
@@ -581,7 +583,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
           >
             {/* Radial scrim: guarantees legibility even where the field is
                 bright, second line of defence after the shader's own carve. */}
-            <div className="flex flex-col items-center [background:radial-gradient(ellipse_55%_46%_at_50%_50%,rgba(4,3,1,0.52),transparent_72%)] px-16 py-14 rounded-full">
+            <div className="flex flex-col items-center [background:radial-gradient(ellipse_58%_48%_at_50%_50%,rgba(4,3,1,0.3),transparent_78%)] px-16 py-14 rounded-full">
               <p className="font-code text-amber-300/70 text-xs tracking-[0.25em] uppercase mb-3">
                 {b.kicker}
               </p>
