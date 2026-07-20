@@ -175,11 +175,13 @@ vec3 heartOrbits(vec2 p, float S, float hA, float t, out float voidM){
   // the void: the interior falls to near-black - the copy's stage
   voidM = smoothstep(1.02, 0.93, s) * smoothstep(0.15, 0.55, hA) * hA;
 
-  // the rim: crisp white-gold with a soft ember halo
+  // the rim: a crisp white line inside a slim gold edge - delicate, like
+  // the reference - over a soft ember halo
   float rd = (s - 1.0) * R;
   float rimA = smoothstep(0.2, 0.55, hA);
-  col += vec3(1.0, 0.88, 0.58) * exp(-rd * rd * 9000.0) * 1.1 * rimA;
-  col += vec3(0.85, 0.25, 0.10) * exp(-rd * rd * 700.0) * 0.30 * rimA;
+  col += vec3(1.0, 0.98, 0.92) * exp(-rd * rd * 90000.0) * 0.9 * rimA;
+  col += vec3(1.0, 0.88, 0.58) * exp(-rd * rd * 16000.0) * 0.9 * rimA;
+  col += vec3(0.85, 0.25, 0.10) * exp(-rd * rd * 900.0) * 0.28 * rimA;
 
   // the silk: domain-warped ribbon fields in heart-polar space - x flows
   // AROUND the void, y runs across the shells (log-spaced). Three sine
@@ -192,10 +194,16 @@ vec3 heartOrbits(vec2 p, float S, float hA, float t, out float voidM){
   if (s > 1.015 && s < 3.4){
     float lg = log(s);
     vec2 w = vec2(arc, lg * 6.0);
-    w.y += 0.55 * sin(w.x * 1.7 + lg * 3.0 + t * 0.05)
+    // big swoops, stronger in the outer field: the side-wings sweep in
+    // from the frame edges with real curvature
+    float outer = smoothstep(0.15, 1.1, lg);
+    w.y += (0.55 + 0.85 * outer) * sin(w.x * 1.7 + lg * 3.0 + t * 0.05)
          + 0.30 * sin(w.x * 3.3 - lg * 5.0 - t * 0.04)
          + 0.15 * sin(w.x * 6.1 + t * 0.06);
-    w.x += 0.40 * sin(w.y * 2.2 + t * 0.03);
+    w.x += (0.40 + 0.50 * outer) * sin(w.y * 2.2 + t * 0.03)
+         // spiral twist, lower field only: the swooshes wrap AROUND the
+         // heart below the lobes while the vault keeps the top
+         + 0.9 * lg * smoothstep(0.25, -0.55, dir.y);
     // ribbon families in swathes (masks swing negative: bundles separated
     // by darkness) - plus fine hairs, a dim micro-fill so the darkness
     // itself breathes red, and scalloped feather-rows in the upper field
@@ -208,18 +216,38 @@ vec3 heartOrbits(vec2 p, float S, float hA, float t, out float voidM){
     float rib = exp(-d1 * d1 * 130.0) * m1
               + exp(-d2 * d2 * 220.0) * 0.60 * m2
               + exp(-d3 * d3 * 420.0) * 0.30 * m3
-              + exp(-abs(fract(w.y * 9.0 + 0.3 * sin(w.x * 4.0)) - 0.5) * 12.0) * 0.05;
-    // feather scales: rows of scalloped arcs, strongest in the upper field
-    // around the beam, like the reference's plumage
-    float fs = fract(w.y * 1.3 + 0.22 * abs(sin(w.x * 5.0))) - 0.5;
-    rib += exp(-fs * fs * 170.0) * 0.45
-         * smoothstep(-0.2, 0.55, dir.y) * smoothstep(1.25, 1.6, s);
+              + exp(-abs(fract(w.y * 9.0 + 0.3 * sin(w.x * 4.0)) - 0.5) * 12.0) * 0.03;
     // wings: the field reaches farther below the lobes and to the sides
     float reach = 1.0 + 0.8 * smoothstep(0.1, -0.9, dir.y)
                 + 0.45 * smoothstep(0.3, 1.0, abs(dir.x));
     float fade = (1.0 - smoothstep(1.3 * reach, 3.6 * reach, s)) * smoothstep(1.015, 1.10, s);
     // the bloom sweeps outward from the rim as the heart finishes forming
     float appear = smoothstep(0.0, 0.30, hA - 0.30 * (s - 1.0));
+    // THE FEATHER VAULT: the upper field is rows of true plumes - each a
+    // scalloped arc with fine internal barbs, edge-lit and falling to
+    // black before the row behind it. Rows are staggered; plume tips
+    // near the beam catch gold.
+    float vault = smoothstep(-0.05, 0.45, dir.y) * smoothstep(1.10, 1.32, s);
+    if (vault > 0.004){
+      // rows live in a barely-warped frame so they stay LEGIBLE as rows
+      vec2 wv = vec2(arc, lg * 6.0);
+      wv.y += 0.25 * sin(wv.x * 1.7 + t * 0.04);
+      float rw = wv.y * 1.15;
+      float row = floor(rw);
+      float fy = fract(rw);
+      float cx = wv.x * 1.9 + hash21(vec2(row, 5.1)) * 3.14159;
+      float fx = fract(cx) - 0.5;
+      float crest2 = 0.62 - 0.45 * (fx * fx * 4.0); // each plume's arched top
+      float de = fy - crest2;
+      float edgeL = exp(-de * de * 900.0) * smoothstep(0.5, 0.1, abs(fx));
+      float barb = pow(abs(sin((fx * 6.0 + de * 2.5) * 6.28318)), 3.0);
+      float body = smoothstep(crest2, crest2 - 0.55, fy) * (0.10 + 0.42 * barb);
+      float goldTip = smoothstep(0.35, 0.05, abs(p.x));
+      vec3 plumeCol = mix(vec3(0.85, 0.10, 0.04), vec3(1.0, 0.75, 0.22),
+                          clamp(goldTip * edgeL * 2.5, 0.0, 1.0));
+      rib += (body * 0.9 + edgeL * 1.0) * vault;
+      col += plumeCol * edgeL * 0.5 * vault * fade * appear;
+    }
     vec3 red = mix(vec3(1.0, 0.16, 0.06), vec3(0.45, 0.03, 0.03), smoothstep(1.05, 3.0, s));
     // gold: the collar of feathers capping the void, and the notch bloom
     float collar = 0.8 * smoothstep(0.30, 0.85, dir.y) * (1.0 - smoothstep(1.05, 1.55, s));
@@ -227,12 +255,20 @@ vec3 heartOrbits(vec2 p, float S, float hA, float t, out float voidM){
     col += mix(red, vec3(1.0, 0.80, 0.30), goldMix) * rib * fade * appear;
   }
 
-  // the crest: a gold flame at the notch, a thin beam rising through it
-  vec2 dcp = (p - cp) * vec2(1.6, 1.0);
+  // THE CROWN: gold flame petals curling UP and OUT of the notch - never
+  // into the void (occluded like everything else) - under a pale beam
+  vec2 q = p - cp;
+  float rq = max(length(q), 1e-4);
+  float aq = atan(q.x, q.y); // 0 = straight up
   float crestA = smoothstep(0.62, 0.95, hA);
-  col += vec3(1.0, 0.80, 0.30) * exp(-dot(dcp, dcp) * 260.0) * 0.9 * crestA;
-  col += vec3(1.0, 0.92, 0.70) * exp(-p.x * p.x * 7000.0)
-       * smoothstep(-0.02, 0.06, p.y - cp.y) * 0.16 * crestA;
+  float oc = smoothstep(0.985, 1.03, s); // outside the heart only
+  float up = smoothstep(-0.25, 0.45, q.y / rq); // petals reach upward
+  float petals = pow(abs(sin(aq * 4.5 + sign(p.x) * rq * 7.0 + t * 0.05)), 2.0);
+  float crown = exp(-rq * 8.0) * (0.25 + 0.75 * petals) * up * oc;
+  col += vec3(1.0, 0.78, 0.22) * crown * 1.2 * crestA;
+  col += vec3(1.0, 0.55, 0.12) * exp(-rq * 7.0) * 0.10 * up * oc * crestA;
+  col += vec3(1.0, 0.95, 0.80) * exp(-p.x * p.x * 12000.0)
+       * smoothstep(-0.02, 0.04, p.y - cp.y) * 0.30 * crestA;
 
   // thin pale orbital rings crossing the wings - crisp, like the
   // reference's circles - with a slow procession of sparks
@@ -240,11 +276,13 @@ vec3 heartOrbits(vec2 p, float S, float hA, float t, out float voidM){
   if (ringA > 0.004){
     float re = length((p - c) * vec2(1.0, 1.30));
     float ang = atan(p.y - c.y, p.x);
-    for (int i = 0; i < 2; i++){
+    for (int i = 0; i < 3; i++){
       float fi = float(i);
-      float Rr = (0.205 + 0.030 * fi) * S;
+      float Rr = (0.180 + 0.028 * fi) * S;
       float shim = 0.7 + 0.3 * sin(ang * (14.0 + fi * 5.0) + t * (0.3 - 0.6 * fi));
-      col += vec3(1.0, 0.96, 0.88) * exp(-(re - Rr) * (re - Rr) * 40000.0) * 0.16 * shim * ringA;
+      // the void occludes the rings - they pass BEHIND the heart
+      col += vec3(1.0, 0.96, 0.88) * exp(-(re - Rr) * (re - Rr) * 52000.0)
+           * 0.15 * shim * ringA * smoothstep(0.97, 1.02, s);
     }
   }
   return col * hA;
