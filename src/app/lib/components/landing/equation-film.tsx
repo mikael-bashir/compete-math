@@ -196,23 +196,35 @@ vec3 heartOrbits(vec2 p, float S, float hA, float t, out float voidM){
          + 0.30 * sin(w.x * 3.3 - lg * 5.0 - t * 0.04)
          + 0.15 * sin(w.x * 6.1 + t * 0.06);
     w.x += 0.40 * sin(w.y * 2.2 + t * 0.03);
-    // sparse ribbons in swathes: the masks swing negative, so strands come
-    // in feathered bundles separated by true black - not uniform stripes
+    // ribbon families in swathes (masks swing negative: bundles separated
+    // by darkness) - plus fine hairs, a dim micro-fill so the darkness
+    // itself breathes red, and scalloped feather-rows in the upper field
     float d1 = abs(fract(w.y) - 0.5);
     float d2 = abs(fract(w.y * 2.6 + 0.7 * sin(w.x * 2.0)) - 0.5);
-    float m1 = max(0.0, 0.40 + 0.60 * sin(w.x * 1.3 + w.y * 0.9 + t * 0.05 + 1.7));
-    float m2 = max(0.0, 0.35 + 0.65 * sin(w.x * 0.8 - w.y * 1.4 - t * 0.04));
+    float d3 = abs(fract(w.y * 5.5 + 0.4 * sin(w.x * 3.1)) - 0.5);
+    float m1 = max(0.0, 0.55 + 0.45 * sin(w.x * 1.3 + w.y * 0.9 + t * 0.05 + 1.7));
+    float m2 = max(0.0, 0.50 + 0.50 * sin(w.x * 0.8 - w.y * 1.4 - t * 0.04));
+    float m3 = max(0.0, 0.45 + 0.55 * sin(w.x * 2.1 + w.y * 0.7 + t * 0.03));
     float rib = exp(-d1 * d1 * 130.0) * m1
-              + exp(-d2 * d2 * 220.0) * 0.6 * m2;
+              + exp(-d2 * d2 * 220.0) * 0.60 * m2
+              + exp(-d3 * d3 * 420.0) * 0.30 * m3
+              + exp(-abs(fract(w.y * 9.0 + 0.3 * sin(w.x * 4.0)) - 0.5) * 12.0) * 0.05;
+    // feather scales: rows of scalloped arcs, strongest in the upper field
+    // around the beam, like the reference's plumage
+    float fs = fract(w.y * 1.3 + 0.22 * abs(sin(w.x * 5.0))) - 0.5;
+    rib += exp(-fs * fs * 170.0) * 0.45
+         * smoothstep(-0.2, 0.55, dir.y) * smoothstep(1.25, 1.6, s);
     // wings: the field reaches farther below the lobes and to the sides
     float reach = 1.0 + 0.8 * smoothstep(0.1, -0.9, dir.y)
                 + 0.45 * smoothstep(0.3, 1.0, abs(dir.x));
-    float fade = (1.0 - smoothstep(1.2 * reach, 3.2 * reach, s)) * smoothstep(1.015, 1.10, s);
+    float fade = (1.0 - smoothstep(1.3 * reach, 3.6 * reach, s)) * smoothstep(1.015, 1.10, s);
     // the bloom sweeps outward from the rim as the heart finishes forming
     float appear = smoothstep(0.0, 0.30, hA - 0.30 * (s - 1.0));
-    vec3 red = mix(vec3(0.90, 0.13, 0.05), vec3(0.36, 0.02, 0.02), smoothstep(1.05, 2.8, s));
-    float goldMix = clamp(0.9 * exp(-dCr2 * 12.0), 0.0, 1.0);
-    col += mix(red, vec3(1.0, 0.78, 0.28), goldMix) * rib * fade * appear * 0.85;
+    vec3 red = mix(vec3(1.0, 0.16, 0.06), vec3(0.45, 0.03, 0.03), smoothstep(1.05, 3.0, s));
+    // gold: the collar of feathers capping the void, and the notch bloom
+    float collar = 0.8 * smoothstep(0.30, 0.85, dir.y) * (1.0 - smoothstep(1.05, 1.55, s));
+    float goldMix = clamp(1.1 * exp(-dCr2 * 8.0) + collar, 0.0, 1.0);
+    col += mix(red, vec3(1.0, 0.80, 0.30), goldMix) * rib * fade * appear;
   }
 
   // the crest: a gold flame at the notch, a thin beam rising through it
@@ -222,16 +234,17 @@ vec3 heartOrbits(vec2 p, float S, float hA, float t, out float voidM){
   col += vec3(1.0, 0.92, 0.70) * exp(-p.x * p.x * 7000.0)
        * smoothstep(-0.02, 0.06, p.y - cp.y) * 0.16 * crestA;
 
-  // two whisper-thin orbital rings, a slow procession of sparks
+  // thin pale orbital rings crossing the wings - crisp, like the
+  // reference's circles - with a slow procession of sparks
   float ringA = smoothstep(0.75, 1.0, hA);
   if (ringA > 0.004){
     float re = length((p - c) * vec2(1.0, 1.30));
     float ang = atan(p.y - c.y, p.x);
     for (int i = 0; i < 2; i++){
       float fi = float(i);
-      float Rr = (0.175 + 0.028 * fi) * S;
-      float shim = 0.6 + 0.4 * sin(ang * (14.0 + fi * 5.0) + t * (0.3 - 0.6 * fi));
-      col += vec3(1.0, 0.94, 0.82) * exp(-(re - Rr) * (re - Rr) * 26000.0) * 0.085 * shim * ringA;
+      float Rr = (0.205 + 0.030 * fi) * S;
+      float shim = 0.7 + 0.3 * sin(ang * (14.0 + fi * 5.0) + t * (0.3 - 0.6 * fi));
+      col += vec3(1.0, 0.96, 0.88) * exp(-(re - Rr) * (re - Rr) * 40000.0) * 0.16 * shim * ringA;
     }
   }
   return col * hA;
