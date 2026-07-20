@@ -156,7 +156,10 @@ vec3 heartOrbits(vec2 p, float S, float hA, float t, out float voidM){
     float d = dot(dir, normalize(heartPos(th, S) - c));
     if (d > bestDot){ bestDot = d; bestTh = th; }
   }
-  for (int i = 0; i < 3; i++){
+  // refine to CONVERGENCE - a coarse theta quantizes the arc and shell
+  // coordinates, and every pattern built on them breaks into brick
+  // segments along the strands
+  for (int i = 0; i < 8; i++){
     float st = 0.19635 * pow(0.5, float(i) + 1.0);
     for (int j = 0; j < 2; j++){
       float th2 = bestTh + (j == 0 ? -st : st);
@@ -178,37 +181,38 @@ vec3 heartOrbits(vec2 p, float S, float hA, float t, out float voidM){
   col += vec3(1.0, 0.88, 0.58) * exp(-rd * rd * 9000.0) * 1.1 * rimA;
   col += vec3(0.85, 0.25, 0.10) * exp(-rd * rd * 700.0) * 0.30 * rimA;
 
-  // the plumage: layered feather shells of fine CONTINUOUS strands - no
-  // dashes, no cells. Shells sway organically along the arc, spread wider
-  // below the lobes and out to the sides (folded wings), and each layer
-  // is a bundle of hair-thin strands with a slow silk ripple flowing
-  // along it. Deep red rules; gold lives in a collar around the notch
-  // and in rare single gold hairs.
+  // the silk: domain-warped ribbon fields in heart-polar space - x flows
+  // AROUND the void, y runs across the shells (log-spaced). Three sine
+  // curls bend the space, so the ribbons swoop, wander and cross like
+  // silk in a draft: continuous strands by construction, nothing
+  // cellular. Deep red rules, brightening to blood-red at the rim; gold
+  // survives only as the collar around the notch.
   vec2 cp = vec2(0.0, 0.065 * S + 0.03);
   float dCr2 = dot(p - cp, p - cp);
-  float wing = 1.0 + 0.65 * smoothstep(0.1, -0.9, dir.y)
-             + 0.30 * smoothstep(0.3, 1.0, abs(dir.x));
-  float sway = sin(arc * 3.0 + (s - 1.0) * 5.0) * 0.05 * (s - 1.0)
-             + sin(arc * 7.0 - (s - 1.0) * 9.0) * 0.02 * (s - 1.0);
-  float u = (s - 1.0 + sway) / (0.115 * wing);
-  if (u > 0.4 && u < 12.0){
-    float layer = floor(u);
-    float tb = clamp(layer / 9.0, 0.0, 1.0);
-    float layerA = smoothstep(0.30 + tb * 0.5, 0.50 + tb * 0.5, hA);
-    if (layerA > 0.004){
-      float fb = fract(u);
-      float env = smoothstep(0.05, 0.35, fb) * (1.0 - smoothstep(0.55, 1.0, fb));
-      float hu = u * 7.0; // hair-thin strands inside each feather
-      float hh = hash21(vec2(floor(hu), 17.1));
-      float fh = fract(hu) - 0.5;
-      float hair = exp(-fh * fh * 22.0) * (0.35 + 0.65 * hh);
-      float dirn = mod(layer, 2.0) < 1.0 ? 1.0 : -1.0;
-      float ripple = 0.7 + 0.3 * sin(arc * 5.0 - t * 0.4 * dirn + hh * 6.28318);
-      vec3 red = mix(vec3(0.95, 0.16, 0.07), vec3(0.42, 0.03, 0.03), tb);
-      float goldMix = clamp(0.9 * exp(-dCr2 * 14.0) + step(0.94, hh) * 0.55, 0.0, 1.0);
-      vec3 strandCol = mix(red, vec3(1.0, 0.78, 0.28), goldMix);
-      col += strandCol * env * hair * ripple * exp(-tb * 1.4) * 0.95 * layerA;
-    }
+  if (s > 1.015 && s < 3.4){
+    float lg = log(s);
+    vec2 w = vec2(arc, lg * 6.0);
+    w.y += 0.55 * sin(w.x * 1.7 + lg * 3.0 + t * 0.05)
+         + 0.30 * sin(w.x * 3.3 - lg * 5.0 - t * 0.04)
+         + 0.15 * sin(w.x * 6.1 + t * 0.06);
+    w.x += 0.40 * sin(w.y * 2.2 + t * 0.03);
+    // sparse ribbons in swathes: the masks swing negative, so strands come
+    // in feathered bundles separated by true black - not uniform stripes
+    float d1 = abs(fract(w.y) - 0.5);
+    float d2 = abs(fract(w.y * 2.6 + 0.7 * sin(w.x * 2.0)) - 0.5);
+    float m1 = max(0.0, 0.40 + 0.60 * sin(w.x * 1.3 + w.y * 0.9 + t * 0.05 + 1.7));
+    float m2 = max(0.0, 0.35 + 0.65 * sin(w.x * 0.8 - w.y * 1.4 - t * 0.04));
+    float rib = exp(-d1 * d1 * 130.0) * m1
+              + exp(-d2 * d2 * 220.0) * 0.6 * m2;
+    // wings: the field reaches farther below the lobes and to the sides
+    float reach = 1.0 + 0.8 * smoothstep(0.1, -0.9, dir.y)
+                + 0.45 * smoothstep(0.3, 1.0, abs(dir.x));
+    float fade = (1.0 - smoothstep(1.2 * reach, 3.2 * reach, s)) * smoothstep(1.015, 1.10, s);
+    // the bloom sweeps outward from the rim as the heart finishes forming
+    float appear = smoothstep(0.0, 0.30, hA - 0.30 * (s - 1.0));
+    vec3 red = mix(vec3(0.90, 0.13, 0.05), vec3(0.36, 0.02, 0.02), smoothstep(1.05, 2.8, s));
+    float goldMix = clamp(0.9 * exp(-dCr2 * 12.0), 0.0, 1.0);
+    col += mix(red, vec3(1.0, 0.78, 0.28), goldMix) * rib * fade * appear * 0.85;
   }
 
   // the crest: a gold flame at the notch, a thin beam rising through it
