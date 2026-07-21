@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from "@vercel/postgres";
+import { getFeaturedProblem } from '@/app/lib/data/problems';
 
 const getGlobalCutoff = () => {
   const now = new Date();
@@ -10,19 +11,31 @@ const getGlobalCutoff = () => {
 // GET /api/leaderboard/:id — leaderboard for one problem.
 // GET /api/leaderboard/latest — leaderboard for the most recent problem that
 // actually has entries, so the default view is never an empty hall.
+// GET /api/leaderboard/featured — leaderboard for the current featured problem
+// (same getFeaturedProblem() the home card uses, so they can never drift), and
+// LIVE (no daily cutoff): someone racing the featured problem sees themselves
+// on the board the moment they solve it.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   const problemId = parseInt(id);
-  const cutoffTimestamp = getGlobalCutoff();
+  const cutoffTimestamp =
+    id === 'featured' ? new Date().toISOString() : getGlobalCutoff();
 
   try {
     let activeProblemId: number;
     let problemTitle: string | null = null;
 
-    if (Number.isFinite(problemId)) {
+    if (id === 'featured') {
+      const featured = await getFeaturedProblem();
+      if (!featured) {
+        return NextResponse.json({ problem: null, leaderboard: [] });
+      }
+      activeProblemId = featured.id;
+      problemTitle = featured.title;
+    } else if (Number.isFinite(problemId)) {
       activeProblemId = problemId;
       const titleRes = await sql`
         SELECT "questionTitle" AS title FROM questions WHERE "questionId" = ${activeProblemId};

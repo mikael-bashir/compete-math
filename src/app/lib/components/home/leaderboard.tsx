@@ -97,9 +97,10 @@ export function Leaderboard() {
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
-        // One call: newest problem that actually has entries + its leaderboard,
-        // so the widget never renders an empty board.
-        const res = await fetch("/api/leaderboard/latest")
+        // One call: the CURRENT FEATURED problem + its live leaderboard — the
+        // same problem the featured card beside this widget shows, resolved
+        // server-side from the same source so they can never drift.
+        const res = await fetch("/api/leaderboard/featured")
         if (!res.ok) throw new Error("Failed to fetch leaderboard")
         const json = await res.json()
 
@@ -123,7 +124,7 @@ export function Leaderboard() {
         <div className="flex items-center justify-between">
           <div>
             <p className="font-code text-[10px] tracking-[0.3em] uppercase text-amber-300/70 mb-2">
-              // latest conquest
+              // this week&apos;s race
             </p>
             <div className="flex items-center gap-2 mb-1">
               <Trophy className="h-4 w-4 text-amber-300" />
