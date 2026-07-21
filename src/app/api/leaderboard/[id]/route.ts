@@ -1,51 +1,87 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { sql } from "@vercel/postgres";
+import { getFeaturedProblem } from '@/app/lib/data/problems';
 
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + 
-         ' at ' + 
-         date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-};
-
+// DAILY REFRESH: these leaderboards only refresh once a day, at 00:00 UTC.
+// Every board is cut off at the most recent UTC midnight, so solves made today
+// appear tomorrow. The one exception is /api/leaderboard/featured (see below),
+// which is live. The s-maxage=60 header below is just CDN caching on top.
 const getGlobalCutoff = () => {
   const now = new Date();
   const cutoff = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
   return cutoff.toISOString();
 };
 
+// GET /api/leaderboard/:id — leaderboard for one problem.
+// GET /api/leaderboard/latest — leaderboard for the most recent problem that
+// actually has entries, so the default view is never an empty hall.
+// GET /api/leaderboard/featured — leaderboard for the current featured problem
+// (same getFeaturedProblem() the home card uses, so they can never drift), and
+// LIVE (no daily cutoff): someone racing the featured problem sees themselves
+// on the board the moment they solve it.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   const problemId = parseInt(id);
-  const cutoffTimestamp = getGlobalCutoff(); 
+  const cutoffTimestamp =
+    id === 'featured' ? new Date().toISOString() : getGlobalCutoff();
 
   try {
-    const recentProblemsResult = await sql`
-      SELECT "questionId" as id, "questionTitle" as title
-      FROM questions
-      ORDER BY "questionId" DESC
-      LIMIT 7;
-    `;
-    const recentProblems = recentProblemsResult.rows;
-    const activeProblemId = problemId ? problemId : (recentProblems[0]?.id || 0);
+    let activeProblemId: number;
+    let problemTitle: string | null = null;
 
-    if (activeProblemId === 0) return NextResponse.json({ recentProblems: [], leaderboard: [] });
+    if (id === 'featured') {
+      const featured = await getFeaturedProblem();
+      if (!featured) {
+        return NextResponse.json({ problem: null, leaderboard: [] });
+      }
+      activeProblemId = featured.id;
+      problemTitle = featured.title;
+    } else if (Number.isFinite(problemId)) {
+      activeProblemId = problemId;
+      const titleRes = await sql`
+        SELECT "questionTitle" AS title FROM questions WHERE "questionId" = ${activeProblemId};
+      `;
+      problemTitle = titleRes.rows[0]?.title ?? null;
+    } else {
+      // "latest": newest problem with a LIVELY board — at least 3 visible
+      // (pre-cutoff) solvers, so the default view doesn't look dead. If no
+      // board has 3 yet, fall back to the most-populated one (newest on ties)
+      // so the default is still never empty.
+      const latestRes = await sql`
+        SELECT q."questionId" AS id, q."questionTitle" AS title
+        FROM questions q
+        JOIN submissions s ON s."questionId" = q."questionId"
+          AND s."isCorrect" = TRUE
+          AND s."solvedAt" < ${cutoffTimestamp}
+        GROUP BY q."questionId", q."questionTitle"
+        ORDER BY (COUNT(*) >= 3) DESC,
+                 CASE WHEN COUNT(*) >= 3 THEN q."questionId" ELSE 0 END DESC,
+                 COUNT(*) DESC,
+                 q."questionId" DESC
+        LIMIT 1;
+      `;
+      if (latestRes.rowCount === 0) {
+        return NextResponse.json({ problem: null, leaderboard: [] });
+      }
+      activeProblemId = latestRes.rows[0].id;
+      problemTitle = latestRes.rows[0].title;
+    }
 
-    // UPDATED QUERY: Fetch badgeName (Title) AND badgeUrl (Icon)
     const leaderboardResult = await sql`
-      SELECT 
+      SELECT
         u.username,
+        u.country,
         b."badgeUrl",
-        b."badgeName", 
+        b."badgeName",
         s."solvedAt",
         s."attemptCount"
       FROM submissions s
-      JOIN users u ON s.username = u.username 
+      JOIN users u ON s.username = u.username
       LEFT JOIN badges b ON u."badgeSelected" = b."badgeName"
-      WHERE s."questionId" = ${activeProblemId} 
+      WHERE s."questionId" = ${activeProblemId}
         AND s."isCorrect" = TRUE
         AND s."solvedAt" < ${cutoffTimestamp}
       ORDER BY s."solvedAt" ASC
@@ -54,18 +90,20 @@ export async function GET(
 
     const leaderboard = leaderboardResult.rows.map((row, index) => ({
       rank: index + 1,
-      username: row.username, 
-      // Icon ID (e.g. 'crown', 'zap')
+      username: row.username,
+      // Icon URL for the equipped badge
       badgeId: row.badgeUrl,
-      // Display Title (e.g. 'The Monarch', 'Participant') - DIRECT FROM DB
-      badgeTitle: row.badgeName || 'Participant', 
-      solvedAt: formatDate(row.solvedAt),
-      attempts: row.attemptCount,
-      timeTaken: new Date(row.solvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+      // Display title (e.g. 'The Monarch', 'Participant')
+      badgeTitle: row.badgeName || 'Participant',
+      // Raw ISO timestamp — clients own the formatting
+      solvedAt: row.solvedAt,
+      attempts: Number(row.attemptCount) || 1,
+      // ISO 3166-1 alpha-2, null until known
+      country: row.country || null,
     }));
 
-    const response = NextResponse.json({ 
-      recentProblems, 
+    const response = NextResponse.json({
+      problem: { id: activeProblemId, title: problemTitle },
       leaderboard,
       nextUpdate: new Date(new Date(cutoffTimestamp).getTime() + 86400000).toISOString()
     });

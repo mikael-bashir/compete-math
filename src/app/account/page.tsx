@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSession } from "next-auth/react";
-import { 
-  Loader2, Calendar, Mail, ShieldCheck, Lock
+import {
+  Loader2, Calendar, Mail, ShieldCheck, Lock, Globe
 } from 'lucide-react';
+import { COUNTRY_REGIONS, flagEmoji, countryName } from '../lib/data/countries';
 
 // --- NEW BADGE COMPONENT (SIMPLIFIED) ---
 const UserBadge = ({ url, name, className }: { url?: string, name: string, className?: string }) => {
@@ -32,6 +33,7 @@ export default function AccountPage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [equipping, setEquipping] = useState<string | null>(null);
+  const [savingCountry, setSavingCountry] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -97,6 +99,30 @@ export default function AccountPage() {
     }
   };
 
+  // Region shown next to the user's name on leaderboards. Defaulted from IP on
+  // first solve; whatever is chosen here wins permanently.
+  const handleCountryChange = async (code: string) => {
+    if (savingCountry) return;
+    const next = code || null;
+    const previous = profile.country;
+
+    setSavingCountry(true);
+    setProfile((prev: any) => ({ ...prev, country: next }));
+    try {
+      const res = await fetch('/api/user/profile/country', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ country: next })
+      });
+      if (!res.ok) throw new Error('Failed to save country');
+    } catch (e) {
+      console.error('Country update failed', e);
+      setProfile((prev: any) => ({ ...prev, country: previous }));
+    } finally {
+      setSavingCountry(false);
+    }
+  };
+
   if (loading) return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center">
       <Loader2 className="animate-spin text-emerald-600 w-8 h-8" />
@@ -133,6 +159,32 @@ export default function AccountPage() {
             <div className="flex flex-col md:flex-row gap-4 text-sm text-slate-500 font-mono">
               <span className="flex items-center gap-2"><Mail size={14} /> {profile.email || "No email linked"}</span>
               <span className="flex items-center gap-2"><Calendar size={14} /> Joined {new Date(profile.created_at || Date.now()).toLocaleDateString()}</span>
+            </div>
+            <div className="flex items-center justify-center md:justify-start gap-2 mt-3 text-sm text-slate-500 font-mono">
+              <span className="flex items-center gap-2 shrink-0">
+                {profile.country
+                  ? <span className="text-base leading-none">{flagEmoji(profile.country)}</span>
+                  : <Globe size={14} />}
+              </span>
+              <select
+                value={profile.country || ''}
+                onChange={(e) => handleCountryChange(e.target.value)}
+                disabled={savingCountry}
+                className="bg-[#0a0a0a] border border-[#222] hover:border-[#444] rounded-lg px-2 py-1.5 text-sm text-slate-300 outline-none focus:border-emerald-700/50 transition-colors max-w-60 disabled:opacity-50 cursor-pointer"
+                title="Region shown next to your name on leaderboards"
+              >
+                <option value="">No region set</option>
+                {Object.entries(COUNTRY_REGIONS).map(([region, codes]) => (
+                  <optgroup key={region} label={region}>
+                    {codes.map((code) => (
+                      <option key={code} value={code}>
+                        {flagEmoji(code)} {countryName(code)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              {savingCountry && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-600" />}
             </div>
           </div>
 

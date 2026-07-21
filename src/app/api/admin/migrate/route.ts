@@ -99,6 +99,10 @@ export async function POST() {
     // Email verification: a nullable timestamp on users (set when verified) and a
     // single-use 24h token store. Nothing is gated on this yet — we only record it.
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified TIMESTAMPTZ;`;
+    // Leaderboard region: ISO 3166-1 alpha-2 country code. Auto-defaulted from
+    // the Vercel geo header on answer submission (only while NULL), and freely
+    // editable from the account page.
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS country TEXT;`;
     await sql`
       CREATE TABLE IF NOT EXISTS email_verification_tokens (
         token      TEXT PRIMARY KEY,

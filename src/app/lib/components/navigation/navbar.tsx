@@ -83,7 +83,14 @@ export default function Navbar() {
   const secondaryLink = `${linkBase} text-white/45 hover:text-white`
 
   return (
-    <div className="border-t border-white/[0.05] bg-[#0a0f14]/95 md:bg-transparent">
+    // Mobile surface: translucent (no backdrop-filter, same reasoning as the
+    // navstrip) — /45 continues the strip gradient's bottom stop so the two
+    // tiers read as one; deepens while the menu is open so links stay legible.
+    <div
+      className={`border-t border-white/[0.05] md:bg-transparent transition-colors duration-300 ${
+        navOpen ? "bg-[#0a0f14]/85" : "bg-[#0a0f14]/45"
+      }`}
+    >
 
       {/* ==================== DESKTOP ==================== */}
       <div className="hidden md:block">
