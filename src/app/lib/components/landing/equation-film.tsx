@@ -750,17 +750,19 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     // ~70% - measured RGB 20,25,15, a whisker off the shader's backdrop,
     // with flat sky spanning ~40-60% x 66-74%), so the camera flies
     // straight in with only a whisper of downward tilt - the same axis
-    // the warp and the dolly continue on. The zoom is exponential
-    // (constant zoom RATE, like the dolly's log-space camera) to 28x:
-    // deep inside the flat patch, the whole frame is monotone green long
-    // before the fade may begin. A bitmap has no zoom limit when the
-    // target is flat colour - magnified flatness is just flatness.
+    // the warp and the dolly continue on. The PROFILE is ignition, not a
+    // constant climb: raising the log-zoom to the 2.4th power holds the
+    // first moments to a near-still drift (engines lit, nothing moving
+    // yet), then throws the camera - by the time the fade may begin the
+    // frame is deep inside the flat green and still accelerating, so the
+    // hand-off into the hyper travel reads as one continuous burn. A
+    // bitmap has no zoom limit when the target is flat colour.
     hero.style.transformOrigin = "50% 71%"
     function updateHero(raw: number) {
-      const z = sstep(0.0, 0.16, raw)
+      const z = sstep(0.0, 0.15, raw)
       const a = 1 - sstep(0.13, 0.165, raw)
       hero!.style.opacity = String(a)
-      hero!.style.transform = `scale(${Math.exp(z * Math.log(28))})`
+      hero!.style.transform = `scale(${Math.exp(Math.pow(z, 2.4) * Math.log(32))})`
       hero!.style.pointerEvents = a > 0.5 ? "auto" : "none"
     }
 
