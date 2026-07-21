@@ -163,7 +163,11 @@ vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain,
 vec3 layerField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens, float cellPx){
   float onA = smoothstep(2.5, 6.0, cellPx);
   if (onA < 0.004) return vec3(0.0);
-  float toB = smoothstep(11.0, 17.0, cellPx);
+  // hold the cheap dust LOD a little longer: fewer shells run the full
+  // escape loop at once, trimming the deep-dive frame cost - and a
+  // distant galaxy reading as a soft dot instead of a tiny fractal is
+  // indistinguishable at that size anyway
+  float toB = smoothstep(14.0, 21.0, cellPx);
   vec3 c = vec3(0.0);
   if (toB < 0.996) c += dustField(g, isMain, dens) * onA * (1.0 - toB);
   if (toB > 0.004) c += bodyField(g, t, cHome, reveal, zp, isMain, dens) * toB;
@@ -277,47 +281,119 @@ vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain,
     return f * mix(1.0, 0.3 + 0.7 * exp(-rr * 1.3), 1.0 - zp);
   }
 
-  if (h3 < 0.30){
-    // spiral galaxy; roughly 1 in 4 seen edge-on as a thin luminous band
-    float gs = 0.20 * (0.45 + 0.7 * h1);
-    if (h4 > 0.75) local = vec2(local.x * 0.7, local.y * 2.8);
-    vec3 f = juliaCore(local / gs, cHome + (vec2(h1, h2) - 0.5) * 0.02);
+  // shared per-body variety: a wide size range (many small, a few grand)
+  // and an independent tint hash, so no two neighbours read the same.
+  float szv = 0.55 + 0.85 * h4 * h4;
+  float tintH = hash21(bestCell + 33.3);
+  float h5 = hash21(bestCell + 51.7);
+
+  if (h3 < 0.22){
+    // spiral galaxy - face-on, a barred variant, or a thin edge-on band
+    float gs = 0.19 * (0.45 + 0.7 * h1) * szv;
+    if (h4 > 0.78) local = vec2(local.x * 0.62, local.y * 3.0);        // edge-on
+    else if (h4 > 0.5) local.x *= 1.0 + 0.45 * cos(atan(local.y, local.x) * 2.0); // barred
+    vec3 f = juliaCore(local / gs, cHome + (vec2(h1, h2) - 0.5) * 0.03);
     rr = dot(local, local) / (gs * gs);
     f *= 0.3 + 0.7 * exp(-rr * 1.3);
-    f *= warmTint(hash21(bestCell + 33.3));
-    f += AMBER * exp(-rr * 2.2) * 0.05;
+    f *= warmTint(tintH);
+    f += AMBER * exp(-rr * 2.2) * 0.06;
     return f * (0.35 + 0.65 * h1);
-  } else if (h3 < 0.52){
+  } else if (h3 < 0.34){
+    // elliptical / lenticular - a soft smudge, size varies widely
+    float gs = 0.12 * (0.4 + 1.0 * h2) * szv;
+    vec3 f = juliaCore(local / gs, cHome + vec2(0.015, -0.01));
+    rr = dot(local, local) / (gs * gs);
+    return f * exp(-rr * 1.6) * warmTint(hash21(bestCell + 41.1)) * (0.28 + 0.4 * h1);
+  } else if (h3 < 0.46){
     // dendrite supernova - detonating filaments of the same equation
-    float gs = 0.18 * (0.4 + 0.6 * h2);
+    float gs = 0.17 * (0.4 + 0.6 * h2) * szv;
     vec3 f = juliaCore(local / gs, vec2(0.0, 0.78 + 0.06 * (h4 - 0.5)));
     rr = dot(local, local) / (gs * gs);
     f *= 0.25 + 0.75 * exp(-rr * 0.9);
     f *= vec3(1.0, 0.95, 0.8);
-    f += vec3(1.0, 0.9, 0.7) * exp(-rr * 6.0) * 0.25;
+    f += vec3(1.0, 0.9, 0.7) * exp(-rr * 6.0) * 0.3;
     return f * (0.4 + 0.6 * h1);
-  } else if (h3 < 0.68){
+  } else if (h3 < 0.56){
     // black hole - the basilica set, centre devoured, rim ablaze
-    float gs = 0.15 * (0.45 + 0.75 * h1);
+    float gs = 0.14 * (0.45 + 0.75 * h1) * szv;
     vec3 f = juliaCore(local / gs, vec2(-1.0, 0.0)) * 0.35;
     float r = length(local) / gs;
     f *= smoothstep(0.10, 0.45, r);
     f += vec3(1.0, 0.72, 0.35) * exp(-abs(r - 0.30) * 22.0) * 0.9;
     f += GOLD * exp(-r * 1.6) * 0.10 * smoothstep(0.2, 0.5, r);
     return f * (0.4 + 0.6 * h2);
-  } else if (h3 < 0.86){
-    // a bare star
+  } else if (h3 < 0.66){
+    // ring galaxy - a luminous annulus around a bright core
+    float gs = 0.14 * (0.5 + 0.8 * h1) * szv;
+    float r = length(local) / gs;
+    vec3 tc = warmTint(tintH);
+    vec3 f = tc * exp(-(r - 0.7) * (r - 0.7) * 16.0) * 0.85;
+    f += tc * exp(-r * r * 6.0) * 0.45;
+    return f * (0.4 + 0.6 * h2);
+  } else if (h3 < 0.78){
+    // globular cluster - a swarm of tiny suns
+    float gs = 0.10 * (0.5 + 0.7 * h1) * szv;
+    rr = dot(local, local) / (gs * gs);
+    vec2 cg = local / gs * 7.0;
+    float cd = hash21(floor(cg) + 3.1);
+    vec2 fp = fract(cg) - 0.5;
+    float spark = cd > 0.55 ? exp(-dot(fp, fp) * 22.0) * (0.4 + 0.6 * cd) : 0.0;
+    vec3 f = vec3(1.0, 0.93, 0.78) * (exp(-rr * 2.2) * 0.32 + spark * exp(-rr * 1.0) * 0.9);
+    return f * (0.45 + 0.55 * h2);
+  } else if (h3 < 0.90){
+    // nebula puff - a soft warm cloud of two lobes with a hot young star
+    float gs = 0.15 * (0.5 + 0.9 * h2) * szv;
+    rr = dot(local, local) / (gs * gs);
+    vec2 o2 = (vec2(h1, h5) - 0.5) * gs * 0.9;
+    float rr2 = dot(local - o2, local - o2) / (gs * gs);
+    vec3 tc = warmTint(tintH);
+    vec3 f = tc * (exp(-rr * 1.4) * 0.42 + exp(-rr2 * 2.2) * 0.3);
+    f += vec3(1.0, 0.9, 0.7) * exp(-rr * 6.0) * 0.16;
+    return f * (0.3 + 0.4 * h1);
+  } else {
+    // bare star, sometimes a binary companion
     rr = dot(local, local);
     vec3 f = vec3(1.0, 0.95, 0.82) * exp(-rr * 2600.0 * (0.5 + h4)) * 1.2;
+    if (h1 > 0.6){
+      vec2 o2 = vec2(0.018 + 0.02 * h2, 0.0);
+      f += vec3(1.0, 0.85, 0.6) * exp(-dot(local - o2, local - o2) * 3400.0) * 0.8;
+    }
     f += AMBER * exp(-rr * 300.0) * 0.10;
     return f;
-  } else {
-    // dim elliptical - a soft far smudge
-    float gs = 0.09 * (0.45 + 0.9 * h2);
-    vec3 f = juliaCore(local / gs, cHome + vec2(0.015, -0.01));
-    rr = dot(local, local) / (gs * gs);
-    return f * exp(-rr * 1.8) * warmTint(hash21(bestCell + 41.1)) * 0.35;
   }
+}
+
+// The DEPTH STACK - the universe's endless depth. Instead of a few fixed
+// layers that thin out as the dolly dives, a set of shells spaced
+// geometrically in LOG-ZOOM: each shell's world-multiplier is fixed
+// (m = M0 * KSTEP^n for integer n), so as the camera zooms in every
+// shell's on-screen cell size grows and it slides forward through the
+// stack. The rendered window tracks the centre, so a shell growing past
+// the front fades out exactly as a finer, more-distant shell crosses the
+// resolution threshold at the back and fades IN. Density is therefore
+// CONSTANT through the whole dive - fly toward the home galaxy and the
+// background never empties; new distant galaxies keep being born. Each
+// shell's cell coords stay bounded (~uRes.y/cellPx) regardless of zoom,
+// so hashing never loses precision. Cheap: far shells are gaussian dust
+// (no escape loop), only the 1-2 near shells run the full equation.
+vec3 depthStack(vec2 world, float t, vec2 cHome, float reveal, float zp, float lodK){
+  const float KSTEP = 1.8;
+  const float CENTER_PX = 9.0;
+  float nCenter = floor((log(lodK) - log(CENTER_PX)) / log(KSTEP) + 0.5);
+  vec3 acc = vec3(0.0);
+  for (int k = 0; k < 8; k++){
+    float n = nCenter + float(k) - 3.0;
+    float m = pow(KSTEP, n);
+    float cellPx = lodK / m;
+    if (cellPx < 2.2 || cellPx > 72.0) continue;
+    float frontFade = 1.0 - smoothstep(42.0, 64.0, cellPx); // grown too big - recede
+    float depthBright = 0.45 + 0.55 * smoothstep(3.0, 22.0, cellPx); // distant = dimmer
+    float dens = 0.55 + 0.95 * hash21(vec2(n, 3.3));
+    vec2 off = vec2(hash21(vec2(n, 1.7)), hash21(vec2(n, 9.3))) * 50.0;
+    acc += layerField(world * m + off, t, cHome, reveal, zp, false, dens, cellPx)
+         * frontFade * depthBright;
+  }
+  return acc;
 }
 
 void main(){
@@ -378,16 +454,13 @@ void main(){
     // near layer (carries the home galaxy)
     // close range runs thinner than the deep field - the eye needs room
     vec3 field = layerField(world, t, cHome, reveal, zp, true, 0.75, lodK) * uniViz;
-    // two more independent layers at incommensurate scales and parallax:
-    // slow giants far behind, quick small fry drifting in front. Their
-    // superposition is what finally kills any lattice feel. Universe only -
-    // both retire as the dolly lands.
-    float bgw = 1.0 - smoothstep(0.45, 0.85, zp);
-    if (bgw > 0.004){
-      field += layerField(world * 0.42 + vec2(7.3, 4.1), t, cHome, reveal, zp, false, 1.0, lodK / 0.42) * bgw * 0.5 * uniViz;
-      field += layerField(world * 1.63 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false, 0.7, lodK / 1.63) * bgw * 0.65 * uniViz;
-      // ultra-distant shoal: small-to-medium bodies, dim and slow
-      field += layerField(world * 2.6 + vec2(23.1, -17.9), t, cHome, reveal, zp, false, 1.0, lodK / 2.6) * bgw * 0.34 * uniViz;
+    // the endless depth: a recycling stack of shells that keeps the
+    // background at CONSTANT density all the way in - distant galaxies
+    // fade into existence as near ones retire - and only clears at the
+    // very end, once the home galaxy is close enough to own the frame.
+    float stackFade = 1.0 - smoothstep(0.74, 0.90, zp);
+    if (stackFade > 0.004){
+      field += depthStack(world, t, cHome, reveal, zp, lodK) * stackFade * 0.72 * uniViz;
     }
 
     // copy-protection ring: only once the close-up has landed, released by
@@ -398,8 +471,9 @@ void main(){
     col += life * (BG * 0.9 + mask * field);
 
     // sparse star specks between the bodies, universe view only - LOD-gated
-    // like everything else so they resolve instead of fading in
-    float uvw = 1.0 - smoothstep(0.32, 0.42, P);
+    // like everything else so they resolve instead of fading in; they ride
+    // the whole dive with the depth stack, clearing only at the end
+    float uvw = 1.0 - smoothstep(0.62, 0.78, P);
     if (uvw > 0.004){
       vec2 sp = world * 24.0;
       float sh = hash21(floor(sp));
