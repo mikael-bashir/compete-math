@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server';
 import { sql } from "@vercel/postgres";
 import { auth } from '@/app/(auth)/auth'; // Ensure path is correct
+import { fillCountryFromRequest } from '@/app/lib/data/geo';
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
-  
+
   // 1. Auth Check
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Backfill path for pre-existing users: default their country from the geo
+  // header on any account visit, so they don't need to submit again to get a
+  // flag (leaderboards JOIN users, so this retroactively flags old entries).
+  await fillCountryFromRequest(session.user.username, request);
 
   try {
     // We can rely on email or try to find by ID if provided, 
@@ -19,10 +25,11 @@ export async function GET() {
     // We fetch by email (or modify to id if preferred) to get the specific 'username'
     const userRes = await sql`
       SELECT 
-        username, 
-        email, 
-        created_at, 
-        badges, 
+        username,
+        email,
+        created_at,
+        badges,
+        country,
         "badgeSelected" -- Keep original column name
       FROM users 
       WHERE username = ${userIdentifier} -- or id = session.user.id
@@ -76,6 +83,7 @@ export async function GET() {
       username: user.username,
       email: user.email,
       created_at: user.created_at, // Frontend expects this or joinedAt
+      country: user.country || null,
       badgeSelected: user.badgeSelected, // <--- FIXED: Frontend expects 'badgeSelected'
       solvedCount: parseInt(solvedCount),
       badges: mergedBadges
