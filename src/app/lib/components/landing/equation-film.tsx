@@ -775,7 +775,9 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       const z = sstep(0.0, 0.15, raw)
       const a = 1 - sstep(0.13, 0.165, raw)
       hero!.style.opacity = String(a)
-      hero!.style.transform = `scale(${Math.exp(Math.pow(z, 2.4) * Math.log(32))})`
+      // exponent 4 + 400x cap: peak zoom RATE is ~3x the old curve - the
+      // drift is just as still, but the throw is an explosion
+      hero!.style.transform = `scale(${Math.exp(Math.pow(z, 4.0) * Math.log(400))})`
       hero!.style.pointerEvents = a > 0.5 ? "auto" : "none"
     }
 
