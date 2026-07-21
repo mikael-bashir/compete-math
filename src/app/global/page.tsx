@@ -215,7 +215,7 @@ export default function LeaderboardPage() {
                 </div>
               )}
               <div
-                className="flex items-center gap-2 text-[11px] font-mono text-slate-600 uppercase tracking-widest"
+                className="flex items-center gap-2 text-[11px] font-mono text-slate-400 uppercase tracking-widest"
                 title="Solves made today join the board at the next refresh"
               >
                 <RefreshCw size={11} />

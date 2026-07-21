@@ -46,17 +46,21 @@ export async function GET(
       `;
       problemTitle = titleRes.rows[0]?.title ?? null;
     } else {
-      // "latest": newest problem with at least one visible (pre-cutoff) solve.
+      // "latest": newest problem with a LIVELY board — at least 3 visible
+      // (pre-cutoff) solvers, so the default view doesn't look dead. If no
+      // board has 3 yet, fall back to the most-populated one (newest on ties)
+      // so the default is still never empty.
       const latestRes = await sql`
         SELECT q."questionId" AS id, q."questionTitle" AS title
         FROM questions q
-        WHERE EXISTS (
-          SELECT 1 FROM submissions s
-          WHERE s."questionId" = q."questionId"
-            AND s."isCorrect" = TRUE
-            AND s."solvedAt" < ${cutoffTimestamp}
-        )
-        ORDER BY q."questionId" DESC
+        JOIN submissions s ON s."questionId" = q."questionId"
+          AND s."isCorrect" = TRUE
+          AND s."solvedAt" < ${cutoffTimestamp}
+        GROUP BY q."questionId", q."questionTitle"
+        ORDER BY (COUNT(*) >= 3) DESC,
+                 CASE WHEN COUNT(*) >= 3 THEN q."questionId" ELSE 0 END DESC,
+                 COUNT(*) DESC,
+                 q."questionId" DESC
         LIMIT 1;
       `;
       if (latestRes.rowCount === 0) {
