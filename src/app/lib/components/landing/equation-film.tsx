@@ -129,16 +129,23 @@ vec3 warmTint(float h){
   return vec3(0.95, 0.42, 0.22);
 }
 
-// Cheap logarithmic-spiral disc: a bulge, an exponential disc, and a set
-// of trailing arms whose count and pitch are parameters. Pure trig - no
-// escape loop - so spiral galaxies (the commonest type) cost almost nothing.
+// A proper logarithmic-spiral galaxy, still pure trig (no escape loop).
+// Thin, well-defined arms (a sharp power profile, not a fat cosine), a
+// dark inter-arm gap, a chain of star-forming knots strung ALONG each arm,
+// an exponential disc and a bright bulge - so spirals (the commonest real
+// type) read as galaxies, not pinwheels, and cost almost nothing.
 float spiralArms(vec2 p, float gs, float arms, float twist){
   float r = length(p) / gs;
+  if (r > 3.2) return 0.0;
   float a = atan(p.y, p.x);
-  float arm = 0.5 + 0.5 * cos(arms * (a - twist * log(r + 0.08)));
-  float disk = exp(-r * r * 0.9);
-  float bulge = exp(-r * r * 7.0);
-  return disk * (0.32 + 0.68 * pow(arm, 1.6)) + bulge * 0.85;
+  float ph = a - twist * log(r + 0.08);        // log-spiral phase
+  float arm = pow(0.5 + 0.5 * cos(arms * ph), 3.2); // thin, defined arms
+  // HII knots: bright patches hashed along the arm ridge
+  float kh = hash21(vec2(floor(ph * arms * 1.6), floor(r * 5.0)));
+  float knot = smoothstep(0.72, 1.0, kh) * arm;
+  float disk = exp(-r * 1.5);                   // exponential disc
+  float bulge = exp(-r * r * 9.0);
+  return bulge * 0.9 + disk * (0.10 + 0.62 * arm + 0.75 * knot);
 }
 
 // The far-LOD of a universe layer: bodies smaller than ~a dozen pixels are
@@ -565,10 +572,10 @@ void main(){
       float a = stackFade * uniViz;
       field += bodyField(world * 0.55 + vec2(7.3,   4.1), t, cHome, reveal, zp, false, 1.0) * 0.90 * a;
       field += bodyField(world * 1.25 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false, 1.0) * 0.72 * a;
-      field += glimmerField(world * 2.30 + vec2(23.1,-17.9), 1.0) * 0.85 * a;
-      field += glimmerField(world * 3.70 + vec2(-5.1, 31.7), 1.1) * 0.70 * a;
-      field += glimmerField(world * 6.10 + vec2(41.3, 12.4), 1.2) * 0.58 * a;
-      field += glimmerField(world * 9.80 + vec2(-27.9,-8.3), 1.2) * 0.46 * a;
+      field += glimmerField(world * 2.30 + vec2(23.1,-17.9), 0.50) * 0.85 * a;
+      field += glimmerField(world * 3.70 + vec2(-5.1, 31.7), 0.55) * 0.70 * a;
+      field += glimmerField(world * 6.10 + vec2(41.3, 12.4), 0.60) * 0.58 * a;
+      field += glimmerField(world * 9.80 + vec2(-27.9,-8.3), 0.60) * 0.46 * a;
     }
 
     // copy-protection ring: only once the close-up has landed, released by
@@ -1035,7 +1042,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     // streaming (the warp engine is time-driven, so pausing there still
     // flies). A firm upward scroll is the escape hatch. Disabled under
     // the ?jump dev contract so harnesses keep full authority.
-    const TAKEOFF_START = 0.02, TAKEOFF_END = 0.23, TAKEOFF_SECS = 4.0
+    const TAKEOFF_START = 0.02, TAKEOFF_END = 0.23, TAKEOFF_SECS = 1.5
     const devDriven = new URLSearchParams(window.location.search).get("jump") !== null
     let autoT = -1 // <0 idle, 0..1 riding
     let lastRawSeen = -1
