@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  ChevronDown, Timer, Loader2, Hexagon, Search, Globe, Check, CalendarDays, Users
+  ChevronDown, Timer, Loader2, Hexagon, Search, Globe, Check, CalendarDays, Users, RefreshCw
 } from 'lucide-react';
 import Image from 'next/image';
 import { StaticArtBackground } from '../lib/components/home/static-art-background';
@@ -205,11 +205,22 @@ export default function LeaderboardPage() {
             selectedId={selectedProblem}
             onSelect={(id) => loadLeaderboard(id)}
           />
-          {!loadingLeaderboard && leaderboardData.length > 0 && (
-            <div className="flex items-center gap-2 text-xs font-mono text-slate-500 uppercase tracking-widest">
-              <Users size={13} />
-              {leaderboardData.length} contender{leaderboardData.length === 1 ? '' : 's'}
-              {leaderboardData.length === 100 && ' (top 100)'}
+          {!loadingLeaderboard && (
+            <div className="flex flex-col items-start md:items-end gap-1.5">
+              {leaderboardData.length > 0 && (
+                <div className="flex items-center gap-2 text-xs font-mono text-slate-500 uppercase tracking-widest">
+                  <Users size={13} />
+                  {leaderboardData.length} contender{leaderboardData.length === 1 ? '' : 's'}
+                  {leaderboardData.length === 100 && ' (top 100)'}
+                </div>
+              )}
+              <div
+                className="flex items-center gap-2 text-[11px] font-mono text-slate-600 uppercase tracking-widest"
+                title="Solves made today join the board at the next refresh"
+              >
+                <RefreshCw size={11} />
+                Refreshes daily · 00:00 UTC
+              </div>
             </div>
           )}
         </div>
