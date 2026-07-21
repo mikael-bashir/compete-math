@@ -129,6 +129,18 @@ vec3 warmTint(float h){
   return vec3(0.95, 0.42, 0.22);
 }
 
+// Cheap logarithmic-spiral disc: a bulge, an exponential disc, and a set
+// of trailing arms whose count and pitch are parameters. Pure trig - no
+// escape loop - so spiral galaxies (the commonest type) cost almost nothing.
+float spiralArms(vec2 p, float gs, float arms, float twist){
+  float r = length(p) / gs;
+  float a = atan(p.y, p.x);
+  float arm = 0.5 + 0.5 * cos(arms * (a - twist * log(r + 0.08)));
+  float disk = exp(-r * r * 0.9);
+  float bulge = exp(-r * r * 7.0);
+  return disk * (0.32 + 0.68 * pow(arm, 1.6)) + bulge * 0.85;
+}
+
 // The far-LOD of a universe layer: bodies smaller than ~a dozen pixels are
 // warm gaussian dots - same existence, position and tint hashes as
 // bodyField, so every dust grain GROWS INTO exactly the body it already
@@ -287,113 +299,200 @@ vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain,
   float tintH = hash21(bestCell + 33.3);
   float h5 = hash21(bestCell + 51.7);
 
-  if (h3 < 0.22){
-    // spiral galaxy - face-on, a barred variant, or a thin edge-on band
-    float gs = 0.19 * (0.45 + 0.7 * h1) * szv;
-    if (h4 > 0.78) local = vec2(local.x * 0.62, local.y * 3.0);        // edge-on
-    else if (h4 > 0.5) local.x *= 1.0 + 0.45 * cos(atan(local.y, local.x) * 2.0); // barred
-    vec3 f = juliaCore(local / gs, cHome + (vec2(h1, h2) - 0.5) * 0.03);
+  // The ECOSYSTEM: ~24 archetypes. Only three run the escape-time equation
+  // (the signature fractal galaxies - the film's through-line); every
+  // other cosmic object is cheap procedural trig/gaussians, so the field
+  // is 5x more diverse AND far cheaper than an all-fractal universe.
+  vec3 tc = warmTint(tintH);
+  float br = 0.35 + 0.65 * h1;
+  float R = length(local);
+
+  if (h3 < 0.085){
+    // grand-design two-arm spiral
+    float gs = 0.17 * (0.5 + 0.7 * h1) * szv;
+    return tc * spiralArms(local, gs, 2.0, 3.0 + h2) * br;
+  } else if (h3 < 0.15){
+    // flocculent many-arm spiral
+    float gs = 0.16 * (0.5 + 0.7 * h2) * szv;
+    return tc * spiralArms(local, gs, 4.0 + floor(h4 * 3.0), 1.6 + h1) * br;
+  } else if (h3 < 0.20){
+    // barred spiral - central bar plus trailing arms
+    float gs = 0.17 * (0.5 + 0.6 * h1) * szv;
+    float bar = exp(-(local.y * local.y) / (gs * gs) * 6.0) * exp(-(local.x * local.x) / (gs * gs) * 1.1);
+    return tc * (spiralArms(local, gs, 2.0, 3.5) * 0.7 + bar * 0.6) * br;
+  } else if (h3 < 0.25){
+    // edge-on spiral with a dark dust lane
+    float gs = 0.16 * (0.5 + 0.7 * h2) * szv;
+    float disk = exp(-(local.y * local.y) / (gs * gs * 0.08)) * exp(-(local.x * local.x) / (gs * gs * 1.7));
+    float lane = 1.0 - 0.7 * exp(-(local.y * local.y) / (gs * gs * 0.004));
+    return tc * disk * lane * br * 1.1;
+  } else if (h3 < 0.30){
+    // FRACTAL galaxy - the signature escape-time body
+    float gs = 0.16 * (0.45 + 0.7 * h1) * szv;
+    vec3 f = juliaCore(local / gs, cHome + (vec2(h1, h2) - 0.5) * 0.04);
     rr = dot(local, local) / (gs * gs);
     f *= 0.3 + 0.7 * exp(-rr * 1.3);
-    f *= warmTint(tintH);
-    f += AMBER * exp(-rr * 2.2) * 0.06;
-    return f * (0.35 + 0.65 * h1);
-  } else if (h3 < 0.34){
-    // elliptical / lenticular - a soft smudge, size varies widely
+    return f * warmTint(tintH) * br;
+  } else if (h3 < 0.35){
+    // elliptical / lenticular smooth glow
     float gs = 0.12 * (0.4 + 1.0 * h2) * szv;
-    vec3 f = juliaCore(local / gs, cHome + vec2(0.015, -0.01));
     rr = dot(local, local) / (gs * gs);
-    return f * exp(-rr * 1.6) * warmTint(hash21(bestCell + 41.1)) * (0.28 + 0.4 * h1);
-  } else if (h3 < 0.46){
-    // dendrite supernova - detonating filaments of the same equation
-    float gs = 0.17 * (0.4 + 0.6 * h2) * szv;
-    vec3 f = juliaCore(local / gs, vec2(0.0, 0.78 + 0.06 * (h4 - 0.5)));
-    rr = dot(local, local) / (gs * gs);
-    f *= 0.25 + 0.75 * exp(-rr * 0.9);
-    f *= vec3(1.0, 0.95, 0.8);
-    f += vec3(1.0, 0.9, 0.7) * exp(-rr * 6.0) * 0.3;
-    return f * (0.4 + 0.6 * h1);
-  } else if (h3 < 0.56){
-    // black hole - the basilica set, centre devoured, rim ablaze
-    float gs = 0.14 * (0.45 + 0.75 * h1) * szv;
-    vec3 f = juliaCore(local / gs, vec2(-1.0, 0.0)) * 0.35;
-    float r = length(local) / gs;
-    f *= smoothstep(0.10, 0.45, r);
-    f += vec3(1.0, 0.72, 0.35) * exp(-abs(r - 0.30) * 22.0) * 0.9;
-    f += GOLD * exp(-r * 1.6) * 0.10 * smoothstep(0.2, 0.5, r);
-    return f * (0.4 + 0.6 * h2);
-  } else if (h3 < 0.66){
-    // ring galaxy - a luminous annulus around a bright core
-    float gs = 0.14 * (0.5 + 0.8 * h1) * szv;
-    float r = length(local) / gs;
-    vec3 tc = warmTint(tintH);
-    vec3 f = tc * exp(-(r - 0.7) * (r - 0.7) * 16.0) * 0.85;
-    f += tc * exp(-r * r * 6.0) * 0.45;
-    return f * (0.4 + 0.6 * h2);
-  } else if (h3 < 0.78){
-    // globular cluster - a swarm of tiny suns
+    return tc * exp(-rr * 1.5) * (0.28 + 0.4 * h1);
+  } else if (h3 < 0.39){
+    // ring galaxy - annulus around a bright core
+    float gs = 0.13 * (0.5 + 0.7 * h1) * szv;
+    float r = R / gs;
+    return tc * (exp(-(r - 0.7) * (r - 0.7) * 16.0) * 0.8 + exp(-r * r * 6.0) * 0.4) * br;
+  } else if (h3 < 0.43){
+    // planetary nebula - thin bright shell + hot central star
+    float gs = 0.10 * (0.5 + 0.6 * h2) * szv;
+    float r = R / gs;
+    vec3 f = tc * exp(-(r - 0.8) * (r - 0.8) * 20.0) * 0.7;
+    f += vec3(1.0, 0.95, 0.8) * exp(-r * r * 140.0) * 0.9;
+    return f * br;
+  } else if (h3 < 0.47){
+    // globular cluster - dense swarm of tiny suns
     float gs = 0.10 * (0.5 + 0.7 * h1) * szv;
     rr = dot(local, local) / (gs * gs);
     vec2 cg = local / gs * 7.0;
     float cd = hash21(floor(cg) + 3.1);
     vec2 fp = fract(cg) - 0.5;
     float spark = cd > 0.55 ? exp(-dot(fp, fp) * 22.0) * (0.4 + 0.6 * cd) : 0.0;
-    vec3 f = vec3(1.0, 0.93, 0.78) * (exp(-rr * 2.2) * 0.32 + spark * exp(-rr * 1.0) * 0.9);
-    return f * (0.45 + 0.55 * h2);
-  } else if (h3 < 0.90){
-    // nebula puff - a soft warm cloud of two lobes with a hot young star
+    return vec3(1.0, 0.93, 0.78) * (exp(-rr * 2.2) * 0.3 + spark * exp(-rr * 1.0) * 0.9) * br;
+  } else if (h3 < 0.51){
+    // open cluster - a looser, warmer scatter
+    float gs = 0.12 * (0.5 + 0.8 * h2) * szv;
+    rr = dot(local, local) / (gs * gs);
+    vec2 cg = local / gs * 4.5;
+    float cd = hash21(floor(cg) + 7.7);
+    vec2 fp = fract(cg) - 0.5;
+    float spark = cd > 0.7 ? exp(-dot(fp, fp) * 16.0) : 0.0;
+    return warmTint(fract(tintH * 1.7)) * spark * exp(-rr * 0.8) * 1.1 * br;
+  } else if (h3 < 0.56){
+    // emission nebula - soft two-lobe cloud with a young star
     float gs = 0.15 * (0.5 + 0.9 * h2) * szv;
     rr = dot(local, local) / (gs * gs);
     vec2 o2 = (vec2(h1, h5) - 0.5) * gs * 0.9;
     float rr2 = dot(local - o2, local - o2) / (gs * gs);
-    vec3 tc = warmTint(tintH);
-    vec3 f = tc * (exp(-rr * 1.4) * 0.42 + exp(-rr2 * 2.2) * 0.3);
+    vec3 f = tc * (exp(-rr * 1.4) * 0.4 + exp(-rr2 * 2.2) * 0.28);
     f += vec3(1.0, 0.9, 0.7) * exp(-rr * 6.0) * 0.16;
-    return f * (0.3 + 0.4 * h1);
-  } else {
-    // bare star, sometimes a binary companion
+    return f * br;
+  } else if (h3 < 0.61){
+    // supernova remnant - detonating fractal filaments
+    float gs = 0.16 * (0.4 + 0.6 * h2) * szv;
+    vec3 f = juliaCore(local / gs, vec2(0.0, 0.78 + 0.06 * (h4 - 0.5)));
+    rr = dot(local, local) / (gs * gs);
+    f *= (0.25 + 0.75 * exp(-rr * 0.9)) * vec3(1.0, 0.95, 0.8);
+    return f * br * 1.1;
+  } else if (h3 < 0.65){
+    // black hole - the basilica set, rim ablaze
+    float gs = 0.14 * (0.45 + 0.7 * h1) * szv;
+    vec3 f = juliaCore(local / gs, vec2(-1.0, 0.0)) * 0.35;
+    float r = R / gs;
+    f *= smoothstep(0.10, 0.45, r);
+    f += vec3(1.0, 0.72, 0.35) * exp(-abs(r - 0.30) * 22.0) * 0.9;
+    return f * br;
+  } else if (h3 < 0.69){
+    // quasar - brilliant core with a one-sided relativistic jet
+    float gs = 0.09 * (0.5 + 0.6 * h2) * szv;
+    rr = dot(local, local) / (gs * gs);
+    vec3 f = vec3(1.0, 0.92, 0.72) * exp(-rr * 30.0) * 1.4;
+    float ja = h4 * 6.28318; vec2 jd = vec2(cos(ja), sin(ja));
+    float al = dot(local, jd), pe = dot(local, vec2(-jd.y, jd.x));
+    float jet = smoothstep(0.0, gs * 2.5, al) * (1.0 - smoothstep(gs * 2.5, gs * 4.2, al))
+              * exp(-pe * pe / (gs * gs * 0.02));
+    f += vec3(1.0, 0.7, 0.4) * jet * 0.5;
+    return f * br;
+  } else if (h3 < 0.73){
+    // pulsar - a point with two opposed beams
     rr = dot(local, local);
-    vec3 f = vec3(1.0, 0.95, 0.82) * exp(-rr * 2600.0 * (0.5 + h4)) * 1.2;
-    if (h1 > 0.6){
-      vec2 o2 = vec2(0.018 + 0.02 * h2, 0.0);
-      f += vec3(1.0, 0.85, 0.6) * exp(-dot(local - o2, local - o2) * 3400.0) * 0.8;
-    }
-    f += AMBER * exp(-rr * 300.0) * 0.10;
+    vec3 f = vec3(1.0, 0.96, 0.85) * exp(-rr * 3000.0) * 1.3;
+    float ja = h4 * 6.28318; vec2 jd = vec2(cos(ja), sin(ja));
+    float pe = dot(local, vec2(-jd.y, jd.x)), al = abs(dot(local, jd));
+    f += vec3(0.9, 0.8, 0.7) * exp(-pe * pe * 900.0) * (1.0 - smoothstep(0.0, 0.12 * szv, al)) * 0.4;
+    return f * br;
+  } else if (h3 < 0.78){
+    // bright star with four-point diffraction spikes
+    rr = dot(local, local);
+    vec3 f = vec3(1.0, 0.95, 0.82) * exp(-rr * 2600.0 * (0.5 + h4)) * 1.3;
+    float sx = exp(-local.y * local.y * 5000.0) * exp(-abs(local.x) * 35.0);
+    float sy = exp(-local.x * local.x * 5000.0) * exp(-abs(local.y) * 35.0);
+    return f + vec3(1.0, 0.9, 0.75) * (sx + sy) * 0.25;
+  } else if (h3 < 0.82){
+    // binary / trinary star system
+    vec3 f = vec3(1.0, 0.95, 0.82) * exp(-dot(local, local) * 2600.0) * 1.2;
+    vec2 o2 = vec2(0.018 + 0.02 * h2, 0.0);
+    f += vec3(1.0, 0.82, 0.55) * exp(-dot(local - o2, local - o2) * 3000.0) * 0.8;
+    if (h1 > 0.6){ vec2 o3 = vec2(-0.01, 0.016); f += vec3(1.0, 0.75, 0.5) * exp(-dot(local - o3, local - o3) * 3600.0) * 0.6; }
     return f;
+  } else if (h3 < 0.86){
+    // comet - a bright head with a streaming tail
+    rr = dot(local, local);
+    vec3 f = vec3(1.0, 0.95, 0.85) * exp(-rr * 4000.0) * 1.2;
+    float ja = h4 * 6.28318; vec2 jd = vec2(cos(ja), sin(ja));
+    float al = dot(local, jd), pe = dot(local, vec2(-jd.y, jd.x));
+    float tl = exp(-max(al, 0.0) / (0.05 * szv)) * exp(-pe * pe / (0.0006 * szv * szv));
+    return f + vec3(1.0, 0.85, 0.6) * tl * 0.3;
+  } else if (h3 < 0.90){
+    // interacting galaxies - two cores joined by a tidal bridge
+    float gs = 0.11 * (0.5 + 0.6 * h1) * szv;
+    vec2 o2 = vec2(0.14, 0.06) * szv;
+    vec3 f = tc * (exp(-dot(local, local) / (gs * gs) * 1.5) + exp(-dot(local - o2, local - o2) / (gs * gs) * 1.5) * 0.8);
+    vec2 nd = normalize(o2);
+    float al = dot(local, nd), pe = dot(local, vec2(-nd.y, nd.x));
+    f += tc * smoothstep(0.0, length(o2), al) * (1.0 - smoothstep(0.0, length(o2), al)) * exp(-pe * pe / (gs * gs * 0.1)) * 0.3;
+    return f * br;
+  } else if (h3 < 0.94){
+    // Einstein ring - a thin gravitational-lens arc around a core
+    float gs = 0.12 * (0.5 + 0.6 * h2) * szv;
+    float r = R / gs;
+    return (vec3(1.0, 0.9, 0.7) * exp(-(r - 0.9) * (r - 0.9) * 45.0) * 0.9
+          + vec3(1.0, 0.95, 0.8) * exp(-r * r * 120.0) * 0.7) * br;
+  } else if (h3 < 0.97){
+    // Wolf-Rayet bubble - a bright thin shell
+    float gs = 0.11 * (0.5 + 0.7 * h1) * szv;
+    float r = R / gs;
+    return tc * exp(-(r - 0.75) * (r - 0.75) * 30.0) * 0.8 * br;
+  } else {
+    // bipolar jet nebula - two lobes and a waist star
+    float gs = 0.10 * (0.5 + 0.6 * h2) * szv;
+    rr = dot(local, local) / (gs * gs);
+    vec2 up = vec2(0.0, gs * 0.9);
+    float l1 = exp(-dot(local - up, local - up) / (gs * gs * 0.25));
+    float l2 = exp(-dot(local + up, local + up) / (gs * gs * 0.25));
+    return tc * (l1 + l2) * 0.6 + vec3(1.0, 0.9, 0.7) * exp(-rr * 20.0) * 0.6;
   }
 }
 
-// The DEPTH STACK - the universe's endless depth. Instead of a few fixed
-// layers that thin out as the dolly dives, a set of shells spaced
-// geometrically in LOG-ZOOM: each shell's world-multiplier is fixed
-// (m = M0 * KSTEP^n for integer n), so as the camera zooms in every
-// shell's on-screen cell size grows and it slides forward through the
-// stack. The rendered window tracks the centre, so a shell growing past
-// the front fades out exactly as a finer, more-distant shell crosses the
-// resolution threshold at the back and fades IN. Density is therefore
-// CONSTANT through the whole dive - fly toward the home galaxy and the
-// background never empties; new distant galaxies keep being born. Each
-// shell's cell coords stay bounded (~uRes.y/cellPx) regardless of zoom,
-// so hashing never loses precision. Cheap: far shells are gaussian dust
-// (no escape loop), only the 1-2 near shells run the full equation.
-vec3 depthStack(vec2 world, float t, vec2 cHome, float reveal, float zp, float lodK){
-  const float KSTEP = 1.8;
-  const float CENTER_PX = 9.0;
-  float nCenter = floor((log(lodK) - log(CENTER_PX)) / log(KSTEP) + 0.5);
-  vec3 acc = vec3(0.0);
-  for (int k = 0; k < 8; k++){
-    float n = nCenter + float(k) - 3.0;
-    float m = pow(KSTEP, n);
-    float cellPx = lodK / m;
-    if (cellPx < 2.2 || cellPx > 72.0) continue;
-    float frontFade = 1.0 - smoothstep(42.0, 64.0, cellPx); // grown too big - recede
-    float depthBright = 0.45 + 0.55 * smoothstep(3.0, 22.0, cellPx); // distant = dimmer
-    float dens = 0.55 + 0.95 * hash21(vec2(n, 3.3));
-    vec2 off = vec2(hash21(vec2(n, 1.7)), hash21(vec2(n, 9.3))) * 50.0;
-    acc += layerField(world * m + off, t, cHome, reveal, zp, false, dens, cellPx)
-         * frontFade * depthBright;
+// The cheap far field - the glimmer on every corner. Distant layers hold
+// bodies too small to show structure, so instead of the full 3x3 search
+// and 24-way dispatch, each pixel samples ONE cell: a tight point (a
+// distant sun or galaxy core) with size, colour and brightness variety,
+// occasionally a tiny edge-on streak or ring. ~5 hashes and a couple of
+// exps - a fraction of bodyField's cost - yet it fills the whole frame
+// with warm sparkle. Same clumpy density field, so it clusters like the
+// real bodies. Fixed per layer: never morphs, nothing is destroyed.
+vec3 glimmerField(vec2 g, float dens){
+  vec2 cell = floor(g + 0.5);
+  float h1 = hash21(cell + 3.7);
+  float clump = hash21(floor(cell / 3.0) + 51.3);
+  float density = (0.15 + 0.75 * clump * clump) * dens;
+  if (h1 > density) return vec3(0.0);
+  float h2 = hash21(cell + 9.1);
+  float h3 = hash21(cell + 13.9);
+  float h4 = hash21(cell + 27.2);
+  vec2 pos = cell + (vec2(hash21(cell + 7.7), hash21(cell + 15.1)) - 0.5) * 0.7;
+  vec2 d = g - pos;
+  float r2 = dot(d, d);
+  vec3 tc = warmTint(h4);
+  vec3 f = tc * exp(-r2 * (900.0 + 3200.0 * h2)) * (0.55 + 0.8 * h1);
+  if (h3 > 0.86){        // a tiny edge-on streak
+    f += tc * exp(-d.y * d.y * 4200.0) * exp(-abs(d.x) * 30.0) * 0.4;
+  } else if (h3 > 0.70){ // a tiny ring
+    float r = sqrt(r2) * 30.0;
+    f += tc * exp(-(r - 0.5) * (r - 0.5) * 8.0) * 0.3;
   }
-  return acc;
+  return f;
 }
 
 void main(){
@@ -454,13 +553,22 @@ void main(){
     // near layer (carries the home galaxy)
     // close range runs thinner than the deep field - the eye needs room
     vec3 field = layerField(world, t, cHome, reveal, zp, true, 0.75, lodK) * uniViz;
-    // the endless depth: a recycling stack of shells that keeps the
-    // background at CONSTANT density all the way in - distant galaxies
-    // fade into existence as near ones retire - and only clears at the
-    // very end, once the home galaxy is close enough to own the frame.
+    // NO dynamic manager, nothing created or destroyed mid-flight: a fixed
+    // stack, always on. Two near background layers get the full rich
+    // ecosystem (detailed galaxies you can read); four far layers get the
+    // cheap glimmer (distant sparkle on every corner) - the same look as
+    // dumping seven full layers, at a fraction of the cost. Only the
+    // global arrival gate (uniViz) and the final clear (stackFade) touch
+    // them, so a body never morphs and never pops.
     float stackFade = 1.0 - smoothstep(0.74, 0.90, zp);
     if (stackFade > 0.004){
-      field += depthStack(world, t, cHome, reveal, zp, lodK) * stackFade * 0.72 * uniViz;
+      float a = stackFade * uniViz;
+      field += bodyField(world * 0.55 + vec2(7.3,   4.1), t, cHome, reveal, zp, false, 1.0) * 0.90 * a;
+      field += bodyField(world * 1.25 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false, 1.0) * 0.72 * a;
+      field += glimmerField(world * 2.30 + vec2(23.1,-17.9), 1.0) * 0.85 * a;
+      field += glimmerField(world * 3.70 + vec2(-5.1, 31.7), 1.1) * 0.70 * a;
+      field += glimmerField(world * 6.10 + vec2(41.3, 12.4), 1.2) * 0.58 * a;
+      field += glimmerField(world * 9.80 + vec2(-27.9,-8.3), 1.2) * 0.46 * a;
     }
 
     // copy-protection ring: only once the close-up has landed, released by
