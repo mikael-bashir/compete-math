@@ -775,9 +775,11 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       const z = sstep(0.0, 0.15, raw)
       const a = 1 - sstep(0.13, 0.165, raw)
       hero!.style.opacity = String(a)
-      // exponent 4 + 400x cap: peak zoom RATE is ~3x the old curve - the
-      // drift is just as still, but the throw is an explosion
-      hero!.style.transform = `scale(${Math.exp(Math.pow(z, 4.0) * Math.log(400))})`
+      // gas SLAMMED: exponent 28, cap 60000x. The frame holds near-still
+      // for most of the window, then detonates through four orders of
+      // magnitude in a fraction of a second - the fastest a zoom can go
+      // and still read as motion rather than a cut
+      hero!.style.transform = `scale(${Math.exp(Math.pow(z, 28.0) * Math.log(60000))})`
       hero!.style.pointerEvents = a > 0.5 ? "auto" : "none"
     }
 
