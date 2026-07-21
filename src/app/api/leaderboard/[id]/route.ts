@@ -2,6 +2,10 @@ import { NextResponse, NextRequest } from 'next/server';
 import { sql } from "@vercel/postgres";
 import { getFeaturedProblem } from '@/app/lib/data/problems';
 
+// DAILY REFRESH: these leaderboards only refresh once a day, at 00:00 UTC.
+// Every board is cut off at the most recent UTC midnight, so solves made today
+// appear tomorrow. The one exception is /api/leaderboard/featured (see below),
+// which is live. The s-maxage=60 header below is just CDN caching on top.
 const getGlobalCutoff = () => {
   const now = new Date();
   const cutoff = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
