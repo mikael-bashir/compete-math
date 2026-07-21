@@ -73,6 +73,8 @@ uniform float uTrav;     // warp travel distance - CPU-integrated, flows in real
 uniform float uVel;      // warp velocity 0..1 - eased on the CPU, never snaps
 uniform float uLz;       // log(zoom) - CPU-eased toward the scroll target, so the
                          // camera lands like exponential decay and never snaps still
+uniform float uUniViz;   // universe reveal - VELOCITY-gated on the CPU: the world
+                         // may only materialize once the hyper travel has died
 uniform float uText;     // beat-copy visibility 0..1 - carves a quiet stage for the text
 uniform float uHeartAmt; // finale heart 0..1
 uniform vec4  uHeart[96]; // xy = point pos, z = glow, w = size scale; CPU-animated
@@ -358,8 +360,11 @@ void main(){
              + drift * vec2(-0.20, 0.08)
              + gone * vec2(-0.55, 0.22);
 
-  // Arrival: the universe's own bodies develop as the travel decelerates.
-  float uniViz = smoothstep(0.16, 0.24, P);
+  // Arrival: the universe may only develop once the travel has died -
+  // the gate lives on the CPU, tied to the real warp velocity, so a
+  // parked mid-burst frame is stars on black, never a materializing
+  // world behind flying stars.
+  float uniViz = uUniViz;
 
   vec3 col = vec3(0.0);
   if (life > 0.004){
@@ -587,6 +592,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     const uTrav = gl.getUniformLocation(prog, "uTrav")
     const uVel = gl.getUniformLocation(prog, "uVel")
     const uLz = gl.getUniformLocation(prog, "uLz")
+    const uUniViz = gl.getUniformLocation(prog, "uUniViz")
     const uText = gl.getUniformLocation(prog, "uText")
     const uHeartAmt = gl.getUniformLocation(prog, "uHeartAmt")
     const uHeart = gl.getUniformLocation(prog, "uHeart[0]")
@@ -722,6 +728,12 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       if (lzS === null) lzS = lzTarget(pStory) // first frame (and ?jump) snaps
       else lzS += (lzTarget(pStory) - lzS) * (1 - Math.exp(-dt * 1.4))
     }
+    // The universe may only materialize once the travel has DIED: its
+    // reveal is gated by the real (eased) warp velocity, not by scroll
+    // position alone - park mid-burst and you hold on stars over black.
+    function uniVizNow(pStory: number): number {
+      return sstep(0.16, 0.24, pStory) * (1 - sstep(0.10, 0.30, warpVel))
+    }
 
     function draw(pStory: number, tSec: number) {
       gl!.uniform2f(uRes, glW, glH)
@@ -731,6 +743,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       gl!.uniform1f(uVel, warpVel)
       if (lzS === null) lzS = lzTarget(pStory) // warm frame renders pre-tick
       gl!.uniform1f(uLz, lzS)
+      gl!.uniform1f(uUniViz, uniVizNow(pStory))
       gl!.uniform1f(uText, textAmt)
       const heartAmt = sstep(0.86, 0.97, pStory)
       gl!.uniform1f(uHeartAmt, heartAmt)
@@ -827,17 +840,55 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       }
     }
 
+    // ---- the committed launch: one downward gesture past the threshold
+    // hands the scroll to an autopilot that rides ignition -> hyperspace
+    // at one cinematic pace, then returns control with the stars already
+    // streaming (the warp engine is time-driven, so pausing there still
+    // flies). A firm upward scroll is the escape hatch. Disabled under
+    // the ?jump dev contract so harnesses keep full authority.
+    const TAKEOFF_START = 0.02, TAKEOFF_END = 0.23, TAKEOFF_SECS = 4.0
+    const devDriven = new URLSearchParams(window.location.search).get("jump") !== null
+    let autoT = -1 // <0 idle, 0..1 riding
+    let lastRawSeen = -1
+    let upEscape = 0
+    function takeoffStep(dt: number) {
+      const rawNow = progress()
+      if (lastRawSeen < 0) lastRawSeen = rawNow // arm AFTER any ?jump landing
+      if (!devDriven && autoT < 0 &&
+          lastRawSeen < TAKEOFF_START && rawNow >= TAKEOFF_START && rawNow < TAKEOFF_END) {
+        autoT = 0; upEscape = 0
+      }
+      lastRawSeen = rawNow
+      if (autoT >= 0) {
+        autoT = Math.min(1, autoT + dt / TAKEOFF_SECS)
+        const e = autoT * autoT * (3 - 2 * autoT)
+        const r = TAKEOFF_START + (TAKEOFF_END - TAKEOFF_START) * e
+        const rect = driver!.getBoundingClientRect()
+        const driverTop = window.scrollY + rect.top
+        window.scrollTo({ top: driverTop + r * (rect.height - cssH), left: 0, behavior: "instant" })
+        if (autoT >= 1) autoT = -1
+      }
+    }
+    const onWheel = (e: WheelEvent) => {
+      if (autoT >= 0 && e.deltaY < 0) {
+        upEscape += -e.deltaY
+        if (upEscape > 260) autoT = -1 // the rider wants out - let go
+      }
+    }
+    window.addEventListener("wheel", onWheel, { passive: true })
+
     let lastTickAt = 0
     function tick(now: number) {
       if (disposed) return
+      const dt = lastTickAt > 0 ? Math.min(0.05, (now - lastTickAt) / 1000) : 0.016
+      lastTickAt = now
+      takeoffStep(dt) // may drive the scroll - must precede progress()
       target = progress()
       current = Math.abs(target - current) < 0.0004 ? target : lerp(current, target, 0.12)
       updatePin()
       const rect = driver!.getBoundingClientRect()
       const pinned = rect.top <= 0 && -rect.top < rect.height - cssH
       const pStory = story(current)
-      const dt = lastTickAt > 0 ? Math.min(0.05, (now - lastTickAt) / 1000) : 0.016
-      lastTickAt = now
       warpStep(pStory, dt)
       smoothMX = lerp(smoothMX, mouseX, 0.1)
       smoothMY = lerp(smoothMY, mouseY, 0.1)
@@ -908,6 +959,7 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       cancelAnimationFrame(rafId)
       io.disconnect()
       window.removeEventListener("mousemove", onMouse)
+      window.removeEventListener("wheel", onWheel)
       window.removeEventListener("resize", onResize)
       document.body.removeAttribute("data-film-immersed")
       delete (window as unknown as { __filmState?: unknown }).__filmState
