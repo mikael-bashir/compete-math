@@ -775,11 +775,14 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
       const z = sstep(0.0, 0.15, raw)
       const a = 1 - sstep(0.13, 0.165, raw)
       hero!.style.opacity = String(a)
-      // gas SLAMMED: exponent 28, cap 60000x. The frame holds near-still
-      // for most of the window, then detonates through four orders of
-      // magnitude in a fraction of a second - the fastest a zoom can go
-      // and still read as motion rather than a cut
-      hero!.style.transform = `scale(${Math.exp(Math.pow(z, 28.0) * Math.log(60000))})`
+      // Two-part throttle so it NEVER looks frozen: a gentle linear drift
+      // (0.16*z) moves the frame from the very first pixel, plus the
+      // z^28 detonation (0.84 weight) that still slams four orders of
+      // magnitude at the end. Both sum to 1 at z=1, so the 60000x peak
+      // and its explosive speed are unchanged - only the dead-still
+      // opening is gone.
+      const f = 0.16 * z + 0.84 * Math.pow(z, 28.0)
+      hero!.style.transform = `scale(${Math.exp(f * Math.log(60000))})`
       hero!.style.pointerEvents = a > 0.5 ? "auto" : "none"
     }
 
