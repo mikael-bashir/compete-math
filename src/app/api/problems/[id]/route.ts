@@ -4,6 +4,7 @@ import { getProblemById, getUserSubmissionState, recordSubmission, verifyAnswer,
 import { formatProblem } from '@/app/lib/utils';
 import { auth } from '../../../(auth)/auth';
 import { rewardBadges } from '@/app/lib/data/problems';
+import { fillCountryFromRequest } from '@/app/lib/data/geo';
 import {
   isAdminEmail,
   PROBLEM_TOPICS,
@@ -39,6 +40,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   let attemptCount = 0;
   let gaveUp = false;
   if (session?.user?.username) {
+    // Existing users predate geo capture: default their country on any problem
+    // view (not just submission) so their historical entries get flags too.
+    await fillCountryFromRequest(session.user.username, request);
     const st = await getUserSubmissionState(session.user.username, questionId);
     isSolved = st.isCorrect;
     attemptCount = st.attemptCount;
@@ -170,6 +174,8 @@ export async function POST(
   }
 
   const userId = username;
+
+  await fillCountryFromRequest(userId, request);
 
   try {
     const result = await recordSubmission(userId, questionId, attempt);

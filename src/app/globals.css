@@ -175,3 +175,14 @@ h1, h2, h3, h4, h5, h6 {
     margin-top: 60px;
   }
 }
+/* Equation-film immersion: while the landing shader film is pinned, fade the
+   fixed site chrome out. The film sets/clears data-film-immersed on <body>;
+   moving the mouse to the top edge brings the chrome back. */
+.site-chrome {
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+body[data-film-immersed="1"] .site-chrome {
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+}

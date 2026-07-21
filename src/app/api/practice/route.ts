@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
 import { auth } from "@/app/(auth)/auth";
+import { fillCountryFromRequest } from "@/app/lib/data/geo";
 
 // GET /api/practice?topic=Algebra&difficulty=Medium&knowledge=High%20School&limit=48&offset=0
 // The practice pool is the auto-generated questions table (weekly pipeline),
@@ -13,6 +14,9 @@ const MAX_LIMIT = 200;
 export async function GET(request: NextRequest) {
   const session = await auth();
   const userId = session?.user?.username ?? null;
+  // Highest-traffic authenticated endpoint: default pre-existing users' country
+  // here so a single practice visit is enough to flag all their old entries.
+  await fillCountryFromRequest(userId, request);
   const params = request.nextUrl.searchParams;
   const topic = params.get("topic");
   const difficulty = params.get("difficulty");

@@ -17,7 +17,9 @@ export function UserDisplayer2() {
   return (
     // Fixed header. Solid-ish translucent surface (no backdrop-filter) so it
     // doesn't re-blur the large fixed page background on every scroll frame.
-    <div className="fixed top-0 left-0 right-0 z-50 font-code">
+    // `site-chrome`: the landing page's equation-film fades all fixed chrome
+    // out while pinned (body[data-film-immersed] rule in globals.css).
+    <div className="site-chrome fixed top-0 left-0 right-0 z-50 font-code">
       <div className="bg-gradient-to-b from-[#0a0f14]/85 to-[#0a0f14]/45">
 
         {/* ---------- Tier 1: the strip (logo + user/badge) ---------- */}
