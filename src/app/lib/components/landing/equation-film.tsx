@@ -155,12 +155,12 @@ float spiralArms(vec2 p, float gs, float arms, float twist){
 // full equation is sub-pixel anyway, and skipping it kills the warp
 // divergence that made the deep field expensive (neighbouring pixels land
 // in different cells, so every branch serializes on the GPU).
-vec3 dustField(vec2 g, bool isMain, float dens){
+vec3 dustField(vec2 g, bool isMain, float dens, float cf){
   vec2 base = floor(g + 0.5);
   bool home = isMain && base.x == 0.0 && base.y == 0.0;
   float h1 = hash21(base + 3.7);
-  float clump = hash21(floor(base / 3.0) + 51.3);
-  float density = (0.15 + 0.75 * clump * clump) * dens;
+  float clump = hash21(floor(base / 2.0) + 51.3);
+  float density = (0.10 + 0.40 * cf) * (0.55 + 0.45 * clump) * dens;
   bool exists = home
     || (h1 < density && !(isMain && abs(base.x) <= 1.0 && abs(base.y) <= 1.0));
   if (!exists) return vec3(0.0);
@@ -178,8 +178,8 @@ vec3 dustField(vec2 g, bool isMain, float dens){
 // nothing below 2.5px, gaussian dust to ~11px, the full equation from
 // ~17px, a short crossfade between. cellPx is uniform across the frame,
 // so these branches cost nothing in divergence.
-vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens);
-vec3 layerField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens, float cellPx){
+vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens, float cf);
+vec3 layerField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens, float cellPx, float cf){
   float onA = smoothstep(2.5, 6.0, cellPx);
   if (onA < 0.004) return vec3(0.0);
   // hold the cheap dust LOD a little longer: fewer shells run the full
@@ -188,8 +188,8 @@ vec3 layerField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain
   // indistinguishable at that size anyway
   float toB = smoothstep(14.0, 21.0, cellPx);
   vec3 c = vec3(0.0);
-  if (toB < 0.996) c += dustField(g, isMain, dens) * onA * (1.0 - toB);
-  if (toB > 0.004) c += bodyField(g, t, cHome, reveal, zp, isMain, dens) * toB;
+  if (toB < 0.996) c += dustField(g, isMain, dens, cf) * onA * (1.0 - toB);
+  if (toB > 0.004) c += bodyField(g, t, cHome, reveal, zp, isMain, dens, cf) * toB;
   return c;
 }
 
@@ -257,7 +257,29 @@ vec3 flyField(vec2 uv, float trav, float vel, float persist){
   return col * persist;
 }
 
-vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens){
+// Smooth value noise (one bilinear cell) - the seed of organic structure.
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash21(i), b = hash21(i + vec2(1.0, 0.0));
+  float c = hash21(i + vec2(0.0, 1.0)), d = hash21(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+// The cosmic web: three octaves of noise pushed toward their extremes, so
+// space is mostly void, threaded with dense supercluster filaments. THREE
+// octaves matter - a single low frequency would blanket the whole screen
+// with one value once the camera has zoomed in (the screen spanning less
+// than one cell), making mid-dive frames uniformly packed or uniformly
+// empty; the higher octaves keep sub-structure on screen at every zoom.
+// Sampled ONCE per pixel and shared by all layers, so a supercluster is
+// dense at all depths at once and the camera flies through it. ~12 hashes.
+float webDensity(vec2 c){
+  float w = vnoise(c * 0.10) * 0.55 + vnoise(c * 0.35 + 7.3) * 0.30 + vnoise(c * 1.10 + 19.1) * 0.15;
+  return smoothstep(0.36, 0.68, w);
+}
+
+vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain, float dens, float cf){
   vec2 base = floor(g + 0.5);
   float bestD = 1e9;
   vec2 bestCell = vec2(1e9);
@@ -267,8 +289,10 @@ vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain,
       vec2 cell = base + vec2(float(ox), float(oy));
       bool home = isMain && cell.x == 0.0 && cell.y == 0.0;
       float h1 = hash21(cell + 3.7);
-      float clump = hash21(floor(cell / 3.0) + 51.3); // clusters and voids
-      float density = (0.15 + 0.75 * clump * clump) * dens;
+      float clump = hash21(floor(cell / 2.0) + 51.3); // fine texture on the web
+      // the big galaxies cluster MILDLY (they are the costly ones); the
+      // cheap glimmer carries the dramatic packing - see glimmerField
+      float density = (0.10 + 0.40 * cf) * (0.55 + 0.45 * clump) * dens;
       bool exists = home
         || (h1 < density && !(isMain && abs(cell.x) <= 1.0 && abs(cell.y) <= 1.0));
       if (!exists) continue;
@@ -479,11 +503,13 @@ vec3 bodyField(vec2 g, float t, vec2 cHome, float reveal, float zp, bool isMain,
 // exps - a fraction of bodyField's cost - yet it fills the whole frame
 // with warm sparkle. Same clumpy density field, so it clusters like the
 // real bodies. Fixed per layer: never morphs, nothing is destroyed.
-vec3 glimmerField(vec2 g, float dens){
+vec3 glimmerField(vec2 g, float dens, float cf){
   vec2 cell = floor(g + 0.5);
   float h1 = hash21(cell + 3.7);
-  float clump = hash21(floor(cell / 3.0) + 51.3);
-  float density = (0.15 + 0.75 * clump * clump) * dens;
+  float clump = hash21(floor(cell / 2.0) + 51.3);
+  // the cheap layer carries the DRAMATIC clustering: clusters pack dense
+  // with sparkle, voids fall to near-black - all at glimmer cost
+  float density = (0.03 + 1.20 * cf) * (0.55 + 0.45 * clump) * dens;
   if (h1 > density) return vec3(0.0);
   float h2 = hash21(cell + 9.1);
   float h3 = hash21(cell + 13.9);
@@ -557,9 +583,14 @@ void main(){
     // deposited traffic, and the dolly grows it into galaxies. Nothing
     // ever fades in as an already-formed shape.
     float lodK = zoomP * uRes.y;
+    // ONE cosmic-web sample per pixel, shared by every layer - so a dense
+    // supercluster is dense at ALL depths at once (galaxies piled through
+    // the whole field) and a void is empty through and through. The camera
+    // flies through these as it dives. Coherent AND cheap: one noise lookup.
+    float cf = webDensity(world);
     // near layer (carries the home galaxy)
     // close range runs thinner than the deep field - the eye needs room
-    vec3 field = layerField(world, t, cHome, reveal, zp, true, 0.75, lodK) * uniViz;
+    vec3 field = layerField(world, t, cHome, reveal, zp, true, 0.75, lodK, cf) * uniViz;
     // NO dynamic manager, nothing created or destroyed mid-flight: a fixed
     // stack, always on. Two near background layers get the full rich
     // ecosystem (detailed galaxies you can read); four far layers get the
@@ -570,12 +601,16 @@ void main(){
     float stackFade = 1.0 - smoothstep(0.74, 0.90, zp);
     if (stackFade > 0.004){
       float a = stackFade * uniViz;
-      field += bodyField(world * 0.55 + vec2(7.3,   4.1), t, cHome, reveal, zp, false, 1.0) * 0.90 * a;
-      field += bodyField(world * 1.25 + vec2(-13.7, 9.2), t, cHome, reveal, zp, false, 1.0) * 0.72 * a;
-      field += glimmerField(world * 2.30 + vec2(23.1,-17.9), 0.50) * 0.85 * a;
-      field += glimmerField(world * 3.70 + vec2(-5.1, 31.7), 0.55) * 0.70 * a;
-      field += glimmerField(world * 6.10 + vec2(41.3, 12.4), 0.60) * 0.58 * a;
-      field += glimmerField(world * 9.80 + vec2(-27.9,-8.3), 0.60) * 0.46 * a;
+      // ONE full-ecosystem layer of hero galaxies (the costly 24-way
+      // dispatch), then FIVE cheap glimmer layers - the glimmer carries the
+      // density and the dramatic clustering, so the field looks packed for
+      // a fraction of the cost of stacking full layers.
+      field += bodyField(world * 0.70 + vec2(7.3,   4.1), t, cHome, reveal, zp, false, 1.0, cf) * 0.90 * a;
+      field += glimmerField(world * 1.45 + vec2(-13.7, 9.2), 0.75, cf) * 0.82 * a;
+      field += glimmerField(world * 2.55 + vec2(23.1,-17.9), 0.80, cf) * 0.72 * a;
+      field += glimmerField(world * 4.20 + vec2(-5.1, 31.7), 0.85, cf) * 0.62 * a;
+      field += glimmerField(world * 6.80 + vec2(41.3, 12.4), 0.90, cf) * 0.52 * a;
+      field += glimmerField(world * 10.5 + vec2(-27.9,-8.3), 0.90, cf) * 0.44 * a;
     }
 
     // copy-protection ring: only once the close-up has landed, released by
