@@ -38,30 +38,31 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
         {user.rank}
       </div>
 
-      {/* Badge avatar */}
-      <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border border-white/10 bg-black/40">
-        {user.badgeId ? (
-          <img
-            src={user.badgeId}
-            alt={user.badgeTitle}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-[9px] font-medium text-white/50">
-            {user.username.slice(0, 2).toUpperCase()}
-          </div>
-        )}
-      </div>
-
-      {/* Name + badge title, single dense line */}
-      <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
-        <span className="truncate text-[13px] font-medium text-white">
-          {user.username}
-        </span>
-        <span className="hidden truncate text-[9px] uppercase tracking-wider text-white/35 sm:inline">
+      {/* Badge: icon with its full title displayed underneath — the title is
+          an achievement, never truncated (it wraps at a tiny size instead). */}
+      <div className="flex w-16 shrink-0 flex-col items-center gap-0.5">
+        <div className="relative h-6 w-6 overflow-hidden rounded-full border border-white/10 bg-black/40">
+          {user.badgeId ? (
+            <img
+              src={user.badgeId}
+              alt={user.badgeTitle}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[9px] font-medium text-white/50">
+              {user.username.slice(0, 2).toUpperCase()}
+            </div>
+          )}
+        </div>
+        <span className="w-full text-center text-[7px] font-medium uppercase tracking-wider leading-[1.2] text-white/45 break-words">
           {user.badgeTitle}
         </span>
       </div>
+
+      {/* Username */}
+      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">
+        {user.username}
+      </span>
 
       {/* Country flag */}
       {user.country && (
@@ -69,16 +70,6 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
           {flagEmoji(user.country)}
         </span>
       )}
-
-      {/* Tries */}
-      <span
-        className={`w-6 shrink-0 text-right font-mono text-[11px] tabular-nums ${
-          user.attempts === 1 ? "text-amber-300/90" : "text-white/40"
-        }`}
-        title={`${user.attempts} ${user.attempts === 1 ? "try" : "tries"}`}
-      >
-        {user.attempts}×
-      </span>
 
       {/* Answered at */}
       <span className="shrink-0 whitespace-nowrap text-right font-mono text-[10px] tabular-nums text-white/50">
