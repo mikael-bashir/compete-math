@@ -12,24 +12,41 @@
 // them, and world-space coordinates span too wide a range across this
 // film's zoom for one tiling period to ever look right at every depth).
 // Rebuilt on vnoise/fbm instead - the same primitive webDensity already
-// uses cleanly at every zoom level in this shader - for the same
-// end result (organic, depth-graded cloud brightness) without the
-// artifacts. Four octaves for "close and far and everything in between".
+// uses cleanly at every zoom level in this shader.
+//
+// Second pass: plain fbm alone read as a flat scatter of same-sized soft
+// round blobs - one noise map stamped everywhere, not real gas. Fixed
+// two ways: a domain warp (the sample point is distorted by its own
+// noise field before the octaves run) breaks the round-blob regularity
+// into swirled, wispy shapes; and a RIDGED component (1-|2v-1|, thin
+// bright seams where the noise crosses its midline instead of smooth
+// round humps) blended into the plain fbm gives filament structure real
+// nebulae have. Its own frequency/lacunarity/offset are deliberately
+// different from webDensity's (0.10/0.35/1.10, offsets 0/7.3/19.1) so
+// the cloud shapes don't visually coincide with the supercluster map -
+// they're independent fields that both draw on vnoise, not one map
+// wearing two colours.
 export const FRAG_NEBULA = `
 vec3 nebulaWash(vec2 world, float cf, float t){
-  vec2 p = world * 0.09 + t * 0.004;
-  float n = 0.0;
-  float amp = 0.55;
+  vec2 p = world * 0.07 + vec2(311.7, -157.3) + t * 0.004;
+  vec2 warp = vec2(vnoise(p * 0.6 + 91.3), vnoise(p * 0.6 - 41.7)) - 0.5;
+  p += warp * 2.2;
+
+  float n = 0.0, ridge = 0.0, amp = 0.5;
   for (int i = 0; i < 4; i++){
-    n += vnoise(p) * amp;
-    p = p * 2.15 + vec2(17.3, -9.7);
-    amp *= 0.52;
+    float v = vnoise(p);
+    n += v * amp;
+    ridge += (1.0 - abs(v * 2.0 - 1.0)) * amp; // thin bright filaments
+    p = p * 2.3 + vec2(53.1, -27.4);
+    amp *= 0.53;
   }
   n = clamp(n, 0.0, 1.0);
+  float density = mix(n, clamp(ridge, 0.0, 1.0), 0.45); // haze + filament blend
+
   // dark matter: only the densest wisps glow, everything below the
   // threshold stays dark instead of an even haze over the whole frame
-  float glow = pow(smoothstep(0.42, 0.85, n), 2.2);
-  vec3 tint = mix(vec3(0.55, 0.20, 0.10), vec3(1.0, 0.78, 0.42), n);
-  return tint * glow * 0.55 * (0.3 + 0.7 * cf); // thin in voids, thicker along the web
+  float glow = pow(smoothstep(0.38, 0.82, density), 2.0);
+  vec3 tint = mix(vec3(0.55, 0.20, 0.10), vec3(1.0, 0.78, 0.42), density);
+  return tint * glow * 0.5 * (0.3 + 0.7 * cf); // thin in voids, thicker along the web
 }
 `

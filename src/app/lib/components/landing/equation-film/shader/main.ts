@@ -135,20 +135,22 @@ void main(){
     // ONE feature black hole, fixed far out in the same world the galaxies
     // live in - its screen footprint sweeps past exactly like any other
     // body as the camera dollies by, but it's its own full lensed raymarch.
-    // Placed by the SAME size/offset-ratio rule as before (shader/blackHole.ts)
-    // but at a MUCH larger |center|: this universe is enormous when deeply
-    // zoomed out (Z0 = 0.002), so a body meant to be sitting at the screen's
-    // edge at the exact moment the universe fades in (zoomP still ~0.004-0.008,
-    // not the ~0.1-0.3 of the earlier mid-dive placement) needs a world offset
-    // two orders of magnitude bigger to still register there, and a world
-    // size just as large again to still read as colossal at that same instant.
-    // Its footprint is now WORLD-huge (radius 3.4*60=204), which at the
-    // deepest zoom (Z0=0.002) is geometrically reachable well before the
-    // universe has revealed at all - gate the call itself on uniViz, not
-    // just its contribution afterward, or the full raymarch runs for
-    // nothing throughout the entire pre-reveal hero dive.
+    // Placed by the size/offset-ratio rule (shader/blackHole.ts): |center|
+    // is large (this universe is enormous when deeply zoomed out, Z0=0.002 -
+    // sitting at the screen's edge right as the universe fades in, zoomP
+    // ~0.004-0.008, needs a world offset two orders of magnitude bigger
+    // than the earlier mid-dive placement just to register there at all).
+    // But the ratio itself (gs / |center|) stays MODEST - about double the
+    // ratio of the earlier small/approved two-hole version, not anywhere
+    // near the ~0.28 of the first "too close to the target" attempt this
+    // was rebuilt from. |center| alone doesn't make something look big;
+    // apparent size is gs*zoomP regardless of how far out |center| is.
+    // Footprint (radius 3.4*gs) is still world-huge enough to be reachable
+    // before the reveal at Z0's deep zoom - gate the call itself on
+    // uniViz, not just its contribution afterward, or the full raymarch
+    // runs for nothing throughout the entire pre-reveal hero dive.
     if (uniViz > 0.004){
-      vec4 bh1 = blackHoleShot(world, vec2(200.0, -70.0), 60.0, 0.15);
+      vec4 bh1 = blackHoleShot(world, vec2(142.0, -50.0), 15.0, 0.15);
       if (bh1.a > 0.0) col = mix(col, bh1.rgb, bh1.a * life * uniViz);
     }
   }
