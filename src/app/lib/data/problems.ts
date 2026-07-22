@@ -309,9 +309,6 @@ export async function rewardBadges(username: string, questionId: number) {
   const b3 = await badgeRewarders.Impervious(username);
   if (b3) newBadges.push(b3);
 
-  const b4 = await badgeRewarders.Stargazer(username);
-  if (b4) newBadges.push(b4);
-
   return newBadges;
 }
 
@@ -329,9 +326,6 @@ export async function rewardTitles(username: string, questionId: number) {
 
   const t4 = await titleRewarders.The_Indomitable_Title(username);
   if (t4) newTitles.push(t4);
-
-  const t5 = await titleRewarders.Stargazer_Title(username);
-  if (t5) newTitles.push(t5);
 
   return newTitles;
 }
