@@ -10,6 +10,7 @@ import { FRAG_SPIRALS } from "./spirals"
 import { FRAG_LOD } from "./lod"
 import { FRAG_FLY_FIELD } from "./flyField"
 import { FRAG_NOISE } from "./noise"
+import { FRAG_NEBULA } from "./nebula"
 import { FRAG_BODIES } from "./bodies"
 import { FRAG_GLIMMER } from "./glimmer"
 import { FRAG_BLACK_HOLE } from "./blackHole"
@@ -22,6 +23,7 @@ export const FRAG = [
   FRAG_LOD,
   FRAG_FLY_FIELD,
   FRAG_NOISE,
+  FRAG_NEBULA,
   FRAG_BODIES,
   FRAG_GLIMMER,
   FRAG_BLACK_HOLE,

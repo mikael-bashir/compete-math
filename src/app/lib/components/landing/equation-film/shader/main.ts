@@ -75,6 +75,16 @@ void main(){
     // global arrival gate (uniViz) and the final clear (stackFade) touch
     // them, so a body never morphs and never pops.
     float stackFade = 1.0 - smoothstep(0.74, 0.90, zp);
+    // The gas between the stars: a continuous nebula wash (see
+    // shader/nebula.ts) so the field reads as clouds and dust as much as
+    // discrete bodies - present at every depth, thickest along the web.
+    // Gated by stackFade too, same as the rest of the wide-field stack
+    // below: world shrinks toward zero approaching the close-up dolly, and
+    // without this gate the noise degenerates into a few flat low-frequency
+    // blobs right when the home galaxy should be the sole focus.
+    if (uniViz > 0.004 && stackFade > 0.004){
+      field += nebulaWash(world, cf, t) * uniViz * stackFade;
+    }
     if (stackFade > 0.004){
       float a = stackFade * uniViz;
       // ONE full-ecosystem layer of hero galaxies (the costly 24-way
@@ -132,8 +142,15 @@ void main(){
     // not the ~0.1-0.3 of the earlier mid-dive placement) needs a world offset
     // two orders of magnitude bigger to still register there, and a world
     // size just as large again to still read as colossal at that same instant.
-    vec4 bh1 = blackHoleShot(world, vec2(200.0, -70.0), 60.0, 0.15);
-    if (bh1.a > 0.0) col = mix(col, bh1.rgb, bh1.a * life * uniViz);
+    // Its footprint is now WORLD-huge (radius 3.4*60=204), which at the
+    // deepest zoom (Z0=0.002) is geometrically reachable well before the
+    // universe has revealed at all - gate the call itself on uniViz, not
+    // just its contribution afterward, or the full raymarch runs for
+    // nothing throughout the entire pre-reveal hero dive.
+    if (uniViz > 0.004){
+      vec4 bh1 = blackHoleShot(world, vec2(200.0, -70.0), 60.0, 0.15);
+      if (bh1.a > 0.0) col = mix(col, bh1.rgb, bh1.a * life * uniViz);
+    }
   }
 
   // The deposited stars BELONG to the universe: from the halt onward they
