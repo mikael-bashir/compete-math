@@ -6,7 +6,6 @@ import {
   Loader2, Flame, Trophy, PenLine, MessageSquare, ArrowBigUp, CalendarDays,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DazzleBadgeEffect } from "@/app/lib/components/art/badges/effects";
 
 interface PublicProfile {
   username: string;
@@ -80,14 +79,12 @@ export default function PublicProfilePage({
         {/* Identity header */}
         <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent p-8 mb-8">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            <DazzleBadgeEffect size="110px" color="#10b981">
-              <Avatar className="h-24 w-24 border-2 border-white/20">
-                <AvatarImage src={profile.badgeUrl || undefined} alt={display} />
-                <AvatarFallback className="bg-emerald-900/60 text-emerald-200 text-3xl font-code">
-                  {display.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </DazzleBadgeEffect>
+            <Avatar className="h-24 w-24 border-2 border-white/20">
+              <AvatarImage src={profile.badgeUrl || undefined} alt={display} />
+              <AvatarFallback className="bg-emerald-900/60 text-emerald-200 text-3xl font-code">
+                {display.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
 
             <div className="text-center sm:text-left flex-1">
               <h1 className="font-display text-3xl font-bold text-white! mb-1">{display}</h1>

@@ -279,7 +279,12 @@ export default function EquationFilm({ onAbort }: { onAbort: () => void }) {
     // streaming (the warp engine is time-driven, so pausing there still
     // flies). A firm upward scroll is the escape hatch. Disabled under
     // the ?jump dev contract so harnesses keep full authority.
-    const TAKEOFF_START = 0.02, TAKEOFF_END = 0.23, TAKEOFF_SECS = 1.5
+    // END lands exactly on beat 1's peak (story 0.17, converted through
+    // the HERO_SEG offset: raw = HERO_SEG + story*(1-HERO_SEG) = 0.253) -
+    // control hands back with the first chapter's copy at full opacity,
+    // not mid-fade-in. SECS halved (1.5 -> 0.75): launch reads as too
+    // slow to wait through once you've already committed to it.
+    const TAKEOFF_START = 0.02, TAKEOFF_END = 0.253, TAKEOFF_SECS = 0.75
     const devDriven = new URLSearchParams(window.location.search).get("jump") !== null
     let autoT = -1 // <0 idle, 0..1 riding
     let lastRawSeen = -1

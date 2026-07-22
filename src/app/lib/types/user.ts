@@ -5,4 +5,5 @@ export type User = {
 	iat?: number;
 	email?: string;
 	emailVerified?: Date | null;
+	badgeUrl?: string;
 }

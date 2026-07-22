@@ -6,16 +6,17 @@ import { User } from "../types/user";
 export async function getUser(identifier: string, password: string): Promise<User | undefined> {
     try {
         const user = await sql`
-        SELECT id, username, email, password_hash
-        FROM users 
-        WHERE username=${identifier} or email=${identifier}
+        SELECT u.id, u.username, u.email, u.password_hash, b."badgeUrl" AS badge_url
+        FROM users u
+        LEFT JOIN badges b ON b."badgeName" = u."badgeSelected"
+        WHERE u.username=${identifier} or u.email=${identifier}
         `;
         const result =  user.rows[0];
         if (!result?.password_hash) {
             return undefined;
         }
         if (bcrypt.compareSync(password, result.password_hash)) {
-            return { id: result.id, username: result.username, email: result.email, iat: Date.now() }
+            return { id: result.id, username: result.username, email: result.email, badgeUrl: result.badge_url ?? undefined, iat: Date.now() }
         }
 
         return undefined;
