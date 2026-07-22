@@ -49,4 +49,19 @@ vec3 nebulaWash(vec2 world, float cf, float t){
   vec3 tint = mix(vec3(0.55, 0.20, 0.10), vec3(1.0, 0.78, 0.42), density);
   return tint * glow * 0.5 * (0.3 + 0.7 * cf); // thin in voids, thicker along the web
 }
+
+// A second, cheap, near-transparent haze layer UNDER the wisps above -
+// real deep-sky views are never truly empty between visible nebulae
+// (zodiacal light, faint diffuse galactic glow, unresolved dust), so a
+// hard cut to pure black between wisps reads as artificial. Two octaves,
+// no domain warp, no dark-matter cutoff - the point is a LOW, EVER-
+// PRESENT floor, not more structure to look at. Own frequency/offset
+// again, so it doesn't just look like a dimmer copy of the wispy layer.
+vec3 nebulaHaze(vec2 world, float cf, float t){
+  vec2 p = world * 0.035 + vec2(-83.1, 211.4) + t * 0.0018;
+  float n = vnoise(p) * 0.6 + vnoise(p * 2.3 + 17.9) * 0.4;
+  n = clamp(n, 0.0, 1.0);
+  vec3 tint = mix(vec3(0.10, 0.05, 0.04), vec3(0.30, 0.19, 0.11), n);
+  return tint * (0.10 + 0.16 * n) * (0.35 + 0.65 * cf);
+}
 `

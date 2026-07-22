@@ -83,6 +83,9 @@ void main(){
     // without this gate the noise degenerates into a few flat low-frequency
     // blobs right when the home galaxy should be the sole focus.
     if (uniViz > 0.004 && stackFade > 0.004){
+      // haze first (cheap, always-on floor so voids next to the wisps
+      // don't read as artificially empty), wisps on top
+      field += nebulaHaze(world, cf, t) * uniViz * stackFade;
       field += nebulaWash(world, cf, t) * uniViz * stackFade;
     }
     if (stackFade > 0.004){
@@ -140,17 +143,17 @@ void main(){
     // sitting at the screen's edge right as the universe fades in, zoomP
     // ~0.004-0.008, needs a world offset two orders of magnitude bigger
     // than the earlier mid-dive placement just to register there at all).
-    // But the ratio itself (gs / |center|) stays MODEST - about double the
-    // ratio of the earlier small/approved two-hole version, not anywhere
-    // near the ~0.28 of the first "too close to the target" attempt this
-    // was rebuilt from. |center| alone doesn't make something look big;
-    // apparent size is gs*zoomP regardless of how far out |center| is.
+    // But the ratio itself (gs / |center|) stays MODEST - |center| alone
+    // doesn't make something look big, apparent size is gs*zoomP
+    // regardless of how far out |center| is. Sized to read about like the
+    // home galaxy itself (S_T=0.22) does when IT is a recognizable body
+    // in frame, "maybe a bit bigger" - not a screen-filling feature.
     // Footprint (radius 3.4*gs) is still world-huge enough to be reachable
     // before the reveal at Z0's deep zoom - gate the call itself on
     // uniViz, not just its contribution afterward, or the full raymarch
     // runs for nothing throughout the entire pre-reveal hero dive.
     if (uniViz > 0.004){
-      vec4 bh1 = blackHoleShot(world, vec2(142.0, -50.0), 15.0, 0.15);
+      vec4 bh1 = blackHoleShot(world, vec2(142.0, -50.0), 6.0, 0.15);
       if (bh1.a > 0.0) col = mix(col, bh1.rgb, bh1.a * life * uniViz);
     }
   }
