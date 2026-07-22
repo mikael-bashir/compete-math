@@ -16,21 +16,38 @@
 //
 // Second pass: plain fbm alone read as a flat scatter of same-sized soft
 // round blobs - one noise map stamped everywhere, not real gas. Fixed
-// two ways: a domain warp (the sample point is distorted by its own
-// noise field before the octaves run) breaks the round-blob regularity
-// into swirled, wispy shapes; and a RIDGED component (1-|2v-1|, thin
-// bright seams where the noise crosses its midline instead of smooth
-// round humps) blended into the plain fbm gives filament structure real
-// nebulae have. Its own frequency/lacunarity/offset are deliberately
-// different from webDensity's (0.10/0.35/1.10, offsets 0/7.3/19.1) so
-// the cloud shapes don't visually coincide with the supercluster map -
-// they're independent fields that both draw on vnoise, not one map
-// wearing two colours.
+// two ways: a domain warp (the sample point is distorted before the
+// octaves run) breaks the round-blob regularity into swirled shapes; and
+// a RIDGED component (1-|2v-1|, thin bright seams where the noise
+// crosses its midline instead of smooth round humps) blended into the
+// plain fbm gives filament structure real nebulae have. Its own
+// frequency/lacunarity/offset are deliberately different from
+// webDensity's (0.10/0.35/1.10, offsets 0/7.3/19.1) so the cloud shapes
+// don't visually coincide with the supercluster map - they're
+// independent fields that both draw on vnoise, not one map wearing two
+// colours.
+//
+// Third pass: the first warp used an arbitrary noise-valued vector,
+// which distorts space without any physical rationale - it looked
+// gorgeous but not structurally real. Real nebulae are actual turbulent
+// gas, shaped by stellar winds, shockwaves and magnetic fields - genuine
+// fluid vorticity, not decoration. curl() takes the perpendicular
+// gradient of a scalar potential, which is automatically divergence-
+// free: warping by it produces coherent EDDIES the eye reads as fluid
+// motion, the same technique production VFX uses for smoke and clouds.
 export const FRAG_NEBULA = `
+vec2 curl(vec2 p){
+  float e = 0.05;
+  float n1 = vnoise(p + vec2(0.0, e));
+  float n2 = vnoise(p - vec2(0.0, e));
+  float n3 = vnoise(p + vec2(e, 0.0));
+  float n4 = vnoise(p - vec2(e, 0.0));
+  return vec2(n1 - n2, n4 - n3) / (2.0 * e);
+}
+
 vec3 nebulaWash(vec2 world, float cf, float t){
   vec2 p = world * 0.07 + vec2(311.7, -157.3) + t * 0.004;
-  vec2 warp = vec2(vnoise(p * 0.6 + 91.3), vnoise(p * 0.6 - 41.7)) - 0.5;
-  p += warp * 2.2;
+  p += curl(p * 0.65 + 19.3) * 2.0; // one vorticity pass - a real eddy, not noise
 
   float n = 0.0, ridge = 0.0, amp = 0.5;
   for (int i = 0; i < 4; i++){

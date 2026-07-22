@@ -145,15 +145,17 @@ void main(){
     // than the earlier mid-dive placement just to register there at all).
     // But the ratio itself (gs / |center|) stays MODEST - |center| alone
     // doesn't make something look big, apparent size is gs*zoomP
-    // regardless of how far out |center| is. Sized to read about like the
-    // home galaxy itself (S_T=0.22) does when IT is a recognizable body
-    // in frame, "maybe a bit bigger" - not a screen-filling feature.
+    // regardless of how far out |center| is. gs=1.0 (down from 6.0,
+    // "exactly 6 times smaller" on request) - still not tiny in absolute
+    // world terms since |center| itself is huge, but the ratio that
+    // actually governs on-screen dominance is now a fraction of the
+    // home galaxy's own S_T=0.22-equivalent presence.
     // Footprint (radius 3.4*gs) is still world-huge enough to be reachable
     // before the reveal at Z0's deep zoom - gate the call itself on
     // uniViz, not just its contribution afterward, or the full raymarch
     // runs for nothing throughout the entire pre-reveal hero dive.
     if (uniViz > 0.004){
-      vec4 bh1 = blackHoleShot(world, vec2(142.0, -50.0), 6.0, 0.15);
+      vec4 bh1 = blackHoleShot(world, vec2(142.0, -50.0), 1.0, 0.15);
       if (bh1.a > 0.0) col = mix(col, bh1.rgb, bh1.a * life * uniViz);
     }
   }
