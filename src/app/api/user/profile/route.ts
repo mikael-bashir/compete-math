@@ -29,16 +29,19 @@ export async function GET(request: Request) {
         email,
         created_at,
         badges,
+        titles,
         country,
-        "badgeSelected" -- Keep original column name
-      FROM users 
+        "badgeSelected", -- Keep original column name
+        "titleSelected"
+      FROM users
       WHERE username = ${userIdentifier} -- or id = session.user.id
     `;
-    
+
     if (userRes.rowCount === 0) throw new Error("User not found");
-    
+
     const user = userRes.rows[0];
-    const userBadges = user.badges || []; 
+    const userBadges = user.badges || [];
+    const userTitles = user.titles || [];
     const dbUsername = user.username; // <--- Critical for submissions query
 
     // 3. Fetch ALL Badges
@@ -71,6 +74,27 @@ export async function GET(request: Request) {
       numberOwned: b.numberOwned
     }));
 
+    // 4b. Fetch ALL Titles (same "show locked ones too" shape as badges)
+    const titlesRes = await sql`
+      SELECT
+        "titleName",
+        description,
+        "numberAvailable",
+        "numberOwned"
+      FROM titles
+      ORDER BY "numberAvailable" ASC NULLS LAST, "titleName" ASC;
+    `;
+
+    const mergedTitles = titlesRes.rows.map(t => ({
+      titleName: t.titleName,
+      description: t.description || "No description available.",
+      isUnlocked: userTitles.includes(t.titleName),
+      isSelected: user.titleSelected === t.titleName,
+      isLimited: t.numberAvailable !== null,
+      numberAvailable: t.numberAvailable,
+      numberOwned: t.numberOwned
+    }));
+
     // 5. Fetch Stats (Using USERNAME, not UUID)
     const statsRes = await sql`
       SELECT COUNT(*) as solved_count 
@@ -85,8 +109,10 @@ export async function GET(request: Request) {
       created_at: user.created_at, // Frontend expects this or joinedAt
       country: user.country || null,
       badgeSelected: user.badgeSelected, // <--- FIXED: Frontend expects 'badgeSelected'
+      titleSelected: user.titleSelected,
       solvedCount: parseInt(solvedCount),
-      badges: mergedBadges
+      badges: mergedBadges,
+      titles: mergedTitles
     });
 
   } catch (error) {

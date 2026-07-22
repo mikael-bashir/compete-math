@@ -3,6 +3,7 @@
 import { sql } from "@vercel/postgres";
 import { SubmissionResult } from "../types/problems";
 import * as badgeRewarders from "./badges";
+import * as titleRewarders from "./titles";
 
 // --- THE DATA SEED ---
 const COOL_NAMES = [
@@ -306,6 +307,18 @@ export async function rewardBadges(username: string, questionId: number) {
   if (b2) newBadges.push(b2);
 
   return newBadges;
+}
+
+export async function rewardTitles(username: string, questionId: number) {
+  const newTitles: { titleName: string }[] = [];
+
+  const t1 = await titleRewarders.The_Margin_Was_Too_Small_Title(username, questionId);
+  if (t1) newTitles.push(t1);
+
+  const t2 = await titleRewarders.Where_It_All_Started_Title(username);
+  if (t2) newTitles.push(t2);
+
+  return newTitles;
 }
 
 // ── "Push prove" — problems that were promoted live without a proof, so a
