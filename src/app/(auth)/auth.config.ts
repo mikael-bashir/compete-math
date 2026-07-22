@@ -66,10 +66,22 @@ export const authConfig = {
                 // session is still alive - it's lost the moment the cookie
                 // is reissued on next login).
                 token.badgeUrl = user.badgeUrl;
+                // Equipped title's prestige styling (null for plain titles) -
+                // same fresh-login reasoning; drives the gradient on the name.
+                token.titleColorFrom = user.titleColorFrom ?? null;
+                token.titleColorTo = user.titleColorTo ?? null;
+                token.titleTextColor = user.titleTextColor ?? null;
             }
 
-            if (trigger === 'update' && session?.badgeUrl) {
-                token.badgeUrl = session.badgeUrl
+            // Live updates from account/page.tsx's session.update(...). Presence
+            // checks (not truthiness) so a title's colours can be cleared to null
+            // when switching to a plain title. Fields are independent: equipping
+            // a badge sends only badgeUrl, a title sends only the title colours.
+            if (trigger === 'update' && session) {
+                if ('badgeUrl' in session) token.badgeUrl = session.badgeUrl;
+                if ('titleColorFrom' in session) token.titleColorFrom = session.titleColorFrom ?? null;
+                if ('titleColorTo' in session) token.titleColorTo = session.titleColorTo ?? null;
+                if ('titleTextColor' in session) token.titleTextColor = session.titleTextColor ?? null;
             }
 
             return token
@@ -81,7 +93,10 @@ export const authConfig = {
                 username: token.username || "",
                 email: token.email || "",
                 iat: token.iat || Date.now(),
-                badgeUrl: token?.badgeUrl ? token.badgeUrl : '/badges/newbie.png'
+                badgeUrl: token?.badgeUrl ? token.badgeUrl : '/badges/newbie.png',
+                titleColorFrom: token.titleColorFrom ?? null,
+                titleColorTo: token.titleColorTo ?? null,
+                titleTextColor: token.titleTextColor ?? null,
             };
             return session;
         },

@@ -110,6 +110,8 @@ export default function AccountPage() {
   const handleEquipTitle = async (titleName: string) => {
     if (equippingTitle || profile.titleSelected === titleName) return;
 
+    const targetTitle = profile.titles.find((t: any) => t.titleName === titleName);
+
     setEquippingTitle(titleName);
     const previousTitle = profile.titleSelected;
 
@@ -130,6 +132,15 @@ export default function AccountPage() {
       });
 
       if (!res.ok) throw new Error("Failed to equip title");
+
+      // Push the equipped title's styling into the session so the user's NAME
+      // restyles live in the navbar / welcome message (null clears it for a
+      // plain title). Mirrors how handleEquip updates badgeUrl.
+      await update({
+        titleColorFrom: targetTitle?.colorFrom ?? null,
+        titleColorTo: targetTitle?.colorTo ?? null,
+        titleTextColor: targetTitle?.textColor ?? null,
+      });
 
     } catch (e) {
       console.error("Equip title failed", e);
@@ -244,7 +255,10 @@ export default function AccountPage() {
           </div>
 
           <div className="text-center md:text-left">
-            <h1 className="text-3xl font-bold text-white mb-1">{profile.username}</h1>
+            <h1
+              className={`text-3xl font-bold mb-1 ${activeTitleStyle ? PRESTIGE_TITLE_CLASS : 'text-white'}`}
+              style={activeTitleStyle || undefined}
+            >{profile.username}</h1>
             {activeTitle && (
               activeTitleStyle ? (
                 <p

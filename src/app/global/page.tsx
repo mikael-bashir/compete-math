@@ -281,25 +281,26 @@ export default function LeaderboardPage() {
                         )}
                       </div>
 
-                      <div className="flex flex-col justify-center min-w-0">
-                        <span className="font-medium text-slate-300 group-hover:text-amber-400 transition-colors leading-tight text-sm truncate">
-                          {user.username}
-                        </span>
-                        {/* Prestige titles keep their gradient + moving glow here too. */}
-                        {(() => {
-                          const ps = prestigeTitleStyle(user.titleColorFrom, user.titleColorTo, user.titleTextColor);
-                          return (
+                      {/* A prestige title styles both the name and the title line. */}
+                      {(() => {
+                        const ps = prestigeTitleStyle(user.titleColorFrom, user.titleColorTo, user.titleTextColor);
+                        return (
+                          <div className="flex flex-col justify-center min-w-0">
                             <span
-                              className={`text-[9px] tracking-wider font-bold leading-tight truncate uppercase ${
-                                ps ? PRESTIGE_TITLE_CLASS : "text-slate-500/90"
-                              }`}
+                              className={`font-medium transition-colors leading-tight text-sm truncate ${ps ? PRESTIGE_TITLE_CLASS : "text-slate-300 group-hover:text-amber-400"}`}
+                              style={ps ?? undefined}
+                            >
+                              {user.username}
+                            </span>
+                            <span
+                              className={`text-[9px] tracking-wider font-bold leading-tight truncate uppercase ${ps ? PRESTIGE_TITLE_CLASS : "text-slate-500/90"}`}
                               style={ps ?? undefined}
                             >
                               {user.title}
                             </span>
-                          );
-                        })()}
-                      </div>
+                          </div>
+                        );
+                      })()}
                   </div>
 
                   {/* Region */}

@@ -11,9 +11,13 @@ export async function GET(
   try {
     const userRes = await sql`
       SELECT u.username, u.email, u.created_at, u.badges, u."badgeSelected",
-             b."badgeUrl" AS badge_url
+             b."badgeUrl" AS badge_url,
+             t."colorFrom" AS title_color_from,
+             t."colorTo" AS title_color_to,
+             t."textColor" AS title_text_color
       FROM users u
       LEFT JOIN badges b ON b."badgeName" = u."badgeSelected"
+      LEFT JOIN titles t ON t."titleName" = u."titleSelected"
       WHERE u.username = ${username};
     `;
     if (userRes.rowCount === 0) {
@@ -80,6 +84,9 @@ export async function GET(
       joinedAt: user.created_at,
       badgeSelected: user.badgeSelected,
       badgeUrl: user.badge_url,
+      titleColorFrom: user.title_color_from ?? null,
+      titleColorTo: user.title_color_to ?? null,
+      titleTextColor: user.title_text_color ?? null,
       badges: user.badges || [],
       solvedCount: solvedRes.rows[0].solved,
       streak,
