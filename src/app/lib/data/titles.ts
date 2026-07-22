@@ -10,7 +10,8 @@ const TITLE_NAMES = {
   FIRST_SOLVER: 'The margin was too small',
   NEWBIE: 'newbie',
   IMPERVIOUS: 'Impervious',
-  INDOMITABLE: 'The Indomitable'
+  INDOMITABLE: 'The Indomitable',
+  STARGAZER: 'Stargazer'
 };
 
 type TitleReward = {
@@ -166,5 +167,24 @@ export async function The_Indomitable_Title(username: string) {
     }
   } catch (error) {
     console.error("Error checking title 'The Indomitable':", error);
+  }
+}
+
+// Mirrors the Stargazer badge: 50 correct practice-problem solves. Not limited.
+export async function Stargazer_Title(username: string) {
+  try {
+    const count = await sql`
+      SELECT COUNT(*)::int AS n
+      FROM submissions
+      WHERE username = ${username}
+      AND "isCorrect" = TRUE
+    `;
+
+    if ((count.rows[0]?.n ?? 0) >= 50) {
+      const awarded = await grantTitle(username, TITLE_NAMES.STARGAZER);
+      return awarded ? awarded : null;
+    }
+  } catch (error) {
+    console.error("Error checking title 'Stargazer':", error);
   }
 }

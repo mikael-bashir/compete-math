@@ -4,7 +4,8 @@ const BADGE_NAMES = {
   EARLY_ADOPTER: 'Where it all began',
   FIRST_SOLVER: 'The margin was too small',
   NEWBIE: 'Newbie',
-  IMPERVIOUS: 'Impervious'
+  IMPERVIOUS: 'Impervious',
+  STARGAZER: 'Stargazer'
 };
 
 /**
@@ -166,5 +167,28 @@ export async function Impervious(username: string) {
     }
   } catch (error) {
     console.error("Error checking 'Impervious':", error);
+  }
+}
+
+/**
+ * Criteria: Awarded once a user has correctly solved 50 practice problems.
+ * (submissions is one row per user+question, so a correct-count is the number
+ * of distinct practice problems solved.) Not limited.
+ */
+export async function Stargazer(username: string) {
+  try {
+    const count = await sql`
+      SELECT COUNT(*)::int AS n
+      FROM submissions
+      WHERE username = ${username}
+      AND "isCorrect" = TRUE
+    `;
+
+    if ((count.rows[0]?.n ?? 0) >= 50) {
+      const awarded = await grantBadge(username, BADGE_NAMES.STARGAZER);
+      return awarded ? awarded : null;
+    }
+  } catch (error) {
+    console.error("Error checking 'Stargazer':", error);
   }
 }
