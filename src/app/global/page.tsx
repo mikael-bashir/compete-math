@@ -20,7 +20,10 @@ interface LeaderboardEntry {
   rank: number;
   username: string;
   badgeId: string | null;
+  noBorder?: boolean;
   title: string;
+  titleColorFrom?: string | null;
+  titleColorTo?: string | null;
   solvedAt: string;
   attempts: number;
   country: string | null;
@@ -257,13 +260,17 @@ export default function LeaderboardPage() {
 
                   {/* Contender: badge avatar + name + badge title */}
                   <div className="col-span-7 md:col-span-5 flex items-center gap-3 min-w-0">
-                      <div className="relative w-8 h-8 rounded-full bg-[#151515] border border-[#2a2a2a] flex items-center justify-center shrink-0 shadow-inner group-hover:border-slate-600 transition-colors overflow-hidden">
+                      <div className={`relative w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
+                        user.noBorder
+                          ? ""
+                          : "bg-[#151515] border border-[#2a2a2a] shadow-inner group-hover:border-slate-600 transition-colors"
+                      }`}>
                         {user.badgeId ? (
                           <Image
                             src={user.badgeId}
                             alt={user.title}
                             fill
-                            className="object-fill"
+                            className={user.noBorder ? "object-contain" : "object-fill"}
                           />
                         ) : (
                           <span className="text-[10px] font-medium text-slate-600">
@@ -276,7 +283,16 @@ export default function LeaderboardPage() {
                         <span className="font-medium text-slate-300 group-hover:text-amber-400 transition-colors leading-tight text-sm truncate">
                           {user.username}
                         </span>
-                        <span className="text-[9px] tracking-wider font-bold text-slate-500/90 leading-tight truncate uppercase">
+                        {/* Prestige titles keep their gradient + glow here too. */}
+                        <span
+                          className={`text-[9px] tracking-wider font-bold leading-tight truncate uppercase ${
+                            user.titleColorFrom ? "bg-clip-text text-transparent" : "text-slate-500/90"
+                          }`}
+                          style={user.titleColorFrom ? {
+                            backgroundImage: `linear-gradient(90deg, ${user.titleColorFrom}, ${user.titleColorTo})`,
+                            filter: `drop-shadow(0 0 3px ${user.titleColorFrom}80)`,
+                          } : undefined}
+                        >
                           {user.title}
                         </span>
                       </div>

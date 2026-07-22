@@ -62,7 +62,10 @@ export async function GET(
         u.username,
         u.country,
         b."badgeUrl",
+        b."noBorder",
         t."titleName",
+        t."colorFrom",
+        t."colorTo",
         s."solvedAt",
         s."attemptCount"
       FROM submissions s
@@ -81,8 +84,13 @@ export async function GET(
       // Icon URL for the equipped badge - badges and titles are independent
       // entities, the icon still comes from the badge, not the title.
       badgeId: row.badgeUrl,
+      // Prestige (animated, transparent) badges render frameless everywhere.
+      noBorder: !!row.noBorder,
       // Display title (e.g. 'The margin was too small', 'Participant')
       title: row.titleName || 'Participant',
+      // Prestige titles carry their own gradient + glow to every leaderboard.
+      titleColorFrom: row.colorFrom || null,
+      titleColorTo: row.colorTo || null,
       // Raw ISO timestamp — clients own the formatting
       solvedAt: row.solvedAt,
       attempts: Number(row.attemptCount) || 1,

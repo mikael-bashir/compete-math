@@ -10,7 +10,10 @@ interface LeaderboardUser {
   rank: number
   username: string
   badgeId: string | null
+  noBorder?: boolean
   title: string
+  titleColorFrom?: string | null
+  titleColorTo?: string | null
   solvedAt: string
   attempts: number
   country: string | null
@@ -38,13 +41,16 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
         {user.rank}
       </div>
 
-      {/* Badge icon only - its title now sits under the username instead */}
-      <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border border-white/10 bg-black/40">
+      {/* Badge icon only - its title now sits under the username instead.
+          Prestige (noBorder) badges are frameless/transparent art. */}
+      <div className={`relative h-6 w-6 shrink-0 overflow-hidden rounded-full ${
+        user.noBorder ? "" : "border border-white/10 bg-black/40"
+      }`}>
         {user.badgeId ? (
           <img
             src={user.badgeId}
             alt={user.title}
-            className="h-full w-full object-cover"
+            className={`h-full w-full ${user.noBorder ? "object-contain" : "object-cover"}`}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-[9px] font-medium text-white/50">
@@ -53,12 +59,21 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
         )}
       </div>
 
-      {/* Username, with its badge title as a second line underneath it */}
+      {/* Username, with its badge title as a second line underneath it.
+          Prestige titles keep their gradient + glow here too. */}
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <span className="truncate text-[13px] font-medium leading-tight text-white">
           {user.username}
         </span>
-        <span className="truncate text-[7px] font-medium uppercase tracking-wider leading-[1.2] text-white/45">
+        <span
+          className={`truncate text-[7px] font-medium uppercase tracking-wider leading-[1.2] ${
+            user.titleColorFrom ? "bg-clip-text text-transparent" : "text-white/45"
+          }`}
+          style={user.titleColorFrom ? {
+            backgroundImage: `linear-gradient(90deg, ${user.titleColorFrom}, ${user.titleColorTo})`,
+            filter: `drop-shadow(0 0 2px ${user.titleColorFrom}80)`,
+          } : undefined}
+        >
           {user.title}
         </span>
       </div>
