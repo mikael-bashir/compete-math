@@ -177,7 +177,12 @@ void main(){
   col = mix(back, col, smoothstep(0.10, 0.16, P)); // the warp punches through the darkening sky
 
   // The finale heart: near-pixel points, CPU-animated, GPU-splatted.
-  if (uHeartAmt > 0.004){
+  // Bounding check first: this used to loop all 96 points (each 2 exp()
+  // calls) for EVERY pixel on screen the instant heartAmt turned on,
+  // including far corners with zero possible contribution (points never
+  // travel past roughly |uv|<0.9 even mid-scatter) - a real, easy waste
+  // caught by a 120Hz-display FPS test showing this zone dropping frames.
+  if (uHeartAmt > 0.004 && length(uv - vec2(0.0, 0.03)) < 1.0){
     for (int i = 0; i < 96; i++){
       vec2 d = uv - uHeart[i].xy;
       float dd = dot(d, d);

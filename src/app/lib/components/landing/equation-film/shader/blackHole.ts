@@ -19,10 +19,19 @@
 // size relative to its offset the whole time. Pick that ratio directly to
 // place a body "small and off to the side" (low ratio) vs. "looming near
 // the centre" (high ratio, where the home galaxy always sits).
+//
+// Iteration counts trimmed after a real-device FPS test (120Hz display,
+// 8.3ms budget) showed 84fps where this fires - down from the original
+// 20 bend-loop steps x 6 substeps (worst case 120 bend + 240 disk = 360
+// total raymarch iterations) to 13 x 4 (worst case 52 bend + 104 disk =
+// 156). This body is small, far, and glimpsed briefly (see main.ts's
+// placement note) - it never needs the geodesic-integration precision a
+// screen-filling hero shot would, so the accuracy this loses is not
+// visible at the size/distance it's actually placed at.
 export const FRAG_BLACK_HOLE = `
 const float BH_SPEED = 3.0;   // disk rotation speed
-const int   BH_STEPS_I = 12;  // disk texture layers
-const float BH_STEPS = 12.0;
+const int   BH_STEPS_I = 8;   // disk texture layers (was 12)
+const float BH_STEPS = 8.0;
 const float BH_SIZE = 0.3;    // event-horizon scale, in the hole's own local units
 
 float bhHash1(float x){ return fract(sin(x) * 152754.742); }
@@ -148,8 +157,8 @@ vec4 blackHoleShot(vec2 world, vec2 center, float gs, float seed){
   vec4 glow = vec4(0.0);
   vec4 outCol = vec4(100.0);
 
-  for (int disks = 0; disks < 20; disks++){
-    for (int h = 0; h < 6; h++){
+  for (int disks = 0; disks < 13; disks++){
+    for (int h = 0; h < 4; h++){
       float dotpos = dot(pos, pos);
       float invDist = inversesqrt(dotpos);
       float centDist = dotpos * invDist;
