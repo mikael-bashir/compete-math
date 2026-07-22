@@ -1,8 +1,8 @@
 // The frame assembly: story timing, the ONE centred dolly camera, the
 // layer stack (near home galaxy + full-ecosystem + glimmer shells + the
-// two black holes), the persisting warp starfield, the launch dive, the
-// finale heart splat, and the text stage / vignette / grain that finish
-// every frame regardless of chapter.
+// feature black hole), the persisting warp starfield, the launch dive,
+// the finale heart splat, and the text stage / vignette / grain that
+// finish every frame regardless of chapter.
 export const FRAG_MAIN = `
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
@@ -122,14 +122,18 @@ void main(){
       }
     }
 
-    // Two feature black holes, fixed in the same world the galaxies live
-    // in - their screen footprint sweeps past exactly like any other body
-    // as the camera dollies by, but each is its own full lensed raymarch.
-    // See shader/blackHole.ts for the size/offset ratio placement rule.
-    vec4 bh1 = blackHoleShot(world, vec2(5.2, 0.9), 0.48, 0.15);
+    // ONE feature black hole, fixed far out in the same world the galaxies
+    // live in - its screen footprint sweeps past exactly like any other
+    // body as the camera dollies by, but it's its own full lensed raymarch.
+    // Placed by the SAME size/offset-ratio rule as before (shader/blackHole.ts)
+    // but at a MUCH larger |center|: this universe is enormous when deeply
+    // zoomed out (Z0 = 0.002), so a body meant to be sitting at the screen's
+    // edge at the exact moment the universe fades in (zoomP still ~0.004-0.008,
+    // not the ~0.1-0.3 of the earlier mid-dive placement) needs a world offset
+    // two orders of magnitude bigger to still register there, and a world
+    // size just as large again to still read as colossal at that same instant.
+    vec4 bh1 = blackHoleShot(world, vec2(200.0, -70.0), 60.0, 0.15);
     if (bh1.a > 0.0) col = mix(col, bh1.rgb, bh1.a * life * uniViz);
-    vec4 bh2 = blackHoleShot(world, vec2(-5.6, -1.0), 0.50, 0.63);
-    if (bh2.a > 0.0) col = mix(col, bh2.rgb, bh2.a * life * uniViz);
   }
 
   // The deposited stars BELONG to the universe: from the halt onward they
