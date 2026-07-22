@@ -1,112 +1,103 @@
 // A continuous cloud/gas wash between the discrete bodies - stars AND
-// nebulae, not just points. Inspired by Star Nest by Pablo Roman
-// Andrioli (MIT license, shadertoy.com/view/XlfGRj): brightness and
-// colour accumulated across a few "depth" octaves, with a dark-matter-
-// style contrast curve so only the densest wisps glow and voids stay
-// properly dark, colour warming from ember at low density to gold at
-// high. Star Nest gets this from an iterated fractal fold ray-marched
-// through 3D; a first attempt porting that fold straight into 2D here
-// produced a visible tiling grid at mid-zoom and flare-like blobs at
-// close zoom (its periodic "mod" tiling assumes many blended ray steps
-// hiding the seams - our few discrete taps don't have enough to hide
-// them, and world-space coordinates span too wide a range across this
-// film's zoom for one tiling period to ever look right at every depth).
-// Rebuilt on vnoise/fbm instead - the same primitive webDensity already
-// uses cleanly at every zoom level in this shader.
+// nebulae, not just points. This layer went through several passes; the
+// history matters because each rejected attempt encodes a constraint:
 //
-// Second pass: plain fbm alone read as a flat scatter of same-sized soft
-// round blobs - one noise map stamped everywhere, not real gas. Fixed
-// two ways: a domain warp (the sample point is distorted before the
-// octaves run) breaks the round-blob regularity into swirled shapes; and
-// a RIDGED component (1-|2v-1|, thin bright seams where the noise
-// crosses its midline instead of smooth round humps) blended into the
-// plain fbm gives filament structure real nebulae have. Its own
-// frequency/lacunarity/offset are deliberately different from
-// webDensity's (0.10/0.35/1.10, offsets 0/7.3/19.1) so the cloud shapes
-// don't visually coincide with the supercluster map - they're
-// independent fields that both draw on vnoise, not one map wearing two
-// colours.
-//
-// Third pass: the first warp used an arbitrary noise-valued vector,
-// which distorts space without any physical rationale - it looked
-// gorgeous but not structurally real. Real nebulae are actual turbulent
-// gas, shaped by stellar winds, shockwaves and magnetic fields - genuine
-// fluid vorticity, not decoration. curl() takes the perpendicular
-// gradient of a scalar potential, which is automatically divergence-
-// free: warping by it produces coherent EDDIES the eye reads as fluid
-// motion, the same technique production VFX uses for smoke and clouds.
-//
-// Fourth pass, four tricks lifted from Frank Hugenroth's galaxy shader
-// (nordlicht/bremen 2015) after the user held it up as the realism bar:
-// (1) ROTATED-DOMAIN fbm - his mat3 m rotates the noise domain between
-//     octaves, which kills the axis-aligned bias of value noise (the
-//     subtle horizontal/vertical grain that makes procedural clouds
-//     read as synthetic); ours previously advanced octaves with a plain
-//     scale+offset, so all octaves shared the same lattice orientation.
-// (2) MULTI-STOP colour inside one cloud - he stacks differently-hued
-//     fog layers (blue-white, purple, red) plus a radius-driven
-//     dustcolor ramp; a single two-colour ramp reads as one material,
-//     real emission nebulae shift hue with excitation and depth.
-// (3) DARK DUST LANES - his "gholes" term SUBTRACTS opaque dust from
-//     the cloud colour. Real nebulae are backlit gas silhouetted by
-//     cold foreground dust; without dark lanes carving the bright gas
-//     nothing ever occludes anything and the field looks like glow, not
-//     matter. Ours ride the SAME curl-warped coordinate as the gas, so
-//     lanes follow the same eddies instead of floating free.
-// (4) HOT KNOTS - his pow(noise, 22) star-forming hotspots: raising
-//     density to a high power leaves rare, tiny, near-white cores
-//     embedded in the gas where it is thickest.
+// v1: Star Nest's fractal fold ported to 2D - visible tiling grid at
+//     mid-zoom, flare blobs at close zoom (its periodic mod() assumes
+//     many blended ray steps hiding the seams). Rebuilt on vnoise/fbm.
+// v2: plain fbm - a flat scatter of same-sized round blobs. Added a
+//     noise-vector domain warp + a ridged component.
+// v3: warp upgraded to curl noise (divergence-free eddies).
+// v4: Hugenroth galaxy-shader tricks: rotated-domain octaves (kills the
+//     axis-aligned lattice grain of value noise), multi-stop palette,
+//     dark dust lanes, hot knots, and web-gated concentration.
+// v5 (this one): user benchmarked against real astrophotography
+//     (NGC 6188-class) - v4 still read as UNIFORM swirl texture. Three
+//     structural gaps, three fixes:
+//     (1) MULTI-SCALE BILLOWS - one curl pass at one frequency makes
+//         every swirl the same size; real nebulae cascade from huge
+//         cloud masses to fine tendrils. Fix: NESTED domain warping
+//         (Inigo Quilez's f(p + 4*fbm(p + 4*fbm(p))) construction) -
+//         warping the warp compounds structure across scales and
+//         produces exactly the billowing cauliflower chaos in the
+//         reference photos.
+//     (2) ILLUMINATION - uniform self-glow reads as smoke. Real
+//         emission nebulae are LIT: near-white where dense gas sits by
+//         the embedded stars, tan mid-density, ember fringes, black
+//         voids. The palette now rides density through cream, and
+//         brightness falls quadratically, so cores blaze and edges die.
+//     (3) COMPOSITION - texture everywhere reads as wallpaper no matter
+//         how good the texture is. A very-low-frequency gate (mega)
+//         confines the wash to one-or-two grand complexes per wide
+//         frame with genuinely empty sky between (nebulaHaze still
+//         floors the voids). The gate also EARLY-OUTS the whole nested
+//         warp in empty sky - the expensive part never runs there.
+//     Dust silhouettes now come free: the intermediate warp field r is
+//     already computed, and thresholding it gives crisp-edged opaque
+//     foreground dust that follows the same flow as the gas it occludes.
 export const FRAG_NEBULA = `
-vec2 curl(vec2 p){
-  float e = 0.05;
-  float n1 = vnoise(p + vec2(0.0, e));
-  float n2 = vnoise(p - vec2(0.0, e));
-  float n3 = vnoise(p + vec2(e, 0.0));
-  float n4 = vnoise(p - vec2(e, 0.0));
-  return vec2(n1 - n2, n4 - n3) / (2.0 * e);
+const mat2 NEB_ROT = mat2(0.848, 0.530, -0.530, 0.848); // ~32deg between octaves
+
+float nebFbm2(vec2 p){
+  float v = 0.62 * vnoise(p);
+  v += 0.38 * vnoise(NEB_ROT * p * 2.13 + vec2(13.7, -41.3));
+  return v;
+}
+
+float nebFbm4(vec2 p){
+  float v = 0.0, a = 0.5, s = 0.0;
+  for (int i = 0; i < 4; i++){
+    v += a * vnoise(p);
+    s += a;
+    p = NEB_ROT * p * 2.24 + vec2(53.1, -27.4);
+    a *= 0.55;
+  }
+  return v / s;
 }
 
 vec3 nebulaWash(vec2 world, float cf, float t){
-  vec2 p = world * 0.07 + vec2(311.7, -157.3) + t * 0.004;
-  p += curl(p * 0.65 + 19.3) * 2.0; // one vorticity pass - a real eddy, not noise
-  vec2 pw = p; // the curl-warped frame: gas AND dust lanes both live in it
+  // composition gate first: grand complexes with real empty sky between,
+  // and a free exit for every pixel of that sky. THREE octaves for the
+  // same reason webDensity has three - a single low frequency goes DC
+  // once the camera zooms far past it (whole screen inside one cell),
+  // which blanked this layer out of the entire mid-dive.
+  float mg = vnoise(world * 0.018 + vec2(77.7, -13.1)) * 0.5
+           + vnoise(world * 0.075 + vec2(-31.3, 8.9)) * 0.3
+           + vnoise(world * 0.30 + vec2(12.1, 44.7)) * 0.2;
+  float mega = smoothstep(0.36, 0.62, mg);
+  if (mega < 0.01) return vec3(0.0);
 
-  const mat2 rotO = mat2(0.848, 0.530, -0.530, 0.848); // ~32deg between octaves
-  float n = 0.0, ridge = 0.0, amp = 0.5;
-  for (int i = 0; i < 4; i++){
-    float v = vnoise(p);
-    n += v * amp;
-    ridge += (1.0 - abs(v * 2.0 - 1.0)) * amp; // thin bright filaments
-    p = rotO * p * 2.3 + vec2(53.1, -27.4);
-    amp *= 0.53;
-  }
-  n = clamp(n, 0.0, 1.0);
-  float density = mix(n, clamp(ridge, 0.0, 1.0), 0.45); // haze + filament blend
+  vec2 p = world * 0.055 + vec2(311.7, -157.3) + t * 0.003;
 
-  // dark matter: only the densest wisps glow, everything below the
-  // threshold stays dark instead of an even haze over the whole frame
-  float glow = pow(smoothstep(0.38, 0.82, density), 2.0);
+  // nested domain warp: q warps r, r warps the density - structure
+  // compounds across scales into billows instead of one swirl size.
+  // The warp vectors are CENTERED (fbm has mean ~0.5, and feeding it in
+  // raw shifts the whole domain instead of distorting it) and the gain
+  // stays moderate - at IQ's full 4.0 the field folds over itself into
+  // hard-edged liquid-metal loops, not gas.
+  vec2 q = vec2(nebFbm2(p), nebFbm2(p + vec2(5.2, 1.3))) - 0.5;
+  vec2 r = vec2(nebFbm2(p + 2.2 * q + vec2(1.7, 9.2)),
+                nebFbm2(p + 2.2 * q + vec2(8.3, 2.8)));
+  float f = nebFbm4(p + 2.2 * (r - 0.5));
 
-  // dark dust lanes, in the same curl-warped frame as the gas
-  vec2 q = pw * 1.6 + vec2(-71.9, 143.7);
-  float lane = vnoise(q) * 0.65 + vnoise(rotO * q * 2.1 + 9.7) * 0.35;
-  glow *= 1.0 - 0.72 * smoothstep(0.56, 0.80, lane);
+  float dens = smoothstep(0.26, 0.94, f);
 
-  // three-stop palette: cold ember -> amber -> near-white gold at peaks
-  vec3 tint = mix(vec3(0.45, 0.12, 0.06), vec3(1.0, 0.62, 0.25), smoothstep(0.0, 0.65, density));
-  tint = mix(tint, vec3(1.0, 0.92, 0.75), smoothstep(0.72, 0.95, density));
+  // illumination ramp: ember fringes -> tan body -> cream blaze at the
+  // cores, brightness falling quadratically away from them
+  vec3 gas = mix(vec3(0.30, 0.09, 0.045), vec3(0.85, 0.55, 0.28), smoothstep(0.05, 0.55, dens));
+  gas = mix(gas, vec3(1.0, 0.93, 0.80), smoothstep(0.55, 0.90, dens));
+  gas *= 1.0 + 0.30 * q.x; // subtle hue/brightness drift across the cloud
+  float glow = dens * dens;
 
-  // hot knots: rare bright cores where the gas is thickest
-  float knots = pow(density, 9.0) * 1.4 * (1.0 - 0.72 * smoothstep(0.56, 0.80, lane));
+  // opaque foreground dust, carved from the already-computed warp field
+  // r - soft-but-defined edges, following the same flow it silhouettes
+  float dust = smoothstep(0.52, 0.74, r.x);
+  float occl = 1.0 - 0.88 * dust;
 
-  // CONCENTRATION - the Hugenroth trait that matters most: his clouds
-  // are confined to the galactic disc and the rest of the frame is
-  // near-black. Our confinement dial is the cosmic web: bright silk
-  // lives along the filaments (cf high) and falls to a whisper in the
-  // voids, whose "not empty" floor is nebulaHaze's job, not this layer's.
-  float region = 0.08 + 0.92 * cf;
+  // hot knots: rare near-white cores where the gas is thickest
+  float knots = pow(dens, 8.0) * 1.2;
 
-  return (tint * glow + vec3(1.0, 0.85, 0.6) * knots) * 0.5 * region;
+  return (gas * glow + vec3(1.0, 0.88, 0.65) * knots) * occl * 0.55 * mega * (0.35 + 0.65 * cf);
 }
 
 // A second, cheap, near-transparent haze layer UNDER the wisps above -
