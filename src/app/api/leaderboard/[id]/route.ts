@@ -2,31 +2,19 @@ import { NextResponse, NextRequest } from 'next/server';
 import { sql } from "@vercel/postgres";
 import { getFeaturedProblem } from '@/app/lib/data/problems';
 
-// DAILY REFRESH: these leaderboards only refresh once a day, at 00:00 UTC.
-// Every board is cut off at the most recent UTC midnight, so solves made today
-// appear tomorrow. The one exception is /api/leaderboard/featured (see below),
-// which is live. The s-maxage=60 header below is just CDN caching on top.
-const getGlobalCutoff = () => {
-  const now = new Date();
-  const cutoff = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
-  return cutoff.toISOString();
-};
-
 // GET /api/leaderboard/:id — leaderboard for one problem.
 // GET /api/leaderboard/latest — leaderboard for the most recent problem that
 // actually has entries, so the default view is never an empty hall.
 // GET /api/leaderboard/featured — leaderboard for the current featured problem
-// (same getFeaturedProblem() the home card uses, so they can never drift), and
-// LIVE (no daily cutoff): someone racing the featured problem sees themselves
-// on the board the moment they solve it.
+// (same getFeaturedProblem() the home card uses, so they can never drift).
+// All boards are live: a solve appears on its leaderboard immediately, and
+// the response is never cached (see `no-store` below).
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   const problemId = parseInt(id);
-  const cutoffTimestamp =
-    id === 'featured' ? new Date().toISOString() : getGlobalCutoff();
 
   try {
     let activeProblemId: number;
@@ -46,16 +34,15 @@ export async function GET(
       `;
       problemTitle = titleRes.rows[0]?.title ?? null;
     } else {
-      // "latest": newest problem with a LIVELY board — at least 3 visible
-      // (pre-cutoff) solvers, so the default view doesn't look dead. If no
-      // board has 3 yet, fall back to the most-populated one (newest on ties)
-      // so the default is still never empty.
+      // "latest": newest problem with a LIVELY board — at least 3 solvers,
+      // so the default view doesn't look dead. If no board has 3 yet, fall
+      // back to the most-populated one (newest on ties) so the default is
+      // still never empty.
       const latestRes = await sql`
         SELECT q."questionId" AS id, q."questionTitle" AS title
         FROM questions q
         JOIN submissions s ON s."questionId" = q."questionId"
           AND s."isCorrect" = TRUE
-          AND s."solvedAt" < ${cutoffTimestamp}
         GROUP BY q."questionId", q."questionTitle"
         ORDER BY (COUNT(*) >= 3) DESC,
                  CASE WHEN COUNT(*) >= 3 THEN q."questionId" ELSE 0 END DESC,
@@ -83,7 +70,6 @@ export async function GET(
       LEFT JOIN badges b ON u."badgeSelected" = b."badgeName"
       WHERE s."questionId" = ${activeProblemId}
         AND s."isCorrect" = TRUE
-        AND s."solvedAt" < ${cutoffTimestamp}
       ORDER BY s."solvedAt" ASC
       LIMIT 100;
     `;
@@ -105,10 +91,9 @@ export async function GET(
     const response = NextResponse.json({
       problem: { id: activeProblemId, title: problemTitle },
       leaderboard,
-      nextUpdate: new Date(new Date(cutoffTimestamp).getTime() + 86400000).toISOString()
     });
 
-    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
+    response.headers.set('Cache-Control', 'no-store');
 
     return response;
 
