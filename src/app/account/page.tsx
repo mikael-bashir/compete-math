@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSession } from "next-auth/react";
 import {
-  Loader2, Calendar, Mail, ShieldCheck, Lock, Globe
+  Loader2, Calendar, Mail, ShieldCheck, Lock, Globe, Sparkles
 } from 'lucide-react';
 import { COUNTRY_REGIONS, flagEmoji, countryName } from '../lib/data/countries';
 
@@ -34,6 +34,10 @@ export default function AccountPage() {
   const [loading, setLoading] = useState(true);
   const [equipping, setEquipping] = useState<string | null>(null);
   const [savingCountry, setSavingCountry] = useState(false);
+  // Which badge's name/description/requirements are shown in the detail
+  // panel - defaults to the equipped one, but any badge (locked or not) can
+  // be selected to preview it. Equipping is a separate, explicit action.
+  const [viewedBadgeName, setViewedBadgeName] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -131,9 +135,17 @@ export default function AccountPage() {
 
   if (!profile) return <div className="min-h-screen bg-[#050505]" />;
 
-  // LOGIC: Find active badge object using badgeSelected (singular)
-  const activeBadge = profile.badges.find((b: any) => b.badgeName === profile.badgeSelected) 
+  // LOGIC: Find active (equipped) badge object using badgeSelected (singular)
+  const activeBadge = profile.badges.find((b: any) => b.badgeName === profile.badgeSelected)
                    || profile.badges[0];
+
+  // The badge currently shown in the detail panel - any badge can be
+  // selected to preview it (locked ones included), defaulting to whatever
+  // is actually equipped until the user picks something else to look at.
+  const viewedBadge = (viewedBadgeName && profile.badges.find((b: any) => b.badgeName === viewedBadgeName))
+                    || activeBadge;
+  const viewedIsActive = viewedBadge?.badgeName === profile.badgeSelected;
+  const viewedIsLocked = !viewedBadge?.isUnlocked;
 
   return (
     <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-emerald-500/30 mt-10">
@@ -197,48 +209,80 @@ export default function AccountPage() {
         {/* --- DIVIDER --- */}
         <div className="w-full h-px bg-linear-to-r from-transparent via-[#222] to-transparent mb-10" />
 
-        {/* --- ACTIVE BADGE DISPLAY --- */}
+        {/* --- BADGE DETAIL PANEL --- shows whichever badge is currently
+             selected below (any badge, locked or not - defaults to the
+             equipped one), with its name/description/unlock requirement
+             (the same `description` field doubles as both) and a separate
+             Equip action, disabled for badges not yet unlocked. */}
         <div className="flex flex-col items-center justify-center text-center mb-12">
             <div className="flex flex-col items-center gap-px">
                 <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-linear-to-br from-white to-slate-400 uppercase tracking-widest">
-                    {activeBadge?.badgeName}
+                    {viewedBadge?.badgeName}
                 </h2>
-                {activeBadge?.isLimited && (
+                {viewedBadge?.isLimited && (
                     <span className="px-2 py-0.5 rounded-sm text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/30 font-mono uppercase mb-2">
-                      Limited to {parseInt(activeBadge.numberAvailable) + parseInt(activeBadge.numberOwned)}
+                      Limited to {parseInt(viewedBadge.numberAvailable) + parseInt(viewedBadge.numberOwned)}
                     </span>
                 )}
             </div>
 
             <p className="text-slate-400 max-w-xl text-sm leading-relaxed font-light">
-                {activeBadge?.description}
+                {viewedBadge?.description}
             </p>
 
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/20 border border-emerald-500/20 text-emerald-400 text-xs font-mono uppercase tracking-wider mt-2">
-                <ShieldCheck size={12} />
-                Currently Equipped
-            </div>
+            {viewedIsActive ? (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/20 border border-emerald-500/20 text-emerald-400 text-xs font-mono uppercase tracking-wider mt-2">
+                  <ShieldCheck size={12} />
+                  Currently Equipped
+              </div>
+            ) : (
+              <button
+                onClick={() => handleEquip(viewedBadge.badgeName)}
+                disabled={viewedIsLocked || equipping === viewedBadge?.badgeName}
+                className={`
+                  flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider mt-2 transition-colors
+                  ${viewedIsLocked
+                    ? 'bg-[#0a0a0a] border border-[#222] text-slate-600 cursor-not-allowed'
+                    : 'bg-slate-800/40 border border-slate-500/30 text-slate-200 hover:bg-slate-700/50 hover:border-slate-400/50 cursor-pointer'}
+                `}
+              >
+                {equipping === viewedBadge?.badgeName ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : viewedIsLocked ? (
+                  <Lock size={12} />
+                ) : (
+                  <Sparkles size={12} />
+                )}
+                {viewedIsLocked ? 'Locked' : 'Equip'}
+              </button>
+            )}
         </div>
 
-        {/* --- BADGE GRID --- */}
+        {/* --- BADGE GRID --- every tile (locked included) selects itself
+             into the detail panel above to preview it; equipping only
+             happens through that panel's explicit Equip button. */}
         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-4 justify-items-center">
           {profile.badges.map((badge: any, index: number) => {
-            const isActive = badge.badgeName === profile.badgeSelected; 
+            const isActive = badge.badgeName === profile.badgeSelected;
             const isLocked = !badge.isUnlocked;
+            const isViewed = badge.badgeName === viewedBadge?.badgeName;
 
             return (
               <button
                 // FIX: Unique key using ID + Index to satisfy React warning
-                key={`${badge.badgeName}-${index}`} 
-                onClick={() => handleEquip(badge.badgeName)}
-                disabled={isActive || isLocked || equipping === badge.badgeName}
+                key={`${badge.badgeName}-${index}`}
+                onClick={() => setViewedBadgeName(badge.badgeName)}
+                disabled={equipping === badge.badgeName}
+                title={isLocked ? `${badge.badgeName} (locked)` : badge.badgeName}
                 className={`
-                  group relative w-full aspect-square rounded-xl border transition-all duration-300 flex items-center justify-center overflow-hidden
-                  ${isActive 
-                    ? 'bg-emerald-900/10 border-emerald-500/50 shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)] scale-105 z-10' 
-                    : isLocked 
-                      ? 'bg-[#080808] border-[#1a1a1a] opacity-40 grayscale cursor-not-allowed' 
-                      : 'bg-[#0a0a0a] border-[#222] hover:border-slate-500 hover:bg-[#111] cursor-pointer hover:scale-105'
+                  group relative w-full aspect-square rounded-xl border transition-all duration-300 flex items-center justify-center overflow-hidden cursor-pointer
+                  ${isActive
+                    ? 'bg-emerald-900/10 border-emerald-500/50 shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)] scale-105 z-10'
+                    : isViewed
+                      ? 'bg-slate-800/20 border-slate-400/50 shadow-[0_0_15px_-5px_rgba(148,163,184,0.3)] scale-105 z-10'
+                      : isLocked
+                        ? 'bg-[#080808] border-[#1a1a1a] opacity-40 grayscale hover:opacity-60 hover:grayscale-0'
+                        : 'bg-[#0a0a0a] border-[#222] hover:border-slate-500 hover:bg-[#111] hover:scale-105'
                   }
                 `}
               >
