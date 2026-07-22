@@ -262,10 +262,10 @@ export default function LeaderboardPage() {
 
                   {/* Contender: badge avatar + name + badge title */}
                   <div className="col-span-7 md:col-span-5 flex items-center gap-3 min-w-0">
-                      <div className={`relative w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
+                      <div className={`relative w-8 h-8 flex items-center justify-center shrink-0 ${
                         user.noBorder
                           ? ""
-                          : "bg-[#151515] border border-[#2a2a2a] shadow-inner group-hover:border-slate-600 transition-colors"
+                          : "rounded-full overflow-hidden bg-[#151515] border border-[#2a2a2a] shadow-inner group-hover:border-slate-600 transition-colors"
                       }`}>
                         {user.badgeId ? (
                           <Image

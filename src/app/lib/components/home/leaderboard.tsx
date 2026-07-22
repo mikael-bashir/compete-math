@@ -48,8 +48,8 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
 
       {/* Badge icon only - its title now sits under the username instead.
           Prestige (noBorder) badges are frameless/transparent art. */}
-      <div className={`relative h-6 w-6 shrink-0 overflow-hidden rounded-full ${
-        user.noBorder ? "" : "border border-white/10 bg-black/40"
+      <div className={`relative h-6 w-6 shrink-0 ${
+        user.noBorder ? "" : "overflow-hidden rounded-full border border-white/10 bg-black/40"
       }`}>
         {user.badgeId ? (
           <img

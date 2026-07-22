@@ -13,6 +13,7 @@ interface PublicProfile {
   email: string;
   joinedAt: string;
   badgeUrl: string | null;
+  badgeNoBorder: boolean;
   titleColorFrom: string | null;
   titleColorTo: string | null;
   titleTextColor: string | null;
@@ -87,12 +88,17 @@ export default function PublicProfilePage({
         {/* Identity header */}
         <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent p-8 mb-8">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            <Avatar className="h-24 w-24 border-2 border-white/20">
-              <AvatarImage src={profile.badgeUrl || undefined} alt={display} />
-              <AvatarFallback className="bg-emerald-900/60 text-emerald-200 text-3xl font-code">
-                {display.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            {profile.badgeNoBorder && profile.badgeUrl ? (
+              // Frameless prestige art - show the full square, no circle clip.
+              <img src={profile.badgeUrl} alt={display} className="h-24 w-24 object-contain shrink-0" />
+            ) : (
+              <Avatar className="h-24 w-24 border-2 border-white/20">
+                <AvatarImage src={profile.badgeUrl || undefined} alt={display} />
+                <AvatarFallback className="bg-emerald-900/60 text-emerald-200 text-3xl font-code">
+                  {display.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            )}
 
             <div className="text-center sm:text-left flex-1">
               <h1

@@ -66,6 +66,7 @@ export const authConfig = {
                 // session is still alive - it's lost the moment the cookie
                 // is reissued on next login).
                 token.badgeUrl = user.badgeUrl;
+                token.badgeNoBorder = user.badgeNoBorder ?? false;
                 // Equipped title's prestige styling (null for plain titles) -
                 // same fresh-login reasoning; drives the gradient on the name.
                 token.titleColorFrom = user.titleColorFrom ?? null;
@@ -79,6 +80,7 @@ export const authConfig = {
             // a badge sends only badgeUrl, a title sends only the title colours.
             if (trigger === 'update' && session) {
                 if ('badgeUrl' in session) token.badgeUrl = session.badgeUrl;
+                if ('badgeNoBorder' in session) token.badgeNoBorder = session.badgeNoBorder ?? false;
                 if ('titleColorFrom' in session) token.titleColorFrom = session.titleColorFrom ?? null;
                 if ('titleColorTo' in session) token.titleColorTo = session.titleColorTo ?? null;
                 if ('titleTextColor' in session) token.titleTextColor = session.titleTextColor ?? null;
@@ -94,6 +96,7 @@ export const authConfig = {
                 email: token.email || "",
                 iat: token.iat || Date.now(),
                 badgeUrl: token?.badgeUrl ? token.badgeUrl : '/badges/newbie.png',
+                badgeNoBorder: token.badgeNoBorder ?? false,
                 titleColorFrom: token.titleColorFrom ?? null,
                 titleColorTo: token.titleColorTo ?? null,
                 titleTextColor: token.titleTextColor ?? null,

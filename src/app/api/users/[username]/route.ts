@@ -12,6 +12,7 @@ export async function GET(
     const userRes = await sql`
       SELECT u.username, u.email, u.created_at, u.badges, u."badgeSelected",
              b."badgeUrl" AS badge_url,
+             b."noBorder" AS badge_no_border,
              t."colorFrom" AS title_color_from,
              t."colorTo" AS title_color_to,
              t."textColor" AS title_text_color
@@ -84,6 +85,7 @@ export async function GET(
       joinedAt: user.created_at,
       badgeSelected: user.badgeSelected,
       badgeUrl: user.badge_url,
+      badgeNoBorder: !!user.badge_no_border,
       titleColorFrom: user.title_color_from ?? null,
       titleColorTo: user.title_color_to ?? null,
       titleTextColor: user.title_text_color ?? null,

@@ -8,6 +8,7 @@ export async function getUser(identifier: string, password: string): Promise<Use
         const user = await sql`
         SELECT u.id, u.username, u.email, u.password_hash,
                b."badgeUrl" AS badge_url,
+               b."noBorder" AS badge_no_border,
                t."colorFrom" AS title_color_from,
                t."colorTo" AS title_color_to,
                t."textColor" AS title_text_color
@@ -26,6 +27,7 @@ export async function getUser(identifier: string, password: string): Promise<Use
                 username: result.username,
                 email: result.email,
                 badgeUrl: result.badge_url ?? undefined,
+                badgeNoBorder: !!result.badge_no_border,
                 titleColorFrom: result.title_color_from ?? null,
                 titleColorTo: result.title_color_to ?? null,
                 titleTextColor: result.title_text_color ?? null,

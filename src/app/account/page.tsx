@@ -89,7 +89,7 @@ export default function AccountPage() {
       if (!res.ok) throw new Error("Failed to equip");
 
       if (targetUrl) {
-        await update({ badgeUrl: targetUrl }); 
+        await update({ badgeUrl: targetUrl, badgeNoBorder: !!targetBadge?.noBorder });
       }
 
     } catch (e) {
@@ -238,10 +238,12 @@ export default function AccountPage() {
         {/* --- USER HEADER --- */}
         <div className="flex flex-col md:flex-row items-center gap-8 mb-12">
           <div className="relative group">
-            <div className={`w-32 h-32 rounded-full flex items-center justify-center relative z-10 overflow-hidden p-4 ${
+            {/* Prestige (noBorder) badges are transparent square art - don't
+                clip them into the avatar circle, let the whole thing show. */}
+            <div className={`w-32 h-32 flex items-center justify-center relative z-10 ${
               activeBadge?.noBorder
                 ? ''
-                : 'bg-[#0a0a0a] border-2 border-[#333] shadow-2xl'
+                : 'rounded-full overflow-hidden p-4 bg-[#0a0a0a] border-2 border-[#333] shadow-2xl'
             }`}>
               <UserBadge
                 url={activeBadge?.badgeUrl}

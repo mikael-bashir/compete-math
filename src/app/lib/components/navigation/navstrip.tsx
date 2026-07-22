@@ -63,12 +63,21 @@ export function UserDisplayer2() {
                   >
                     {username || "User"}
                   </span>
-                  <Avatar className="h-7 w-7 border border-white/20">
-                    <AvatarImage src={session!.user!.badgeUrl || "/placeholder.svg"} alt="User" />
-                    <AvatarFallback className="bg-emerald-900/50 text-emerald-200 text-xs">
-                      {username?.charAt(0)?.toUpperCase() || "U"}
-                    </AvatarFallback>
-                  </Avatar>
+                  {session?.user?.badgeNoBorder ? (
+                    // Frameless prestige art - show the full square, no circle clip.
+                    <img
+                      src={session!.user!.badgeUrl || "/placeholder.svg"}
+                      alt="User"
+                      className="h-7 w-7 object-contain"
+                    />
+                  ) : (
+                    <Avatar className="h-7 w-7 border border-white/20">
+                      <AvatarImage src={session!.user!.badgeUrl || "/placeholder.svg"} alt="User" />
+                      <AvatarFallback className="bg-emerald-900/50 text-emerald-200 text-xs">
+                        {username?.charAt(0)?.toUpperCase() || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
                 </Link>
               ) : (
                 <Link
