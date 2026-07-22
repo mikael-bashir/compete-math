@@ -126,9 +126,9 @@ void main(){
     // in - their screen footprint sweeps past exactly like any other body
     // as the camera dollies by, but each is its own full lensed raymarch.
     // See shader/blackHole.ts for the size/offset ratio placement rule.
-    vec4 bh1 = blackHoleShot(world, vec2(2.8, 0.5), 0.14, 0.15);
+    vec4 bh1 = blackHoleShot(world, vec2(5.2, 0.9), 0.48, 0.15);
     if (bh1.a > 0.0) col = mix(col, bh1.rgb, bh1.a * life * uniViz);
-    vec4 bh2 = blackHoleShot(world, vec2(-3.1, -0.6), 0.155, 0.63);
+    vec4 bh2 = blackHoleShot(world, vec2(-5.6, -1.0), 0.50, 0.63);
     if (bh2.a > 0.0) col = mix(col, bh2.rgb, bh2.a * life * uniViz);
   }
 
