@@ -6,6 +6,7 @@ import {
   Loader2, Calendar, Mail, ShieldCheck, Lock, Globe, Sparkles
 } from 'lucide-react';
 import { COUNTRY_REGIONS, flagEmoji, countryName } from '../lib/data/countries';
+import { PRESTIGE_TITLE_CLASS, prestigeTitleStyle } from '../lib/utils/prestige';
 
 // --- NEW BADGE COMPONENT (SIMPLIFIED) ---
 const UserBadge = ({ url, name, className }: { url?: string, name: string, className?: string }) => {
@@ -209,6 +210,14 @@ export default function AccountPage() {
   const fmtUntil = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleDateString('en-GB') : null;
 
+  // Live moving-glow styles for prestige titles (null for plain titles).
+  const activeTitleStyle = activeTitle
+    ? prestigeTitleStyle(activeTitle.colorFrom, activeTitle.colorTo, activeTitle.textColor)
+    : null;
+  const viewedTitleStyle = viewedTitle
+    ? prestigeTitleStyle(viewedTitle.colorFrom, viewedTitle.colorTo, viewedTitle.textColor)
+    : null;
+
   return (
     <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-emerald-500/30 mt-10">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#1a120b_0%,#050505_60%)]" />
@@ -237,13 +246,10 @@ export default function AccountPage() {
           <div className="text-center md:text-left">
             <h1 className="text-3xl font-bold text-white mb-1">{profile.username}</h1>
             {activeTitle && (
-              activeTitle.colorFrom ? (
+              activeTitleStyle ? (
                 <p
-                  className="text-xs uppercase tracking-widest font-mono mb-2 inline-block bg-clip-text text-transparent"
-                  style={{
-                    backgroundImage: `linear-gradient(90deg, ${activeTitle.colorFrom}, ${activeTitle.colorTo})`,
-                    filter: `drop-shadow(0 0 4px ${activeTitle.colorFrom}80) drop-shadow(0 0 8px ${activeTitle.colorTo}80)`
-                  }}
+                  className={`text-xs uppercase tracking-widest font-mono mb-2 inline-block ${PRESTIGE_TITLE_CLASS}`}
+                  style={activeTitleStyle}
                 >
                   {activeTitle.titleName}
                 </p>
@@ -423,11 +429,8 @@ export default function AccountPage() {
             <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-slate-600 mb-1">Title</span>
             <div className="flex flex-col items-center gap-px">
                 <h2
-                  className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text uppercase tracking-widest"
-                  style={viewedTitle?.colorFrom ? {
-                    backgroundImage: `linear-gradient(135deg, ${viewedTitle.colorFrom}, ${viewedTitle.colorTo})`,
-                    filter: `drop-shadow(0 0 6px ${viewedTitle.colorFrom}80) drop-shadow(0 0 14px ${viewedTitle.colorTo}80)`
-                  } : {
+                  className={`text-2xl md:text-3xl font-bold text-transparent bg-clip-text uppercase tracking-widest ${viewedTitleStyle ? 'filter animate-shimmer' : ''}`}
+                  style={viewedTitleStyle || {
                     backgroundImage: 'linear-gradient(to bottom right, white, #94a3b8)'
                   }}
                 >

@@ -9,7 +9,8 @@ const TITLE_NAMES = {
   EARLY_ADOPTER: 'Where it all began',
   FIRST_SOLVER: 'The margin was too small',
   NEWBIE: 'newbie',
-  IMPERVIOUS: 'Impervious'
+  IMPERVIOUS: 'Impervious',
+  INDOMITABLE: 'The Indomitable'
 };
 
 type TitleReward = {
@@ -131,5 +132,39 @@ export async function Impervious_Title(username: string) {
     }
   } catch (error) {
     console.error("Error checking title 'Impervious':", error);
+  }
+}
+
+/**
+ * Criteria: solve EVERY problem currently tagged "Insane". Not limited.
+ *
+ * Deliberately compares the user's distinct correct Insane solves against the
+ * live count of Insane problems, so it stays correct as the DB changes: an
+ * Insane problem removed or relabelled away shrinks the target; a new/relabelled
+ * Insane problem grows it (an already-granted user keeps the title, but a
+ * not-yet-granted user must clear the newcomer too). Requires >= 1 Insane
+ * problem to exist so "all of zero" can never grant it to everyone.
+ */
+export async function The_Indomitable_Title(username: string) {
+  try {
+    const res = await sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM questions WHERE difficulty = 'Insane') AS total,
+        (SELECT COUNT(DISTINCT q."questionId")::int
+           FROM questions q
+           JOIN submissions s ON s."questionId" = q."questionId"
+          WHERE q.difficulty = 'Insane'
+            AND s.username = ${username}
+            AND s."isCorrect" = TRUE) AS solved
+    `;
+    const total = res.rows[0]?.total ?? 0;
+    const solved = res.rows[0]?.solved ?? 0;
+
+    if (total >= 1 && solved >= total) {
+      const awarded = await grantTitle(username, TITLE_NAMES.INDOMITABLE);
+      return awarded ? awarded : null;
+    }
+  } catch (error) {
+    console.error("Error checking title 'The Indomitable':", error);
   }
 }

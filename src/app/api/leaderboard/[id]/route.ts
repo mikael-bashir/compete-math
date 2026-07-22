@@ -66,6 +66,7 @@ export async function GET(
         t."titleName",
         t."colorFrom",
         t."colorTo",
+        t."textColor",
         s."solvedAt",
         s."attemptCount"
       FROM submissions s
@@ -91,6 +92,7 @@ export async function GET(
       // Prestige titles carry their own gradient + glow to every leaderboard.
       titleColorFrom: row.colorFrom || null,
       titleColorTo: row.colorTo || null,
+      titleTextColor: row.textColor || null,
       // Raw ISO timestamp — clients own the formatting
       solvedAt: row.solvedAt,
       attempts: Number(row.attemptCount) || 1,

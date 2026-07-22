@@ -324,6 +324,9 @@ export async function rewardTitles(username: string, questionId: number) {
   const t3 = await titleRewarders.Impervious_Title(username);
   if (t3) newTitles.push(t3);
 
+  const t4 = await titleRewarders.The_Indomitable_Title(username);
+  if (t4) newTitles.push(t4);
+
   return newTitles;
 }
 

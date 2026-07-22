@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Timer, ChevronRight, Loader2, Trophy } from "lucide-react"
 import Link from "next/link"
 import { flagEmoji, countryName } from "../../data/countries"
+import { PRESTIGE_TITLE_CLASS, prestigeTitleStyle } from "../../utils/prestige"
 
 // Shape of one row from /api/leaderboard/latest
 interface LeaderboardUser {
@@ -14,6 +15,7 @@ interface LeaderboardUser {
   title: string
   titleColorFrom?: string | null
   titleColorTo?: string | null
+  titleTextColor?: string | null
   solvedAt: string
   attempts: number
   country: string | null
@@ -65,17 +67,19 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
         <span className="truncate text-[13px] font-medium leading-tight text-white">
           {user.username}
         </span>
-        <span
-          className={`truncate text-[7px] font-medium uppercase tracking-wider leading-[1.2] ${
-            user.titleColorFrom ? "bg-clip-text text-transparent" : "text-white/45"
-          }`}
-          style={user.titleColorFrom ? {
-            backgroundImage: `linear-gradient(90deg, ${user.titleColorFrom}, ${user.titleColorTo})`,
-            filter: `drop-shadow(0 0 2px ${user.titleColorFrom}80)`,
-          } : undefined}
-        >
-          {user.title}
-        </span>
+        {(() => {
+          const ps = prestigeTitleStyle(user.titleColorFrom, user.titleColorTo, user.titleTextColor)
+          return (
+            <span
+              className={`truncate text-[7px] font-medium uppercase tracking-wider leading-[1.2] ${
+                ps ? PRESTIGE_TITLE_CLASS : "text-white/45"
+              }`}
+              style={ps ?? undefined}
+            >
+              {user.title}
+            </span>
+          )
+        })()}
       </div>
 
       {/* Country flag */}

@@ -7,6 +7,7 @@ import {
 import Image from 'next/image';
 import { StaticArtBackground } from '../lib/components/home/static-art-background';
 import { flagEmoji, countryName } from '../lib/data/countries';
+import { PRESTIGE_TITLE_CLASS, prestigeTitleStyle } from '../lib/utils/prestige';
 
 interface ProblemOption {
   id: number;
@@ -24,6 +25,7 @@ interface LeaderboardEntry {
   title: string;
   titleColorFrom?: string | null;
   titleColorTo?: string | null;
+  titleTextColor?: string | null;
   solvedAt: string;
   attempts: number;
   country: string | null;
@@ -283,18 +285,20 @@ export default function LeaderboardPage() {
                         <span className="font-medium text-slate-300 group-hover:text-amber-400 transition-colors leading-tight text-sm truncate">
                           {user.username}
                         </span>
-                        {/* Prestige titles keep their gradient + glow here too. */}
-                        <span
-                          className={`text-[9px] tracking-wider font-bold leading-tight truncate uppercase ${
-                            user.titleColorFrom ? "bg-clip-text text-transparent" : "text-slate-500/90"
-                          }`}
-                          style={user.titleColorFrom ? {
-                            backgroundImage: `linear-gradient(90deg, ${user.titleColorFrom}, ${user.titleColorTo})`,
-                            filter: `drop-shadow(0 0 3px ${user.titleColorFrom}80)`,
-                          } : undefined}
-                        >
-                          {user.title}
-                        </span>
+                        {/* Prestige titles keep their gradient + moving glow here too. */}
+                        {(() => {
+                          const ps = prestigeTitleStyle(user.titleColorFrom, user.titleColorTo, user.titleTextColor);
+                          return (
+                            <span
+                              className={`text-[9px] tracking-wider font-bold leading-tight truncate uppercase ${
+                                ps ? PRESTIGE_TITLE_CLASS : "text-slate-500/90"
+                              }`}
+                              style={ps ?? undefined}
+                            >
+                              {user.title}
+                            </span>
+                          );
+                        })()}
                       </div>
                   </div>
 

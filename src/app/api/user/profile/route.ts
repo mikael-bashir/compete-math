@@ -90,6 +90,7 @@ export async function GET(request: Request) {
         "numberOwned",
         "colorFrom",
         "colorTo",
+        "textColor",
         "availableUntil"
       FROM titles
       ORDER BY "numberAvailable" ASC NULLS LAST, "titleName" ASC;
@@ -106,6 +107,8 @@ export async function GET(request: Request) {
       // Prestige titles get a custom gradient + glow instead of the default look
       colorFrom: t.colorFrom || null,
       colorTo: t.colorTo || null,
+      // Base text colour for black-text-with-shimmer variants (null = gradient text)
+      textColor: t.textColor || null,
       availableUntil: t.availableUntil || null
     }));
 
