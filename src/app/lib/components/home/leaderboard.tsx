@@ -38,31 +38,30 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
         {user.rank}
       </div>
 
-      {/* Badge: icon with its full title displayed underneath — the title is
-          an achievement, never truncated (it wraps at a tiny size instead). */}
-      <div className="flex w-16 shrink-0 flex-col items-center gap-0.5">
-        <div className="relative h-6 w-6 overflow-hidden rounded-full border border-white/10 bg-black/40">
-          {user.badgeId ? (
-            <img
-              src={user.badgeId}
-              alt={user.badgeTitle}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-[9px] font-medium text-white/50">
-              {user.username.slice(0, 2).toUpperCase()}
-            </div>
-          )}
-        </div>
-        <span className="w-full text-center text-[7px] font-medium uppercase tracking-wider leading-[1.2] text-white/45 break-words">
+      {/* Badge icon only - its title now sits under the username instead */}
+      <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border border-white/10 bg-black/40">
+        {user.badgeId ? (
+          <img
+            src={user.badgeId}
+            alt={user.badgeTitle}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[9px] font-medium text-white/50">
+            {user.username.slice(0, 2).toUpperCase()}
+          </div>
+        )}
+      </div>
+
+      {/* Username, with its badge title as a second line underneath it */}
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <span className="truncate text-[13px] font-medium leading-tight text-white">
+          {user.username}
+        </span>
+        <span className="truncate text-[7px] font-medium uppercase tracking-wider leading-[1.2] text-white/45">
           {user.badgeTitle}
         </span>
       </div>
-
-      {/* Username */}
-      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">
-        {user.username}
-      </span>
 
       {/* Country flag */}
       {user.country && (

@@ -58,8 +58,16 @@ export const authConfig = {
                 token.username = user.username;
                 token.email = user.email;
                 token.iat = "iat" in user ? user.iat : Date.now();
+                // The badge equipped at sign-in time - without this, a fresh
+                // login always falls back to session()'s hardcoded default
+                // (newbie.png) regardless of what's actually equipped in the
+                // DB, because token.badgeUrl otherwise only ever gets set by
+                // the 'update' trigger below (i.e. only while the SAME
+                // session is still alive - it's lost the moment the cookie
+                // is reissued on next login).
+                token.badgeUrl = user.badgeUrl;
             }
-            
+
             if (trigger === 'update' && session?.badgeUrl) {
                 token.badgeUrl = session.badgeUrl
             }
