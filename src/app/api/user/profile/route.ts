@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql } from "@vercel/postgres";
 import { auth } from '@/app/(auth)/auth'; // Ensure path is correct
 import { fillCountryFromRequest } from '@/app/lib/data/geo';
+import { isAdminEmail } from '@/app/lib/constants/site';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -53,7 +54,8 @@ export async function GET(request: Request) {
         description,
         "numberAvailable",
         "numberOwned",
-        "noBorder"
+        "noBorder",
+        "availableUntil"
       FROM badges
       ORDER BY "numberAvailable" ASC NULLS LAST, "badgeName" ASC;
     `;
@@ -74,7 +76,9 @@ export async function GET(request: Request) {
       numberAvailable: b.numberAvailable, // Passed for "Limited" UI tag
       numberOwned: b.numberOwned,
       // Prestige badges (animated, transparent art) skip the bordered tile frame
-      noBorder: !!b.noBorder
+      noBorder: !!b.noBorder,
+      // Date-limited badges: ISO cutoff after which they can no longer be earned
+      availableUntil: b.availableUntil || null
     }));
 
     // 4b. Fetch ALL Titles (same "show locked ones too" shape as badges)
@@ -85,7 +89,8 @@ export async function GET(request: Request) {
         "numberAvailable",
         "numberOwned",
         "colorFrom",
-        "colorTo"
+        "colorTo",
+        "availableUntil"
       FROM titles
       ORDER BY "numberAvailable" ASC NULLS LAST, "titleName" ASC;
     `;
@@ -100,7 +105,8 @@ export async function GET(request: Request) {
       numberOwned: t.numberOwned,
       // Prestige titles get a custom gradient + glow instead of the default look
       colorFrom: t.colorFrom || null,
-      colorTo: t.colorTo || null
+      colorTo: t.colorTo || null,
+      availableUntil: t.availableUntil || null
     }));
 
     // 5. Fetch Stats (Using USERNAME, not UUID)
@@ -119,6 +125,7 @@ export async function GET(request: Request) {
       badgeSelected: user.badgeSelected, // <--- FIXED: Frontend expects 'badgeSelected'
       titleSelected: user.titleSelected,
       solvedCount: parseInt(solvedCount),
+      isAdmin: isAdminEmail(session.user.email),
       badges: mergedBadges,
       titles: mergedTitles
     });

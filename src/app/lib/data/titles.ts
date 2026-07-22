@@ -109,6 +109,13 @@ export async function The_Margin_Was_Too_Small_Title(username: string, questionI
 
 export async function Impervious_Title(username: string) {
   try {
+    // Same date cutoff as the Impervious badge (see [[titles mirror badges]]).
+    const avail = await sql`
+      SELECT "availableUntil" FROM titles WHERE "titleName" = ${TITLE_NAMES.IMPERVIOUS}
+    `;
+    const until = avail.rows[0]?.availableUntil;
+    if (until && new Date(until).getTime() <= Date.now()) return;
+
     const count = await sql`
       SELECT COUNT(*)::int AS n
       FROM submissions s

@@ -139,10 +139,18 @@ export async function The_Margin_Was_Too_Small(username: string, questionId: num
 
 /**
  * Criteria: Awarded once a user has correctly solved 5 problems tagged
- * "Insane" difficulty. Simple threshold check, no stock/limit involved.
+ * "Insane" difficulty. Date-limited: once badges."availableUntil" is in the
+ * past (1 Nov 2026) it can no longer be earned by anyone.
  */
 export async function Impervious(username: string) {
   try {
+    // Availability gate: a non-null availableUntil in the past closes the badge.
+    const avail = await sql`
+      SELECT "availableUntil" FROM badges WHERE "badgeName" = ${BADGE_NAMES.IMPERVIOUS}
+    `;
+    const until = avail.rows[0]?.availableUntil;
+    if (until && new Date(until).getTime() <= Date.now()) return;
+
     const count = await sql`
       SELECT COUNT(*)::int AS n
       FROM submissions s

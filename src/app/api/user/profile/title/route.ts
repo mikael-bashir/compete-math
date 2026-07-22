@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/app/(auth)/auth";
 import { sql } from "@vercel/postgres";
+import { isAdminEmail } from "@/app/lib/constants/site";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -20,20 +21,32 @@ export async function POST(req: Request) {
 
   try {
     const username = session.user.username;
+    const isAdmin = isAdminEmail(session.user.email);
 
     // 3. SECURE UPDATE
-    // Update 'titleSelected' ONLY IF the titleName exists in the 'titles' text[] array
-    // We use the Postgres ANY() operator for the array check.
-    const result = await sql`
-      UPDATE users
-      SET "titleSelected" = ${title}
-      WHERE username = ${username}
-      AND ${title} = ANY(titles)
-    `;
+    // Non-admins may only equip a title they own; admins may equip ANY title
+    // that exists (the EXISTS guard still blocks a non-existent titleName).
+    const result = isAdmin
+      ? await sql`
+          UPDATE users
+          SET "titleSelected" = ${title}
+          WHERE username = ${username}
+          AND EXISTS (SELECT 1 FROM titles WHERE "titleName" = ${title})
+        `
+      : await sql`
+          UPDATE users
+          SET "titleSelected" = ${title}
+          WHERE username = ${username}
+          AND ${title} = ANY(titles)
+        `;
 
     if (result.rowCount === 0) {
-      // No rows updated implies the user doesn't own the title (or user not found)
-      return new NextResponse("Failed to equip: You do not own this title.", { status: 403 });
+      return new NextResponse(
+        isAdmin
+          ? "Failed to equip: no such title."
+          : "Failed to equip: You do not own this title.",
+        { status: 403 }
+      );
     }
 
     return NextResponse.json({ success: true, title });

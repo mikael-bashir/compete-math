@@ -198,6 +198,17 @@ export default function AccountPage() {
   const viewedTitleIsActive = viewedTitle?.titleName === profile.titleSelected;
   const viewedTitleIsLocked = !viewedTitle?.isUnlocked;
 
+  // Admins may force-equip any badge/title regardless of ownership (the equip
+  // routes enforce this server-side too). So for them, "locked" never blocks
+  // the Equip button - it just labels the action as an override.
+  const isAdmin = !!profile.isAdmin;
+  const badgeEquipBlocked = viewedIsLocked && !isAdmin;
+  const titleEquipBlocked = viewedTitleIsLocked && !isAdmin;
+
+  // "01/11/2026" for a date-limited entity's availability cutoff.
+  const fmtUntil = (iso?: string | null) =>
+    iso ? new Date(iso).toLocaleDateString('en-GB') : null;
+
   return (
     <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-emerald-500/30 mt-10">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#1a120b_0%,#050505_60%)]" />
@@ -299,6 +310,11 @@ export default function AccountPage() {
                       Limited to {parseInt(viewedBadge.numberAvailable) + parseInt(viewedBadge.numberOwned)}
                     </span>
                 )}
+                {viewedBadge?.availableUntil && (
+                    <span className="px-2 py-0.5 rounded-sm text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/30 font-mono uppercase mb-2">
+                      Available until {fmtUntil(viewedBadge.availableUntil)}
+                    </span>
+                )}
             </div>
 
             <p className="text-slate-400 max-w-xl text-sm leading-relaxed font-light">
@@ -313,22 +329,22 @@ export default function AccountPage() {
             ) : (
               <button
                 onClick={() => handleEquip(viewedBadge.badgeName)}
-                disabled={viewedIsLocked || equipping === viewedBadge?.badgeName}
+                disabled={badgeEquipBlocked || equipping === viewedBadge?.badgeName}
                 className={`
                   flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider mt-2 transition-colors
-                  ${viewedIsLocked
+                  ${badgeEquipBlocked
                     ? 'bg-[#0a0a0a] border border-[#222] text-slate-600 cursor-not-allowed'
                     : 'bg-slate-800/40 border border-slate-500/30 text-slate-200 hover:bg-slate-700/50 hover:border-slate-400/50 cursor-pointer'}
                 `}
               >
                 {equipping === viewedBadge?.badgeName ? (
                   <Loader2 size={12} className="animate-spin" />
-                ) : viewedIsLocked ? (
+                ) : badgeEquipBlocked ? (
                   <Lock size={12} />
                 ) : (
                   <Sparkles size={12} />
                 )}
-                {viewedIsLocked ? 'Locked' : 'Equip'}
+                {badgeEquipBlocked ? 'Locked' : viewedIsLocked ? 'Force Equip' : 'Equip'}
               </button>
             )}
         </div>
@@ -422,6 +438,11 @@ export default function AccountPage() {
                       Limited to {parseInt(viewedTitle.numberAvailable) + parseInt(viewedTitle.numberOwned)}
                     </span>
                 )}
+                {viewedTitle?.availableUntil && (
+                    <span className="px-2 py-0.5 rounded-sm text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/30 font-mono uppercase mb-2">
+                      Available until {fmtUntil(viewedTitle.availableUntil)}
+                    </span>
+                )}
             </div>
 
             <p className="text-slate-400 max-w-xl text-sm leading-relaxed font-light">
@@ -436,22 +457,22 @@ export default function AccountPage() {
             ) : (
               <button
                 onClick={() => handleEquipTitle(viewedTitle.titleName)}
-                disabled={viewedTitleIsLocked || equippingTitle === viewedTitle?.titleName}
+                disabled={titleEquipBlocked || equippingTitle === viewedTitle?.titleName}
                 className={`
                   flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider mt-2 transition-colors
-                  ${viewedTitleIsLocked
+                  ${titleEquipBlocked
                     ? 'bg-[#0a0a0a] border border-[#222] text-slate-600 cursor-not-allowed'
                     : 'bg-slate-800/40 border border-slate-500/30 text-slate-200 hover:bg-slate-700/50 hover:border-slate-400/50 cursor-pointer'}
                 `}
               >
                 {equippingTitle === viewedTitle?.titleName ? (
                   <Loader2 size={12} className="animate-spin" />
-                ) : viewedTitleIsLocked ? (
+                ) : titleEquipBlocked ? (
                   <Lock size={12} />
                 ) : (
                   <Sparkles size={12} />
                 )}
-                {viewedTitleIsLocked ? 'Locked' : 'Equip'}
+                {titleEquipBlocked ? 'Locked' : viewedTitleIsLocked ? 'Force Equip' : 'Equip'}
               </button>
             )}
         </div>

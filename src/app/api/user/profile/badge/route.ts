@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/app/(auth)/auth"; 
+import { auth } from "@/app/(auth)/auth";
 import { sql } from "@vercel/postgres";
+import { isAdminEmail } from "@/app/lib/constants/site";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -20,20 +21,34 @@ export async function POST(req: Request) {
 
   try {
     const username = session.user.username;
+    const isAdmin = isAdminEmail(session.user.email);
 
     // 3. SECURE UPDATE
-    // Update 'badgesSelected' ONLY IF the badgeName exists in the 'badges' text[] array
-    // We use the Postgres ANY() operator for the array check.
-    const result = await sql`
-      UPDATE users 
-      SET "badgeSelected" = ${badge}
-      WHERE username = ${username}
-      AND ${badge} = ANY(badges)
-    `;
+    // Non-admins may only equip a badge they own (it must be in their 'badges'
+    // text[] array). Admins may equip ANY badge that exists in the catalogue -
+    // the EXISTS guard still prevents setting badgeSelected to a garbage name
+    // (which would break the badgeUrl join and fall back to newbie.png).
+    const result = isAdmin
+      ? await sql`
+          UPDATE users
+          SET "badgeSelected" = ${badge}
+          WHERE username = ${username}
+          AND EXISTS (SELECT 1 FROM badges WHERE "badgeName" = ${badge})
+        `
+      : await sql`
+          UPDATE users
+          SET "badgeSelected" = ${badge}
+          WHERE username = ${username}
+          AND ${badge} = ANY(badges)
+        `;
 
     if (result.rowCount === 0) {
-      // No rows updated implies the user doesn't own the badge (or user not found)
-      return new NextResponse("Failed to equip: You do not own this badge.", { status: 403 });
+      return new NextResponse(
+        isAdmin
+          ? "Failed to equip: no such badge."
+          : "Failed to equip: You do not own this badge.",
+        { status: 403 }
+      );
     }
 
     return NextResponse.json({ success: true, badge });
