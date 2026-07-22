@@ -8,7 +8,8 @@ import { sql } from "@vercel/postgres";
 const TITLE_NAMES = {
   EARLY_ADOPTER: 'Where it all began',
   FIRST_SOLVER: 'The margin was too small',
-  NEWBIE: 'newbie'
+  NEWBIE: 'newbie',
+  IMPERVIOUS: 'Impervious'
 };
 
 type TitleReward = {
@@ -103,5 +104,25 @@ export async function The_Margin_Was_Too_Small_Title(username: string, questionI
 
   } catch (error) {
     console.error("Error checking title 'The Margin Was Too Small':", error);
+  }
+}
+
+export async function Impervious_Title(username: string) {
+  try {
+    const count = await sql`
+      SELECT COUNT(*)::int AS n
+      FROM submissions s
+      JOIN questions q ON q."questionId" = s."questionId"
+      WHERE s.username = ${username}
+      AND s."isCorrect" = TRUE
+      AND q.difficulty = 'Insane'
+    `;
+
+    if ((count.rows[0]?.n ?? 0) >= 5) {
+      const awarded = await grantTitle(username, TITLE_NAMES.IMPERVIOUS);
+      return awarded ? awarded : null;
+    }
+  } catch (error) {
+    console.error("Error checking title 'Impervious':", error);
   }
 }

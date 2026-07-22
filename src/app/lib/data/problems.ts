@@ -306,6 +306,9 @@ export async function rewardBadges(username: string, questionId: number) {
   const b2 = await badgeRewarders.Where_It_All_Started(username);
   if (b2) newBadges.push(b2);
 
+  const b3 = await badgeRewarders.Impervious(username);
+  if (b3) newBadges.push(b3);
+
   return newBadges;
 }
 
@@ -317,6 +320,9 @@ export async function rewardTitles(username: string, questionId: number) {
 
   const t2 = await titleRewarders.Where_It_All_Started_Title(username);
   if (t2) newTitles.push(t2);
+
+  const t3 = await titleRewarders.Impervious_Title(username);
+  if (t3) newTitles.push(t3);
 
   return newTitles;
 }

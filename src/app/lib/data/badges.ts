@@ -1,9 +1,10 @@
 import { sql } from "@vercel/postgres";
 
 const BADGE_NAMES = {
-  EARLY_ADOPTER: 'Where it all began', 
+  EARLY_ADOPTER: 'Where it all began',
   FIRST_SOLVER: 'The margin was too small',
-  NEWBIE: 'Newbie' 
+  NEWBIE: 'Newbie',
+  IMPERVIOUS: 'Impervious'
 };
 
 /**
@@ -133,5 +134,29 @@ export async function The_Margin_Was_Too_Small(username: string, questionId: num
 
   } catch (error) {
     console.error("Error checking 'The Margin Was Too Small':", error);
+  }
+}
+
+/**
+ * Criteria: Awarded once a user has correctly solved 5 problems tagged
+ * "Insane" difficulty. Simple threshold check, no stock/limit involved.
+ */
+export async function Impervious(username: string) {
+  try {
+    const count = await sql`
+      SELECT COUNT(*)::int AS n
+      FROM submissions s
+      JOIN questions q ON q."questionId" = s."questionId"
+      WHERE s.username = ${username}
+      AND s."isCorrect" = TRUE
+      AND q.difficulty = 'Insane'
+    `;
+
+    if ((count.rows[0]?.n ?? 0) >= 5) {
+      const awarded = await grantBadge(username, BADGE_NAMES.IMPERVIOUS);
+      return awarded ? awarded : null;
+    }
+  } catch (error) {
+    console.error("Error checking 'Impervious':", error);
   }
 }

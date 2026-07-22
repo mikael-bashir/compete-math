@@ -207,22 +207,40 @@ export default function AccountPage() {
         {/* --- USER HEADER --- */}
         <div className="flex flex-col md:flex-row items-center gap-8 mb-12">
           <div className="relative group">
-            <div className="w-32 h-32 rounded-full bg-[#0a0a0a] border-2 border-[#333] flex items-center justify-center shadow-2xl relative z-10 overflow-hidden p-4">
-              <UserBadge 
-                url={activeBadge?.badgeUrl} 
-                name={activeBadge?.badgeName || 'Badge'} 
-                className="w-24 h-24" 
+            <div className={`w-32 h-32 rounded-full flex items-center justify-center relative z-10 overflow-hidden p-4 ${
+              activeBadge?.noBorder
+                ? ''
+                : 'bg-[#0a0a0a] border-2 border-[#333] shadow-2xl'
+            }`}>
+              <UserBadge
+                url={activeBadge?.badgeUrl}
+                name={activeBadge?.badgeName || 'Badge'}
+                className="w-24 h-24"
               />
             </div>
-            <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition-opacity" />
+            {!activeBadge?.noBorder && (
+              <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition-opacity" />
+            )}
           </div>
 
           <div className="text-center md:text-left">
             <h1 className="text-3xl font-bold text-white mb-1">{profile.username}</h1>
             {activeTitle && (
-              <p className="text-xs uppercase tracking-widest text-amber-400/70 font-mono mb-2">
-                {activeTitle.titleName}
-              </p>
+              activeTitle.colorFrom ? (
+                <p
+                  className="text-xs uppercase tracking-widest font-mono mb-2 inline-block bg-clip-text text-transparent"
+                  style={{
+                    backgroundImage: `linear-gradient(90deg, ${activeTitle.colorFrom}, ${activeTitle.colorTo})`,
+                    filter: `drop-shadow(0 0 4px ${activeTitle.colorFrom}80) drop-shadow(0 0 8px ${activeTitle.colorTo}80)`
+                  }}
+                >
+                  {activeTitle.titleName}
+                </p>
+              ) : (
+                <p className="text-xs uppercase tracking-widest text-amber-400/70 font-mono mb-2">
+                  {activeTitle.titleName}
+                </p>
+              )
             )}
             <div className="flex flex-col md:flex-row gap-4 text-sm text-slate-500 font-mono">
               <span className="flex items-center gap-2"><Mail size={14} /> {profile.email || "No email linked"}</span>
@@ -332,14 +350,22 @@ export default function AccountPage() {
                 disabled={equipping === badge.badgeName}
                 title={isLocked ? `${badge.badgeName} (locked)` : badge.badgeName}
                 className={`
-                  group relative w-full aspect-square rounded-xl border transition-all duration-300 flex items-center justify-center overflow-hidden cursor-pointer
-                  ${isActive
-                    ? 'bg-emerald-900/10 border-emerald-500/50 shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)] scale-105 z-10'
-                    : isViewed
-                      ? 'bg-slate-800/20 border-slate-400/50 shadow-[0_0_15px_-5px_rgba(148,163,184,0.3)] scale-105 z-10'
-                      : isLocked
-                        ? 'bg-[#080808] border-[#1a1a1a] opacity-40 grayscale hover:opacity-60 hover:grayscale-0'
-                        : 'bg-[#0a0a0a] border-[#222] hover:border-slate-500 hover:bg-[#111] hover:scale-105'
+                  group relative w-full aspect-square rounded-xl transition-all duration-300 flex items-center justify-center overflow-hidden cursor-pointer
+                  ${badge.noBorder
+                    ? isActive
+                      ? 'border border-transparent shadow-[0_0_20px_-4px_rgba(191,140,255,0.6)] scale-105 z-10'
+                      : isViewed
+                        ? 'border border-transparent shadow-[0_0_20px_-4px_rgba(191,140,255,0.35)] scale-105 z-10'
+                        : isLocked
+                          ? 'border border-[#1a1a1a] bg-[#080808] opacity-40 grayscale hover:opacity-60 hover:grayscale-0'
+                          : 'border border-transparent hover:scale-105'
+                    : isActive
+                      ? 'border bg-emerald-900/10 border-emerald-500/50 shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)] scale-105 z-10'
+                      : isViewed
+                        ? 'border bg-slate-800/20 border-slate-400/50 shadow-[0_0_15px_-5px_rgba(148,163,184,0.3)] scale-105 z-10'
+                        : isLocked
+                          ? 'border bg-[#080808] border-[#1a1a1a] opacity-40 grayscale hover:opacity-60 hover:grayscale-0'
+                          : 'border bg-[#0a0a0a] border-[#222] hover:border-slate-500 hover:bg-[#111] hover:scale-105'
                   }
                 `}
               >
@@ -380,7 +406,15 @@ export default function AccountPage() {
         <div className="flex flex-col items-center justify-center text-center mb-12">
             <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-slate-600 mb-1">Title</span>
             <div className="flex flex-col items-center gap-px">
-                <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-linear-to-br from-white to-slate-400 uppercase tracking-widest">
+                <h2
+                  className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text uppercase tracking-widest"
+                  style={viewedTitle?.colorFrom ? {
+                    backgroundImage: `linear-gradient(135deg, ${viewedTitle.colorFrom}, ${viewedTitle.colorTo})`,
+                    filter: `drop-shadow(0 0 6px ${viewedTitle.colorFrom}80) drop-shadow(0 0 14px ${viewedTitle.colorTo}80)`
+                  } : {
+                    backgroundImage: 'linear-gradient(to bottom right, white, #94a3b8)'
+                  }}
+                >
                     {viewedTitle?.titleName}
                 </h2>
                 {viewedTitle?.isLimited && (
@@ -445,9 +479,15 @@ export default function AccountPage() {
                       ? 'bg-slate-800/20 border-slate-400/50 text-slate-200 shadow-[0_0_15px_-5px_rgba(148,163,184,0.3)]'
                       : isLocked
                         ? 'bg-[#080808] border-[#1a1a1a] text-slate-600 opacity-50 hover:opacity-75'
-                        : 'bg-[#0a0a0a] border-[#222] text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                        : title.colorFrom
+                          ? 'bg-[#0a0a0a] hover:opacity-90'
+                          : 'bg-[#0a0a0a] border-[#222] text-slate-400 hover:border-slate-500 hover:text-slate-200'
                   }
                 `}
+                style={!isActive && !isViewed && !isLocked && title.colorFrom ? {
+                  borderColor: `${title.colorFrom}80`,
+                  color: title.colorFrom
+                } : undefined}
               >
                 {isLocked && <Lock size={11} className="text-slate-600" />}
                 {title.titleName}
