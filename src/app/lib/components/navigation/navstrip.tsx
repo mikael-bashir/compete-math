@@ -4,7 +4,6 @@ import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { LogIn } from "lucide-react"
 
-import { DazzleBadgeEffect } from "../art/badges/effects"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Navbar from "./navbar"
 
@@ -54,14 +53,12 @@ export function UserDisplayer2() {
                   <span className="text-[13px] font-medium text-emerald-100 hidden xs:inline">
                     {username || "User"}
                   </span>
-                  <DazzleBadgeEffect size="34px" color="#10b981">
-                    <Avatar className="h-7 w-7 border border-white/20">
-                      <AvatarImage src={session!.user!.badgeUrl || "/placeholder.svg"} alt="User" />
-                      <AvatarFallback className="bg-emerald-900/50 text-emerald-200 text-xs">
-                        {username?.charAt(0)?.toUpperCase() || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                  </DazzleBadgeEffect>
+                  <Avatar className="h-7 w-7 border border-white/20">
+                    <AvatarImage src={session!.user!.badgeUrl || "/placeholder.svg"} alt="User" />
+                    <AvatarFallback className="bg-emerald-900/50 text-emerald-200 text-xs">
+                      {username?.charAt(0)?.toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
                 </Link>
               ) : (
                 <Link
