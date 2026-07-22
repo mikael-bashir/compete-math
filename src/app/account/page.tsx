@@ -33,11 +33,14 @@ export default function AccountPage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [equipping, setEquipping] = useState<string | null>(null);
+  const [equippingTitle, setEquippingTitle] = useState<string | null>(null);
   const [savingCountry, setSavingCountry] = useState(false);
   // Which badge's name/description/requirements are shown in the detail
   // panel - defaults to the equipped one, but any badge (locked or not) can
   // be selected to preview it. Equipping is a separate, explicit action.
   const [viewedBadgeName, setViewedBadgeName] = useState<string | null>(null);
+  // Same preview/equip split as badges, but for the separate titles entity.
+  const [viewedTitleName, setViewedTitleName] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -103,6 +106,45 @@ export default function AccountPage() {
     }
   };
 
+  const handleEquipTitle = async (titleName: string) => {
+    if (equippingTitle || profile.titleSelected === titleName) return;
+
+    setEquippingTitle(titleName);
+    const previousTitle = profile.titleSelected;
+
+    setProfile((prev: any) => ({
+      ...prev,
+      titleSelected: titleName,
+      titles: prev.titles.map((t: any) => ({
+        ...t,
+        isSelected: t.titleName === titleName
+      }))
+    }));
+
+    try {
+      const res = await fetch('/api/user/profile/title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: titleName })
+      });
+
+      if (!res.ok) throw new Error("Failed to equip title");
+
+    } catch (e) {
+      console.error("Equip title failed", e);
+      setProfile((prev: any) => ({
+        ...prev,
+        titleSelected: previousTitle,
+        titles: prev.titles.map((t: any) => ({
+          ...t,
+          isSelected: t.titleName === previousTitle
+        }))
+      }));
+    } finally {
+      setEquippingTitle(null);
+    }
+  };
+
   // Region shown next to the user's name on leaderboards. Defaulted from IP on
   // first solve; whatever is chosen here wins permanently.
   const handleCountryChange = async (code: string) => {
@@ -147,6 +189,15 @@ export default function AccountPage() {
   const viewedIsActive = viewedBadge?.badgeName === profile.badgeSelected;
   const viewedIsLocked = !viewedBadge?.isUnlocked;
 
+  // Same pattern for titles: independent entity, own selection + preview state.
+  const activeTitle = profile.titles.find((t: any) => t.titleName === profile.titleSelected)
+                   || profile.titles[0];
+
+  const viewedTitle = (viewedTitleName && profile.titles.find((t: any) => t.titleName === viewedTitleName))
+                    || activeTitle;
+  const viewedTitleIsActive = viewedTitle?.titleName === profile.titleSelected;
+  const viewedTitleIsLocked = !viewedTitle?.isUnlocked;
+
   return (
     <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-emerald-500/30 mt-10">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#1a120b_0%,#050505_60%)]" />
@@ -167,7 +218,12 @@ export default function AccountPage() {
           </div>
 
           <div className="text-center md:text-left">
-            <h1 className="text-3xl font-bold text-white mb-2">{profile.username}</h1>
+            <h1 className="text-3xl font-bold text-white mb-1">{profile.username}</h1>
+            {activeTitle && (
+              <p className="text-xs uppercase tracking-widest text-amber-400/70 font-mono mb-2">
+                {activeTitle.titleName}
+              </p>
+            )}
             <div className="flex flex-col md:flex-row gap-4 text-sm text-slate-500 font-mono">
               <span className="flex items-center gap-2"><Mail size={14} /> {profile.email || "No email linked"}</span>
               <span className="flex items-center gap-2"><Calendar size={14} /> Joined {new Date(profile.created_at || Date.now()).toLocaleDateString()}</span>
@@ -215,6 +271,7 @@ export default function AccountPage() {
              (the same `description` field doubles as both) and a separate
              Equip action, disabled for badges not yet unlocked. */}
         <div className="flex flex-col items-center justify-center text-center mb-12">
+            <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-slate-600 mb-1">Badge</span>
             <div className="flex flex-col items-center gap-px">
                 <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-linear-to-br from-white to-slate-400 uppercase tracking-widest">
                     {viewedBadge?.badgeName}
@@ -308,6 +365,95 @@ export default function AccountPage() {
                   <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-xl z-30">
                     <Loader2 className="w-5 h-5 animate-spin text-white" />
                   </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* --- DIVIDER --- */}
+        <div className="w-full h-px bg-linear-to-r from-transparent via-[#222] to-transparent my-10" />
+
+        {/* --- TITLE DETAIL PANEL --- same preview/equip split as badges,
+             but titles are plain text (no icon), so the grid below is a row
+             of pills instead of an icon grid. */}
+        <div className="flex flex-col items-center justify-center text-center mb-12">
+            <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-slate-600 mb-1">Title</span>
+            <div className="flex flex-col items-center gap-px">
+                <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-linear-to-br from-white to-slate-400 uppercase tracking-widest">
+                    {viewedTitle?.titleName}
+                </h2>
+                {viewedTitle?.isLimited && (
+                    <span className="px-2 py-0.5 rounded-sm text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/30 font-mono uppercase mb-2">
+                      Limited to {parseInt(viewedTitle.numberAvailable) + parseInt(viewedTitle.numberOwned)}
+                    </span>
+                )}
+            </div>
+
+            <p className="text-slate-400 max-w-xl text-sm leading-relaxed font-light">
+                {viewedTitle?.description}
+            </p>
+
+            {viewedTitleIsActive ? (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/20 border border-emerald-500/20 text-emerald-400 text-xs font-mono uppercase tracking-wider mt-2">
+                  <ShieldCheck size={12} />
+                  Currently Equipped
+              </div>
+            ) : (
+              <button
+                onClick={() => handleEquipTitle(viewedTitle.titleName)}
+                disabled={viewedTitleIsLocked || equippingTitle === viewedTitle?.titleName}
+                className={`
+                  flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider mt-2 transition-colors
+                  ${viewedTitleIsLocked
+                    ? 'bg-[#0a0a0a] border border-[#222] text-slate-600 cursor-not-allowed'
+                    : 'bg-slate-800/40 border border-slate-500/30 text-slate-200 hover:bg-slate-700/50 hover:border-slate-400/50 cursor-pointer'}
+                `}
+              >
+                {equippingTitle === viewedTitle?.titleName ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : viewedTitleIsLocked ? (
+                  <Lock size={12} />
+                ) : (
+                  <Sparkles size={12} />
+                )}
+                {viewedTitleIsLocked ? 'Locked' : 'Equip'}
+              </button>
+            )}
+        </div>
+
+        {/* --- TITLE ROW --- every pill (locked included) selects itself into
+             the detail panel above; equipping only happens through that
+             panel's explicit Equip button, same as the badge grid. */}
+        <div className="flex flex-wrap gap-3 justify-center">
+          {profile.titles.map((title: any, index: number) => {
+            const isActive = title.titleName === profile.titleSelected;
+            const isLocked = !title.isUnlocked;
+            const isViewed = title.titleName === viewedTitle?.titleName;
+
+            return (
+              <button
+                key={`${title.titleName}-${index}`}
+                onClick={() => setViewedTitleName(title.titleName)}
+                disabled={equippingTitle === title.titleName}
+                title={isLocked ? `${title.titleName} (locked)` : title.titleName}
+                className={`
+                  relative flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-mono uppercase tracking-wider transition-all duration-300 cursor-pointer
+                  ${isActive
+                    ? 'bg-emerald-900/10 border-emerald-500/50 text-emerald-300 shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)]'
+                    : isViewed
+                      ? 'bg-slate-800/20 border-slate-400/50 text-slate-200 shadow-[0_0_15px_-5px_rgba(148,163,184,0.3)]'
+                      : isLocked
+                        ? 'bg-[#080808] border-[#1a1a1a] text-slate-600 opacity-50 hover:opacity-75'
+                        : 'bg-[#0a0a0a] border-[#222] text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                  }
+                `}
+              >
+                {isLocked && <Lock size={11} className="text-slate-600" />}
+                {title.titleName}
+
+                {equippingTitle === title.titleName && (
+                  <Loader2 size={11} className="animate-spin" />
                 )}
               </button>
             );
