@@ -23,12 +23,13 @@ export function prestigeTitleStyle(
 ): CSSProperties | null {
   if (!colorFrom) return null;
   const to = colorTo || colorFrom;
-  // Gradients loop seamlessly as the shimmer pans background-position across a
-  // 200% background-size (matching the wordmark). Black-base variants weave
-  // BOTH accents through the base (black -> accent1 -> accent2 -> black) so the
-  // two colours read as one family; gradient-text variants just sweep the pair.
+  // Gradients are swept by the shimmer panning background-position across a 200%
+  // background-size (matching the wordmark), a ping-pong (0%->100%->0%) so its
+  // two extremes are the "peaks". Black-base variants put the base in the MIDDLE
+  // (accent1 -> black -> accent2) so each accent surfaces at one peak while black
+  // rests in between; gradient-text variants just sweep the pair.
   const gradient = textColor
-    ? `linear-gradient(90deg, ${textColor}, ${colorFrom}, ${to}, ${textColor})`
+    ? `linear-gradient(90deg, ${colorFrom}, ${textColor}, ${to})`
     : `linear-gradient(90deg, ${colorFrom}, ${to}, ${colorFrom})`;
   return {
     backgroundImage: gradient,
