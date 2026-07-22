@@ -10,7 +10,7 @@ interface LeaderboardUser {
   rank: number
   username: string
   badgeId: string | null
-  badgeTitle: string
+  title: string
   solvedAt: string
   attempts: number
   country: string | null
@@ -43,7 +43,7 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
         {user.badgeId ? (
           <img
             src={user.badgeId}
-            alt={user.badgeTitle}
+            alt={user.title}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -59,7 +59,7 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
           {user.username}
         </span>
         <span className="truncate text-[7px] font-medium uppercase tracking-wider leading-[1.2] text-white/45">
-          {user.badgeTitle}
+          {user.title}
         </span>
       </div>
 

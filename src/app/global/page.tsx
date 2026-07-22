@@ -20,7 +20,7 @@ interface LeaderboardEntry {
   rank: number;
   username: string;
   badgeId: string | null;
-  badgeTitle: string;
+  title: string;
   solvedAt: string;
   attempts: number;
   country: string | null;
@@ -261,7 +261,7 @@ export default function LeaderboardPage() {
                         {user.badgeId ? (
                           <Image
                             src={user.badgeId}
-                            alt={user.badgeTitle}
+                            alt={user.title}
                             fill
                             className="object-fill"
                           />
@@ -277,7 +277,7 @@ export default function LeaderboardPage() {
                           {user.username}
                         </span>
                         <span className="text-[9px] tracking-wider font-bold text-slate-500/90 leading-tight truncate uppercase">
-                          {user.badgeTitle}
+                          {user.title}
                         </span>
                       </div>
                   </div>

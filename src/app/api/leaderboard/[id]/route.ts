@@ -62,12 +62,13 @@ export async function GET(
         u.username,
         u.country,
         b."badgeUrl",
-        b."badgeName",
+        t."titleName",
         s."solvedAt",
         s."attemptCount"
       FROM submissions s
       JOIN users u ON s.username = u.username
       LEFT JOIN badges b ON u."badgeSelected" = b."badgeName"
+      LEFT JOIN titles t ON u."titleSelected" = t."titleName"
       WHERE s."questionId" = ${activeProblemId}
         AND s."isCorrect" = TRUE
       ORDER BY s."solvedAt" ASC
@@ -77,10 +78,11 @@ export async function GET(
     const leaderboard = leaderboardResult.rows.map((row, index) => ({
       rank: index + 1,
       username: row.username,
-      // Icon URL for the equipped badge
+      // Icon URL for the equipped badge - badges and titles are independent
+      // entities, the icon still comes from the badge, not the title.
       badgeId: row.badgeUrl,
-      // Display title (e.g. 'The Monarch', 'Participant')
-      badgeTitle: row.badgeName || 'Participant',
+      // Display title (e.g. 'The margin was too small', 'Participant')
+      title: row.titleName || 'Participant',
       // Raw ISO timestamp — clients own the formatting
       solvedAt: row.solvedAt,
       attempts: Number(row.attemptCount) || 1,
