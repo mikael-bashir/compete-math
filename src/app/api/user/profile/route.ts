@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql } from "@vercel/postgres";
 import { auth } from '@/app/(auth)/auth'; // Ensure path is correct
 import { fillCountryFromRequest } from '@/app/lib/data/geo';
+import { isAdminEmail } from '@/app/lib/constants/site';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -29,27 +30,32 @@ export async function GET(request: Request) {
         email,
         created_at,
         badges,
+        titles,
         country,
-        "badgeSelected" -- Keep original column name
-      FROM users 
+        "badgeSelected", -- Keep original column name
+        "titleSelected"
+      FROM users
       WHERE username = ${userIdentifier} -- or id = session.user.id
     `;
-    
+
     if (userRes.rowCount === 0) throw new Error("User not found");
-    
+
     const user = userRes.rows[0];
-    const userBadges = user.badges || []; 
+    const userBadges = user.badges || [];
+    const userTitles = user.titles || [];
     const dbUsername = user.username; // <--- Critical for submissions query
 
     // 3. Fetch ALL Badges
     // We fetch everything so the UI can render "Locked" states for badges user doesn't own.
     const badgesRes = await sql`
-      SELECT 
-        "badgeName", 
-        "badgeUrl", 
-        description, 
-        "numberAvailable", 
-        "numberOwned"
+      SELECT
+        "badgeName",
+        "badgeUrl",
+        description,
+        "numberAvailable",
+        "numberOwned",
+        "noBorder",
+        "availableUntil"
       FROM badges
       ORDER BY "numberAvailable" ASC NULLS LAST, "badgeName" ASC;
     `;
@@ -59,16 +65,51 @@ export async function GET(request: Request) {
       badgeName: b.badgeName, // <--- FIXED: Frontend expects 'badgeName'
       badgeUrl: b.badgeUrl,   // <--- FIXED: Frontend expects 'badgeUrl'
       description: b.description || "No description available.",
-      
+
       // Logic: It is unlocked if the user's text[] array includes this badge name
       isUnlocked: userBadges.includes(b.badgeName),
-      
+
       // Logic: It is selected if it matches the user's selection column
       isSelected: user.badgeSelected === b.badgeName,
-      
+
       isLimited: b.numberAvailable !== null,
       numberAvailable: b.numberAvailable, // Passed for "Limited" UI tag
-      numberOwned: b.numberOwned
+      numberOwned: b.numberOwned,
+      // Prestige badges (animated, transparent art) skip the bordered tile frame
+      noBorder: !!b.noBorder,
+      // Date-limited badges: ISO cutoff after which they can no longer be earned
+      availableUntil: b.availableUntil || null
+    }));
+
+    // 4b. Fetch ALL Titles (same "show locked ones too" shape as badges)
+    const titlesRes = await sql`
+      SELECT
+        "titleName",
+        description,
+        "numberAvailable",
+        "numberOwned",
+        "colorFrom",
+        "colorTo",
+        "textColor",
+        "availableUntil"
+      FROM titles
+      ORDER BY "numberAvailable" ASC NULLS LAST, "titleName" ASC;
+    `;
+
+    const mergedTitles = titlesRes.rows.map(t => ({
+      titleName: t.titleName,
+      description: t.description || "No description available.",
+      isUnlocked: userTitles.includes(t.titleName),
+      isSelected: user.titleSelected === t.titleName,
+      isLimited: t.numberAvailable !== null,
+      numberAvailable: t.numberAvailable,
+      numberOwned: t.numberOwned,
+      // Prestige titles get a custom gradient + glow instead of the default look
+      colorFrom: t.colorFrom || null,
+      colorTo: t.colorTo || null,
+      // Base text colour for black-text-with-shimmer variants (null = gradient text)
+      textColor: t.textColor || null,
+      availableUntil: t.availableUntil || null
     }));
 
     // 5. Fetch Stats (Using USERNAME, not UUID)
@@ -85,8 +126,11 @@ export async function GET(request: Request) {
       created_at: user.created_at, // Frontend expects this or joinedAt
       country: user.country || null,
       badgeSelected: user.badgeSelected, // <--- FIXED: Frontend expects 'badgeSelected'
+      titleSelected: user.titleSelected,
       solvedCount: parseInt(solvedCount),
-      badges: mergedBadges
+      isAdmin: isAdminEmail(session.user.email),
+      badges: mergedBadges,
+      titles: mergedTitles
     });
 
   } catch (error) {

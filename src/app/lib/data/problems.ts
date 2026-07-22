@@ -3,6 +3,7 @@
 import { sql } from "@vercel/postgres";
 import { SubmissionResult } from "../types/problems";
 import * as badgeRewarders from "./badges";
+import * as titleRewarders from "./titles";
 
 // --- THE DATA SEED ---
 const COOL_NAMES = [
@@ -305,7 +306,28 @@ export async function rewardBadges(username: string, questionId: number) {
   const b2 = await badgeRewarders.Where_It_All_Started(username);
   if (b2) newBadges.push(b2);
 
+  const b3 = await badgeRewarders.Impervious(username);
+  if (b3) newBadges.push(b3);
+
   return newBadges;
+}
+
+export async function rewardTitles(username: string, questionId: number) {
+  const newTitles: { titleName: string }[] = [];
+
+  const t1 = await titleRewarders.The_Margin_Was_Too_Small_Title(username, questionId);
+  if (t1) newTitles.push(t1);
+
+  const t2 = await titleRewarders.Where_It_All_Started_Title(username);
+  if (t2) newTitles.push(t2);
+
+  const t3 = await titleRewarders.Impervious_Title(username);
+  if (t3) newTitles.push(t3);
+
+  const t4 = await titleRewarders.The_Indomitable_Title(username);
+  if (t4) newTitles.push(t4);
+
+  return newTitles;
 }
 
 // ── "Push prove" — problems that were promoted live without a proof, so a

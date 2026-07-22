@@ -6,12 +6,19 @@ import { LogIn } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Navbar from "./navbar"
+import { PRESTIGE_TITLE_CLASS, prestigeTitleStyle } from "../../utils/prestige"
 
 export function UserDisplayer2() {
   const { data: session, status } = useSession()
 
   const isAuthed = status === "authenticated" && !!session?.user
   const username = session?.user?.username
+  // Equipped prestige title styles the name (null for plain titles).
+  const nameStyle = prestigeTitleStyle(
+    session?.user?.titleColorFrom,
+    session?.user?.titleColorTo,
+    session?.user?.titleTextColor,
+  )
 
   return (
     // Fixed header. Solid-ish translucent surface (no backdrop-filter) so it
@@ -50,15 +57,27 @@ export function UserDisplayer2() {
                   href={`/users/${username}`}
                   className="flex items-center gap-2 rounded-md px-1.5 py-0.5 hover:bg-white/10 transition-colors no-underline"
                 >
-                  <span className="text-[13px] font-medium text-emerald-100 hidden xs:inline">
+                  <span
+                    className={`text-[13px] font-medium hidden xs:inline ${nameStyle ? PRESTIGE_TITLE_CLASS : "text-emerald-100"}`}
+                    style={nameStyle || undefined}
+                  >
                     {username || "User"}
                   </span>
-                  <Avatar className="h-7 w-7 border border-white/20">
-                    <AvatarImage src={session!.user!.badgeUrl || "/placeholder.svg"} alt="User" />
-                    <AvatarFallback className="bg-emerald-900/50 text-emerald-200 text-xs">
-                      {username?.charAt(0)?.toUpperCase() || "U"}
-                    </AvatarFallback>
-                  </Avatar>
+                  {session?.user?.badgeNoBorder ? (
+                    // Frameless prestige art - show the full square, no circle clip.
+                    <img
+                      src={session!.user!.badgeUrl || "/placeholder.svg"}
+                      alt="User"
+                      className="h-7 w-7 object-contain"
+                    />
+                  ) : (
+                    <Avatar className="h-7 w-7 border border-white/20">
+                      <AvatarImage src={session!.user!.badgeUrl || "/placeholder.svg"} alt="User" />
+                      <AvatarFallback className="bg-emerald-900/50 text-emerald-200 text-xs">
+                        {username?.charAt(0)?.toUpperCase() || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
                 </Link>
               ) : (
                 <Link

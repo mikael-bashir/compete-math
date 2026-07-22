@@ -3,7 +3,7 @@ import { sql } from '@vercel/postgres';
 import { getProblemById, getUserSubmissionState, recordSubmission, verifyAnswer, getFeaturedProblem } from '@/app/lib/data/problems';
 import { formatProblem } from '@/app/lib/utils';
 import { auth } from '../../../(auth)/auth';
-import { rewardBadges } from '@/app/lib/data/problems';
+import { rewardBadges, rewardTitles } from '@/app/lib/data/problems';
 import { fillCountryFromRequest } from '@/app/lib/data/geo';
 import {
   isAdminEmail,
@@ -192,6 +192,7 @@ export async function POST(
     }
 
     const newBadges = await rewardBadges(userId, questionId);
+    const newTitles = await rewardTitles(userId, questionId);
     const attemptCount = result.attemptCount;
     // The reveal (answer + certificate) unlocks once solved, or after the user
     // has genuinely attempted PRACTICE_REVEAL_ATTEMPTS times.
@@ -201,6 +202,7 @@ export async function POST(
       success: true,
       correct: result.isCorrect,
       newBadges,
+      newTitles,
       attemptCount,
       attemptsUntilReveal: Math.max(0, PRACTICE_REVEAL_ATTEMPTS - attemptCount),
       canReveal,

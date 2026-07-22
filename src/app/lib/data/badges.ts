@@ -1,9 +1,10 @@
 import { sql } from "@vercel/postgres";
 
 const BADGE_NAMES = {
-  EARLY_ADOPTER: 'Where it all began', 
+  EARLY_ADOPTER: 'Where it all began',
   FIRST_SOLVER: 'The margin was too small',
-  NEWBIE: 'Newbie' 
+  NEWBIE: 'Newbie',
+  IMPERVIOUS: 'Impervious'
 };
 
 /**
@@ -133,5 +134,37 @@ export async function The_Margin_Was_Too_Small(username: string, questionId: num
 
   } catch (error) {
     console.error("Error checking 'The Margin Was Too Small':", error);
+  }
+}
+
+/**
+ * Criteria: Awarded once a user has correctly solved 5 problems tagged
+ * "Insane" difficulty. Date-limited: once badges."availableUntil" is in the
+ * past (1 Nov 2026) it can no longer be earned by anyone.
+ */
+export async function Impervious(username: string) {
+  try {
+    // Availability gate: a non-null availableUntil in the past closes the badge.
+    const avail = await sql`
+      SELECT "availableUntil" FROM badges WHERE "badgeName" = ${BADGE_NAMES.IMPERVIOUS}
+    `;
+    const until = avail.rows[0]?.availableUntil;
+    if (until && new Date(until).getTime() <= Date.now()) return;
+
+    const count = await sql`
+      SELECT COUNT(*)::int AS n
+      FROM submissions s
+      JOIN questions q ON q."questionId" = s."questionId"
+      WHERE s.username = ${username}
+      AND s."isCorrect" = TRUE
+      AND q.difficulty = 'Insane'
+    `;
+
+    if ((count.rows[0]?.n ?? 0) >= 5) {
+      const awarded = await grantBadge(username, BADGE_NAMES.IMPERVIOUS);
+      return awarded ? awarded : null;
+    }
+  } catch (error) {
+    console.error("Error checking 'Impervious':", error);
   }
 }

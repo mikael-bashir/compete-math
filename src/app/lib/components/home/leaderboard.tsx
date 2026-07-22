@@ -4,13 +4,18 @@ import { useState, useEffect } from "react"
 import { Timer, ChevronRight, Loader2, Trophy } from "lucide-react"
 import Link from "next/link"
 import { flagEmoji, countryName } from "../../data/countries"
+import { PRESTIGE_TITLE_CLASS, prestigeTitleStyle } from "../../utils/prestige"
 
 // Shape of one row from /api/leaderboard/latest
 interface LeaderboardUser {
   rank: number
   username: string
   badgeId: string | null
-  badgeTitle: string
+  noBorder?: boolean
+  title: string
+  titleColorFrom?: string | null
+  titleColorTo?: string | null
+  titleTextColor?: string | null
   solvedAt: string
   attempts: number
   country: string | null
@@ -31,6 +36,9 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
     user.rank === 3 ? "text-amber-600" :
     "text-white/40"
 
+  // A prestige title styles both the username and the title line below it.
+  const ps = prestigeTitleStyle(user.titleColorFrom, user.titleColorTo, user.titleTextColor)
+
   return (
     <div className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-white/5">
       {/* Rank */}
@@ -38,13 +46,16 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
         {user.rank}
       </div>
 
-      {/* Badge icon only - its title now sits under the username instead */}
-      <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border border-white/10 bg-black/40">
+      {/* Badge icon only - its title now sits under the username instead.
+          Prestige (noBorder) badges are frameless/transparent art. */}
+      <div className={`relative h-6 w-6 shrink-0 ${
+        user.noBorder ? "" : "overflow-hidden rounded-full border border-white/10 bg-black/40"
+      }`}>
         {user.badgeId ? (
           <img
             src={user.badgeId}
-            alt={user.badgeTitle}
-            className="h-full w-full object-cover"
+            alt={user.title}
+            className={`h-full w-full ${user.noBorder ? "object-contain" : "object-cover"}`}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-[9px] font-medium text-white/50">
@@ -53,13 +64,22 @@ function LeaderboardRow({ user }: { user: LeaderboardUser }) {
         )}
       </div>
 
-      {/* Username, with its badge title as a second line underneath it */}
+      {/* Username, with its badge title as a second line underneath it.
+          Prestige titles keep their gradient + glow here too. */}
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <span className="truncate text-[13px] font-medium leading-tight text-white">
+        <span
+          className={`truncate text-[13px] font-medium leading-tight ${ps ? PRESTIGE_TITLE_CLASS : "text-white"}`}
+          style={ps ?? undefined}
+        >
           {user.username}
         </span>
-        <span className="truncate text-[7px] font-medium uppercase tracking-wider leading-[1.2] text-white/45">
-          {user.badgeTitle}
+        <span
+          className={`truncate text-[7px] font-medium uppercase tracking-wider leading-[1.2] ${
+            ps ? PRESTIGE_TITLE_CLASS : "text-white/45"
+          }`}
+          style={ps ?? undefined}
+        >
+          {user.title}
         </span>
       </div>
 

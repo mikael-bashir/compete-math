@@ -6,12 +6,17 @@ import {
   Loader2, Flame, Trophy, PenLine, MessageSquare, ArrowBigUp, CalendarDays,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { PRESTIGE_TITLE_CLASS, prestigeTitleStyle } from "@/app/lib/utils/prestige";
 
 interface PublicProfile {
   username: string;
   email: string;
   joinedAt: string;
   badgeUrl: string | null;
+  badgeNoBorder: boolean;
+  titleColorFrom: string | null;
+  titleColorTo: string | null;
+  titleTextColor: string | null;
   badges: string[];
   solvedCount: number;
   streak: number;
@@ -64,6 +69,10 @@ export default function PublicProfilePage({
   const joined = new Date(profile.joinedAt).toLocaleDateString("en-GB", {
     year: "numeric", month: "long",
   });
+  // Equipped prestige title styles the displayed name (null = plain).
+  const nameStyle = prestigeTitleStyle(
+    profile.titleColorFrom, profile.titleColorTo, profile.titleTextColor,
+  );
 
   const stats = [
     { icon: Trophy, label: "Problems solved", value: profile.solvedCount, color: "text-amber-300" },
@@ -79,15 +88,23 @@ export default function PublicProfilePage({
         {/* Identity header */}
         <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent p-8 mb-8">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            <Avatar className="h-24 w-24 border-2 border-white/20">
-              <AvatarImage src={profile.badgeUrl || undefined} alt={display} />
-              <AvatarFallback className="bg-emerald-900/60 text-emerald-200 text-3xl font-code">
-                {display.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            {profile.badgeNoBorder && profile.badgeUrl ? (
+              // Frameless prestige art - show the full square, no circle clip.
+              <img src={profile.badgeUrl} alt={display} className="h-24 w-24 object-contain shrink-0" />
+            ) : (
+              <Avatar className="h-24 w-24 border-2 border-white/20">
+                <AvatarImage src={profile.badgeUrl || undefined} alt={display} />
+                <AvatarFallback className="bg-emerald-900/60 text-emerald-200 text-3xl font-code">
+                  {display.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            )}
 
             <div className="text-center sm:text-left flex-1">
-              <h1 className="font-display text-3xl font-bold text-white! mb-1">{display}</h1>
+              <h1
+                className={`font-display text-3xl font-bold mb-1 ${nameStyle ? PRESTIGE_TITLE_CLASS : "text-white!"}`}
+                style={nameStyle || undefined}
+              >{display}</h1>
               <p className="font-code inline-flex items-center gap-1.5 text-xs text-white/40">
                 <CalendarDays className="w-3.5 h-3.5" /> joined {joined}
               </p>

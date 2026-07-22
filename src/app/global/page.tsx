@@ -7,6 +7,7 @@ import {
 import Image from 'next/image';
 import { StaticArtBackground } from '../lib/components/home/static-art-background';
 import { flagEmoji, countryName } from '../lib/data/countries';
+import { PRESTIGE_TITLE_CLASS, prestigeTitleStyle } from '../lib/utils/prestige';
 
 interface ProblemOption {
   id: number;
@@ -20,7 +21,11 @@ interface LeaderboardEntry {
   rank: number;
   username: string;
   badgeId: string | null;
-  badgeTitle: string;
+  noBorder?: boolean;
+  title: string;
+  titleColorFrom?: string | null;
+  titleColorTo?: string | null;
+  titleTextColor?: string | null;
   solvedAt: string;
   attempts: number;
   country: string | null;
@@ -257,13 +262,17 @@ export default function LeaderboardPage() {
 
                   {/* Contender: badge avatar + name + badge title */}
                   <div className="col-span-7 md:col-span-5 flex items-center gap-3 min-w-0">
-                      <div className="relative w-8 h-8 rounded-full bg-[#151515] border border-[#2a2a2a] flex items-center justify-center shrink-0 shadow-inner group-hover:border-slate-600 transition-colors overflow-hidden">
+                      <div className={`relative w-8 h-8 flex items-center justify-center shrink-0 ${
+                        user.noBorder
+                          ? ""
+                          : "rounded-full overflow-hidden bg-[#151515] border border-[#2a2a2a] shadow-inner group-hover:border-slate-600 transition-colors"
+                      }`}>
                         {user.badgeId ? (
                           <Image
                             src={user.badgeId}
-                            alt={user.badgeTitle}
+                            alt={user.title}
                             fill
-                            className="object-fill"
+                            className={user.noBorder ? "object-contain" : "object-fill"}
                           />
                         ) : (
                           <span className="text-[10px] font-medium text-slate-600">
@@ -272,14 +281,26 @@ export default function LeaderboardPage() {
                         )}
                       </div>
 
-                      <div className="flex flex-col justify-center min-w-0">
-                        <span className="font-medium text-slate-300 group-hover:text-amber-400 transition-colors leading-tight text-sm truncate">
-                          {user.username}
-                        </span>
-                        <span className="text-[9px] tracking-wider font-bold text-slate-500/90 leading-tight truncate uppercase">
-                          {user.badgeTitle}
-                        </span>
-                      </div>
+                      {/* A prestige title styles both the name and the title line. */}
+                      {(() => {
+                        const ps = prestigeTitleStyle(user.titleColorFrom, user.titleColorTo, user.titleTextColor);
+                        return (
+                          <div className="flex flex-col justify-center min-w-0">
+                            <span
+                              className={`font-medium transition-colors leading-tight text-sm truncate ${ps ? PRESTIGE_TITLE_CLASS : "text-slate-300 group-hover:text-amber-400"}`}
+                              style={ps ?? undefined}
+                            >
+                              {user.username}
+                            </span>
+                            <span
+                              className={`text-[9px] tracking-wider font-bold leading-tight truncate uppercase ${ps ? PRESTIGE_TITLE_CLASS : "text-slate-500/90"}`}
+                              style={ps ?? undefined}
+                            >
+                              {user.title}
+                            </span>
+                          </div>
+                        );
+                      })()}
                   </div>
 
                   {/* Region */}

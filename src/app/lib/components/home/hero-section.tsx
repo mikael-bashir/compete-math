@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react"
 import { Flame } from "lucide-react"
 import { useSession } from "next-auth/react"
+import { PRESTIGE_TITLE_CLASS, prestigeTitleStyle } from "../../utils/prestige"
 
 // Guest greeting adjectives — one is picked at random and cached in the browser
 // for the day so the greeting doesn't reshuffle on every render/visit.
@@ -16,6 +17,12 @@ export function HeroSection() {
   const { data: session } = useSession()
   const username = session?.user?.username
   const isAuthed = !!username
+  // Equipped prestige title styles the name in the greeting (null = plain).
+  const nameStyle = prestigeTitleStyle(
+    session?.user?.titleColorFrom,
+    session?.user?.titleColorTo,
+    session?.user?.titleTextColor,
+  )
 
   // Pick (or reuse) today's guest adjective, cached in localStorage for a day.
   useEffect(() => {
@@ -82,7 +89,12 @@ export function HeroSection() {
       <h1 className="font-display text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-white!">
         {/* comma after "Welcome" kept; "back" only appears when signed in */}
         Welcome{isAuthed ? " back," : ","}{" "}
-        <span className="bg-linear-to-r from-amber-200 via-yellow-100 to-amber-300 bg-clip-text text-transparent">
+        <span
+          className={isAuthed && nameStyle
+            ? PRESTIGE_TITLE_CLASS
+            : "bg-linear-to-r from-amber-200 via-yellow-100 to-amber-300 bg-clip-text text-transparent"}
+          style={isAuthed && nameStyle ? nameStyle : undefined}
+        >
           {isAuthed ? username : (guestAdj ?? " ")}
         </span>
         {!isAuthed && " one"}

@@ -12,11 +12,11 @@ export async function POST(req: Request) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const { badge } = await req.json(); // This is the badgeName
+  const { title } = await req.json(); // This is the titleName
 
   // 2. Validation
-  if (!badge || typeof badge !== "string") {
-    return new NextResponse("Badge Name required", { status: 400 });
+  if (!title || typeof title !== "string") {
+    return new NextResponse("Title Name required", { status: 400 });
   }
 
   try {
@@ -24,34 +24,32 @@ export async function POST(req: Request) {
     const isAdmin = isAdminEmail(session.user.email);
 
     // 3. SECURE UPDATE
-    // Non-admins may only equip a badge they own (it must be in their 'badges'
-    // text[] array). Admins may equip ANY badge that exists in the catalogue -
-    // the EXISTS guard still prevents setting badgeSelected to a garbage name
-    // (which would break the badgeUrl join and fall back to newbie.png).
+    // Non-admins may only equip a title they own; admins may equip ANY title
+    // that exists (the EXISTS guard still blocks a non-existent titleName).
     const result = isAdmin
       ? await sql`
           UPDATE users
-          SET "badgeSelected" = ${badge}
+          SET "titleSelected" = ${title}
           WHERE username = ${username}
-          AND EXISTS (SELECT 1 FROM badges WHERE "badgeName" = ${badge})
+          AND EXISTS (SELECT 1 FROM titles WHERE "titleName" = ${title})
         `
       : await sql`
           UPDATE users
-          SET "badgeSelected" = ${badge}
+          SET "titleSelected" = ${title}
           WHERE username = ${username}
-          AND ${badge} = ANY(badges)
+          AND ${title} = ANY(titles)
         `;
 
     if (result.rowCount === 0) {
       return new NextResponse(
         isAdmin
-          ? "Failed to equip: no such badge."
-          : "Failed to equip: You do not own this badge.",
+          ? "Failed to equip: no such title."
+          : "Failed to equip: You do not own this title.",
         { status: 403 }
       );
     }
 
-    return NextResponse.json({ success: true, badge });
+    return NextResponse.json({ success: true, title });
 
   } catch (error) {
     console.error("Database Error:", error);
