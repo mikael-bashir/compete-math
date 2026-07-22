@@ -35,6 +35,27 @@
 // gradient of a scalar potential, which is automatically divergence-
 // free: warping by it produces coherent EDDIES the eye reads as fluid
 // motion, the same technique production VFX uses for smoke and clouds.
+//
+// Fourth pass, four tricks lifted from Frank Hugenroth's galaxy shader
+// (nordlicht/bremen 2015) after the user held it up as the realism bar:
+// (1) ROTATED-DOMAIN fbm - his mat3 m rotates the noise domain between
+//     octaves, which kills the axis-aligned bias of value noise (the
+//     subtle horizontal/vertical grain that makes procedural clouds
+//     read as synthetic); ours previously advanced octaves with a plain
+//     scale+offset, so all octaves shared the same lattice orientation.
+// (2) MULTI-STOP colour inside one cloud - he stacks differently-hued
+//     fog layers (blue-white, purple, red) plus a radius-driven
+//     dustcolor ramp; a single two-colour ramp reads as one material,
+//     real emission nebulae shift hue with excitation and depth.
+// (3) DARK DUST LANES - his "gholes" term SUBTRACTS opaque dust from
+//     the cloud colour. Real nebulae are backlit gas silhouetted by
+//     cold foreground dust; without dark lanes carving the bright gas
+//     nothing ever occludes anything and the field looks like glow, not
+//     matter. Ours ride the SAME curl-warped coordinate as the gas, so
+//     lanes follow the same eddies instead of floating free.
+// (4) HOT KNOTS - his pow(noise, 22) star-forming hotspots: raising
+//     density to a high power leaves rare, tiny, near-white cores
+//     embedded in the gas where it is thickest.
 export const FRAG_NEBULA = `
 vec2 curl(vec2 p){
   float e = 0.05;
@@ -48,13 +69,15 @@ vec2 curl(vec2 p){
 vec3 nebulaWash(vec2 world, float cf, float t){
   vec2 p = world * 0.07 + vec2(311.7, -157.3) + t * 0.004;
   p += curl(p * 0.65 + 19.3) * 2.0; // one vorticity pass - a real eddy, not noise
+  vec2 pw = p; // the curl-warped frame: gas AND dust lanes both live in it
 
+  const mat2 rotO = mat2(0.848, 0.530, -0.530, 0.848); // ~32deg between octaves
   float n = 0.0, ridge = 0.0, amp = 0.5;
   for (int i = 0; i < 4; i++){
     float v = vnoise(p);
     n += v * amp;
     ridge += (1.0 - abs(v * 2.0 - 1.0)) * amp; // thin bright filaments
-    p = p * 2.3 + vec2(53.1, -27.4);
+    p = rotO * p * 2.3 + vec2(53.1, -27.4);
     amp *= 0.53;
   }
   n = clamp(n, 0.0, 1.0);
@@ -63,8 +86,27 @@ vec3 nebulaWash(vec2 world, float cf, float t){
   // dark matter: only the densest wisps glow, everything below the
   // threshold stays dark instead of an even haze over the whole frame
   float glow = pow(smoothstep(0.38, 0.82, density), 2.0);
-  vec3 tint = mix(vec3(0.55, 0.20, 0.10), vec3(1.0, 0.78, 0.42), density);
-  return tint * glow * 0.5 * (0.3 + 0.7 * cf); // thin in voids, thicker along the web
+
+  // dark dust lanes, in the same curl-warped frame as the gas
+  vec2 q = pw * 1.6 + vec2(-71.9, 143.7);
+  float lane = vnoise(q) * 0.65 + vnoise(rotO * q * 2.1 + 9.7) * 0.35;
+  glow *= 1.0 - 0.72 * smoothstep(0.56, 0.80, lane);
+
+  // three-stop palette: cold ember -> amber -> near-white gold at peaks
+  vec3 tint = mix(vec3(0.45, 0.12, 0.06), vec3(1.0, 0.62, 0.25), smoothstep(0.0, 0.65, density));
+  tint = mix(tint, vec3(1.0, 0.92, 0.75), smoothstep(0.72, 0.95, density));
+
+  // hot knots: rare bright cores where the gas is thickest
+  float knots = pow(density, 9.0) * 1.4 * (1.0 - 0.72 * smoothstep(0.56, 0.80, lane));
+
+  // CONCENTRATION - the Hugenroth trait that matters most: his clouds
+  // are confined to the galactic disc and the rest of the frame is
+  // near-black. Our confinement dial is the cosmic web: bright silk
+  // lives along the filaments (cf high) and falls to a whisper in the
+  // voids, whose "not empty" floor is nebulaHaze's job, not this layer's.
+  float region = 0.08 + 0.92 * cf;
+
+  return (tint * glow + vec3(1.0, 0.85, 0.6) * knots) * 0.5 * region;
 }
 
 // A second, cheap, near-transparent haze layer UNDER the wisps above -
