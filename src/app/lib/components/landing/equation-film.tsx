@@ -834,9 +834,15 @@ void main(){
     // Two feature black holes, fixed in the same world the galaxies live
     // in - their screen footprint sweeps past exactly like any other body
     // as the camera dollies by, but each is its own full lensed raymarch.
-    vec4 bh1 = blackHoleShot(world, vec2(1.5, -0.9), 0.55, 0.15);
+    // Size/offset ratio (gs / |center|) is what actually reads as "small and
+    // off to the side" - both position and size scale together with zoomP,
+    // so a body's apparent size relative to its distance from screen centre
+    // (where the home galaxy always sits) is CONSTANT for its whole flight.
+    // Low ratio -> a small dot near the edge throughout; the old values
+    // (ratio ~0.30) put them close to the home galaxy's frame the whole time.
+    vec4 bh1 = blackHoleShot(world, vec2(2.8, 0.5), 0.14, 0.15);
     if (bh1.a > 0.0) col = mix(col, bh1.rgb, bh1.a * life * uniViz);
-    vec4 bh2 = blackHoleShot(world, vec2(-1.9, 1.1), 0.65, 0.63);
+    vec4 bh2 = blackHoleShot(world, vec2(-3.1, -0.6), 0.155, 0.63);
     if (bh2.a > 0.0) col = mix(col, bh2.rgb, bh2.a * life * uniViz);
   }
 
