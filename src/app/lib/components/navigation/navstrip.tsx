@@ -1,6 +1,7 @@
 'use client'
 
 import Link from "next/link"
+import { useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { LogIn } from "lucide-react"
 
@@ -8,11 +9,60 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Navbar from "./navbar"
 import { PRESTIGE_TITLE_CLASS, prestigeTitleStyle } from "../../utils/prestige"
 
+// Throttle for the cosmetics self-heal below - once a minute per tab is plenty.
+const COSMETICS_SYNC_KEY = "cosmeticsSyncAt"
+const COSMETICS_SYNC_MIN_MS = 60_000
+
 export function UserDisplayer2() {
-  const { data: session, status } = useSession()
+  const { data: session, status, update } = useSession()
 
   const isAuthed = status === "authenticated" && !!session?.user
   const username = session?.user?.username
+
+  // SELF-HEAL STALE SESSION COSMETICS. The JWT caches badgeUrl/title colours
+  // and only refreshes them at credential login or a same-session equip - so
+  // an equip made on another device/browser (or an admin force-equip, or a
+  // direct DB change) leaves this session's navbar stale FOREVER. Once per
+  // page load (throttled), compare the session against the DB truth and
+  // update() the diff; the jwt callback merges it into the token.
+  useEffect(() => {
+    if (status !== "authenticated" || !session?.user?.username) return
+    const last = Number(sessionStorage.getItem(COSMETICS_SYNC_KEY) || 0)
+    if (Date.now() - last < COSMETICS_SYNC_MIN_MS) return
+
+    let cancelled = false
+    fetch("/api/user/session-sync")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(async (d) => {
+        if (!d || cancelled) return
+        const u = session.user
+        const changed =
+          (u.badgeUrl ?? "/badges/newbie.png") !== d.badgeUrl ||
+          !!u.badgeNoBorder !== !!d.badgeNoBorder ||
+          (u.titleColorFrom ?? null) !== (d.titleColorFrom ?? null) ||
+          (u.titleColorTo ?? null) !== (d.titleColorTo ?? null) ||
+          (u.titleTextColor ?? null) !== (d.titleTextColor ?? null)
+        if (changed) {
+          await update({
+            badgeUrl: d.badgeUrl,
+            badgeNoBorder: d.badgeNoBorder,
+            titleColorFrom: d.titleColorFrom,
+            titleColorTo: d.titleColorTo,
+            titleTextColor: d.titleTextColor,
+          })
+        }
+        // Mark synced only AFTER completing (a navigation mid-flight kills the
+        // fetch/update; writing the key up-front would then block the retry on
+        // the next page for the whole throttle window while the navbar sits
+        // visibly stale).
+        sessionStorage.setItem(COSMETICS_SYNC_KEY, String(Date.now()))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+    // Deliberately keyed on auth status only: the throttle guards re-runs, and
+    // re-running on every session object change would loop through update().
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status])
   // Equipped prestige title styles the name (null for plain titles).
   const nameStyle = prestigeTitleStyle(
     session?.user?.titleColorFrom,
