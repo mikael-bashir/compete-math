@@ -10,7 +10,7 @@ import { markGaveUp } from '@/app/lib/data/problems';
 async function buildUnlockedResponse(questionId: number, solved: boolean, gaveUp: boolean) {
   const q = await sql`
     SELECT "questionTitle", answer, proof, "provedAt", "certMintedAt",
-           signature, "signatureKeyId", insight
+           signature, "signatureKeyId", insight, toolchain, mathlib
     FROM questions WHERE "questionId" = ${questionId}
   `;
   if (q.rows.length === 0) return null;
@@ -36,6 +36,10 @@ async function buildUnlockedResponse(questionId: number, solved: boolean, gaveUp
       title: row.questionTitle as string | null,
       mintedAt: certMintedAt ? new Date(certMintedAt).toISOString() : null,
       provedAt: row.provedAt ? new Date(row.provedAt).toISOString() : null,
+      // Same values `meta` below uses — signing over different bytes than the
+      // serve path rebuilds would produce a signature that never verifies.
+      toolchain: (row.toolchain as string | null) ?? null,
+      mathlib: (row.mathlib as string | null) ?? null,
     }).trimEnd();
     const sig = signCertificate(canonical);
     if (sig) {
@@ -53,6 +57,11 @@ async function buildUnlockedResponse(questionId: number, solved: boolean, gaveUp
     title: row.questionTitle as string | null,
     mintedAt: certMintedAt ? new Date(certMintedAt).toISOString() : null,
     provedAt: row.provedAt ? new Date(row.provedAt).toISOString() : null,
+    // The verifier group that actually certified this proof. NULL on rows proved
+    // before it was recorded, where the certificate falls back to the constant —
+    // which is exactly the bytes those rows were signed over.
+    toolchain: (row.toolchain as string | null) ?? null,
+    mathlib: (row.mathlib as string | null) ?? null,
   };
 
   // Serve the stored signature over the rebuilt canonical bytes (header + proof).

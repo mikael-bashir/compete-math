@@ -96,6 +96,14 @@ export async function POST() {
     // Solver-facing key idea (the "insight" from the generation pipeline). Shown
     // to the user only after they solve or give up — gated like the answer.
     await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS insight TEXT;`;
+    // Which Lean/Mathlib ACTUALLY certified this proof. The prover now runs two
+    // verifier groups on DIFFERENT Lean versions (Leak XI/XII/XIV = 4.32.0, Leak
+    // I/II/IV = 4.29.1), and the certificate header — which the signature covers
+    // — prints these. NULL means "certified before this was recorded", and the
+    // certificate falls back to the CERTIFICATE constant so those older rows keep
+    // hashing to exactly the bytes they were signed over.
+    await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS toolchain TEXT;`;
+    await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS mathlib TEXT;`;
     // Email verification: a nullable timestamp on users (set when verified) and a
     // single-use 24h token store. Nothing is gated on this yet — we only record it.
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified TIMESTAMPTZ;`;

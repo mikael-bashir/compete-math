@@ -41,6 +41,12 @@ interface ProblemPayload {
   signature?: string | null;
   signatureKeyId?: string | null;
   certMintedAt?: string | null;
+  // Lean toolchain + Mathlib version that actually certified this proof. The
+  // architect verifier group (Leak XI/XII/XIV) runs 4.32.0 and the original group
+  // (Leak I/II/IV) 4.29.1, so this cannot be assumed — it is signed into the
+  // certificate bytes upstream and must round-trip verbatim.
+  toolchain?: string | null;
+  mathlib?: string | null;
   // Solver-facing key idea (1-3 sentences); revealed only after solve/give-up.
   insight?: string | null;
 }
@@ -88,6 +94,10 @@ async function ingestOne(raw: unknown): Promise<string> {
         title: p.questionTitle,
         mintedAt: certMintedAt,
         provedAt,
+        // Must match what the leak side signs, or the two repos would build
+        // different bytes for the same problem.
+        toolchain: p.toolchain ?? null,
+        mathlib: p.mathlib ?? null,
       }).trimEnd();
       const sig = signCertificate(canonical);
       if (sig) {
@@ -97,16 +107,22 @@ async function ingestOne(raw: unknown): Promise<string> {
     }
   }
 
+  // toolchain/mathlib are STORED per row: the two verifier groups run different
+  // Lean versions, and the certificate header (and its signature) is built from
+  // these values — dropping them here would make every rebuilt certificate claim
+  // the default toolchain and break signature verification for the other group.
   await sql`
     INSERT INTO questions
       ("questionTitle", "questionProblem", subtitle, difficulty, points, answer, topic, knowledge,
-       proof, "mintedAt", "provedAt", "certMintedAt", signature, "signatureKeyId", insight)
+       proof, "mintedAt", "provedAt", "certMintedAt", signature, "signatureKeyId", insight,
+       toolchain, mathlib)
     VALUES (
       ${p.questionTitle}, ${p.questionProblem}, ${p.subtitle ?? null},
       ${p.difficulty ?? 'Medium'}, ${p.points ?? 100}, ${p.answer ?? null},
       ${p.topic ?? null}, ${p.knowledge ?? null},
       ${p.proof ?? null}, ${p.mintedAt ?? null}, ${provedAt}, ${certMintedAt},
-      ${signature}, ${signatureKeyId}, ${p.insight ?? null}
+      ${signature}, ${signatureKeyId}, ${p.insight ?? null},
+      ${p.toolchain ?? null}, ${p.mathlib ?? null}
     );
   `;
   return p.questionTitle;
