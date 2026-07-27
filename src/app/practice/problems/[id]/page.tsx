@@ -23,7 +23,7 @@ import {
   KNOWLEDGE_LEVELS,
   PRACTICE_REVEAL_ATTEMPTS,
 } from "@/app/lib/constants/site"
-import { CERTIFICATE, fmtCertDate } from "@/app/lib/certificate"
+import { CERTIFICATE, fmtCertDate, certToolchain, certMathlib } from "@/app/lib/certificate"
 import { CertifiedInfo } from "@/app/lib/components/certified-info"
 
 // --- CERTIFICATE ---
@@ -39,6 +39,12 @@ interface CertPayload {
   mintedAt?: string | null;
   provedAt?: string | null;
   title?: string | null;
+  // Present when a problem has been independently certified by more than one
+  // Lean toolchain — each certificate is a fully separate, separately-signed
+  // artifact (see lib/certificate.ts CERT_KEYS).
+  toolchain?: string | null;
+  mathlib?: string | null;
+  enforcer?: string | null;
 }
 
 // One label→value pair in the borderless provenance grid. A small gold bullet,
@@ -55,15 +61,18 @@ function Field({ label, children, className = "" }: { label: string; children: R
 }
 // Rendered inline beneath the problem card (not a modal). Compact, small type.
 function CertificatePanel({
-  open, onClose, answer, cert,
+  open, onClose, answer, certs, certIndex, onCertIndexChange,
 }: {
   open: boolean;
   onClose: () => void;
   answer: React.ReactNode;
-  cert: CertPayload | null;
+  certs: CertPayload[];
+  certIndex: number;
+  onCertIndexChange: (i: number) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [verify, setVerify] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const cert = certs[certIndex] ?? null;
   if (!open) return null;
 
   // Ask the server to check the certificate's Ed25519 signature against the
@@ -94,10 +103,26 @@ function CertificatePanel({
         <div className="grid place-items-center rounded-md border border-amber-400/30 bg-amber-500/10 h-7 w-7 shrink-0">
           <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h3 className="text-[13px] font-semibold text-white leading-tight">Proof Certificate</h3>
           <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-amber-400/60 truncate">{CERTIFICATE.issuer} · machine-checked formal proof</p>
         </div>
+        {/* A problem can be independently certified by more than one Lean
+            toolchain — each is a fully separate, separately-signed artifact.
+            Only shown when there's actually a choice to make. */}
+        {certs.length > 1 && (
+          <select
+            value={certIndex}
+            onChange={(e) => { onCertIndexChange(Number(e.target.value)); setVerify('idle'); }}
+            className="shrink-0 rounded-md border border-amber-400/25 bg-amber-500/[0.06] px-2 py-1 text-[10px] text-amber-200 font-mono"
+          >
+            {certs.map((c, i) => (
+              <option key={i} value={i} className="bg-[#141013]">
+                {certToolchain(c.toolchain)}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div className="px-4 py-4 space-y-4">
@@ -110,10 +135,10 @@ function CertificatePanel({
           <Field label="Minted · signed">{fmtCertDate(cert?.mintedAt)}</Field>
           <Field label="Enforcer">
             <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30 inline-flex items-center gap-1">
-              {CERTIFICATE.prover} <span aria-hidden>↗</span>
+              {cert?.enforcer?.trim() || CERTIFICATE.prover} <span aria-hidden>↗</span>
             </a>
           </Field>
-          <Field label="Toolchain">{CERTIFICATE.toolchain} · {CERTIFICATE.mathlib}</Field>
+          <Field label="Toolchain">{certToolchain(cert?.toolchain)} · {certMathlib(cert?.mathlib)}</Field>
           <Field label="Support" className="sm:col-span-2">
             <a href={`mailto:${CERTIFICATE.supportEmail}`} className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30 break-all">{CERTIFICATE.supportEmail}</a>
           </Field>
@@ -250,11 +275,14 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
 
   // Attempt gate + certificate reveal. `attemptCount` drives "attempt N of 3
   // before you can give up"; `canReveal` unlocks the answer + certificate (after
-  // solving, or PRACTICE_REVEAL_ATTEMPTS tries). `cert`/`certAnswer` hold the
-  // revealed payload once fetched from the gated /api/proofs endpoint.
+  // solving, or PRACTICE_REVEAL_ATTEMPTS tries). `certs`/`certAnswer` hold the
+  // revealed payload once fetched from the gated /api/proofs endpoint — `certs`
+  // is EVERY independent certificate this problem has (one per toolchain);
+  // `certIndex` is which one the picker currently shows.
   const [attemptCount, setAttemptCount] = useState(0);
   const [canReveal, setCanReveal] = useState(false);
-  const [cert, setCert] = useState<CertPayload | null>(null);
+  const [certs, setCerts] = useState<CertPayload[]>([]);
+  const [certIndex, setCertIndex] = useState(0);
   const [certAnswer, setCertAnswer] = useState<string | null>(null);
   const [certOpen, setCertOpen] = useState(false);
   const [revealing, setRevealing] = useState(false);
@@ -308,7 +336,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
         if (d.unlocked) {
           setCanReveal(true);
           setCertAnswer(d.answer != null ? String(d.answer) : null);
-          if (d.certificate) setCert(d.certificate);
+          if (d.certificates?.length) { setCerts(d.certificates); setCertIndex(0); }
           if (d.insight) setInsight(d.insight);
         }
       } catch { /* leave locked */ }
@@ -329,7 +357,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
       if (d.unlocked) {
         setCanReveal(true);
         setCertAnswer(d.answer != null ? String(d.answer) : null);
-        if (d.certificate) setCert(d.certificate);
+        if (d.certificates?.length) { setCerts(d.certificates); setCertIndex(0); }
         if (d.insight) setInsight(d.insight);
         setGaveUp(true);
       } else {
@@ -346,7 +374,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
   // Open the full proof certificate (fetching it on demand if not already loaded).
   // A separate, opt-in action — the certificate is never pushed on the user.
   const viewCertificate = async () => {
-    if (cert || certAnswer != null) { setCertOpen(true); return; }
+    if (certs.length > 0 || certAnswer != null) { setCertOpen(true); return; }
     setRevealing(true);
     try {
       const res = await fetch(`/api/proofs/${id}`);
@@ -354,7 +382,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
       if (d.unlocked) {
         setCanReveal(true);
         setCertAnswer(d.answer != null ? String(d.answer) : null);
-        if (d.certificate) setCert(d.certificate);
+        if (d.certificates?.length) { setCerts(d.certificates); setCertIndex(0); }
         if (d.insight) setInsight(d.insight);
         setCertOpen(true);
       } else {
@@ -427,7 +455,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
           const pd = await pr.json();
           if (pd.unlocked) {
             if (pd.answer != null) setCertAnswer(String(pd.answer));
-            if (pd.certificate) setCert(pd.certificate);
+            if (pd.certificates?.length) { setCerts(pd.certificates); setCertIndex(0); }
             if (pd.insight) setInsight(pd.insight);
           }
         } catch { /* insight is best-effort; panel still shows without it */ }
@@ -660,7 +688,9 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
           open={certOpen}
           onClose={() => setCertOpen(false)}
           answer={certAnswer ?? '—'}
-          cert={cert}
+          certs={certs}
+          certIndex={certIndex}
+          onCertIndexChange={setCertIndex}
         />
       </div>
     </div>

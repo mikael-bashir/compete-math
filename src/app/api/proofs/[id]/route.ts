@@ -2,89 +2,103 @@ import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 import { auth } from '@/app/(auth)/auth';
 import { PRACTICE_REVEAL_ATTEMPTS } from '@/app/lib/constants/site';
-import { fullCertificate, CERTIFICATE } from '@/app/lib/certificate';
+import { fullCertificate, certKeyGroup, CERT_KEYS } from '@/app/lib/certificate';
 import { signCertificate, buildSignedText } from '@/app/lib/certificate-sign';
 import { markGaveUp } from '@/app/lib/data/problems';
 
-// Build the unlocked payload: answer + signed certificate for a question.
+interface CertRow {
+  id: string;
+  toolchain: string;
+  mathlib: string | null;
+  enforcer: string | null;
+  proof: string;
+  provedAt: string | Date | null;
+  certMintedAt: string | Date | null;
+  signature: string | null;
+  signatureKeyId: string | null;
+}
+
+// Build the unlocked payload: answer + EVERY independent certificate this
+// problem has (one per toolchain — see question_certificates). A problem can
+// be certified by more than one verifier group over time; each is a fully
+// separate, separately-signed artifact.
 async function buildUnlockedResponse(questionId: number, solved: boolean, gaveUp: boolean) {
   const q = await sql`
-    SELECT "questionTitle", answer, proof, "provedAt", "certMintedAt",
-           signature, "signatureKeyId", insight, toolchain, mathlib
-    FROM questions WHERE "questionId" = ${questionId}
+    SELECT "questionTitle", answer, insight FROM questions WHERE "questionId" = ${questionId}
   `;
   if (q.rows.length === 0) return null;
   const row = q.rows[0];
-  const hasProof = typeof row.proof === 'string' && row.proof.trim().length > 0;
 
-  // Certificates are now signed once at INGESTION and the signature is stored, so
-  // a view just serves the SAME signature over the SAME bytes. Older rows (no
-  // stored signature) are backfilled lazily on first view: stamp certMintedAt +
-  // sign once + persist, then reuse forever. `certMintedAt` = signing time.
-  let certMintedAt = row.certMintedAt as string | Date | null;
-  let signature = (row.signature as string | null) ?? null;
-  let signatureKeyId = (row.signatureKeyId as string | null) ?? null;
+  // Oldest-proved first, so a problem's ORIGINAL certificate stays the default
+  // selection — new toolchains just get appended, not reordered underneath it.
+  const certsRes = await sql`
+    SELECT id, toolchain, mathlib, enforcer, proof, "provedAt", "certMintedAt", signature, "signatureKeyId"
+    FROM question_certificates
+    WHERE "questionId" = ${questionId}
+    ORDER BY "provedAt" ASC NULLS LAST, "createdAt" ASC
+  `;
+  const certRows = certsRes.rows as unknown as CertRow[];
 
-  if (hasProof && !signature) {
-    const upd = await sql`
-      UPDATE questions SET "certMintedAt" = COALESCE("certMintedAt", now())
-      WHERE "questionId" = ${questionId}
-      RETURNING "certMintedAt"
-    `;
-    certMintedAt = upd.rows[0]?.certMintedAt ?? certMintedAt;
-    const canonical = fullCertificate(row.proof, {
-      title: row.questionTitle as string | null,
-      mintedAt: certMintedAt ? new Date(certMintedAt).toISOString() : null,
-      provedAt: row.provedAt ? new Date(row.provedAt).toISOString() : null,
-      // Same values `meta` below uses — signing over different bytes than the
-      // serve path rebuilds would produce a signature that never verifies.
-      toolchain: (row.toolchain as string | null) ?? null,
-      mathlib: (row.mathlib as string | null) ?? null,
-    }).trimEnd();
-    const sig = signCertificate(canonical);
-    if (sig) {
-      signature = sig.signature;
-      signatureKeyId = sig.keyId;
-      // Persist so every future view serves this exact signature (idempotent).
-      await sql`
-        UPDATE questions SET signature = ${signature}, "signatureKeyId" = ${signatureKeyId}
-        WHERE "questionId" = ${questionId} AND signature IS NULL
-      `;
-    }
-  }
+  const certificates = await Promise.all(
+    certRows.map(async (r) => {
+      // Certificates are signed once at INGESTION and the signature is stored,
+      // so a view just serves the SAME signature over the SAME bytes. A row
+      // with no stored signature (backfilled legacy data, or a group whose
+      // signing key wasn't configured yet) is signed lazily on first view and
+      // persisted — reused forever after. Signs with the key matching THIS
+      // row's OWN toolchain, never the legacy default, so an architect-group
+      // certificate is never mis-signed with the wrong key.
+      let certMintedAt = r.certMintedAt;
+      let signature = r.signature;
+      let signatureKeyId = r.signatureKeyId;
+      if (!signature) {
+        const group = certKeyGroup(r.toolchain);
+        certMintedAt = certMintedAt ? new Date(certMintedAt).toISOString() : new Date().toISOString();
+        const canonical = fullCertificate(r.proof, {
+          title: row.questionTitle as string | null,
+          mintedAt: certMintedAt ? new Date(certMintedAt).toISOString() : null,
+          provedAt: r.provedAt ? new Date(r.provedAt).toISOString() : null,
+          toolchain: r.toolchain,
+          mathlib: r.mathlib,
+          enforcer: r.enforcer,
+        }).trimEnd();
+        const sig = signCertificate(canonical, group);
+        if (sig) {
+          signature = sig.signature;
+          signatureKeyId = sig.keyId;
+          await sql`
+            UPDATE question_certificates
+            SET signature = ${signature}, "signatureKeyId" = ${signatureKeyId}, "certMintedAt" = ${certMintedAt}
+            WHERE id = ${r.id} AND signature IS NULL
+          `;
+        }
+      }
 
-  const meta = {
-    title: row.questionTitle as string | null,
-    mintedAt: certMintedAt ? new Date(certMintedAt).toISOString() : null,
-    provedAt: row.provedAt ? new Date(row.provedAt).toISOString() : null,
-    // The verifier group that actually certified this proof. NULL on rows proved
-    // before it was recorded, where the certificate falls back to the constant —
-    // which is exactly the bytes those rows were signed over.
-    toolchain: (row.toolchain as string | null) ?? null,
-    mathlib: (row.mathlib as string | null) ?? null,
-  };
+      const meta = {
+        title: row.questionTitle as string | null,
+        mintedAt: certMintedAt ? new Date(certMintedAt).toISOString() : null,
+        provedAt: r.provedAt ? new Date(r.provedAt).toISOString() : null,
+        toolchain: r.toolchain,
+        mathlib: r.mathlib,
+        enforcer: r.enforcer,
+      };
+      const canonical = fullCertificate(r.proof, meta).trimEnd();
+      const keyInfo = signature && signatureKeyId
+        ? (Object.values(CERT_KEYS).find((k) => k.keyId === signatureKeyId) ?? CERT_KEYS.legacy)
+        : null;
+      const full = signature && keyInfo
+        ? buildSignedText(canonical, { signature, keyId: signatureKeyId!, publicKey: keyInfo.publicKey })
+        : canonical + '\n';
 
-  // Serve the stored signature over the rebuilt canonical bytes (header + proof).
-  // The header uses minute-resolution times, so the rebuilt bytes are identical
-  // to what was signed → the signature verifies. No signing key ⇒ unsigned cert.
-  let certificate = null;
-  if (hasProof) {
-    const canonical = fullCertificate(row.proof, meta).trimEnd();
-    const full = signature
-      ? buildSignedText(canonical, {
-          signature,
-          keyId: signatureKeyId ?? CERTIFICATE.keyId,
-          publicKey: CERTIFICATE.publicKey,
-        })
-      : canonical + '\n';
-    certificate = {
-      ...meta,
-      proof: row.proof,
-      full,
-      signature: signature ?? null,
-      keyId: signature ? (signatureKeyId ?? CERTIFICATE.keyId) : null,
-    };
-  }
+      return {
+        ...meta,
+        proof: r.proof,
+        full,
+        signature: signature ?? null,
+        keyId: signature ? signatureKeyId : null,
+      };
+    }),
+  );
 
   // `insight` (the key idea) is gated exactly like the answer — only present in
   // this unlocked payload, never in the public problem view. Null when absent.
@@ -93,7 +107,15 @@ async function buildUnlockedResponse(questionId: number, solved: boolean, gaveUp
       ? row.insight
       : null;
 
-  return { unlocked: true, solved, gaveUp, answer: row.answer, hasProof, insight, certificate };
+  return {
+    unlocked: true,
+    solved,
+    gaveUp,
+    answer: row.answer,
+    hasProof: certificates.length > 0,
+    insight,
+    certificates,
+  };
 }
 
 async function readSession(id: string) {
