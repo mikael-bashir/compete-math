@@ -194,7 +194,7 @@ function CertificatePanel({
         )}
 
         <p className="text-[10px] leading-relaxed text-white/40 border-t border-white/[0.06] pt-3">
-          <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30">{CERTIFICATE.prover}</a> found this proof and machine-checked it in Lean against the toolchain above:
+          <a href={CERTIFICATE.proverUrl} target="_blank" rel="noreferrer" className="text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-amber-400/30">{cert?.enforcer?.trim() || CERTIFICATE.prover}</a> found this proof and machine-checked it in Lean against the toolchain above:
           the stated answer follows from a script that compiles with no errors or unproven goals.
           The whole certificate — the proof included — is signed with CompeteMath&rsquo;s Ed25519
           key; altering any byte invalidates the signature, and it cannot be re-signed without the
