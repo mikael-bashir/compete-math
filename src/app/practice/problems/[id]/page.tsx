@@ -114,7 +114,7 @@ function CertificatePanel({
           <select
             value={certIndex}
             onChange={(e) => { onCertIndexChange(Number(e.target.value)); setVerify('idle'); }}
-            className="shrink-0 rounded-md border border-amber-400/25 bg-amber-500/[0.06] px-2 py-1 text-[10px] text-amber-200 font-mono"
+            className="shrink-0 rounded border border-amber-400/25 bg-amber-500/[0.06] px-1 py-0.5 text-[5px] text-amber-200 font-mono"
           >
             {certs.map((c, i) => (
               <option key={i} value={i} className="bg-[#141013]">
