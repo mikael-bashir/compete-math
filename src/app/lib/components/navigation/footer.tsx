@@ -19,6 +19,7 @@ const LINK_COLUMNS = [
     title: "Resources",
     links: [
       { label: "About", href: "/about" },
+      { label: "What is Leak?", href: "/about/leak" },
       { label: "FAQ", href: "/faq" },
       { label: "Contribute", href: "/contribute" },
       { label: "Donate", href: DONATE_URL, external: true },
