@@ -21,6 +21,9 @@ const REPO = {
   leakII: "https://github.com/mikael-bashir/leak-ii",
   leakIII: "https://github.com/mikael-bashir/leak-iii",
   leakIV: "https://github.com/mikael-bashir/leak-iv",
+  leakXI: "https://github.com/mikael-bashir/leak-xi",
+  leakXII: "https://github.com/mikael-bashir/leak-xii",
+  leakXIV: "https://github.com/mikael-bashir/leak-xiv",
 };
 
 export default function AboutLeakPage() {
@@ -117,13 +120,24 @@ export default function AboutLeakPage() {
       <section>
         <h2>The Leak services</h2>
         <p className="mt-3">
-          Every prover talks to the same set of MCP services. The deployments
-          are private — they are ours, and they cost real compute to run — but
-          the source is open, so you can read exactly what a prover is allowed
-          to ask for and what it gets back.
+          The provers do not talk to Lean directly. They talk to MCP services
+          that search the library, hold a live proof state, and compile. The
+          deployments are private — they are ours, and they cost real compute to
+          run — but the source is open, so you can read exactly what a prover is
+          allowed to ask for and what it gets back.
+        </p>
+        <p className="mt-4">
+          There are two of these groups, on two different versions of Lean, and
+          a proof is certified by whichever group its prover runs on. That is
+          not an accident of history we are hiding: a proof that compiles on one
+          Lean does not automatically compile on the other, so we keep the
+          groups separate and record which one signed off.
         </p>
 
-        <div className="mt-6 space-y-4">
+        <GroupLabel>
+          Lean 4.29.1 — Stronghold &amp; Finality
+        </GroupLabel>
+        <div className="mt-4 space-y-4">
           <Family name="Leak I" badge="Search" tone="slate" href={REPO.leakI}>
             Lemma search over Mathlib. A prover describes the shape of the
             result it needs and Leak&nbsp;I finds what already exists, so it
@@ -143,11 +157,34 @@ export default function AboutLeakPage() {
           </Family>
 
           <Family name="Leak IV" badge="Verification" tone="slate" href={REPO.leakIV}>
-            The gate. Leak&nbsp;IV compiles a complete proof script against
-            Lean&nbsp;4 and Mathlib and reports exactly what the kernel says. A
-            proof only counts as proved once this service accepts it — and it
-            rejects on warnings too, so an unfinished proof can never pass as a
-            finished one.
+            The gate for this group. Leak&nbsp;IV compiles a complete proof
+            script and reports exactly what the kernel says. A proof only counts
+            as proved once this service accepts it — and it rejects on warnings
+            too, so an unfinished proof can never pass as a finished one.
+          </Family>
+        </div>
+
+        <GroupLabel>Lean 4.32.0 — River &amp; Ultra</GroupLabel>
+        <div className="mt-4 space-y-4">
+          <Family name="Leak XI" badge="Search" tone="slate" href={REPO.leakXI}>
+            Library search for the newer toolchain — the counterpart of
+            Leak&nbsp;I, against the Mathlib these two provers actually build
+            on.
+          </Family>
+
+          <Family name="Leak XII" badge="Compile · elaborate" tone="slate" href={REPO.leakXII}>
+            The working compiler. River and Ultra design a proof as a dependency
+            graph, and Leak&nbsp;XII both compiles that graph and checks it is a
+            valid one — no cycles, no dead nodes, and an assembly that really
+            does derive the target from its parts. It also elaborates individual
+            declarations, so a prover can ask what a name actually means instead
+            of guessing.
+          </Family>
+
+          <Family name="Leak XIV" badge="Verification" tone="slate" href={REPO.leakXIV}>
+            The gate for this group — the same role Leak&nbsp;IV plays for the
+            other one. Nothing from River or Ultra counts as proved until
+            Leak&nbsp;XIV has certified the assembled proof.
           </Family>
         </div>
       </section>
@@ -162,6 +199,16 @@ const TONES: Record<string, string> = {
   slate: "border-white/15 text-white/45",
   muted: "border-white/10 text-white/30",
 };
+
+// Divider for the two verifier groups. Echoes the footer's column headings so
+// the split reads as structure rather than as a stray line of text.
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="font-code mt-8 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/35!">
+      {children}
+    </p>
+  );
+}
 
 // One prover family or service: name, a short status badge, the pitch, and a
 // link to its repository.
