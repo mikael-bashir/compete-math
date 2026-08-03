@@ -38,6 +38,8 @@ interface Detail {
   submission: { attemptsUsed: number; attemptsLeft: number; solved: boolean };
   solveCount: number;
   comments: Comment[];
+  discussionUnlocked: boolean;
+  commentCount: number;
   viewer: { username: string | null; isAdmin: boolean };
 }
 
@@ -105,6 +107,11 @@ export default function CommunityProblemPage({
         };
       });
 
+      // Finishing the problem (solved, or the last attempt used) unlocks the
+      // discussion, which the initial load withheld. Refetch to pull it in.
+      const nowDone = out.solved || out.noAttemptsLeft || (out.attemptsLeft ?? 1) <= 0;
+      if (nowDone && !data?.discussionUnlocked) load();
+
       if (out.solved) {
         toast.success("Correct — problem solved! 🎉");
         setAnswer("");
@@ -168,6 +175,11 @@ export default function CommunityProblemPage({
 
   const { problem, submission, solveCount, comments, viewer } = data;
   const { solved, attemptsLeft, attemptsUsed } = submission;
+  // The discussion is a spoiler — only shown once the viewer has finished the
+  // problem (solved or all attempts used); the server withholds the comment
+  // bodies until then. `discussionUnlocked` is authoritative (author/admin also
+  // unlock); fall back to the local completion state for older responses.
+  const discussionUnlocked = data.discussionUnlocked ?? (solved || attemptsLeft <= 0);
 
   return (
     <div className="min-h-screen bg-[#0a0f14] pt-24 pb-24">
@@ -290,63 +302,85 @@ export default function CommunityProblemPage({
           </div>
         )}
 
-        {/* Discussion — talk through how to tackle the problem */}
+        {/* Discussion — talk through how to tackle the problem. Hidden as a
+            spoiler guard until the viewer finishes the problem. */}
         <div className="flex items-center gap-3 mb-5">
           <MessageSquare className="w-4 h-4 text-white/40" />
           <h2 className="font-display text-lg text-white! font-semibold">
-            Discussion <span className="text-white/30 font-normal">· {comments.length}</span>
+            Discussion{" "}
+            <span className="text-white/30 font-normal">
+              {discussionUnlocked ? `· ${comments.length}` : <Lock className="inline w-3.5 h-3.5 -mt-0.5" />}
+            </span>
           </h2>
           <div className="h-px flex-1 bg-white/10" />
         </div>
 
-        <p className="font-code text-xs text-white/35 mb-5 -mt-2">
-          Discuss approaches and compare methods. Please don't post the final answer.
-        </p>
-
-        <div className="space-y-5 mb-8">
-          {comments.map((c) => (
-            <div key={c.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-5">
-              <div className="mb-2">
-                <UserChip username={c.author_username} badgeUrl={c.author_badge} size="sm" subtitle={timeAgo(c.created_at)} />
-              </div>
-              <div className="text-white/85 text-sm">
-                <MathMarkdown>{c.body}</MathMarkdown>
-              </div>
-            </div>
-          ))}
-          {comments.length === 0 && (
-            <div className="text-center py-10 border border-dashed border-white/10 rounded-xl">
-              <p className="font-code text-white/35 text-sm">No discussion yet — start the conversation.</p>
-            </div>
-          )}
-        </div>
-
-        {status === "authenticated" ? (
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5">
-            <textarea
-              value={commentBody}
-              onChange={(e) => setCommentBody(e.target.value)}
-              rows={3}
-              placeholder={"Share your approach. Markdown + LaTeX supported: $\\gcd(a,b)$"}
-              className="w-full bg-[#121a22] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-emerald-400/50 text-sm leading-relaxed resize-y mb-3"
-            />
-            <div className="flex justify-end">
-              <button
-                onClick={postComment}
-                disabled={postingComment || !commentBody.trim()}
-                className="font-code inline-flex items-center gap-2 px-5 py-2 rounded-lg border border-white/10 text-white/70 hover:text-emerald-200 hover:border-emerald-400/30 disabled:opacity-40 text-sm transition-all active:scale-95"
-              >
-                {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Post to discussion
-              </button>
-            </div>
+        {!discussionUnlocked ? (
+          <div className="text-center py-12 px-6 rounded-2xl border border-dashed border-white/12 bg-white/[0.02]">
+            <Lock className="w-6 h-6 text-white/30 mx-auto mb-4" />
+            <p className="font-display text-white/80 mb-1">The discussion is locked</p>
+            <p className="font-code text-sm text-white/40 max-w-md mx-auto">
+              It contains spoilers. Solve the problem — or use all {COMMUNITY_MAX_ATTEMPTS} attempts — to unlock the community's approaches
+              {data.commentCount > 0 ? ` (${data.commentCount} comment${data.commentCount === 1 ? "" : "s"} waiting)` : ""}.
+            </p>
+            {status !== "authenticated" && (
+              <Link href="/auth/login" className="font-code inline-block mt-4 text-emerald-300 hover:text-emerald-200 text-sm">
+                Sign in to attempt it →
+              </Link>
+            )}
           </div>
         ) : (
-          <div className="text-center py-6 rounded-xl border border-white/10 bg-white/[0.02]">
-            <Link href="/auth/login" className="font-code text-emerald-300 hover:text-emerald-200 text-sm">
-              Sign in to join the discussion →
-            </Link>
-          </div>
+          <>
+            <p className="font-code text-xs text-white/35 mb-5 -mt-2">
+              Discuss approaches and compare methods. Please don't post the final answer.
+            </p>
+
+            <div className="space-y-5 mb-8">
+              {comments.map((c) => (
+                <div key={c.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-5">
+                  <div className="mb-2">
+                    <UserChip username={c.author_username} badgeUrl={c.author_badge} size="sm" subtitle={timeAgo(c.created_at)} />
+                  </div>
+                  <div className="text-white/85 text-sm">
+                    <MathMarkdown>{c.body}</MathMarkdown>
+                  </div>
+                </div>
+              ))}
+              {comments.length === 0 && (
+                <div className="text-center py-10 border border-dashed border-white/10 rounded-xl">
+                  <p className="font-code text-white/35 text-sm">No discussion yet — start the conversation.</p>
+                </div>
+              )}
+            </div>
+
+            {status === "authenticated" ? (
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5">
+                <textarea
+                  value={commentBody}
+                  onChange={(e) => setCommentBody(e.target.value)}
+                  rows={3}
+                  placeholder={"Share your approach. Markdown + LaTeX supported: $\\gcd(a,b)$"}
+                  className="w-full bg-[#121a22] border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-emerald-400/50 text-sm leading-relaxed resize-y mb-3"
+                />
+                <div className="flex justify-end">
+                  <button
+                    onClick={postComment}
+                    disabled={postingComment || !commentBody.trim()}
+                    className="font-code inline-flex items-center gap-2 px-5 py-2 rounded-lg border border-white/10 text-white/70 hover:text-emerald-200 hover:border-emerald-400/30 disabled:opacity-40 text-sm transition-all active:scale-95"
+                  >
+                    {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Post to discussion
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-6 rounded-xl border border-white/10 bg-white/[0.02]">
+                <Link href="/auth/login" className="font-code text-emerald-300 hover:text-emerald-200 text-sm">
+                  Sign in to join the discussion →
+                </Link>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
