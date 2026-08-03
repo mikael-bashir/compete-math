@@ -59,21 +59,44 @@ export async function GET(
       WHERE problem_id = ${id} AND is_correct = TRUE;
     `;
 
-    const commentsRes = await sql`
-      SELECT c.id, c.author_username, c.body, c.created_at,
-             b."badgeUrl" AS author_badge
-      FROM community_comments c
-      LEFT JOIN users u ON u.username = c.author_username
-      LEFT JOIN badges b ON b."badgeName" = u."badgeSelected"
-      WHERE c.problem_id = ${id}
-      ORDER BY c.created_at ASC;
+    // The discussion is a spoiler: it must stay hidden until the viewer has
+    // finished with the problem, either by solving it or by using up every
+    // attempt (the "answer revealed" state). Admins and the problem's own
+    // author already know the answer, so they always see it. This gate is
+    // enforced HERE, not just in the UI — otherwise the comments would ship in
+    // the response body and leak to anyone reading the network tab.
+    const discussionUnlocked =
+      admin ||
+      row.author_username === username ||
+      submission.solved ||
+      submission.attemptsLeft <= 0;
+
+    // We still report how many comments exist (so the UI can say "N hidden"),
+    // but the bodies are withheld until unlocked.
+    const commentCountRes = await sql`
+      SELECT COUNT(*)::int AS n FROM community_comments WHERE problem_id = ${id};
     `;
+    let comments: unknown[] = [];
+    if (discussionUnlocked) {
+      const commentsRes = await sql`
+        SELECT c.id, c.author_username, c.body, c.created_at,
+               b."badgeUrl" AS author_badge
+        FROM community_comments c
+        LEFT JOIN users u ON u.username = c.author_username
+        LEFT JOIN badges b ON b."badgeName" = u."badgeSelected"
+        WHERE c.problem_id = ${id}
+        ORDER BY c.created_at ASC;
+      `;
+      comments = commentsRes.rows;
+    }
 
     return NextResponse.json({
       problem,
       submission,
       solveCount: solveCountRes.rows[0].n,
-      comments: commentsRes.rows,
+      comments,
+      discussionUnlocked,
+      commentCount: commentCountRes.rows[0].n,
       viewer: { username, isAdmin: admin },
     });
   } catch (error) {

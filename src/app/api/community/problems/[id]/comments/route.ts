@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
 import { auth } from "@/app/(auth)/auth";
+import { isAdminEmail, COMMUNITY_MAX_ATTEMPTS } from "@/app/lib/constants/site";
 
 // POST /api/community/problems/:id/comments  { body }
 // A problem-level discussion comment (where solvers compare approaches).
@@ -25,10 +26,30 @@ export async function POST(
     }
 
     const exists = await sql`
-      SELECT id FROM community_problems WHERE id = ${problemId} AND status = 'approved';
+      SELECT id, author_username FROM community_problems WHERE id = ${problemId} AND status = 'approved';
     `;
     if (exists.rowCount === 0) {
       return NextResponse.json({ error: "Problem not found" }, { status: 404 });
+    }
+
+    // You can only post to a discussion you're allowed to read: the viewer must
+    // have finished the problem (solved, or all attempts used) — or be the
+    // author/admin. Mirrors the read gate in the GET route so nobody can seed
+    // spoilers into a discussion that's still locked for them.
+    const admin = isAdminEmail(session.user.email);
+    if (!admin && exists.rows[0].author_username !== session.user.username) {
+      const subRes = await sql`
+        SELECT attempt_count, is_correct FROM community_submissions
+        WHERE problem_id = ${problemId} AND username = ${session.user.username};
+      `;
+      const used = (subRes.rows[0]?.attempt_count as number) ?? 0;
+      const solved = (subRes.rows[0]?.is_correct as boolean) ?? false;
+      if (!solved && used < COMMUNITY_MAX_ATTEMPTS) {
+        return NextResponse.json(
+          { error: "Solve the problem (or use all your attempts) to join the discussion." },
+          { status: 403 },
+        );
+      }
     }
 
     const result = await sql`
