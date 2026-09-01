@@ -1,0 +1,235 @@
+% ============================================================
+%  Core formal-methods and proof-assistant infrastructure
+% ============================================================
+
+@inproceedings{demoura2021lean4,
+  author    = {Leonardo de Moura and Sebastian Ullrich},
+  title     = {The {Lean} 4 Theorem Prover and Programming Language},
+  booktitle = {Automated Deduction -- CADE 28},
+  publisher = {Springer},
+  year      = {2021}
+}
+
+@inproceedings{mathlib2020,
+  author    = {{The mathlib Community}},
+  title     = {The {Lean} Mathematical Library},
+  booktitle = {Proceedings of the 9th ACM SIGPLAN International Conference on Certified Programs and Proofs (CPP)},
+  year      = {2020}
+}
+
+@misc{aniva2024pantograph,
+  author    = {Leni Aniva and Chuyue Sun and Brando Miranda and Clark Barrett and Sanmi Koyejo},
+  title     = {Pantograph: A Machine-to-Machine Interaction Interface for Advanced Theorem Proving, High Level Reasoning, and Data Extraction in {Lean} 4},
+  year      = {2024},
+  eprint    = {2410.16429},
+  eprinttype = {arxiv}
+}
+
+@misc{pypantograph,
+  author       = {{Stanford Centaur}},
+  title        = {{PyPantograph}: A {Python} Interface to the {Pantograph} {Lean}~4 Interaction Engine},
+  year         = {2025},
+  howpublished = {\url{https://github.com/stanford-centaur/PyPantograph}},
+  note         = {Accessed 2026-08-01}
+}
+
+@misc{leakii2026upgrade,
+  author  = {Mikael Bashir},
+  title   = {{Leak-II}: A Ghost-Daemon Snapshot Layer over {PyPantograph}},
+  date    = {2026-08-15},
+  url     = {https://github.com/mikael-bashir/Leak-II},
+  urldate = {2026-08-15},
+  note    = {Latest copy of Leak-II, current as of the access date}
+}
+
+@inproceedings{limperg2023aesop,
+  author    = {Jannis Limperg and Asta Halkj{\ae}r From},
+  title     = {Aesop: White-Box Best-First Proof Search for {Lean}},
+  booktitle = {Proceedings of the 12th ACM SIGPLAN International Conference on Certified Programs and Proofs (CPP)},
+  year      = {2023}
+}
+
+@misc{loogle,
+  author       = {Joachim Breitner},
+  title        = {Loogle: Expression Search for {Mathlib}},
+  howpublished = {\url{https://loogle.lean-lang.org/}},
+  year         = {2024}
+}
+
+@misc{moogle,
+  author       = {{Morph Labs}},
+  title        = {Moogle: Semantic Search over {Mathlib}},
+  howpublished = {\url{https://www.moogle.ai/}},
+  year         = {2024}
+}
+
+@misc{cook_formalmethods,
+  author       = {John D. Cook},
+  title        = {Formal Methods},
+  year         = {2026},
+  howpublished = {\url{https://www.johndcook.com/blog/tag/formal-methods/}},
+  note         = {Collected commentary on the practical economics of formal verification}
+}
+
+% ============================================================
+%  Proof-state execution: snapshotting, REPL and LSP interfaces
+% ============================================================
+
+@misc{shen2026snapshot,
+  author     = {Austin Shen and Yunong Shi},
+  title      = {Keep the Proof State Live: Snapshotting for Efficient Tactic Search in {Lean} 4},
+  year       = {2026},
+  eprint     = {2605.25556},
+  eprinttype = {arxiv},
+  note       = {Reports elaboration overhead exceeding 99\% of per-branch wall time, and 5.6--50$\times$ speedups from state reuse}
+}
+
+% ============================================================
+%  Neural and agentic theorem proving
+% ============================================================
+
+@misc{deepseekproverv2,
+  author     = {Z. Z. Ren and Zhihong Shao and Junxiao Song and Huajian Xin and Haocheng Wang and Wanjia Zhao and others},
+  title      = {{DeepSeek-Prover-V2}: Advancing Formal Mathematical Reasoning via Reinforcement Learning for Subgoal Decomposition},
+  year       = {2025},
+  eprint     = {2504.21801},
+  eprinttype = {arxiv}
+}
+
+@misc{alphaproof2024,
+  author       = {{Google DeepMind}},
+  title        = {{AI} achieves silver-medal standard solving {International Mathematical Olympiad} problems},
+  year         = {2024},
+  howpublished = {\url{https://deepmind.google/discover/blog/ai-solves-imo-problems-at-silver-medal-level/}}
+}
+
+@inproceedings{lample2022hypertree,
+  author    = {Guillaume Lample and Marie-Anne Lachaux and Thibaut Lavril and Xavier Martinet and Amaury Hayat and Gabriel Ebner and Aur{\'e}lien Rodriguez and Timoth{\'e}e Lacroix},
+  title     = {{HyperTree} Proof Search for Neural Theorem Proving},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2022}
+}
+
+@misc{davis2025goedelspoetry,
+  author     = {Kelly J. Davis},
+  title      = {G{\"o}del's Poetry},
+  year       = {2025},
+  eprint     = {2512.14252},
+  eprinttype = {arxiv},
+  note       = {Recursive proof decomposition over an AST-extended {Kimina} {Lean} server; reports 90.4\% on {miniF2F} without decomposition}
+}
+
+@misc{decomposition_openreview,
+  author       = {{Anonymous}},
+  title        = {Submission 3bD19r4jqh: Subgoal Decomposition for Neural Theorem Proving},
+  year         = {2025},
+  howpublished = {\url{https://openreview.net/pdf?id=3bD19r4jqh}},
+  note         = {Bibliographic details to be completed; OpenReview record was not machine-retrievable at time of writing}
+}
+
+@misc{leancollab2026,
+  author       = {Sai Vegasena},
+  title        = {{lean-collab}: A Multi-Agent Decomposition Harness for {Lean}~4},
+  year         = {2026},
+  howpublished = {\url{https://github.com/mutable-state-inc/lean-collab}},
+  note         = {MIT licensed; source of the skeleton-first validation and embedding-based circularity-check designs discussed in this paper}
+}
+
+@misc{leanstral2026,
+  author       = {{Mistral AI}},
+  title        = {{Leanstral}~1.5: A Proof-Engineering System for {Lean}~4},
+  year         = {2026},
+  howpublished = {\url{https://mistral.ai/news/leanstral-1-5/}}
+}
+
+% ============================================================
+%  Agent architecture and tool use
+% ============================================================
+
+@inproceedings{yao2023react,
+  author     = {Shunyu Yao and Jeffrey Zhao and Dian Yu and Nan Du and Izhak Shafran and Karthik Narasimhan and Yuan Cao},
+  title      = {{ReAct}: Synergizing Reasoning and Acting in Language Models},
+  booktitle  = {International Conference on Learning Representations (ICLR)},
+  year       = {2023},
+  eprint     = {2210.03629},
+  eprinttype = {arxiv}
+}
+
+@misc{zywot2025smallagents,
+  author     = {Agata {\.Z}ywot and Xinyi Chen and Maarten de Rijke},
+  title      = {Can Small Agent Collaboration Beat a Single Big {LLM}?},
+  year       = {2025},
+  eprint     = {2601.11327},
+  eprinttype = {arxiv},
+  note       = {Reports that tool augmentation yields larger and more consistent gains than parameter scaling, with 4B tool-using agents outperforming 32B tool-free baselines}
+}
+
+@misc{anthropic2024mcp,
+  author       = {{Anthropic}},
+  title        = {Introducing the {Model Context Protocol}},
+  year         = {2024},
+  howpublished = {\url{https://www.anthropic.com/news/model-context-protocol}}
+}
+
+@misc{owasp2025agentic,
+  author       = {{OWASP GenAI Security Project}},
+  title        = {{OWASP} Top 10 for Agentic Applications},
+  year         = {2025},
+  howpublished = {\url{https://genai.owasp.org/}}
+}
+
+% ============================================================
+%  Foundation models used in this work
+% ============================================================
+
+@misc{anthropic2026sonnet5,
+  author       = {{Anthropic}},
+  title        = {{Claude} {Sonnet}~5},
+  year         = {2026},
+  howpublished = {\url{https://www.anthropic.com/news/claude-sonnet-5}}
+}
+
+@misc{xai2025grok41,
+  author       = {{xAI}},
+  title        = {{Grok}~4.1},
+  year         = {2025},
+  howpublished = {\url{https://x.ai/news/grok-4-1}}
+}
+
+% ============================================================
+%  Benchmarks and evaluation
+% ============================================================
+
+@misc{fatex2025,
+  author       = {{Frenzy Math}},
+  title        = {{FATE-X}: Formal Algebra Theorem Evaluation --- Extra Hard},
+  year         = {2025},
+  howpublished = {\url{https://github.com/frenzymath/FATE-X/tree/main/FATEX}},
+  note         = {100 Lean-formalised abstract- and commutative-algebra exercises intended to exceed PhD qualifying-exam difficulty and Mathlib coverage}
+}
+
+@misc{benchmarklist_fatex,
+  author       = {{BenchmarkList}},
+  title        = {{FATE-X} Benchmark Leaderboard},
+  year         = {2026},
+  howpublished = {\url{https://benchmarklist.com/benchmarks/fate_x/}},
+  note         = {Accessed 2026-08-01}
+}
+
+% ============================================================
+%  Deployment infrastructure
+% ============================================================
+
+@misc{hfspaces,
+  author       = {{Hugging Face}},
+  title        = {{Spaces} Overview},
+  year         = {2026},
+  howpublished = {\url{https://huggingface.co/docs/hub/en/spaces-overview}}
+}
+
+@misc{competemath,
+  author       = {{CompeteMath}},
+  title        = {{CompeteMath} Practice Arena},
+  year         = {2026},
+  howpublished = {\url{https://www.competemath.com/practice}}
+}

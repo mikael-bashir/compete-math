@@ -1,0 +1,1107 @@
+Rc files read:
+  NONE
+Latexmk: This is Latexmk, John Collins, 31 Jan. 2024. Version 4.83.
+No existing .aux file, so I'll make a simple one, and require run of *latex.
+Latexmk: applying rule 'pdflatex'...
+Rule 'pdflatex':  Reasons for rerun
+Category 'other':
+  Rerun of 'pdflatex' forced or previously required:
+    Reason or flag: 'Initial setup'
+
+------------
+Run number 1 of rule 'pdflatex'
+------------
+------------
+Running 'pdflatex  -interaction=nonstopmode -recorder  "leak-whitepaper.tex"'
+------------
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+(./leak-whitepaper.tex
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-02-20>
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/article.cls
+Document Class: article 2023/05/17 v1.4n Standard LaTeX document class
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/size12.clo))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/inputenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/fontenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/lmodern.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/keyval.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype-pdftex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype.cfg))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsgen.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amssymb.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amsfonts.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amscls/amsthm.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/graphicx.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/graphics.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/trig.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/graphics.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-def/pdftex.def)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/booktabs/booktabs.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/array.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/longtable.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/listings.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/lstpatch.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/lstmisc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/listings.cfg))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/xcolor/xcolor.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/mathcolor.ltx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/enumitem/enumitem.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/titlesec/titlesec.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/abstract/abstract.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/caption.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/caption3.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/ltcaption.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/float/float.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/geometry/geometry.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/ifvtex.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/iftex.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/infwarerr/infwarerr.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvoptions/kvoptions.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/logreq/logreq.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/logreq/logreq.def))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/url/url.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-dm.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-compat.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/bbx/numeric.bbx
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/bbx/standard.bbx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/cbx/numeric.cbx)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3kernel/expl3.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-case-expl3.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3packages/xparse/xparse.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdfescape/pdfescape.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/auxhook/auxhook.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/gettitlestring/gettitlestring.s
+ty)) (/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/puenc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+
+(/usr/local/texlive/2024/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+))) (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/t1lmr.fd)
+(./leak-whitepaper.aux)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-cmr.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+) (/usr/local/texlive/2024/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg))
+*geometry* driver: auto-detecting
+*geometry* detected driver: pdftex
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/lbx/english.lbx)
+No file leak-whitepaper.bbl.
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ot1lmr.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omllmm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omslmsy.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omxlmex.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-msa.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-msb.cfg) [1{/usr/loc
+al/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/local/texliv
+e/2024/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}{/usr/local/texlive/2024/texmf-d
+ist/fonts/enc/dvips/lm/lm-rm.enc}]
+No file leak-whitepaper.toc.
+[2]
+
+LaTeX Warning: Reference `sec:gen1-arch' on page 3 undefined on input line 197.
+
+
+
+LaTeX Warning: Reference `sec:failure' on page 3 undefined on input line 197.
+
+
+LaTeX Warning: Reference `sec:gen2-arch' on page 3 undefined on input line 203.
+
+
+
+LaTeX Warning: Reference `sec:gen2-results' on page 3 undefined on input line 2
+03.
+
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/t1lmtt.fd)
+
+LaTeX Warning: Reference `sec:failure' on page 3 undefined on input line 238.
+
+[3{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}{/usr/lo
+cal/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc}]
+Underfull \hbox (badness 10000) in paragraph at lines 288--288
+[]|\T1/lmr/m/n/12 (+20) Context
+
+Underfull \hbox (badness 10000) in paragraph at lines 289--289
+[]|\T1/lmr/m/n/12 (+20) Inference eco-
+
+Underfull \hbox (badness 10000) in paragraph at lines 291--291
+[]|\T1/lmr/bx/n/12 (+20) Grok 3
+
+Underfull \hbox (badness 10000) in paragraph at lines 295--296
+[]|\T1/lmr/m/n/12 (+20) High-frequency
+
+Underfull \hbox (badness 3590) in paragraph at lines 295--296
+\T1/lmr/m/n/12 (+20) heuris-tic gen-er-a-
+
+Underfull \hbox (badness 10000) in paragraph at lines 299--299
+\T1/lmr/m/n/12 (+20) out ($0.20
+
+Underfull \hbox (badness 10000) in paragraph at lines 300--301
+[]|\T1/lmr/m/n/12 (+20) Deep al-ge-braic
+
+Underfull \hbox (badness 7777) in paragraph at lines 300--301
+\T1/lmr/m/n/12 (+20) rea-son-ing, long-
+
+Overfull \hbox (45.77357pt too wide) in paragraph at lines 286--303
+ [][] 
+[4] (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ts1lmr.fd) [5{/usr/local/t
+exlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}]
+Underfull \hbox (badness 10000) in paragraph at lines 363--363
+[]|\T1/lmr/bx/n/12 (+20) State man-age-
+
+Underfull \hbox (badness 7168) in paragraph at lines 364--364
+[]|\T1/lmr/bx/n/12 (+20) Compute over-
+
+Underfull \hbox (badness 10000) in paragraph at lines 364--364
+[]|\T1/lmr/m/n/12 (+20) High (par-al-lel eval-u-a-tion,
+
+Underfull \hbox (badness 10000) in paragraph at lines 365--365
+[]|\T1/lmr/bx/n/12 (+20) Context re-ten-
+
+Underfull \hbox (badness 6641) in paragraph at lines 365--365
+[]|\T1/lmr/m/n/12 (+20) Shallow, frag-mented across
+
+Overfull \hbox (13.23811pt too wide) in paragraph at lines 359--369
+ [][] 
+
+LaTeX Warning: Reference `sec:gen2-arch' on page 6 undefined on input line 377.
+
+
+[6]
+Overfull \hbox (81.40335pt too wide) in paragraph at lines 413--421
+\T1/lmr/m/n/12 (-20) Pan-to-graph, ex-pos-ing \T1/lmtt/m/n/12 init_proof\T1/lmr
+/m/n/12 (-20) , \T1/lmtt/m/n/12 apply_tactic\T1/lmr/m/n/12 (-20) , \T1/lmtt/m/n
+/12 get_current_proof_state\T1/lmr/m/n/12 (-20) , \T1/lmtt/m/n/12 verify_full_s
+cript\T1/lmr/m/n/12 (-20) ,
+
+LaTeX Warning: Reference `sec:gen2-arch' on page 7 undefined on input line 444.
+
+
+[7] [8 <./proof_1.png (PNG copy)> <./proof_3.png (PNG copy)>]
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ot1lmss.fd) [9 <./proof_2.png 
+(PNG copy)> <./proof_4.png (PNG copy)>]
+Overfull \hbox (42.66533pt too wide) in paragraph at lines 547--558
+ [][] 
+[10 <./proof_5.png (PNG copy)>] [11]
+
+LaTeX Warning: Reference `sec:have' on page 12 undefined on input line 680.
+
+
+LaTeX Warning: Reference `sec:have-tree' on page 12 undefined on input line 680
+.
+
+[12]
+Overfull \hbox (12.92699pt too wide) in paragraph at lines 696--701
+[]\T1/lmr/bx/n/12 (-20) Leak-II \T1/lmr/m/n/12 (-20) (Pan-to-graph) re-mains th
+e in-ter-ac-tive workspace: \T1/lmtt/m/n/12 init_proof \T1/lmr/m/n/12 (-20) / \
+T1/lmtt/m/n/12 apply_tactic
+
+LaTeX Warning: Reference `sec:failure' on page 13 undefined on input line 707.
+
+[13] [14]
+
+LaTeX Warning: Reference `lst:skeleton' on page 15 undefined on input line 829.
+
+
+
+LaTeX Warning: Reference `sec:gen2-results' on page 15 undefined on input line 
+831.
+
+[15]
+Overfull \hbox (34.93903pt too wide) in paragraph at lines 893--905
+ [][] 
+[16]
+
+LaTeX Warning: Reference `lst:rouche' on page 17 undefined on input line 954.
+
+[17{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathex.enc}]
+
+LaTeX Warning: Reference `lst:skeleton' on page 18 undefined on input line 990.
+
+
+
+Underfull \hbox (badness 5787) in paragraph at lines 1021--1021
+[]|\T1/lmr/bx/n/12 (+20) Reasoning en-
+
+Underfull \hbox (badness 10000) in paragraph at lines 1021--1022
+[]|\T1/lmr/m/n/12 (+20) Claude (Opus-class fron-tier),
+
+Underfull \hbox (badness 10000) in paragraph at lines 1023--1024
+[]|\T1/lmr/m/n/12 (+20) Wall-clock bud-gets, live-
+
+LaTeX Warning: Reference `sec:failure' on page 18 undefined on input line 1024.
+
+
+
+Underfull \hbox (badness 1024) in paragraph at lines 1025--1026
+[]|\T1/lmtt/m/n/12 have\T1/lmr/m/n/12 (+20) -flat, have-tree (plan-ner /
+
+Underfull \hbox (badness 10000) in paragraph at lines 1026--1027
+[]|\T1/lmr/m/n/12 (+20) Governor-rationed; al-lowance
+
+Underfull \hbox (badness 10000) in paragraph at lines 1028--1028
+[]|\T1/lmr/bx/n/12 (+20) Hardest ver-i-
+
+Overfull \hbox (13.23767pt too wide) in paragraph at lines 1017--1032
+ [][] 
+[18]
+
+LaTeX Warning: Reference `sec:no-trees' on page 19 undefined on input line 1038
+.
+
+[19]
+
+LaTeX Warning: Reference `sec:gen2-results' on page 20 undefined on input line 
+1094.
+
+[20]
+
+LaTeX Warning: Empty bibliography on input line 1131.
+
+[21] (./leak-whitepaper.aux)
+
+LaTeX Warning: There were undefined references.
+
+
+LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
+
+
+Package rerunfilecheck Warning: File `leak-whitepaper.out' has changed.
+(rerunfilecheck)                Rerun to get outlines right
+(rerunfilecheck)                or use package `bookmark'.
+
+
+Package biblatex Warning: Please (re)run Biber on the file:
+(biblatex)                leak-whitepaper
+(biblatex)                and rerun LaTeX afterwards.
+
+ )
+(see the transcript file for additional information)</usr/local/texlive/2024/te
+xmf-dist/fonts/type1/public/lm/lmbx10.pfb></usr/local/texlive/2024/texmf-dist/f
+onts/type1/public/lm/lmbx12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1
+/public/lm/lmex10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm
+/lmmi12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmmi8.pfb
+></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr10.pfb></usr/loca
+l/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr12.pfb></usr/local/texlive/2
+024/texmf-dist/fonts/type1/public/lm/lmr6.pfb></usr/local/texlive/2024/texmf-di
+st/fonts/type1/public/lm/lmr8.pfb></usr/local/texlive/2024/texmf-dist/fonts/typ
+e1/public/lm/lmri10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/
+lm/lmri12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmss12.
+pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmsy10.pfb></usr/
+local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmsy8.pfb></usr/local/texli
+ve/2024/texmf-dist/fonts/type1/public/lm/lmtk10.pfb></usr/local/texlive/2024/te
+xmf-dist/fonts/type1/public/lm/lmtt10.pfb></usr/local/texlive/2024/texmf-dist/f
+onts/type1/public/lm/lmtt12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1
+/public/lm/lmtti10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/a
+msfonts/symbols/msbm10.pfb>
+Output written on leak-whitepaper.pdf (21 pages, 458257 bytes).
+Transcript written on leak-whitepaper.log.
+Latexmk: Missing bbl file 'leak-whitepaper.bbl' in following:
+ No file leak-whitepaper.bbl.
+Latexmk: Missing input file 'leak-whitepaper.toc' (or dependence on it) from following:
+  No file leak-whitepaper.toc.
+Latexmk: Getting log file 'leak-whitepaper.log'
+Latexmk: Examining 'leak-whitepaper.fls'
+Latexmk: Examining 'leak-whitepaper.log'
+Latexmk: References changed.
+Latexmk: References changed.
+Latexmk: Log file says output to 'leak-whitepaper.pdf'
+Latexmk: Bibliography file(s) from .bcf file:
+  sample.bib
+Latexmk: applying rule 'biber leak-whitepaper'...
+Rule 'biber leak-whitepaper':  Reasons for rerun
+Category 'other':
+  Rerun of 'biber leak-whitepaper' forced or previously required:
+    Reason or flag: 'Initial set up of rule'
+
+------------
+Run number 1 of rule 'biber leak-whitepaper'
+------------
+------------
+Running 'biber  "leak-whitepaper.bcf"'
+------------
+INFO - This is Biber 2.19
+INFO - Logfile is 'leak-whitepaper.blg'
+INFO - Reading 'leak-whitepaper.bcf'
+INFO - Using all citekeys in bib section 0
+INFO - Processing section 0
+INFO - Looking for bibtex file 'sample.bib' for section 0
+INFO - LaTeX decoding ...
+INFO - Found BibTeX data source 'sample.bib'
+INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+INFO - Sorting list 'nty/global//global/global' of type 'entry' with template 'nty' and locale 'en-US'
+INFO - No sort tailoring available for locale 'en-US'
+INFO - Writing 'leak-whitepaper.bbl' with encoding 'UTF-8'
+INFO - Output to leak-whitepaper.bbl
+Latexmk: Found biber source file(s) [leak-whitepaper.bcf, sample.bib]
+Latexmk: applying rule 'pdflatex'...
+Rule 'pdflatex':  Reasons for rerun
+Changed files or newly in use/created:
+  leak-whitepaper.aux
+  leak-whitepaper.bbl
+  leak-whitepaper.out
+  leak-whitepaper.toc
+
+------------
+Run number 2 of rule 'pdflatex'
+------------
+------------
+Running 'pdflatex  -interaction=nonstopmode -recorder  "leak-whitepaper.tex"'
+------------
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+(./leak-whitepaper.tex
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-02-20>
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/article.cls
+Document Class: article 2023/05/17 v1.4n Standard LaTeX document class
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/size12.clo))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/inputenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/fontenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/lmodern.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/keyval.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype-pdftex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype.cfg))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsgen.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amssymb.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amsfonts.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amscls/amsthm.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/graphicx.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/graphics.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/trig.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/graphics.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-def/pdftex.def)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/booktabs/booktabs.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/array.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/longtable.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/listings.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/lstpatch.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/lstmisc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/listings.cfg))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/xcolor/xcolor.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/mathcolor.ltx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/enumitem/enumitem.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/titlesec/titlesec.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/abstract/abstract.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/caption.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/caption3.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/ltcaption.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/float/float.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/geometry/geometry.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/ifvtex.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/iftex.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/infwarerr/infwarerr.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvoptions/kvoptions.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/logreq/logreq.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/logreq/logreq.def))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/url/url.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-dm.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-compat.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/bbx/numeric.bbx
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/bbx/standard.bbx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/cbx/numeric.cbx)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3kernel/expl3.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-case-expl3.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3packages/xparse/xparse.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdfescape/pdfescape.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/auxhook/auxhook.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/gettitlestring/gettitlestring.s
+ty)) (/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/puenc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+
+(/usr/local/texlive/2024/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+))) (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/t1lmr.fd)
+(./leak-whitepaper.aux)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-cmr.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+) (/usr/local/texlive/2024/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg))
+*geometry* driver: auto-detecting
+*geometry* detected driver: pdftex
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/lbx/english.lbx)
+(./leak-whitepaper.bbl) (./leak-whitepaper.out) (./leak-whitepaper.out)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ot1lmr.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omllmm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omslmsy.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omxlmex.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-msa.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-msb.cfg) [1{/usr/loc
+al/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/local/texliv
+e/2024/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}{/usr/local/texlive/2024/texmf-d
+ist/fonts/enc/dvips/lm/lm-rm.enc}] (./leak-whitepaper.toc
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/t1lmtt.fd)) [2] [3] [4{/usr/lo
+cal/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}{/usr/local/texliv
+e/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc}]
+Underfull \hbox (badness 10000) in paragraph at lines 288--288
+[]|\T1/lmr/m/n/12 (+20) Context
+
+Underfull \hbox (badness 10000) in paragraph at lines 289--289
+[]|\T1/lmr/m/n/12 (+20) Inference eco-
+
+Underfull \hbox (badness 10000) in paragraph at lines 291--291
+[]|\T1/lmr/bx/n/12 (+20) Grok 3
+
+Underfull \hbox (badness 10000) in paragraph at lines 295--296
+[]|\T1/lmr/m/n/12 (+20) High-frequency
+
+Underfull \hbox (badness 3590) in paragraph at lines 295--296
+\T1/lmr/m/n/12 (+20) heuris-tic gen-er-a-
+
+Underfull \hbox (badness 10000) in paragraph at lines 299--299
+\T1/lmr/m/n/12 (+20) out ($0.20
+
+Underfull \hbox (badness 10000) in paragraph at lines 300--301
+[]|\T1/lmr/m/n/12 (+20) Deep al-ge-braic
+
+Underfull \hbox (badness 7777) in paragraph at lines 300--301
+\T1/lmr/m/n/12 (+20) rea-son-ing, long-
+
+Overfull \hbox (45.77357pt too wide) in paragraph at lines 286--303
+ [][] 
+[5] (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ts1lmr.fd) [6{/usr/local/t
+exlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}]
+Underfull \hbox (badness 10000) in paragraph at lines 363--363
+[]|\T1/lmr/bx/n/12 (+20) State man-age-
+
+Underfull \hbox (badness 7168) in paragraph at lines 364--364
+[]|\T1/lmr/bx/n/12 (+20) Compute over-
+
+Underfull \hbox (badness 10000) in paragraph at lines 364--364
+[]|\T1/lmr/m/n/12 (+20) High (par-al-lel eval-u-a-tion,
+
+Underfull \hbox (badness 10000) in paragraph at lines 365--365
+[]|\T1/lmr/bx/n/12 (+20) Context re-ten-
+
+Underfull \hbox (badness 6641) in paragraph at lines 365--365
+[]|\T1/lmr/m/n/12 (+20) Shallow, frag-mented across
+
+Overfull \hbox (13.23811pt too wide) in paragraph at lines 359--369
+ [][] 
+[7]
+Overfull \hbox (81.40335pt too wide) in paragraph at lines 413--421
+\T1/lmr/m/n/12 (-20) Pan-to-graph, ex-pos-ing \T1/lmtt/m/n/12 init_proof\T1/lmr
+/m/n/12 (-20) , \T1/lmtt/m/n/12 apply_tactic\T1/lmr/m/n/12 (-20) , \T1/lmtt/m/n
+/12 get_current_proof_state\T1/lmr/m/n/12 (-20) , \T1/lmtt/m/n/12 verify_full_s
+cript\T1/lmr/m/n/12 (-20) ,
+[8] [9 <./proof_1.png (PNG copy)> <./proof_3.png (PNG copy)>]
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ot1lmss.fd) [10 <./proof_2.png
+ (PNG copy)> <./proof_4.png (PNG copy)>]
+Overfull \hbox (42.66533pt too wide) in paragraph at lines 547--558
+ [][] 
+[11 <./proof_5.png (PNG copy)>] [12] [13]
+Overfull \hbox (12.92699pt too wide) in paragraph at lines 696--701
+[]\T1/lmr/bx/n/12 (-20) Leak-II \T1/lmr/m/n/12 (-20) (Pan-to-graph) re-mains th
+e in-ter-ac-tive workspace: \T1/lmtt/m/n/12 init_proof \T1/lmr/m/n/12 (-20) / \
+T1/lmtt/m/n/12 apply_tactic
+[14] [15] [16]
+Overfull \hbox (34.93903pt too wide) in paragraph at lines 893--905
+ [][] 
+[17] [18{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathex.enc}]
+Underfull \hbox (badness 5787) in paragraph at lines 1021--1021
+[]|\T1/lmr/bx/n/12 (+20) Reasoning en-
+
+Underfull \hbox (badness 10000) in paragraph at lines 1021--1022
+[]|\T1/lmr/m/n/12 (+20) Claude (Opus-class fron-tier),
+
+Underfull \hbox (badness 10000) in paragraph at lines 1023--1024
+[]|\T1/lmr/m/n/12 (+20) Wall-clock bud-gets, live-
+
+Underfull \hbox (badness 1024) in paragraph at lines 1025--1026
+[]|\T1/lmtt/m/n/12 have\T1/lmr/m/n/12 (+20) -flat, have-tree (plan-ner /
+
+Underfull \hbox (badness 10000) in paragraph at lines 1026--1027
+[]|\T1/lmr/m/n/12 (+20) Governor-rationed; al-lowance
+
+Underfull \hbox (badness 10000) in paragraph at lines 1028--1028
+[]|\T1/lmr/bx/n/12 (+20) Hardest ver-i-
+
+Overfull \hbox (13.23767pt too wide) in paragraph at lines 1017--1032
+ [][] 
+[19] [20] [21] [22] (./leak-whitepaper.aux)
+
+LaTeX Warning: There were undefined references.
+
+
+LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
+
+
+Package biblatex Warning: Please rerun LaTeX.
+
+ )
+(see the transcript file for additional information)</usr/local/texlive/2024/te
+xmf-dist/fonts/type1/public/lm/lmbx10.pfb></usr/local/texlive/2024/texmf-dist/f
+onts/type1/public/lm/lmbx12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1
+/public/lm/lmex10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm
+/lmmi12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmmi8.pfb
+></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr10.pfb></usr/loca
+l/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr12.pfb></usr/local/texlive/2
+024/texmf-dist/fonts/type1/public/lm/lmr6.pfb></usr/local/texlive/2024/texmf-di
+st/fonts/type1/public/lm/lmr8.pfb></usr/local/texlive/2024/texmf-dist/fonts/typ
+e1/public/lm/lmri10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/
+lm/lmri12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmss12.
+pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmsy10.pfb></usr/
+local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmsy8.pfb></usr/local/texli
+ve/2024/texmf-dist/fonts/type1/public/lm/lmtk10.pfb></usr/local/texlive/2024/te
+xmf-dist/fonts/type1/public/lm/lmtt10.pfb></usr/local/texlive/2024/texmf-dist/f
+onts/type1/public/lm/lmtt12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1
+/public/lm/lmtti10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/a
+msfonts/symbols/msbm10.pfb>
+Output written on leak-whitepaper.pdf (22 pages, 473452 bytes).
+Transcript written on leak-whitepaper.log.
+Latexmk: Getting log file 'leak-whitepaper.log'
+Latexmk: Examining 'leak-whitepaper.fls'
+Latexmk: Examining 'leak-whitepaper.log'
+Latexmk: Found input bbl file 'leak-whitepaper.bbl'
+Latexmk: References changed.
+Latexmk: Log file says output to 'leak-whitepaper.pdf'
+Latexmk: Bibliography file(s) from .bcf file:
+  sample.bib
+Latexmk: applying rule 'pdflatex'...
+Rule 'pdflatex':  Reasons for rerun
+Changed files or newly in use/created:
+  leak-whitepaper.aux
+  leak-whitepaper.run.xml
+  leak-whitepaper.toc
+
+------------
+Run number 3 of rule 'pdflatex'
+------------
+------------
+Running 'pdflatex  -interaction=nonstopmode -recorder  "leak-whitepaper.tex"'
+------------
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+(./leak-whitepaper.tex
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-02-20>
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/article.cls
+Document Class: article 2023/05/17 v1.4n Standard LaTeX document class
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/size12.clo))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/inputenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/fontenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/lmodern.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/keyval.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype-pdftex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype.cfg))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsgen.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amssymb.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amsfonts.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amscls/amsthm.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/graphicx.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/graphics.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/trig.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/graphics.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-def/pdftex.def)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/booktabs/booktabs.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/array.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/longtable.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/listings.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/lstpatch.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/lstmisc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/listings.cfg))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/xcolor/xcolor.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/mathcolor.ltx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/enumitem/enumitem.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/titlesec/titlesec.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/abstract/abstract.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/caption.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/caption3.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/ltcaption.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/float/float.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/geometry/geometry.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/ifvtex.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/iftex.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/infwarerr/infwarerr.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvoptions/kvoptions.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/logreq/logreq.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/logreq/logreq.def))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/url/url.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-dm.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-compat.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/bbx/numeric.bbx
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/bbx/standard.bbx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/cbx/numeric.cbx)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3kernel/expl3.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-case-expl3.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3packages/xparse/xparse.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdfescape/pdfescape.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/auxhook/auxhook.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/gettitlestring/gettitlestring.s
+ty)) (/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/puenc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+
+(/usr/local/texlive/2024/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+))) (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/t1lmr.fd)
+(./leak-whitepaper.aux)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-cmr.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+) (/usr/local/texlive/2024/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg))
+*geometry* driver: auto-detecting
+*geometry* detected driver: pdftex
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/lbx/english.lbx)
+(./leak-whitepaper.bbl) (./leak-whitepaper.out) (./leak-whitepaper.out)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ot1lmr.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omllmm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omslmsy.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omxlmex.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-msa.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-msb.cfg) [1{/usr/loc
+al/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/local/texliv
+e/2024/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}{/usr/local/texlive/2024/texmf-d
+ist/fonts/enc/dvips/lm/lm-rm.enc}] (./leak-whitepaper.toc
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/t1lmtt.fd)) [2] [3] [4{/usr/lo
+cal/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}{/usr/local/texliv
+e/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc}]
+Underfull \hbox (badness 10000) in paragraph at lines 288--288
+[]|\T1/lmr/m/n/12 (+20) Context
+
+Underfull \hbox (badness 10000) in paragraph at lines 289--289
+[]|\T1/lmr/m/n/12 (+20) Inference eco-
+
+Underfull \hbox (badness 10000) in paragraph at lines 291--291
+[]|\T1/lmr/bx/n/12 (+20) Grok 3
+
+Underfull \hbox (badness 10000) in paragraph at lines 295--296
+[]|\T1/lmr/m/n/12 (+20) High-frequency
+
+Underfull \hbox (badness 3590) in paragraph at lines 295--296
+\T1/lmr/m/n/12 (+20) heuris-tic gen-er-a-
+
+Underfull \hbox (badness 10000) in paragraph at lines 299--299
+\T1/lmr/m/n/12 (+20) out ($0.20
+
+Underfull \hbox (badness 10000) in paragraph at lines 300--301
+[]|\T1/lmr/m/n/12 (+20) Deep al-ge-braic
+
+Underfull \hbox (badness 7777) in paragraph at lines 300--301
+\T1/lmr/m/n/12 (+20) rea-son-ing, long-
+
+Overfull \hbox (45.77357pt too wide) in paragraph at lines 286--303
+ [][] 
+[5] (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ts1lmr.fd) [6{/usr/local/t
+exlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}]
+Underfull \hbox (badness 10000) in paragraph at lines 363--363
+[]|\T1/lmr/bx/n/12 (+20) State man-age-
+
+Underfull \hbox (badness 7168) in paragraph at lines 364--364
+[]|\T1/lmr/bx/n/12 (+20) Compute over-
+
+Underfull \hbox (badness 10000) in paragraph at lines 364--364
+[]|\T1/lmr/m/n/12 (+20) High (par-al-lel eval-u-a-tion,
+
+Underfull \hbox (badness 10000) in paragraph at lines 365--365
+[]|\T1/lmr/bx/n/12 (+20) Context re-ten-
+
+Underfull \hbox (badness 6641) in paragraph at lines 365--365
+[]|\T1/lmr/m/n/12 (+20) Shallow, frag-mented across
+
+Overfull \hbox (13.23811pt too wide) in paragraph at lines 359--369
+ [][] 
+[7]
+Overfull \hbox (81.40335pt too wide) in paragraph at lines 413--421
+\T1/lmr/m/n/12 (-20) Pan-to-graph, ex-pos-ing \T1/lmtt/m/n/12 init_proof\T1/lmr
+/m/n/12 (-20) , \T1/lmtt/m/n/12 apply_tactic\T1/lmr/m/n/12 (-20) , \T1/lmtt/m/n
+/12 get_current_proof_state\T1/lmr/m/n/12 (-20) , \T1/lmtt/m/n/12 verify_full_s
+cript\T1/lmr/m/n/12 (-20) ,
+[8] [9 <./proof_1.png (PNG copy)> <./proof_3.png (PNG copy)>]
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ot1lmss.fd) [10 <./proof_2.png
+ (PNG copy)> <./proof_4.png (PNG copy)>]
+Overfull \hbox (42.66533pt too wide) in paragraph at lines 547--558
+ [][] 
+[11 <./proof_5.png (PNG copy)>] [12] [13]
+Overfull \hbox (12.92699pt too wide) in paragraph at lines 696--701
+[]\T1/lmr/bx/n/12 (-20) Leak-II \T1/lmr/m/n/12 (-20) (Pan-to-graph) re-mains th
+e in-ter-ac-tive workspace: \T1/lmtt/m/n/12 init_proof \T1/lmr/m/n/12 (-20) / \
+T1/lmtt/m/n/12 apply_tactic
+[14] [15] [16]
+Overfull \hbox (34.93903pt too wide) in paragraph at lines 893--905
+ [][] 
+[17] [18{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathex.enc}]
+Underfull \hbox (badness 5787) in paragraph at lines 1021--1021
+[]|\T1/lmr/bx/n/12 (+20) Reasoning en-
+
+Underfull \hbox (badness 10000) in paragraph at lines 1021--1022
+[]|\T1/lmr/m/n/12 (+20) Claude (Opus-class fron-tier),
+
+Underfull \hbox (badness 10000) in paragraph at lines 1023--1024
+[]|\T1/lmr/m/n/12 (+20) Wall-clock bud-gets, live-
+
+Underfull \hbox (badness 1024) in paragraph at lines 1025--1026
+[]|\T1/lmtt/m/n/12 have\T1/lmr/m/n/12 (+20) -flat, have-tree (plan-ner /
+
+Underfull \hbox (badness 10000) in paragraph at lines 1026--1027
+[]|\T1/lmr/m/n/12 (+20) Governor-rationed; al-lowance
+
+Underfull \hbox (badness 10000) in paragraph at lines 1028--1028
+[]|\T1/lmr/bx/n/12 (+20) Hardest ver-i-
+
+Overfull \hbox (13.23767pt too wide) in paragraph at lines 1017--1032
+ [][] 
+[19] [20] [21] [22] (./leak-whitepaper.aux) )
+(see the transcript file for additional information)</usr/local/texlive/2024/te
+xmf-dist/fonts/type1/public/lm/lmbx10.pfb></usr/local/texlive/2024/texmf-dist/f
+onts/type1/public/lm/lmbx12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1
+/public/lm/lmex10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm
+/lmmi12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmmi8.pfb
+></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr10.pfb></usr/loca
+l/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr12.pfb></usr/local/texlive/2
+024/texmf-dist/fonts/type1/public/lm/lmr6.pfb></usr/local/texlive/2024/texmf-di
+st/fonts/type1/public/lm/lmr8.pfb></usr/local/texlive/2024/texmf-dist/fonts/typ
+e1/public/lm/lmri10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/
+lm/lmri12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmss12.
+pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmsy10.pfb></usr/
+local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmsy8.pfb></usr/local/texli
+ve/2024/texmf-dist/fonts/type1/public/lm/lmtk10.pfb></usr/local/texlive/2024/te
+xmf-dist/fonts/type1/public/lm/lmtt10.pfb></usr/local/texlive/2024/texmf-dist/f
+onts/type1/public/lm/lmtt12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1
+/public/lm/lmtti10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/a
+msfonts/symbols/msbm10.pfb>
+Output written on leak-whitepaper.pdf (22 pages, 473455 bytes).
+Transcript written on leak-whitepaper.log.
+Latexmk: Getting log file 'leak-whitepaper.log'
+Latexmk: Examining 'leak-whitepaper.fls'
+Latexmk: Examining 'leak-whitepaper.log'
+Latexmk: Found input bbl file 'leak-whitepaper.bbl'
+Latexmk: Log file says output to 'leak-whitepaper.pdf'
+Latexmk: Bibliography file(s) from .bcf file:
+  sample.bib
+Latexmk: applying rule 'pdflatex'...
+Rule 'pdflatex':  Reasons for rerun
+Changed files or newly in use/created:
+  leak-whitepaper.run.xml
+
+------------
+Run number 4 of rule 'pdflatex'
+------------
+------------
+Running 'pdflatex  -interaction=nonstopmode -recorder  "leak-whitepaper.tex"'
+------------
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+(./leak-whitepaper.tex
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-02-20>
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/article.cls
+Document Class: article 2023/05/17 v1.4n Standard LaTeX document class
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/size12.clo))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/inputenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/fontenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/lmodern.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/keyval.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype-pdftex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/microtype.cfg))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsgen.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amssymb.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amsfonts.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amscls/amsthm.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/graphicx.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/graphics.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/trig.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/graphics.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-def/pdftex.def)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/booktabs/booktabs.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/array.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/longtable.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/listings.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/lstpatch.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/lstmisc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/listings/listings.cfg))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/xcolor/xcolor.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/mathcolor.ltx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/enumitem/enumitem.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/titlesec/titlesec.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/abstract/abstract.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/caption.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/caption3.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/caption/ltcaption.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/float/float.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/geometry/geometry.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/ifvtex.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/iftex.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/infwarerr/infwarerr.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvoptions/kvoptions.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/logreq/logreq.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/logreq/logreq.def))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/url/url.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-dm.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-compat.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/bbx/numeric.bbx
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/bbx/standard.bbx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/cbx/numeric.cbx)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/biblatex.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3kernel/expl3.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/blx-case-expl3.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3packages/xparse/xparse.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdfescape/pdfescape.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/auxhook/auxhook.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/gettitlestring/gettitlestring.s
+ty)) (/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/puenc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+
+(/usr/local/texlive/2024/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+))) (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/t1lmr.fd)
+(./leak-whitepaper.aux)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-cmr.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+) (/usr/local/texlive/2024/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg))
+*geometry* driver: auto-detecting
+*geometry* detected driver: pdftex
+(/usr/local/texlive/2024/texmf-dist/tex/latex/biblatex/lbx/english.lbx)
+(./leak-whitepaper.bbl) (./leak-whitepaper.out) (./leak-whitepaper.out)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ot1lmr.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omllmm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omslmsy.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/omxlmex.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-msa.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/microtype/mt-msb.cfg) [1{/usr/loc
+al/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/local/texliv
+e/2024/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}{/usr/local/texlive/2024/texmf-d
+ist/fonts/enc/dvips/lm/lm-rm.enc}] (./leak-whitepaper.toc
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/t1lmtt.fd)) [2] [3] [4{/usr/lo
+cal/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}{/usr/local/texliv
+e/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc}]
+Underfull \hbox (badness 10000) in paragraph at lines 288--288
+[]|\T1/lmr/m/n/12 (+20) Context
+
+Underfull \hbox (badness 10000) in paragraph at lines 289--289
+[]|\T1/lmr/m/n/12 (+20) Inference eco-
+
+Underfull \hbox (badness 10000) in paragraph at lines 291--291
+[]|\T1/lmr/bx/n/12 (+20) Grok 3
+
+Underfull \hbox (badness 10000) in paragraph at lines 295--296
+[]|\T1/lmr/m/n/12 (+20) High-frequency
+
+Underfull \hbox (badness 3590) in paragraph at lines 295--296
+\T1/lmr/m/n/12 (+20) heuris-tic gen-er-a-
+
+Underfull \hbox (badness 10000) in paragraph at lines 299--299
+\T1/lmr/m/n/12 (+20) out ($0.20
+
+Underfull \hbox (badness 10000) in paragraph at lines 300--301
+[]|\T1/lmr/m/n/12 (+20) Deep al-ge-braic
+
+Underfull \hbox (badness 7777) in paragraph at lines 300--301
+\T1/lmr/m/n/12 (+20) rea-son-ing, long-
+
+Overfull \hbox (45.77357pt too wide) in paragraph at lines 286--303
+ [][] 
+[5] (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ts1lmr.fd) [6{/usr/local/t
+exlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}]
+Underfull \hbox (badness 10000) in paragraph at lines 363--363
+[]|\T1/lmr/bx/n/12 (+20) State man-age-
+
+Underfull \hbox (badness 7168) in paragraph at lines 364--364
+[]|\T1/lmr/bx/n/12 (+20) Compute over-
+
+Underfull \hbox (badness 10000) in paragraph at lines 364--364
+[]|\T1/lmr/m/n/12 (+20) High (par-al-lel eval-u-a-tion,
+
+Underfull \hbox (badness 10000) in paragraph at lines 365--365
+[]|\T1/lmr/bx/n/12 (+20) Context re-ten-
+
+Underfull \hbox (badness 6641) in paragraph at lines 365--365
+[]|\T1/lmr/m/n/12 (+20) Shallow, frag-mented across
+
+Overfull \hbox (13.23811pt too wide) in paragraph at lines 359--369
+ [][] 
+[7]
+Overfull \hbox (81.40335pt too wide) in paragraph at lines 413--421
+\T1/lmr/m/n/12 (-20) Pan-to-graph, ex-pos-ing \T1/lmtt/m/n/12 init_proof\T1/lmr
+/m/n/12 (-20) , \T1/lmtt/m/n/12 apply_tactic\T1/lmr/m/n/12 (-20) , \T1/lmtt/m/n
+/12 get_current_proof_state\T1/lmr/m/n/12 (-20) , \T1/lmtt/m/n/12 verify_full_s
+cript\T1/lmr/m/n/12 (-20) ,
+[8] [9 <./proof_1.png (PNG copy)> <./proof_3.png (PNG copy)>]
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ot1lmss.fd) [10 <./proof_2.png
+ (PNG copy)> <./proof_4.png (PNG copy)>]
+Overfull \hbox (42.66533pt too wide) in paragraph at lines 547--558
+ [][] 
+[11 <./proof_5.png (PNG copy)>] [12] [13]
+Overfull \hbox (12.92699pt too wide) in paragraph at lines 696--701
+[]\T1/lmr/bx/n/12 (-20) Leak-II \T1/lmr/m/n/12 (-20) (Pan-to-graph) re-mains th
+e in-ter-ac-tive workspace: \T1/lmtt/m/n/12 init_proof \T1/lmr/m/n/12 (-20) / \
+T1/lmtt/m/n/12 apply_tactic
+[14] [15] [16]
+Overfull \hbox (34.93903pt too wide) in paragraph at lines 893--905
+ [][] 
+[17] [18{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathex.enc}]
+Underfull \hbox (badness 5787) in paragraph at lines 1021--1021
+[]|\T1/lmr/bx/n/12 (+20) Reasoning en-
+
+Underfull \hbox (badness 10000) in paragraph at lines 1021--1022
+[]|\T1/lmr/m/n/12 (+20) Claude (Opus-class fron-tier),
+
+Underfull \hbox (badness 10000) in paragraph at lines 1023--1024
+[]|\T1/lmr/m/n/12 (+20) Wall-clock bud-gets, live-
+
+Underfull \hbox (badness 1024) in paragraph at lines 1025--1026
+[]|\T1/lmtt/m/n/12 have\T1/lmr/m/n/12 (+20) -flat, have-tree (plan-ner /
+
+Underfull \hbox (badness 10000) in paragraph at lines 1026--1027
+[]|\T1/lmr/m/n/12 (+20) Governor-rationed; al-lowance
+
+Underfull \hbox (badness 10000) in paragraph at lines 1028--1028
+[]|\T1/lmr/bx/n/12 (+20) Hardest ver-i-
+
+Overfull \hbox (13.23767pt too wide) in paragraph at lines 1017--1032
+ [][] 
+[19] [20] [21] [22] (./leak-whitepaper.aux) )
+(see the transcript file for additional information)</usr/local/texlive/2024/te
+xmf-dist/fonts/type1/public/lm/lmbx10.pfb></usr/local/texlive/2024/texmf-dist/f
+onts/type1/public/lm/lmbx12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1
+/public/lm/lmex10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm
+/lmmi12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmmi8.pfb
+></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr10.pfb></usr/loca
+l/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr12.pfb></usr/local/texlive/2
+024/texmf-dist/fonts/type1/public/lm/lmr6.pfb></usr/local/texlive/2024/texmf-di
+st/fonts/type1/public/lm/lmr8.pfb></usr/local/texlive/2024/texmf-dist/fonts/typ
+e1/public/lm/lmri10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/
+lm/lmri12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmss12.
+pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmsy10.pfb></usr/
+local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmsy8.pfb></usr/local/texli
+ve/2024/texmf-dist/fonts/type1/public/lm/lmtk10.pfb></usr/local/texlive/2024/te
+xmf-dist/fonts/type1/public/lm/lmtt10.pfb></usr/local/texlive/2024/texmf-dist/f
+onts/type1/public/lm/lmtt12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1
+/public/lm/lmtti10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/a
+msfonts/symbols/msbm10.pfb>
+Output written on leak-whitepaper.pdf (22 pages, 473455 bytes).
+Transcript written on leak-whitepaper.log.
+Latexmk: Getting log file 'leak-whitepaper.log'
+Latexmk: Examining 'leak-whitepaper.fls'
+Latexmk: Examining 'leak-whitepaper.log'
+Latexmk: Found input bbl file 'leak-whitepaper.bbl'
+Latexmk: Log file says output to 'leak-whitepaper.pdf'
+Latexmk: Bibliography file(s) from .bcf file:
+  sample.bib
+Latexmk: All targets (leak-whitepaper.pdf) are up-to-date
+
