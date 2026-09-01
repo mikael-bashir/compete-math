@@ -1,0 +1,829 @@
+\documentclass[12pt, a4paper]{article}
+
+% ============================================================
+%  Preamble (mirrors leak-whitepaper.tex so the two documents
+%  share one toolchain: latexmk -> pdflatex + biber)
+% ============================================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{abstract}
+\usepackage{caption}
+\usepackage{float}
+\usepackage[margin=2.8cm]{geometry}
+\usepackage[backend=biber, style=numeric, urldate=long]{biblatex}
+\usepackage{hyperref} % load last
+
+\addbibresource{sample.bib}
+\addbibresource{benchmark-report.bib}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    urlcolor=blue!60!black,
+    citecolor=green!50!black
+}
+
+\emergencystretch=3em % long \texttt run/theorem names don't hyphenate
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
+
+\definecolor{codebg}{HTML}{F5F5F5}
+\definecolor{codekeyword}{HTML}{2E4DA0}
+\lstdefinelanguage{Lean4}{
+  keywords={theorem, lemma, def, let, have, intro, cases, induction, exact,
+            apply, refine, rw, simp, ring, linarith, nlinarith, omega, by,
+            sorry, import, open, Type, Prop},
+  keywordstyle=\color{codekeyword}\bfseries,
+  sensitive=true,
+  comment=[l]{--},
+}
+\lstset{language=Lean4, backgroundcolor=\color{codebg}, basicstyle=\ttfamily\small,
+        breaklines=true, frame=single, framerule=0pt, xleftmargin=6pt,
+        literate={∃}{{$\exists$}}1 {∧}{{$\wedge$}}1 {→}{{$\to$}}1
+                 {⊗}{{$\otimes$}}1 {⊕}{{$\oplus$}}1 {∀}{{$\forall$}}1}
+
+% Shorthand for run labels / ids / commits
+\newcommand{\run}[1]{\texttt{#1}}
+\newcommand{\cmark}{$\checkmark$}
+
+\title{\textbf{To what extent does scaffolding improve proving capacity of automated theorem
+provers driven by large agentic systems?}}
+\author{Mikael Bashir - 02382080}
+\date{14 August 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+We report results from three benchmark runs of the Leak \cite{leakabout} automated
+theorem-proving stack on FATE-X \cite{fatex2025}, a 100-problem graduate-level
+abstract and commutative-algebra benchmark in Lean~4 \cite{demoura2021lean4}.The headline 
+finding is negative for our central design hypothesis: on identical time budgets and the same base agent, a single
+flat agent with compiler and search access (Control~II) solved
+\textbf{38/98 (38.8\%)}, outperforming the best decomposition pipeline
+Ultra Fleeting, \textbf{28/98, (28.6\%)}. Decomposition contributed only two problems
+the flat agent could not solve. We analyse where each approach wins {put an in paper link here}, quantify a
+difficulty cliff in FATE-X's top quartile (2/25 for both arms) {put an in paper link here}, document the
+operational incidents that shaped the design, including the MCP services we made 
+extensive use of {put an in paper link here}, and lay out the follow-up experiments the results motivate or 
+that could not be completed due to budget {put an in paper link here}.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction}
+% ============================================================
+
+There has been extensive work on LLMs, specifically on Automated Theorem Proving systems 
+driven by LLMs, with a variety of architecture designs, both in the development of the LLM itself,
+and the orchestration of the LLM. We are also seeing the number of agentic systems being made publically available
+increase rapidly, which raises the natural question "Do the same techniques for ATP on LLMs apply to Agentic systems, and to what extent". 
+We present the Leak stack, an agentic theorem-proving system for Lean~4 + Mathlib
+\cite{demoura2021lean4,mathlib2020} that tries to answer exactly this, armed with select, specialist remote verification services
+(``Leak~I--XIV'') and a local bridge that drives LLM agents against them
+\cite{competemath,hfspaces}. Its design bet, shared with a line of recent work
+on hierarchical and decomposition-based proving
+\cite{lample2022hypertree,deepseekproverv2,decomposition_openreview,davis2025goedelspoetry},
+is that hard theorems are best attacked by splitting them into sub-goals proved
+by parallel sub-agents. This report evaluates that bet empirically, while also 
+testing if this still holds in large agentic systems such as Claude, which already have secret
+scaffolding built into them {put the sdk harness ref here, as well as the agent terminology definitions ref}.
+
+We ran several full benchmark passes on a sanitised {put in paper link to how we sanitised here} FATE-X
+\cite{fatex2025,benchmarklist_fatex}, reporting in this paper the results of 3 runs. The experiments were designed to answer three questions:
+
+\begin{enumerate}[itemsep=1pt]
+  \item \textbf{Absolute proving capacity.} What fraction of an algebra
+        benchmark, exceeding PhD qualifying exam difficulty,
+        can Leak close under fixed time budgets (FATE-X)?
+  \item \textbf{Adding scaffolding vs.\ Relying on built-in scaffolding.} Does the lifted architecture
+        (blueprint\,$\to$\,node-provers\,$\to$\,refinement) beat a
+        single continuous agent given the same model and budget (and select proving tools)?
+  \item \textbf{Does Sonnet 5 benefit significantly when given pantograph?} While we armed many runs
+        with an improved pantograph service {put link here to that service's repo, at Leak II}, 
+        we always took for granted its benefit - but in the context of agentic systems, how much
+        does pantograph actually buy.
+\end{enumerate}
+
+Questions 1 is objectively answered below, and we provide evidences below for questions 2 and 3.
+
+% ============================================================
+\section{Related work}
+% ============================================================
+
+Automated theorem provers are typically evaluated on miniF2F
+\cite{zheng2022minif2f}, PutnamBench \cite{tsoukalas2024putnambench}, or
+competition sets targeted by systems such as GPT-f \cite{polu2020gptf},
+HyperTree Proof Search \cite{lample2022hypertree}, AlphaProof
+\cite{alphaproof2024}, DeepSeek-Prover-V2 \cite{deepseekproverv2}, and the
+G\"odel-Prover line \cite{davis2025goedelspoetry}. FATE-X \cite{fatex2025}
+is deliberately harder and narrower: 100 abstract/commutative-algebra problems
+drawn from graduate textbooks, qualifying exams, and research literature,
+ordered by increasing difficulty. Its authors report frontier systems solving
+only single-digit counts on the upper half \cite{benchmarklist_fatex}, which
+matches the cliff we observe (\S\ref{sec:difficulty}), though it should be
+noted that the SOTA models the authors tested with were not used as they were designed
+(self-correction was disabled). \\
+
+Decomposition-style pipelines --- sketching a proof outline and delegating
+sub-goals --- descend from Draft--Sketch--Prove-like designs and are the core of
+DeepSeek-Prover-V2's subgoal decomposition \cite{deepseekproverv2} and related
+hierarchical searches \cite{lample2022hypertree,decomposition_openreview}. We test an already
+researched and documented pipeline, Goedel-Architect \cite{goedelarchitect}, changing the driving
+backbone --- instead of a fast and small LLM, such as the DeepSeek-V4-Flash backbone used by
+Goedel-Architect, we drive with a large agent (Claude Sonnet~5 Agent \cite{anthropic2026sonnet5}),
+referring to this design as Ultra Fleeting through out the paper;
+as far as we are aware the team behind Goedel Architect have not made available the critical
+scaffolding on DeepSeek-V4-Flash, so we try to replicate as closely as possible from their report.
+The main features are a blueprint stage that compiles a skeleton of \texttt{sorry}-holes, 
+node provers that fill holes as ReAct-style tool agents \cite{yao2023react} against live compiler service feedback, 
+and a refinement stage restructures the skeleton between iterations. We also experiment with 
+Pantograph \cite{aniva2024pantograph,pypantograph}, extended with a
+snapshot-based ``ghost state'' model \cite{shen2026snapshot,leakii2026upgrade}
+that lets many agents manage proof states on a single Lean daemon, without expensive re-elaboration. 
+This service was used for Control-II runs and other experimental runs not presented in this report, 
+but it wasn't used for the Ultra Fleeting benchmark, in line with the design of
+the borrowed architecture. In the further-works section (\S\ref{sec:nextsteps}), we discuss some
+interesting experiments that could not be completed before the writing of this report.
+
+% ============================================================
+\section{Experimental setup}
+% ============================================================
+
+\subsection{Benchmark and normalization}
+\label{sec:benchmark}
+
+FATE-X contains 100 Lean files pinning Lean \texttt{v4.28.0} \cite{fatex2025}.
+Our ingestion (\run{build-fatex.mjs}) normalizes each item: imports and the
+\texttt{namespace ProblemN} wrapper are dropped, doc comments become the
+informal statement, \texttt{section} scoping is kept, and the 38 problems with
+supporting declarations keep them inside the statement. Problems are enqueued
+in the benchmark's own difficulty order, so the item index doubles as a
+difficulty rank. Two statements (\run{fatex\_009}, \run{fatex\_041}) do not
+elaborate under our newer toolchains and were excluded from the full passes,
+leaving $n=98$.
+
+\subsection{Verification infrastructure}
+\label{sec:verifiers}
+
+All scoring is by independent re-verification, never by agent self-report.
+Two verifier groups were in play, and they differ by toolchain:
+
+\begin{itemize}[itemsep=1pt]
+  \item \textbf{Leak~IV group} (Lean + Mathlib \texttt{v4.29.1}): gates every
+        control run. A daemon compiles a submitted script, and a proof is only ever
+        declared valid if Leak-IV returns no errors or warnings (a proof containing a sorry
+        will return a warning), AND the script passes strict
+        regex checks to ensure the same theorem was proven.
+  \item \textbf{Leak~XI/XII/XIV group} (Lean + Mathlib \texttt{v4.32.0}):
+        serves the architect pipelines (River, Ultra) --- XII compiles and
+        elaborates, XIV verifies full scripts, XI provides Loogle/Moogle-style
+        search \cite{loogle,moogle}.
+\end{itemize}
+
+\noindent
+The two full passes therefore ran on \emph{different} Mathlib versions
+(\S\ref{sec:validity} discusses the confound). Search tooling on the
+Stronghold/control side is Leak~I \cite{loogle}; all services follow the
+MCP protocol \cite{anthropic2024mcp}.
+
+\subsection{Strategy catalogue}
+\label{sec:strategies}
+
+\begin{description}[itemsep=2pt]
+  \item[River (Grok driver).] The architect pipeline driven over the xAI API
+        \cite{xai2025grok41}. The benchmarked variant, \run{river-vintage},
+        adds an oversight watcher team (interceptor + mechanic + consultant)
+        around the loop.
+  \item[Ultra (Claude CLI driver).] The same pipeline driven by the local
+        Claude CLI \cite{anthropic2026sonnet5}; \run{ultra-fleeting} is the
+        plain arm: no dead-end ledger, no NL seed, fresh context per stage.
+  \item[Stronghold (flat-skeleton family).] A planner emits one skeleton of
+        \texttt{have}-holes; minions fill holes against the Leak~II ghost-state
+        daemon \cite{shen2026snapshot}. Arms: \run{have-tree} (``Dark'',
+        isolated minions), \run{have-surround} (continuous parallel work-queue),
+        \run{finality-1} (Surround + timed refinement + a proposition-keyed
+        lemma bank), \run{stronghold-force}, \run{stronghold-forte}, and
+        \run{stronghold-impenetrable} (three-phase clock; enqueued but never
+        scored this campaign).
+  \item[Controls.] \S\ref{sec:controls}.
+\end{description}
+
+\subsection{Protocol}
+\label{sec:protocol}
+
+One problem per worker; every attempt is bounded by wall clock only --- no
+per-call caps. Budgets grew as the campaign matured: 20\,min for the first
+probes (28--29~July), 30\,min mid-campaign, and 60\,min for the two full passes
+and all later runs (Table~\ref{tab:ledger}). Architect arms additionally carry
+a refinement-iteration budget (5 for \run{river-vintage}, whose per-attempt
+cutoff is already halved by the watcher variant; 8 for every other architect
+arm).
+
+Failure triage distinguishes infrastructure failures from problem failures:
+catastrophic errors (quota, bridge down) pause the pass and \emph{release} the
+claim without burning an attempt; problem-specific errors retry once, then mark
+the item \emph{skipped}, which excludes it from the denominator rather than
+counting as a miss. A watchdog aborts streams wedged 5 minutes past the
+bridge's own deadline --- a stuck-socket backstop, not a prover cap. Every
+finished attempt files a research row (tagged
+\run{benchmark:fatex:<runId>}) into the same tables as production runs,
+with full per-attempt metrics.
+
+\subsection{Metrics}
+
+Pass rate is $\text{proved}/\text{scored}$, where scored $=$ proved $+$
+unsolved $+$ refuted (skipped excluded). Costs are the CLI-reported
+\texttt{total\_cost\_usd} summed per item; for Claude-driver runs this is a
+\emph{notional API-equivalent} figure (the operator runs on a flat-rate
+subscription), while Grok-driver costs are real API spend. Times are
+per-item wall clock from claim to scoring.
+
+% ============================================================
+\section{Run ledger}
+% ============================================================
+
+Table~\ref{tab:ledger} lists every run in the campaign. Small runs are
+deliberate probes (the protocol favours cheap $n{\le}5$ probes before
+committing a 98-item pass); their statistics are indicative only.
+
+\begin{table}[H]
+\centering\small
+\caption{All benchmark runs, 28~July -- 14~August 2026. P/U = proved/unsolved
+(scored items); rate = P/(P+U+refuted). Budget is per-item wall clock. All
+runs used claude-sonnet-5 except \run{LRV-Indomitable} (opus-4.8, Grok-driven
+pipeline). $^{\dagger}$notional API-equivalent cost (\S\ref{sec:cost});
+$^{*}$run in progress (95 items pending).}
+\label{tab:ledger}
+\begin{tabular}{@{}lllrrrr@{}}
+\toprule
+Run & Strategy & Budget & P & U & Rate & Cost (\$) \\
+\midrule
+\run{LRV-Indomitable} & \run{river-vintage} & 20m & 0 & 5 & 0\% & 1.08 \\
+\run{LUF-Flowing} & \run{ultra-fleeting} & 20m & 3 & 2 & 60\% & 15.16$^{\dagger}$ \\
+\run{LSD-Artist} & \run{have-tree} & 20m & 0 & 1 & 0\% & 3.65$^{\dagger}$ \\
+\run{LSS-Imminent} & \run{have-surround} & 30m & 3 & 1 & 75\% & 22.30$^{\dagger}$ \\
+\run{LFI-Never-Ending} & \run{finality-1} & 30m & 1 & 1 & 50\% & 5.18$^{\dagger}$ \\
+\run{LFI-Regime} & \run{finality-1} & 30m & 0 & 1 & 0\% & 4.64$^{\dagger}$ \\
+\run{LFI-Ambition} & \run{finality-1} & 30m & 0 & 0 & --- & 5.01$^{\dagger}$ \\
+\run{LFI-Hope} & \run{finality-1} & 30m & 0 & 2 & 0\% & 7.17$^{\dagger}$ \\
+\run{LFI-All-Seeing} & \run{finality-1} & 30m & 0 & 2 & 0\% & 9.64$^{\dagger}$ \\
+\run{LSF-Patient} & \run{stronghold-force} & 60m & 0 & 1 & 0\% & 4.86$^{\dagger}$ \\
+\run{LFI-Undone} & \run{stronghold-force} & 60m & 0 & 1 & 0\% & 19.45$^{\dagger}$ \\
+\run{LUF-Anonymous} & \run{ultra-fleeting} & 60m & 28 & 70 & 28.6\% & 825.53$^{\dagger}$ \\
+\run{LSF-Curiosity} & \run{stronghold-forte} & 60m & 0 & 1 & 0\% & 11.87$^{\dagger}$ \\
+\run{LC-Intuition} & \run{control-oneshot} & 30m & 2 & 3 & 40\% & 7.13$^{\dagger}$ \\
+\run{LC-II-Irrationality} & \run{control-oneshot-2} & 60m & 38 & 60 & 38.8\% & 878.57$^{\dagger}$ \\
+\run{LSI-Unchartered} & \run{stronghold-impenetrable} & 60m & 0 & 0 & --- & --- \\
+\run{LC-III-Fair}$^{*}$ & \run{control-oneshot-3} & 60m & 1 & 2 & 33\% & 11.16$^{\dagger}$ \\
+\midrule
+\multicolumn{6}{r}{Total recorded spend} & 1{,}832.40 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Union coverage across all seventeen runs is \textbf{40/100}: every problem ever
+solved by any probe was also solved by at least one of the two full passes, so
+the small runs added breadth of \emph{evidence}, not breadth of \emph{coverage}.
+
+% ============================================================
+\section{Head-to-head: decomposition vs.\ the flat agent}
+\label{sec:headtohead}
+% ============================================================
+
+The campaign's central comparison is \run{LUF-Anonymous} (Ultra Fleeting:
+blueprint $\to$ parallel node provers $\to$ refinement) against
+\run{LC-II-Irrationality} (Control~II: one continuous agent with verifier +
+search, no decomposition). Both ran claude-sonnet-5
+\cite{anthropic2026sonnet5}, 60-minute budgets, over the same 98 items.
+
+\begin{table}[H]
+\centering\small
+\caption{Full-pass comparison. Solve time is over proved items only.}
+\label{tab:headtohead}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+ & Ultra Fleeting & Control II \\
+\midrule
+Proved / scored          & 28 / 98 & \textbf{38 / 98} \\
+Pass rate                & 28.6\% & \textbf{38.8\%} \\
+Solved by this arm only  & 2 & 12 \\
+Mean (median) solve time & \textbf{827\,s} (562\,s) & 1{,}395\,s (1{,}218\,s) \\
+Mean attempts per scored item & 1.24 & 1.63 \\
+Median tool calls / item      & 163 & 110 \\
+Median LLM calls / item       & 233 & 212 \\
+Notional cost                 & \$825.53 & \$878.57 \\
+Notional cost per solve       & \$29.48 & \textbf{\$23.12} \\
+Verifier toolchain            & v4.32.0 & v4.29.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Agreement and discordance}
+
+The two arms agree on 26 solves. Control~II additionally solved 12 problems
+Ultra could not (\run{fatex\_006}, \run{027}, \run{033}, \run{034},
+\run{038}, \run{039}, \run{045}, \run{051}, \run{055}, \run{059}, \run{063},
+\run{068}); Ultra's unique contribution was 2 (\run{fatex\_061},
+\run{fatex\_067}). Treating the 14 discordant problems as Bernoulli trials, an
+exact two-sided sign test gives $p = 212/2^{14} \approx 0.013$: the gap is
+unlikely to be noise, despite $n=1$ passes per arm.
+
+\subsection{Interpretation}
+
+Three observations qualify the headline number rather than reverse it:
+
+\begin{enumerate}[itemsep=2pt]
+\item \textbf{When decomposition works, it is fast.} Ultra's median solve took
+      562\,s against Control~II's 1{,}218\,s --- parallel node-filling
+      genuinely buys wall-clock speed on problems whose blueprints are right.
+      Its per-run internals (median 6 nodes, 4 solved, 1 forfeited;
+      median 2 blueprint iterations) show most solved problems needed only
+      shallow decomposition.
+\item \textbf{The failure mode is the blueprint, not the nodes.} On Ultra's
+      70 misses the pipeline pays a fixed planning tax before any node prover
+      runs, and a wrong skeleton caps what node provers can achieve. The flat
+      agent spends the same minutes probing the compiler directly
+      \cite{yao2023react}, and its higher attempt count (1.63 vs.\ 1.24)
+      shows the budget being recycled into fresh whole-proof attempts ---
+      which FATE-X's mid-range apparently rewards.
+\item \textbf{Both arms die on the same wall.} In the top quartile the two
+      arms converge (2/25 each, identical problems), so the architecture
+      choice matters in the middle of the difficulty range, not at the top
+      (\S\ref{sec:difficulty}).
+\end{enumerate}
+
+This mirrors our earlier single-problem evidence that some FATE-X items are
+``flat-solvable and decomposition-hostile'': on \run{fatex\_003}
+(a finite-index coset-representative theorem), every flat arm that attempted
+it succeeded --- Control~I, Control~II, Ultra's whole-pipeline pass --- while
+Surround, which \emph{must} route through a skeleton, failed it
+(\S\ref{sec:stronghold}).
+
+\subsection{Difficulty gradient}
+\label{sec:difficulty}
+
+\begin{table}[H]
+\centering\small
+\caption{Solves by FATE-X difficulty quartile (the benchmark is ordered by
+increasing difficulty \cite{fatex2025}).}
+\label{tab:bands}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Band (item index) & Ultra Fleeting & Control II & Items scored \\
+\midrule
+1--25   & 11 & 12 & 24 \\
+26--50  & 8  & \textbf{14} & 24 \\
+51--75  & 7  & 10 & 25 \\
+76--100 & 2  & 2  & 25 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Control~II's entire margin comes from the middle bands (26--75: 24 vs.\ 15).
+The hardest-quartile solves are the same two problems for both arms
+(\run{fatex\_083}, \run{fatex\_084}), consistent with external reports that
+frontier provers solve single digits on upper FATE-X
+\cite{benchmarklist_fatex}. Whatever separates items 76--100 from the rest, it
+is not addressed by either architecture at a 60-minute budget.
+
+\subsection{Solves by topic area}
+\label{sec:topics}
+
+FATE-X tags every item with a topic \cite{fatex2025}. Table~\ref{tab:topics}
+breaks the two full passes down by the benchmark's own finest tag (topics with
+$n\ge4$ scored items shown; the remainder are in
+Appendix~\ref{app:items}).
+
+\begin{table}[H]
+\centering\small
+\caption{Solves by FATE-X topic tag, both full passes.}
+\label{tab:topics}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Topic & Scored & Ultra & Control II \\
+\midrule
+Localization and Decomposition of Ideals & 18 & 1 & 1 \\
+Galois theory & 10 & 4 & 4 \\
+Ideals and Modules & 8 & 3 & 5 \\
+Integral Dependence and the Nullstellensatz & 7 & 2 & 3 \\
+Tensor Product and Flatness & 7 & 0 & 2 \\
+Depth, Cohen--Macaulay and Gorenstein rings & 7 & 1 & 2 \\
+Heights and Dimensions & 6 & 3 & 2 \\
+Group Actions and Sylow theorems & 5 & 3 & 4 \\
+Regular Sequences and Regular Local Rings & 4 & 3 & 3 \\
+Algebraic and Arithmetic Dynamics & 4 & 1 & 1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two structural facts emerge. First, the benchmark's largest topic ---
+localization and primary decomposition, 18 items --- is nearly untouched by
+both arms (1/18 each): this single topic accounts for over a quarter of all
+misses and is where FATE-X's difficulty actually lives for us, more so than
+the nominal difficulty rank. Second, Control~II's margin is \emph{broad},
+not deep: $+2$ on Ideals and Modules, $+2$ on Tensor/Flatness, $+1$ across
+four further topics --- there is no single subject the flat agent
+``understands'' better, which is consistent with its advantage being
+mechanical (more whole-proof attempts per hour, \S\ref{sec:headtohead})
+rather than mathematical. Ultra's only topic-level win is Heights and
+Dimensions ($3$ vs.\ $2$), the home of both of its unique solves
+(\S\ref{sec:cases}).
+
+% ============================================================
+\section{Case studies}
+\label{sec:cases}
+% ============================================================
+
+\subsection{\run{fatex\_003}: flat-solvable, decomposition-hostile}
+\label{sec:fatex003}
+
+The clearest single-problem signal in the campaign:
+
+\begin{lstlisting}
+theorem exists_leftCoset_rightCoset_representative
+    (G : Type) [Group G] (H : Subgroup G) [H.FiniteIndex] :
+    ∃ S : Set G, Subgroup.IsComplement S H ∧ Subgroup.IsComplement H S := by
+  sorry
+\end{lstlisting}
+
+\noindent
+(``A finite-index subgroup admits a common system of representatives for its
+left and right cosets.'') Every flat arm that attempted it succeeded ---
+Control~I in its 30-minute probe, Control~II, and Ultra's full pass --- while
+Surround, the best Stronghold arm, failed it in the same campaign
+(\S\ref{sec:stronghold}). The proof is a known short argument via Hall's
+theorem-style matching already latent in Mathlib \cite{mathlib2020}; what it
+punishes is \emph{premature structure}: a skeleton that commits to
+constructing $S$ piecewise creates holes harder than the original goal.
+Ultra survives it because its blueprint stage may emit a near-trivial
+skeleton; Surround's planner must emit \texttt{have}-holes, and did so
+wrongly. This is the concrete instance behind the ``decomposition-hostile''
+label used throughout this report.
+
+\subsection{\run{fatex\_061} and \run{fatex\_067}: where decomposition wins}
+
+Ultra's two unique solves are topical neighbours (both tagged Heights and
+Dimensions):
+\begin{center}\small
+\run{formallySmooth\_of\_formallySmooth\_quotient}\\
+\run{isEmpty\_mvPowerSeries\_tensor\_mvPowerSeries\_algEquiv}
+\end{center}
+\noindent
+--- formal smoothness descends along a square-zero quotient, and there is no
+$k$-algebra isomorphism $k[[x]] \otimes_k k[[y]] \cong k[[x,y]]$. Both have
+natural lemma decompositions --- an ideal-power calculation and a
+cardinality/completeness obstruction respectively --- and both defeated the
+flat agent's iterate-against-the-compiler style within budget. They are the
+existence proof that the architect pipeline adds \emph{some} capability;
+the finding of \S\ref{sec:headtohead} is that this capability is currently
+narrow (2 problems) relative to its planning tax (10 problems).
+
+\subsection{\run{fatex\_083} and \run{fatex\_084}: the only top-quartile solves}
+
+Both arms' hardest-band solves are the same pair:
+\begin{center}\small
+\run{IsRegularLocalRing.flat\_local\_of\_regular}\\
+\run{exists\_directSum\_free\_free\_of\_projective}
+\end{center}
+\noindent
+--- regularity descends along a flat local homomorphism, and Eilenberg's
+swindle (for projective $M$ there is a free $N$ with $M \oplus N$ free). Both are
+textbook-named theorems whose informal proofs are certainly in the training
+distribution \cite{anthropic2026sonnet5}, and both have short Mathlib-adjacent
+formal skeletons. That the \emph{same} two problems fall to two very
+different architectures suggests the top quartile is currently gated by
+statement-level familiarity, not by search strategy --- consistent with the
+contamination caveat of \S\ref{sec:validity} and with the flat difficulty
+profile both arms show above item 76.
+
+% ============================================================
+\section{The control ladder}
+\label{sec:controls}
+% ============================================================
+
+The controls isolate, one variable at a time, where the stack's capability
+actually comes from:
+
+\begin{description}[itemsep=2pt]
+\item[Control I --- compiler only.] One continuous agent, Leak~IV verification,
+  no search. \run{LC-Intuition} (30\,min, $n{=}5$ probe): 2/5, including
+  \run{fatex\_003} and \run{fatex\_006}, at \$7.13 total.
+\item[Control II --- compiler + search.] As Control~I plus Leak~I lemma search
+  \cite{loogle}. Full pass: 38/98 (\S\ref{sec:headtohead}). Its final proofs
+  lean on long \texttt{have}-chains (median 38 \texttt{have} cases per
+  recorded proof), i.e.\ the flat agent \emph{internalizes} the skeleton the
+  architect builds externally.
+\item[Control III --- blind prover.] No tools at all: the prover emits a
+  complete script from reasoning alone; a separate Leak~IV gate returns only
+  pass/fail, never an error message. This isolates the value of error
+  \emph{content} (Controls I/II see full compiler output; III sees one bit).
+\end{description}
+
+\subsection{Control III status and mid-campaign redesign}
+\label{sec:c3}
+
+\run{LC-III-Fair} (60\,min) is in progress: 1/3 scored at the time of writing
+(\run{fatex\_002} proved on the first attempt in ${\sim}300$\,s; 95 items
+pending). These early items ran the \emph{amnesiac} design: each rejected
+attempt spawned a fresh session that was told only its failure count.
+
+On 14~August the arm was redesigned (commit \run{75f6491}): all attempts now
+share \emph{one continuous conversation}, resumed on every retry, with the CLI
+auto-compacting history when the context window fills. The prover therefore
+remembers its own past attempts --- but still never learns \emph{why} one
+failed. This completes a clean three-point ladder on the memory/feedback
+plane:
+
+\begin{center}\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Arm & Cross-attempt memory & Error content \\
+\midrule
+Blind resampling (old Control III) & none & none \\
+Control III (current) & full history & pass/fail bit \\
+Control II & full history & full compiler output \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Rows recorded before and after \run{75f6491} are different arms and will be
+reported separately; the pending 95 items will run the continuous design.
+
+% ============================================================
+\section{Stronghold family results}
+\label{sec:stronghold}
+% ============================================================
+
+The Stronghold arms attack a flat skeleton of \texttt{have}-holes over the
+Leak~II ghost-state daemon \cite{shen2026snapshot,aniva2024pantograph}. All
+probes are small; treat rates as directional.
+
+\begin{table}[H]
+\centering\footnotesize
+\caption{Stronghold-family probes (all claude-sonnet-5, Leak~IV gate,
+v4.29.1). Calls are medians per research row.}
+\label{tab:stronghold}
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+Arm & Runs & Scored & Proved & Tool calls & LLM calls \\
+\midrule
+\run{have-surround} & \run{LSS-Imminent} & 4 & \textbf{3} & 95 & 174 \\
+\run{have-tree} (Dark) & \run{LSD-Artist} & 1 & 0 & 71 & 138 \\
+\run{finality-1} & 6 runs (\run{LFI-*}) & 9 & 1 & ${\sim}190$ & ${\sim}330$ \\
+\run{stronghold-force} & \run{LSF-Patient}, \run{LFI-Undone} & 2 & 0 & 207--624 & 380--1{,}118 \\
+\run{stronghold-forte} & \run{LSF-Curiosity} & 1 & 0 & 242 & 462 \\
+\run{stronghold-impenetrable} & \run{LSI-Unchartered} & 0 & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three findings:
+
+\begin{enumerate}[itemsep=2pt]
+\item \textbf{Surround remains the family's best arm.} 3/4 on the opening
+      slice (\run{fatex\_001}, \run{002}, \run{004}), with its one miss being
+      \run{fatex\_003} --- the problem Control~I solved directly. Every
+      later arm was built on top of Surround, and none has yet matched it.
+\item \textbf{Complexity did not pay.} Finality-1 (timed refinement + lemma
+      bank), Force, and Forte together went 1/12 while roughly doubling tool
+      and LLM call counts over Surround. \run{LFI-Undone}'s single item
+      consumed 624 tool calls and 1{,}118 LLM calls without a proof --- the
+      machinery is exercising itself, not the problem. A capability audit
+      after the Force probes found it had silently lost 11 of Finality's 13
+      capabilities in porting; family arms are now diffed
+      capability-by-capability against their richest sibling before
+      benchmarking.
+\item \textbf{The isolated-minion control (Dark) solved nothing}, consistent
+      with the family's premise that minions need either a shared work-queue
+      (Surround) or shared memory to make progress; but at $n=1$ this is a
+      hypothesis, not a result.
+\end{enumerate}
+
+The run-scoped lemma pool (every Leak~IV-verified side lemma banked and
+IDF-ranked back to minions; commits \run{5e2a250}, \run{4ebce86}) was live for
+the later Stronghold probes; at current sample sizes its effect is not
+separable.
+
+% ============================================================
+\section{Architect internals}
+\label{sec:architect}
+% ============================================================
+
+Per-attempt research rows expose the pipeline's internal economy.
+
+\begin{table}[H]
+\centering\small
+\caption{Architect-pipeline internals (medians over research rows).}
+\label{tab:internals}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+ & \run{LUF-Anonymous} & \run{LUF-Flowing} & \run{LRV-Indomitable} \\
+\midrule
+Rows (attempts)        & 118 & 5 & 5 \\
+Verified               & 30 & 3 & 0 \\
+Nodes: total / solved / forfeited & 6 / 4 / 1 & 7 / 6 / 0 & 5 / 2 / 2 \\
+Blueprint iterations   & 2 & 2 & 6 \\
+Tool calls             & 163 & 116 & 178 \\
+LLM calls              & 233 & 179 & 188 \\
+Toolchain              & v4.32.0 & v4.32.0 & v4.32.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two points stand out. First, successful Ultra attempts settle their blueprint
+fast (median 2 iterations) and forfeit little; \run{LRV-Indomitable}'s
+failures show the opposite signature --- median 6 blueprint iterations, 2 of 5
+nodes forfeited --- the pipeline churning on planning. Second,
+\run{river-vintage}'s watcher team (interceptor + mechanic + consultant) did
+not rescue it at 0/5: with a 20-minute budget, a 5-iteration cap, and the
+older opus-4.8 driver, oversight overhead competes directly with proving time.
+The vintage arm has not yet been re-benchmarked at the 60-minute budget, so
+driver, budget, and watchers remain confounded in that result.
+
+% ============================================================
+\section{Cost analysis}
+\label{sec:cost}
+% ============================================================
+
+Total recorded spend was \$1{,}832.40, of which the two full passes account
+for 93\% (\$1{,}704). All Claude-driver figures are notional API-equivalents
+reported by the CLI --- the operator pays a flat subscription, so these
+numbers measure compute intensity, not cash. The one real-money run
+(\run{LRV-Indomitable}, Grok driver \cite{xai2025grok41}) cost \$1.08 for
+five attempts.
+
+At the full-pass level the flat agent is cheaper per solve (\$23.12 vs.\
+\$29.48) \emph{and} better, so on FATE-X there is currently no
+cost-quality trade-off to argue about: Control~II dominates. The
+mid-campaign cost-cap incident is worth recording: architect runs were
+briefly gated by a dollar ceiling (\run{ARCHITECT\_MAX\_COST\_USD})
+intended for real Grok spend; applied to the Claude driver's notional
+figures it cut off healthy runs arbitrarily and has been removed for that
+driver --- wall clock and iteration budgets are the real governors.
+
+Failed attempts dominate spend: Ultra's 70 misses at roughly 60 minutes each
+are ${\sim}70$ budget-hours of compute for zero score. Cheap early rejection
+of unpromising problems (a cost estimator over proof-cost history is in
+development) is the highest-leverage efficiency work identified by this
+campaign.
+
+% ============================================================
+\section{Operational incidents and data integrity}
+\label{sec:incidents}
+% ============================================================
+
+A benchmark is only as good as its bookkeeping. Three incidents from this
+campaign shaped the protocol and are documented here for reproducibility:
+
+\begin{enumerate}[itemsep=2pt]
+\item \textbf{Resume-path data loss (found 8~Aug, fixed commit
+      \run{f20f130}).} The console's ``from here'' requeue reset every
+      non-running item at/after the target to \emph{pending} --- including
+      already-scored ones. Because requeue paths never null the stored
+      proof/metrics columns, the 19 wiped items of \run{LUF-Anonymous}
+      (\run{fatex\_071}--\run{089}: 2 proved, 17 unsolved) were recovered by
+      restoring status from the preserved columns, after a full-run JSON
+      backup. The fix restricts tail-requeue to pending/skipped items.
+      Table~\ref{tab:ledger} reflects post-recovery truth.
+\item \textbf{Certificate wipe on failed re-verification (fixed).} A failed
+      re-verify of an already-proven problem could clear its stored
+      certificate before staging the new result, destroying a verified proof
+      on infrastructure flake. Re-verification now stages before it clears.
+\item \textbf{Verifier schema mismatch.} Leak~IV's verify endpoint takes
+      \run{\{script\}} while Leak~XIV takes \run{\{code,\dots\}}; mis-wiring
+      surfaces as what looks like a bridge bug and, worse, as a
+      wrong-toolchain gate. Run manifests now log the armed verifier and
+      toolchain line per run, which is how the v4.29.1/v4.32.0 split in
+      \S\ref{sec:verifiers} is known rather than assumed.
+\end{enumerate}
+
+The triage rules of \S\ref{sec:protocol} (release vs.\ retry vs.\ skip) exist
+because of a fourth, older failure class: infrastructure flake silently
+consuming retry budget. Releasing a claim now decrements the attempt counter,
+so no quota outage can burn a problem's attempts.
+
+% ============================================================
+\section{Threats to validity}
+\label{sec:validity}
+% ============================================================
+
+\begin{enumerate}[itemsep=2pt]
+\item \textbf{Single passes.} Each full-pass cell is $n{=}1$ per problem; the
+      sign test in \S\ref{sec:headtohead} conditions on discordant pairs but
+      cannot correct for run-level luck (service latency, provider load).
+      Stronghold probes are $n{\le}4$ and merely directional.
+\item \textbf{Sanitisation.} LUF benchmark run had a pre-sanitsation round to ensure 
+      theorems are in the shape LUF expects (everything compacted into one theorem signature,
+      statements all elaborate), but this process was omitted for LC-II benchmark run.
+      It is worth mentioning LC-II's toolchain was one minor version ahead of
+      the FATE-X pin. 
+\item \textbf{Toolchain confound.} Ultra verified against Mathlib
+      \texttt{v4.32.0}, Control~II against \texttt{v4.29.1}
+      (\S\ref{sec:verifiers}); FATE-X itself pins \texttt{v4.28.0}
+      \cite{fatex2025}. Lemma renames and automation changes between Mathlib
+      versions can shift item difficulty in either direction. The two
+      excluded items are excluded from \emph{both} arms, so the headline
+      comparison is internally consistent, but absolute rates are not
+      directly comparable with the FATE-X leaderboard without further
+      restrictions for fairness.
+      \cite{benchmarklist_fatex}.
+\item \textbf{Contamination.} FATE-X sources include textbooks and exam
+      archives that plausibly appear in model training data, stated by
+      the authors of the benchmark in their paper.
+      \cite{anthropic2026sonnet5}; formal statements are recent, informal
+      ancestors may not be. This affects absolute rates, though it should
+      affect both arms symmetrically.
+\item \textbf{Notional costs.} Claude-driver dollar figures are
+      API-equivalent estimates, not actual spend; for the reported benchmarks,
+      we used Claude's cheaper Max Plan (20x usage provided comfortable headroom for 
+      parallel benchmarking).
+\end{enumerate}
+
+% ============================================================
+\section{Conclusions and next steps}
+\label{sec:nextsteps}
+% ============================================================
+
+On FATE-X, at current budgets, our decomposition pipelines do not beat a
+well-tooled flat agent: Control~II leads Ultra Fleeting 38.8\% to 28.6\% on
+identical budgets ($p\approx0.013$), at lower cost per solve, and everything
+any strategy has ever solved (40/100 union) is contained in what the two
+full passes solved. Decomposition earns its keep in speed (562\,s vs.\
+1{,}218\,s median per solve) and on exactly two problems the flat agent
+missed. The Stronghold family's added machinery beyond Surround has so far
+subtracted capability, and both leading arms hit the same wall in the
+benchmark's top quartile.
+
+The campaign's planned follow-ups, in priority order:
+
+\begin{enumerate}[itemsep=2pt]
+\item \textbf{Finish Control III} (95 pending items, continuous-session
+      design, commit \run{75f6491}), completing the memory/feedback ladder of
+      \S\ref{sec:c3}: how far does memory alone --- one bit of feedback per
+      attempt --- close the gap to Control~II's 38.8\%?
+\item \textbf{A full Surround pass at 60 minutes.} The family's best arm has
+      only ever been probed ($n{=}4$); its 3/4 with the \run{fatex\_003}
+      failure mode is the family's most interesting open signal.
+\item \textbf{Toolchain-matched re-run.} Re-verify one full pass on the other
+      verifier group to bound the v4.29.1/v4.32.0 confound directly.
+\item \textbf{Blueprint-quality gate.} Ultra's losses concentrate in planning
+      (\S\ref{sec:architect}); a cheap blueprint sanity check before
+      committing node budget (cf.\ subgoal-quality filtering in
+      \cite{deepseekproverv2}) is the pipeline's most promising fix.
+\item \textbf{Top-quartile study.} Items 76--100 resist both architectures;
+      qualitative failure analysis on \run{fatex\_085}--\run{100} should
+      precede any further architecture work aimed at them.
+\end{enumerate}
+
+\newpage
+\printbibliography
+
+\newpage
+\appendix
+% ============================================================
+\section{Per-problem results}
+\label{app:items}
+% ============================================================
+
+Full-pass outcome for every FATE-X item, in the benchmark's difficulty order
+\cite{fatex2025}. UF = \run{LUF-Anonymous} (Ultra Fleeting), C2 =
+\run{LC-II-Irrationality} (Control~II); \cmark{} = proved, -- = unsolved
+within budget. Items 9 and 41 do not elaborate under the campaign toolchains
+(\S\ref{sec:benchmark}) and were excluded. Theorem names are FATE-X's own;
+topics are the benchmark's finest tag.
+
+\begingroup\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{@{}rllcc@{}}
+\caption{Per-problem outcomes for the two full passes.}
+\label{tab:allitems}\\
+\toprule
+\# & Theorem & Topic & UF & C2 \\
+\midrule
+\endfirsthead
+\toprule
+\# & Theorem & Topic & UF & C2 \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\input{benchmark-report-items}
+\end{longtable}
+\endgroup
+
+\end{document}

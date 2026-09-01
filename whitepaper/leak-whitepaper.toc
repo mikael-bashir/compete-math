@@ -1,0 +1,117 @@
+\contentsline {section}{\numberline {1}Introduction}{5}{section.1}%
+\contentsline {subsection}{\numberline {1.1}The Research Question}{5}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Summary of Findings}{6}{subsection.1.2}%
+\contentsline {section}{\numberline {2}Background: The Formal Verification Bottleneck}{7}{section.2}%
+\contentsline {paragraph}{Verification is binary and adversarial.}{7}{paragraph*.1}%
+\contentsline {paragraph}{The library is vast and its naming is adversarially irregular.}{7}{paragraph*.2}%
+\contentsline {paragraph}{State is deep and non-local.}{7}{paragraph*.3}%
+\contentsline {subsection}{\numberline {2.1}Related Systems}{7}{subsection.2.1}%
+\contentsline {paragraph}{Scaled search and reinforcement learning.}{7}{paragraph*.4}%
+\contentsline {paragraph}{Decomposition harnesses.}{8}{paragraph*.5}%
+\contentsline {paragraph}{Tools versus scale in agent design.}{8}{paragraph*.6}%
+\contentsline {section}{\numberline {3}The Execution Substrate: LSP and REPL Disciplines}{8}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Two Ways to Talk to a Proof Assistant}{8}{subsection.3.1}%
+\contentsline {paragraph}{The Language Server Protocol discipline.}{8}{paragraph*.7}%
+\contentsline {paragraph}{The read--eval--print discipline.}{8}{paragraph*.8}%
+\contentsline {subsection}{\numberline {3.2}The Division of Labour in Leak}{9}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Why the Distinction Has Strategic Consequences}{9}{subsection.3.3}%
+\contentsline {section}{\numberline {4}Generation One: A Linear ReAct Architecture for Compact Models}{11}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Foundation-Model Economics}{11}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}The Thought--Action--Observation Loop}{12}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}The Case Against Tree Search at Small Scale}{12}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}The Leak Stack, Version One}{13}{subsection.4.4}%
+\contentsline {subsubsection}{\numberline {4.4.1}Leak-I: Mathematical Information Retrieval}{13}{subsubsection.4.4.1}%
+\contentsline {subsubsection}{\numberline {4.4.2}Leak-II: Persistent Execution Daemon and State Tracking}{14}{subsubsection.4.4.2}%
+\contentsline {subsubsection}{\numberline {4.4.3}Leak-III: Strategic Tactic Proposal}{14}{subsubsection.4.4.3}%
+\contentsline {section}{\numberline {5}Generation One: Empirical Findings}{14}{section.5}%
+\contentsline {subsection}{\numberline {5.1}The Five-by-Five Success Region}{14}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Case Studies}{14}{subsection.5.2}%
+\contentsline {subsubsection}{\numberline {5.2.1}Algebraic identities}{14}{subsubsection.5.2.1}%
+\contentsline {subsubsection}{\numberline {5.2.2}Inductive inequalities}{15}{subsubsection.5.2.2}%
+\contentsline {subsubsection}{\numberline {5.2.3}Type theory and surjectivity}{16}{subsubsection.5.2.3}%
+\contentsline {section}{\numberline {6}Failure Analysis: Loop Escape and Role Hijacking}{17}{section.6}%
+\contentsline {subsection}{\numberline {6.1}The ``Fill in the Gap'' Incident}{17}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Mechanics and Security Classification}{18}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}The Lesson: An Exit Must Be Earned}{19}{subsection.6.3}%
+\contentsline {section}{\numberline {7}Generation Two: Verified Decomposition at Scale}{19}{section.7}%
+\contentsline {subsection}{\numberline {7.1}What Changed and Why}{19}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}The Stack, Revised}{19}{subsection.7.2}%
+\contentsline {paragraph}{Deployment and version discipline.}{20}{paragraph*.18}%
+\contentsline {subsection}{\numberline {7.3}The Research-Mode Protocol}{20}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}The Registry Principle}{21}{subsection.7.4}%
+\contentsline {subsection}{\numberline {7.5}In-Context Decomposition: The \texttt {have} Strategy}{21}{subsection.7.5}%
+\contentsline {subsection}{\numberline {7.6}The Have-Tree Orchestrator}{21}{subsection.7.6}%
+\contentsline {subsection}{\numberline {7.7}Prove-or-Split Lemma Trees}{22}{subsection.7.7}%
+\contentsline {section}{\numberline {8}The Strategy Registry}{23}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Family Zero: Flat Baselines}{23}{subsection.8.1}%
+\contentsline {paragraph}{Leak Control I}{23}{paragraph*.19}%
+\contentsline {paragraph}{Leak Control II}{23}{paragraph*.20}%
+\contentsline {subsection}{\numberline {8.2}Family One: Single-Context Strategies}{23}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Family Two: The Stronghold Line}{24}{subsection.8.3}%
+\contentsline {paragraph}{Stronghold Dark}{24}{paragraph*.21}%
+\contentsline {paragraph}{Stronghold Surround}{24}{paragraph*.22}%
+\contentsline {paragraph}{Finality I}{24}{paragraph*.23}%
+\contentsline {paragraph}{Stronghold Force}{25}{paragraph*.24}%
+\contentsline {paragraph}{Stronghold Forte}{25}{paragraph*.25}%
+\contentsline {subsection}{\numberline {8.4}Family Three: Blueprint Refinement}{26}{subsection.8.4}%
+\contentsline {paragraph}{Oversight watchers.}{26}{paragraph*.26}%
+\contentsline {subsection}{\numberline {8.5}Cross-Cutting Mechanisms}{27}{subsection.8.5}%
+\contentsline {paragraph}{The retrieval governor.}{27}{paragraph*.27}%
+\contentsline {paragraph}{The verified-lemma pool.}{27}{paragraph*.28}%
+\contentsline {paragraph}{The proven-lemma vault.}{27}{paragraph*.29}%
+\contentsline {paragraph}{Certificate provenance.}{28}{paragraph*.30}%
+\contentsline {paragraph}{Checkpointing and resumption.}{28}{paragraph*.31}%
+\contentsline {paragraph}{The proof bank and run log.}{28}{paragraph*.32}%
+\contentsline {paragraph}{Cost accounting.}{28}{paragraph*.33}%
+\contentsline {paragraph}{Quota-aware abstention.}{28}{paragraph*.34}%
+\contentsline {section}{\numberline {9}Generation Two: Empirical Results --- The CompeteMath Corpus}{28}{section.9}%
+\contentsline {subsection}{\numberline {9.1}Deployment Context}{28}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}Corpus Statistics}{29}{subsection.9.2}%
+\contentsline {subsection}{\numberline {9.3}Case Study: Formalising the Argument Principle on Demand}{29}{subsection.9.3}%
+\contentsline {subsection}{\numberline {9.4}Case Study: Counting Beyond Enumeration}{30}{subsection.9.4}%
+\contentsline {subsection}{\numberline {9.5}The Open Residue}{31}{subsection.9.5}%
+\contentsline {subsection}{\numberline {9.6}Generation One versus Generation Two}{32}{subsection.9.6}%
+\contentsline {section}{\numberline {10}Controlled Evaluation on FATE-X}{32}{section.10}%
+\contentsline {subsection}{\numberline {10.1}The Benchmark}{32}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10.2}Preprocessing}{33}{subsection.10.2}%
+\contentsline {paragraph}{Normalisation.}{33}{paragraph*.37}%
+\contentsline {paragraph}{Single-theorem rewriting.}{33}{paragraph*.38}%
+\contentsline {paragraph}{Machine-checked strength.}{33}{paragraph*.39}%
+\contentsline {paragraph}{Toolchain exclusions.}{34}{paragraph*.40}%
+\contentsline {paragraph}{Consequences.}{34}{paragraph*.41}%
+\contentsline {paragraph}{A caveat we record against ourselves.}{34}{paragraph*.42}%
+\contentsline {subsection}{\numberline {10.3}Experimental Protocol}{34}{subsection.10.3}%
+\contentsline {subsection}{\numberline {10.4}Results}{35}{subsection.10.4}%
+\contentsline {subsection}{\numberline {10.5}Strategy Comparison}{36}{subsection.10.5}%
+\contentsline {subsection}{\numberline {10.6}The Control Observation}{37}{subsection.10.6}%
+\contentsline {section}{\numberline {11}Threats to Validity: Data Contamination}{38}{section.11}%
+\contentsline {subsection}{\numberline {11.1}The Problem Is Not Release Timing}{38}{subsection.11.1}%
+\contentsline {subsection}{\numberline {11.2}Model Coverage}{39}{subsection.11.2}%
+\contentsline {subsection}{\numberline {11.3}Proposed Mitigation: A Difficulty-Matched Control Benchmark}{39}{subsection.11.3}%
+\contentsline {subsection}{\numberline {11.4}What We Nonetheless Claim}{40}{subsection.11.4}%
+\contentsline {section}{\numberline {12}Discussion}{40}{section.12}%
+\contentsline {subsection}{\numberline {12.1}The Tree, Rehabilitated}{40}{subsection.12.1}%
+\contentsline {subsection}{\numberline {12.2}How Much Does Strategy Actually Buy?}{41}{subsection.12.2}%
+\contentsline {subsubsection}{\numberline {12.2.1}Scaffolding That Changes the Information Available}{41}{subsubsection.12.2.1}%
+\contentsline {subsubsection}{\numberline {12.2.2}Scaffolding That Only Adds Coordination}{41}{subsubsection.12.2.2}%
+\contentsline {subsubsection}{\numberline {12.2.3}A Note on Diminishing Returns}{42}{subsubsection.12.2.3}%
+\contentsline {section}{\numberline {13}Future Work}{42}{section.13}%
+\contentsline {subsection}{\numberline {13.1}Completing the Experiment}{42}{subsection.13.1}%
+\contentsline {paragraph}{Full benchmark runs for every arm.}{42}{paragraph*.46}%
+\contentsline {paragraph}{The difficulty-matched control benchmark.}{42}{paragraph*.47}%
+\contentsline {paragraph}{Cross-model replication.}{43}{paragraph*.48}%
+\contentsline {subsection}{\numberline {13.2}Removing Known Waste}{43}{subsection.13.2}%
+\contentsline {paragraph}{Persistent tool inventories for sub-agents.}{43}{paragraph*.49}%
+\contentsline {paragraph}{Signalling retrieval replenishment to the agent.}{43}{paragraph*.50}%
+\contentsline {paragraph}{Batched retrieval.}{43}{paragraph*.51}%
+\contentsline {subsection}{\numberline {13.3}Strengthening the Verification Interface}{43}{subsection.13.3}%
+\contentsline {paragraph}{Returning \texttt {apply?} suggestions automatically.}{43}{paragraph*.52}%
+\contentsline {paragraph}{An evolving library.}{44}{paragraph*.53}%
+\contentsline {subsection}{\numberline {13.4}Orchestration}{44}{subsection.13.4}%
+\contentsline {paragraph}{Deferred structural commitment.}{44}{paragraph*.54}%
+\contentsline {paragraph}{Adaptive depth and cross-pollination.}{44}{paragraph*.55}%
+\contentsline {paragraph}{Cost estimation and admission control.}{44}{paragraph*.56}%
+\contentsline {paragraph}{SMT offloading.}{44}{paragraph*.57}%
+\contentsline {subsection}{\numberline {13.5}Discipline}{45}{subsection.13.5}%
+\contentsline {paragraph}{Protocol hardening as a first-class concern.}{45}{paragraph*.58}%
+\contentsline {section}{\numberline {14}Conclusion}{45}{section.14}%

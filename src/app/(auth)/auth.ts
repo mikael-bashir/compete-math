@@ -22,7 +22,7 @@ const devProviders =
           credentials: {},
           async authorize() {
             return {
-              id: "dev-mock-user",
+              id: "11111111-1111-4111-8111-111111111111",
               username: "devtester",
               email: "dev@localhost",
               iat: Date.now(),
