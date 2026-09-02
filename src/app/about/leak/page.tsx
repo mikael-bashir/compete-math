@@ -98,7 +98,7 @@ export default function AboutLeakPage() {
           </FeatureCard>
 
           <FeatureCard name="Leak-IV & Leak-XIV" badge="Verification Gates" tone="slate">
-            The final compilation gates. These services compile the completed proof script against the Lean kernel. A proof is only accepted if it passes with zero warnings, ensuring unfinished proofs never slip through. (Leak-XIV targets a newer toolchain than Leak-IV).
+            The final compilation gate. These services compile the completed proof script against the Lean kernel. A proof is only accepted if it passes with zero warnings, ensuring unfinished proofs never slip through. (Leak-XIV targets a newer toolchain than Leak-IV).
           </FeatureCard>
         </div>
       </section>
