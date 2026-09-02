@@ -6,25 +6,11 @@ import { InfoPage } from "../../lib/components/info-page";
 export const metadata: Metadata = {
   title: "What is Leak?",
   description:
-    "The Lean 4 proving engine behind CompeteMath's verified problems — four prover families and the services they run on.",
+    "The experimental Lean 4 proving engine behind CompeteMath's verified problems.",
 };
 
-// PLACEHOLDER repository links. The repos are not published yet; these are
-// dummies so the page renders with working markup. Kept in one block so there
-// is exactly one place to edit when the real URLs exist.
-const REPO = {
-  river: "https://github.com/mikael-bashir/leak-river",
-  stronghold: "https://github.com/mikael-bashir/leak-stronghold",
-  ultra: "https://github.com/mikael-bashir/leak-ultra",
-  finality: "https://github.com/mikael-bashir/leak-finality",
-  leakI: "https://github.com/mikael-bashir/leak-i",
-  leakII: "https://github.com/mikael-bashir/leak-ii",
-  leakIII: "https://github.com/mikael-bashir/leak-iii",
-  leakIV: "https://github.com/mikael-bashir/leak-iv",
-  leakXI: "https://github.com/mikael-bashir/leak-xi",
-  leakXII: "https://github.com/mikael-bashir/leak-xii",
-  leakXIV: "https://github.com/mikael-bashir/leak-xiv",
-};
+const MAIN_REPO = "https://github.com/mikael-bashir/nextjs-ai-chatbot";
+const SERVICES_REPO = "https://github.com/mikael-bashir/leak-services";
 
 export default function AboutLeakPage() {
   return (
@@ -33,159 +19,131 @@ export default function AboutLeakPage() {
         <p>
           Leak is the proving engine behind CompeteMath. When a problem here is
           marked verified, a Leak prover wrote a proof in{" "}
-          <a href="https://lean-lang.org" target="_blank" rel="noreferrer">
+          <a href="https://lean-lang.org" target="_blank" rel="noopener noreferrer">
             Lean&nbsp;4
           </a>{" "}
-          and the Lean kernel checked it — the claim is machine-checked, not
-          eyeballed. See <Link href="/about">About</Link> for the wider project.
+          and the Lean kernel checked it.
         </p>
         <p className="mt-4">
-          Leak is not one program. It is four families of prover, each attacking
-          a proof a different way, plus a small set of services they all share.
+          Rather than being a single program, Leak consists of many experimental pipelines designed to test different approaches to automated theorem proving. Currently, we operate five main agent harnesses, all driven by Anthropic&rsquo;s Claude Sonnet 5 CLI Agent.
         </p>
       </section>
 
       <section>
-        <h2>The four prover families</h2>
+        <h2>Leak Harnesses</h2>
         <p className="mt-3">
-          They differ in how much compute they are willing to spend and in how
-          they break a hard theorem into pieces it can actually close.
+          These harnesses differ in the tools they are allowed to use, how they interact with the Lean kernel, and their underlying proof strategies.
         </p>
 
         <div className="mt-6 space-y-4">
-          <Family
-            name="Leak River"
-            badge="Open source · light"
+          <FeatureCard
+            name="Leak Control-I"
+            badge="Agent · One-Shot"
+            tone="slate"
+          >
+            A Claude Sonnet 5 agent forced to prove a theorem one-shot with no compiler feedback or internet search, invigilated by Leak-IV. This harness is highly significant as a baseline control: it failed comedically at FATE-X, agreeing with the findings by the authors of FATE-X, proving exactly why iterative feedback loops are necessary.
+          </FeatureCard>
+
+          <FeatureCard
+            name="Leak Control-II"
+            badge="Agent · Leak-I, Leak-IV"
             tone="emerald"
-            href={REPO.river}
           >
-            The lightweight member of the family. River goes at a problem
-            directly and cheaply, which makes it the right first attempt on
-            anything that is not deeply hard — and a fast baseline to measure
-            the heavier provers against.
-          </Family>
+            The best performing harness of this project. A Claude Sonnet 5 agent forced to continuously try to prove a theorem with no internet search, but granted access to Leak-I and Leak-IV, invigilated by a seperate Leak-IV gate, and allowed to use tools and think for itself. This minimalist but persistent pipeline is significant because it achieved a breakthrough score of <strong>38/98 on FATE-X</strong>.
+          </FeatureCard>
 
-          <Family
-            name="Leak Stronghold"
-            badge="Partially closed · heavy"
-            tone="amber"
-            href={REPO.stronghold}
-          >
-            A heavy recursive decomposer. Stronghold splits a theorem into
-            sub-goals, then splits the sub-goals that resist, recursing until
-            the pieces are small enough to close outright and reassembling the
-            proof on the way back up.
-          </Family>
-
-          <Family
-            name="Leak Ultra"
-            badge="Partially closed · heavy"
-            tone="amber"
-            href={REPO.ultra}
-          >
-            A heavy DAG-refinement loop. Ultra lays the argument out as a
-            dependency graph of lemmas and repeatedly refines that graph in
-            light of what the last pass proved and what it got stuck on, rather
-            than committing to one decomposition up front.
-          </Family>
-
-          <Family
-            name="Leak Finality"
-            badge="Partially closed · heavy · most advanced"
+          <FeatureCard
+            name="Leak Control-III"
+            badge="Agent · Leak-I, Leak-II, Leak-IV"
             tone="violet"
-            href={REPO.finality}
           >
-            Our most advanced prover, and a hybrid of the two above. Finality
-            takes Stronghold&rsquo;s decomposition and Ultra&rsquo;s refinement
-            loop and runs them together, so it can keep breaking a goal down{" "}
-            <strong>and</strong> redesign the whole plan when the evidence says
-            the plan is wrong. The result adapts to a problem far better than
-            either parent does alone.
-          </Family>
+            A Claude Sonnet 5 agent forced to continuously try to prove a theorem with no internet search, but given access to Leak-I, Leak-II, and Leak-IV, invigilated by a seperate Leak-IV gate. This harness was designed specifically to test the benefit and reasoning impact of an upgraded pantograph service.
+          </FeatureCard>
+
+          <FeatureCard
+            name="Leak Stronghold"
+            badge="Agent · Have-based decomposition"
+            tone="amber"
+          >
+            A family of Claude Sonnet 5 agent harnesses utilizing different strategies, but all attempting to construct a <a href="https://lean-lang.org/theorem_proving_in_lean4/tactics.html#more-tactics" target="_blank" rel="noopener noreferrer">have-based</a> proof skeleton for a theorem. Stronghold is significant because it performed highly efficiently in production, successfully proving the vast majority of the <Link href="/practice">CompeteMath practice problem roster</Link>.
+          </FeatureCard>
+
+          <FeatureCard
+            name="Leak Ultra"
+            badge="Agent · Blueprint Refinement"
+            tone="amber"
+          >
+            A spin on the architecture from the <a href="https://arxiv.org/abs/2606.06468" target="_blank" rel="noopener noreferrer">goedel-architect prover</a>, making use of Leak-XI, Leak-XII, and Leak-XIV. While the underlying architecture is provably excellent, this harness is significant for demonstrating that the design actually performs <em>worse</em> when driven by a slower agentic loop, compared to other strategies such as Leak Control-II, in contrast to Goedel-Architect's performance when driver by a fast LLM such as Deepseek Flash V4, and compared to other LLM based pipelines.
+          </FeatureCard>
         </div>
       </section>
 
       <section>
-        <h2>Why three of them are &ldquo;partially closed&rdquo;</h2>
+        <h2>The Leak Services (MCP Tooling)</h2>
         <p className="mt-3">
-          Stronghold, Ultra and Finality drive Anthropic&rsquo;s Claude models
-          as their reasoning core. Everything we write — the orchestration, the
-          decomposition, the refinement, the verification gates — is open, but
-          the model at the centre is not ours to open. So those three are open
-          source in the parts we own and closed in the part we do not, and we
-          would rather say that plainly than call them something they are not.
+          The agent harnesses do not interact with Lean directly. They rely on specialized Model Context Protocol (MCP) services to navigate the library, manipulate proof states, and compile results.
         </p>
+
+        <div className="mt-6 space-y-4">
+          <FeatureCard name="Leak-I & Leak-XI" badge="Library Search" tone="slate">
+            Lemma search over Mathlib. The agent describes the shape of the required theorem, and the service retrieves existing declarations so the prover builds on the library rather than reinventing it. (Leak-XI targets a newer toolchain than Leak-I).
+          </FeatureCard>
+
+          <FeatureCard name="Leak-II" badge="Proof-State Daemon" tone="slate">
+            An interactive Lean proof-state daemon. The agent can open a goal, apply a tactic, and observe the resulting state difference before committing to a path—providing vital execution feedback.
+          </FeatureCard>
+
+          <FeatureCard name="Leak-XII" badge="Blueprint Compiler" tone="slate">
+            A graph-based elaboration service used primarily by Ultra. It validates dependency graphs and elaborates individual declarations so the prover can verify exactly what a specific name means.
+          </FeatureCard>
+
+          <FeatureCard name="Leak-IV & Leak-XIV" badge="Verification Gates" tone="slate">
+            The final compilation gates. These services compile the completed proof script against the Lean kernel. A proof is only accepted if it passes with zero warnings, ensuring unfinished proofs never slip through. (Leak-XIV targets a newer toolchain than Leak-IV).
+          </FeatureCard>
+        </div>
       </section>
 
       <section>
-        <h2>The Leak services</h2>
+        <h2>Source &amp; Availability</h2>
         <p className="mt-3">
-          The provers do not talk to Lean directly. They talk to MCP services
-          that search the library, hold a live proof state, and compile. The
-          deployments are private — they are ours, and they cost real compute to
-          run — but the source is open, so you can read exactly what a prover is
-          allowed to ask for and what it gets back.
+          To maintain a consolidated codebase and simplify deployments, the experimental pipelines and harnesses do not live in separate repositories. 
         </p>
-        <p className="mt-4">
-          There are two of these groups, on two different versions of Lean, and
-          a proof is certified by whichever group its prover runs on. That is
-          not an accident of history we are hiding: a proof that compiles on one
-          Lean does not automatically compile on the other, so we keep the
-          groups separate and record which one signed off.
+        <p className="mt-3">
+          The code for all five harnesses, along with their prompts and MCP tool configurations, is open-source and available directly within the main CompeteMath infrastructure repositories.
         </p>
 
-        <GroupLabel>
-          Lean 4.29.1 — Stronghold &amp; Finality
-        </GroupLabel>
-        <div className="mt-4 space-y-4">
-          <Family name="Leak I" badge="Search" tone="slate" href={REPO.leakI}>
-            Lemma search over Mathlib. A prover describes the shape of the
-            result it needs and Leak&nbsp;I finds what already exists, so it
-            builds on the library instead of reinventing it.
-          </Family>
+        <div className="mt-6 flex flex-col gap-3">
+          <a
+            href={MAIN_REPO}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] p-4 transition-colors hover:border-white/20 no-underline"
+          >
+            <div className="flex items-center gap-3">
+              <SiGithub className="h-5 w-5 text-white/70" />
+              <div>
+                <div className="text-sm font-semibold text-white">mikael-bashir/nextjs-ai-chatbot</div>
+                <div className="text-xs text-white/50">Contains all Leak harnesses, prompts, and orchestration logic.</div>
+              </div>
+            </div>
+            <span className="text-xs text-emerald-300/80 font-code">&rarr;</span>
+          </a>
 
-          <Family name="Leak II" badge="Proof state" tone="slate" href={REPO.leakII}>
-            An interactive Lean proof-state daemon. A prover can open a goal,
-            apply one tactic, and look at what it did — the difference between
-            reasoning about a proof and actually stepping through it.
-          </Family>
-
-          <Family name="Leak III" badge="Retired" tone="muted" href={REPO.leakIII}>
-            No longer in service. It is listed here for provenance: the
-            repository stays public so the history of how the stack got to its
-            current shape is not quietly erased.
-          </Family>
-
-          <Family name="Leak IV" badge="Verification" tone="slate" href={REPO.leakIV}>
-            The gate for this group. Leak&nbsp;IV compiles a complete proof
-            script and reports exactly what the kernel says. A proof only counts
-            as proved once this service accepts it — and it rejects on warnings
-            too, so an unfinished proof can never pass as a finished one.
-          </Family>
-        </div>
-
-        <GroupLabel>Lean 4.32.0 — River &amp; Ultra</GroupLabel>
-        <div className="mt-4 space-y-4">
-          <Family name="Leak XI" badge="Search" tone="slate" href={REPO.leakXI}>
-            Library search for the newer toolchain — the counterpart of
-            Leak&nbsp;I, against the Mathlib these two provers actually build
-            on.
-          </Family>
-
-          <Family name="Leak XII" badge="Compile · elaborate" tone="slate" href={REPO.leakXII}>
-            The working compiler. River and Ultra design a proof as a dependency
-            graph, and Leak&nbsp;XII both compiles that graph and checks it is a
-            valid one — no cycles, no dead nodes, and an assembly that really
-            does derive the target from its parts. It also elaborates individual
-            declarations, so a prover can ask what a name actually means instead
-            of guessing.
-          </Family>
-
-          <Family name="Leak XIV" badge="Verification" tone="slate" href={REPO.leakXIV}>
-            The gate for this group — the same role Leak&nbsp;IV plays for the
-            other one. Nothing from River or Ultra counts as proved until
-            Leak&nbsp;XIV has certified the assembled proof.
-          </Family>
+          <a
+            href={SERVICES_REPO}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] p-4 transition-colors hover:border-white/20 no-underline"
+          >
+            <div className="flex items-center gap-3">
+              <SiGithub className="h-5 w-5 text-white/70" />
+              <div>
+                <div className="text-sm font-semibold text-white">mikael-bashir/leak-services</div>
+                <div className="text-xs text-white/50">Lean 4 MCP services, proof-state daemon, and search tooling.</div>
+              </div>
+            </div>
+            <span className="text-xs text-emerald-300/80 font-code">&rarr;</span>
+          </a>
         </div>
       </section>
     </InfoPage>
@@ -200,29 +158,16 @@ const TONES: Record<string, string> = {
   muted: "border-white/10 text-white/30",
 };
 
-// Divider for the two verifier groups. Echoes the footer's column headings so
-// the split reads as structure rather than as a stray line of text.
-function GroupLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="font-code mt-8 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/35!">
-      {children}
-    </p>
-  );
-}
-
-// One prover family or service: name, a short status badge, the pitch, and a
-// link to its repository.
-function Family({
+// Renamed from Harness to FeatureCard so it works semantically for both sections
+function FeatureCard({
   name,
   badge,
   tone,
-  href,
   children,
 }: {
   name: string;
   badge: string;
-  tone: keyof typeof TONES | string;
-  href: string;
+  tone: keyof typeof TONES;
   children: React.ReactNode;
 }) {
   return (
@@ -237,18 +182,7 @@ function Family({
           {badge}
         </span>
       </div>
-
-      <p className="mt-3 text-sm leading-relaxed text-white/65">{children}</p>
-
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        className="font-code mt-4 inline-flex items-center gap-2 text-xs text-white/40! hover:text-emerald-300! transition-colors no-underline"
-      >
-        <SiGithub className="h-3.5 w-3.5" />
-        View repository
-      </a>
+      <p className="mt-3 text-sm leading-relaxed text-white/65 [&>a]:text-emerald-300/80 [&>a]:underline [&>a]:underline-offset-4 [&>a]:transition-colors hover:[&>a]:text-emerald-300">{children}</p>
     </div>
   );
 }
