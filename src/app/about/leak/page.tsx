@@ -37,7 +37,7 @@ export default function AboutLeakPage() {
 
         <div className="mt-6 space-y-4">
           <FeatureCard
-            name="Leak Control-I"
+            name="Leak Control-III"
             badge="Agent · One-Shot"
             tone="slate"
           >
@@ -53,7 +53,7 @@ export default function AboutLeakPage() {
           </FeatureCard>
 
           <FeatureCard
-            name="Leak Control-III"
+            name="Leak Control-IV"
             badge="Agent · Leak-I, Leak-II, Leak-IV"
             tone="violet"
           >
