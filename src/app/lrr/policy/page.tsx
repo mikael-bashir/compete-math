@@ -32,7 +32,7 @@ export default function LRRPolicyPage() {
       <section>
         <h2>3. Confidentiality</h2>
         <p className="mt-3">
-          Your access code is provisioned exclusively for you. You agree not to publicly distribute the raw benchmark solutions or Lean proofs in any manner that would make them accessible to public web crawlers or automated scraping tools.
+          Your access code is provisioned exclusively for you. You agree not to publicly distribute the raw benchmark solutions or Lean proofs in any manner that would make them accessible to public web crawlers or automated scraping tools. In the case that you must share data from LRR to third-party partners, you agree to take reasonable steps to mitigate data contamination of benchmark answers, such as only sharing to those who need access, or destroying the data when it is no longer needed.
         </p>
       </section>
 
