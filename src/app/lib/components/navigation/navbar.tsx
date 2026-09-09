@@ -83,7 +83,16 @@ export default function Navbar() {
   // and a quick flick across the bar must not leave two panels open at once.
   const homeCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const researchCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  function hoverHandlers(setOpen: (v: boolean) => void, timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>) {
+  // `closeOther` is called the instant this one opens: the two panels are now
+  // full-width strips at the SAME position (see DesktopPanel), so without this
+  // a quick flick from Home to Research could render both at once for the
+  // ~150ms grace window and show two stacked bars flickering on top of each
+  // other. Opening one now always closes the other immediately.
+  function hoverHandlers(
+    setOpen: (v: boolean) => void,
+    timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
+    closeOther: () => void,
+  ) {
     const clear = () => {
       if (timer.current) {
         clearTimeout(timer.current)
@@ -91,19 +100,19 @@ export default function Navbar() {
       }
     }
     return {
-      onMouseEnter: () => { clear(); setOpen(true) },
+      onMouseEnter: () => { clear(); closeOther(); setOpen(true) },
       onMouseLeave: () => { clear(); timer.current = setTimeout(() => setOpen(false), 150) },
       // Keyboard parity: focusing anything inside the trigger's container opens
       // it; focus leaving the container (not just the trigger itself) closes
       // it, so tabbing from the trigger into its own dropdown items is fine.
-      onFocus: () => { clear(); setOpen(true) },
+      onFocus: () => { clear(); closeOther(); setOpen(true) },
       onBlur: (e: React.FocusEvent) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false)
       },
     }
   }
-  const homeHover = hoverHandlers(setHomeOpen, homeCloseTimer)
-  const researchHover = hoverHandlers(setResearchOpen, researchCloseTimer)
+  const homeHover = hoverHandlers(setHomeOpen, homeCloseTimer, () => setResearchOpen(false))
+  const researchHover = hoverHandlers(setResearchOpen, researchCloseTimer, () => setHomeOpen(false))
 
   // Shared link styling: colour + hover feedback only. Underline (active) is
   // layered on separately so it can be scoped to just a label span when the
@@ -112,23 +121,28 @@ export default function Navbar() {
   const linkCls = (active: boolean) =>
     `${linkBase} ${active ? "text-amber-200" : "text-white/60 hover:text-white hover:bg-white/5"}`
 
-  // The floating panel shared by both desktop dropdowns. No backdrop-filter —
-  // same reasoning as the rest of this file: avoid re-blurring the large fixed
-  // page background every frame. Wrapped in a padded-top spacer so the mouse
-  // never leaves the hoverable region while crossing from trigger to panel.
-  function DesktopPanel({ links }: { links: readonly DropdownLink[] }) {
+  // The full-width strip shared by both desktop dropdowns — the same shape the
+  // old Settings sub-bar used, brought back for Home/Research: a horizontal
+  // row of centred links spanning the ENTIRE navbar width, not a narrow box
+  // floating under just the trigger that opened it. `hover` is spread onto
+  // this panel too (it renders as a sibling of the trigger now, not nested
+  // inside its small wrapper), so the mouse staying on either keeps it open.
+  // No backdrop-filter — same reasoning as the rest of this file: avoid
+  // re-blurring the large fixed page background every frame.
+  function DesktopPanel({ links, hover }: { links: readonly DropdownLink[]; hover: ReturnType<typeof hoverHandlers> }) {
     return (
-      <div className="absolute left-1/2 -translate-x-1/2 top-full pt-1.5 z-50">
-        <div className="min-w-[9.5rem] rounded-lg border border-white/10 bg-[#0a0f14]/95 shadow-lg shadow-black/40 py-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+      <div
+        {...hover}
+        className="absolute inset-x-0 top-full border-t border-white/[0.05] bg-[#0a0f14]/95 shadow-lg shadow-black/40 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+      >
+        <div className="flex items-center justify-center gap-1 py-1.5">
           {links.map((l) => {
             const active = isActive(l.href)
             return (
               <Link
                 key={l.href}
                 href={l.href}
-                className={`block px-3.5 py-1.5 text-[12.5px] font-code transition-colors ${
-                  active ? "text-amber-200" : "text-white/65 hover:text-white hover:bg-white/5"
-                }`}
+                className={`${linkBase} ${active ? "text-amber-200" : "text-white/65 hover:text-white hover:bg-white/5"}`}
               >
                 <span className={active ? ACTIVE_UNDERLINE : undefined}>{l.label}</span>
               </Link>
@@ -150,20 +164,23 @@ export default function Navbar() {
     >
 
       {/* ==================== DESKTOP ==================== */}
-      <div className="hidden md:block">
+      {/* `relative` here (not on the small trigger wrappers below) so each
+          dropdown panel positions against the WHOLE row and can span its full
+          width, rather than being confined to the width of the trigger that
+          opened it. */}
+      <div className="hidden md:block relative">
         <div className="flex items-center justify-center gap-1 py-1">
 
           {/* Home — a real link, plus a hover dropdown onto everything else */}
-          <div className="relative" {...homeHover}>
+          <div {...homeHover}>
             <Link href={HOME_HREF} className={`${linkCls(homeActive)} inline-flex items-center gap-1`}>
               <span className={homeActive ? ACTIVE_UNDERLINE : undefined}>Home</span>
               <VArrow open={homeOpen} className="h-3 w-3" />
             </Link>
-            {homeOpen && <DesktopPanel links={HOME_DROPDOWN} />}
           </div>
 
           {/* Research — no page of its own, purely a menu */}
-          <div className="relative" {...researchHover}>
+          <div {...researchHover}>
             <a
               role="button"
               tabIndex={0}
@@ -179,7 +196,6 @@ export default function Navbar() {
               <span className={researchActive ? ACTIVE_UNDERLINE : undefined}>Research</span>
               <VArrow open={researchOpen} className="h-3 w-3" />
             </a>
-            {researchOpen && <DesktopPanel links={RESEARCH_DROPDOWN} />}
           </div>
 
           {/* Donate — a standalone action, not a page link */}
@@ -193,6 +209,11 @@ export default function Navbar() {
             Donate
           </a>
         </div>
+
+        {/* full-width panels: siblings of the row above, not of one trigger,
+            so they span the whole bar regardless of which trigger opened them */}
+        {homeOpen && <DesktopPanel links={HOME_DROPDOWN} hover={homeHover} />}
+        {researchOpen && <DesktopPanel links={RESEARCH_DROPDOWN} hover={researchHover} />}
       </div>
 
       {/* ==================== MOBILE ==================== */}
@@ -244,7 +265,11 @@ export default function Navbar() {
               </div>
             )}
 
-            {/* Research: no page of its own, so the whole row just toggles */}
+            {/* Research: no page of its own, so the whole row is one tap
+                target — but it mirrors Home's two-ZONE layout (flex-1 label +
+                fixed-width arrow slot) rather than centring "Research + arrow"
+                as a single group, so the arrow lands at the exact same X
+                position as Home's separate arrow button above. */}
             <a
               role="button"
               tabIndex={0}
@@ -255,10 +280,14 @@ export default function Navbar() {
                   setResearchOpen((o) => !o)
                 }
               }}
-              className={`${linkCls(researchActive)} flex items-center justify-center gap-1 cursor-pointer select-none outline-none no-underline`}
+              className="flex items-stretch gap-0.5 cursor-pointer select-none outline-none no-underline"
             >
-              <span className={researchActive ? ACTIVE_UNDERLINE : undefined}>Research</span>
-              <VArrow open={researchOpen} className="h-3.5 w-3.5" />
+              <span className={`${linkCls(researchActive)} flex-1 text-center`}>
+                <span className={researchActive ? ACTIVE_UNDERLINE : undefined}>Research</span>
+              </span>
+              <span className={`${linkCls(false)} px-3 inline-flex items-center justify-center`}>
+                <VArrow open={researchOpen} className="h-3.5 w-3.5" />
+              </span>
             </a>
             {researchOpen && (
               <div className="flex flex-col items-stretch gap-0.5 pb-1 animate-in fade-in slide-in-from-top-1 duration-200">
