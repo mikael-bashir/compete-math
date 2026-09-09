@@ -419,10 +419,10 @@ export function LocalClaudeAgentManagement({
         <Button
           variant="outline"
           size="sm"
-          className={cn('h-[34px]', className)}
+          className={cn(className)}
           onClick={requireAuthToOpen}
         >
-          Local Agent
+          Connect Agent
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[640px] max-h-[85vh] overflow-hidden flex flex-col">
