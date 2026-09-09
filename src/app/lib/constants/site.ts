@@ -7,11 +7,22 @@ export function isAdminEmail(email?: string | null): boolean {
   return !!email && ADMIN_EMAILS.includes(email.toLowerCase());
 }
 
-export const NAV_LINKS = [
-  { label: "Home", href: "/home" },
+// Tier-2 navbar: two hover-dropdown triggers (Home, Research) plus a Donate
+// button. Home itself is a real link (/home); its dropdown is everything
+// else that used to sit at the top level. Research has no page of its own —
+// it is purely a menu onto the research-facing pages.
+export const HOME_HREF = "/home";
+
+export const HOME_DROPDOWN = [
   { label: "Community", href: "/community" },
   { label: "Practice", href: "/practice" },
   { label: "Leaderboard", href: "/global" },
+] as const;
+
+export const RESEARCH_DROPDOWN = [
+  { label: "Leak", href: "/leak" },
+  { label: "LRR", href: "/lrr" },
+  { label: "Blog", href: "/blog" },
 ] as const;
 
 // Theme/topic taxonomy for practice + community problems. Kept broad and close

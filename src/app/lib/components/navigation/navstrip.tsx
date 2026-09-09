@@ -1,8 +1,8 @@
 'use client'
 
 import Link from "next/link"
-import { useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { useEffect, useRef, useState } from "react"
+import { useSession, signOut } from "next-auth/react"
 import { LogIn } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -63,6 +63,30 @@ export function UserDisplayer2() {
     // re-running on every session object change would loop through update().
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status])
+  // The profile card's own dropdown (My Profile / Account & Badges / Log out) —
+  // what the old Settings menu in the navbar showed, now reached by clicking
+  // the card itself rather than a separate "Settings" link.
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!profileOpen) return
+    function onPointerDown(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false)
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setProfileOpen(false)
+    }
+    document.addEventListener("mousedown", onPointerDown)
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown)
+      document.removeEventListener("keydown", onKeyDown)
+    }
+  }, [profileOpen])
+
   // Equipped prestige title styles the name (null for plain titles).
   const nameStyle = prestigeTitleStyle(
     session?.user?.titleColorFrom,
@@ -103,32 +127,74 @@ export function UserDisplayer2() {
               {status === "loading" ? (
                 <div className="h-7 w-20 bg-white/5 animate-pulse rounded-md" />
               ) : isAuthed ? (
-                <Link
-                  href={`/users/${username}`}
-                  className="flex items-center gap-2 rounded-md px-1.5 py-0.5 hover:bg-white/10 transition-colors no-underline"
-                >
-                  <span
-                    className={`text-[13px] font-medium hidden xs:inline ${nameStyle ? PRESTIGE_TITLE_CLASS : "text-emerald-100"}`}
-                    style={nameStyle || undefined}
+                // The card itself is now the dropdown trigger — clicking it
+                // opens the same menu the old "Settings" navbar item did,
+                // rather than navigating straight to the profile page (that
+                // is still one click away, as the first item in the menu).
+                <div className="relative" ref={profileRef}>
+                  <button
+                    type="button"
+                    onClick={() => setProfileOpen((o) => !o)}
+                    aria-haspopup="menu"
+                    aria-expanded={profileOpen}
+                    className="flex items-center gap-2 rounded-md px-1.5 py-0.5 hover:bg-white/10 transition-colors outline-none"
                   >
-                    {username || "User"}
-                  </span>
-                  {session?.user?.badgeNoBorder ? (
-                    // Frameless prestige art - show the full square, no circle clip.
-                    <img
-                      src={session!.user!.badgeUrl || "/placeholder.svg"}
-                      alt="User"
-                      className="h-7 w-7 object-contain"
-                    />
-                  ) : (
-                    <Avatar className="h-7 w-7 border border-white/20">
-                      <AvatarImage src={session!.user!.badgeUrl || "/placeholder.svg"} alt="User" />
-                      <AvatarFallback className="bg-emerald-900/50 text-emerald-200 text-xs">
-                        {username?.charAt(0)?.toUpperCase() || "U"}
-                      </AvatarFallback>
-                    </Avatar>
+                    <span
+                      className={`text-[13px] font-medium hidden xs:inline ${nameStyle ? PRESTIGE_TITLE_CLASS : "text-emerald-100"}`}
+                      style={nameStyle || undefined}
+                    >
+                      {username || "User"}
+                    </span>
+                    {session?.user?.badgeNoBorder ? (
+                      // Frameless prestige art - show the full square, no circle clip.
+                      <img
+                        src={session!.user!.badgeUrl || "/placeholder.svg"}
+                        alt="User"
+                        className="h-7 w-7 object-contain"
+                      />
+                    ) : (
+                      <Avatar className="h-7 w-7 border border-white/20">
+                        <AvatarImage src={session!.user!.badgeUrl || "/placeholder.svg"} alt="User" />
+                        <AvatarFallback className="bg-emerald-900/50 text-emerald-200 text-xs">
+                          {username?.charAt(0)?.toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                  </button>
+
+                  {/* translucent dropdown — no backdrop-filter, same reasoning
+                      as the rest of this file's fixed chrome */}
+                  {profileOpen && (
+                    <div
+                      role="menu"
+                      className="absolute right-0 top-full mt-2 min-w-[11rem] rounded-lg border border-white/10 bg-[#0a0f14]/90 shadow-lg shadow-black/40 py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                    >
+                      <Link
+                        href={`/users/${username}`}
+                        role="menuitem"
+                        className="block px-3.5 py-1.5 text-[13px] font-code text-white/70 hover:text-white hover:bg-white/5 transition-colors no-underline"
+                      >
+                        My Profile
+                      </Link>
+                      <Link
+                        href="/account"
+                        role="menuitem"
+                        className="block px-3.5 py-1.5 text-[13px] font-code text-white/70 hover:text-white hover:bg-white/5 transition-colors no-underline"
+                      >
+                        Account &amp; Badges
+                      </Link>
+                      <div className="my-1 border-t border-white/[0.06]" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => signOut({ callbackUrl: "/" })}
+                        className="w-full text-left px-3.5 py-1.5 text-[13px] font-code text-red-400/80 hover:text-red-300 transition-colors outline-none"
+                      >
+                        Log out
+                      </button>
+                    </div>
                   )}
-                </Link>
+                </div>
               ) : (
                 <Link
                   href="/auth/login"
