@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -113,6 +115,22 @@ export function LocalClaudeAgentManagement({
   className,
 }: LocalClaudeAgentManagementProps) {
   const [open, setOpen] = useState(false);
+  const { status } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Setting up the local bridge means this browser will hold a bridge token
+  // and the operator's registered MCP servers, so require sign-in first —
+  // the rest of the page (harness/model pickers, MCP server list) stays open
+  // to everyone. Radix's DialogTrigger skips its own open-toggle handler
+  // whenever the child's onClick calls preventDefault, so this blocks the
+  // dialog from opening rather than just racing it.
+  const requireAuthToOpen = (e: React.MouseEvent) => {
+    if (status === 'authenticated') return;
+    e.preventDefault();
+    toast.error('Please login first');
+    router.push(`/auth/login?callbackUrl=${encodeURIComponent(pathname)}`);
+  };
 
   // Non-secret preferences — this browser's localStorage (single admin
   // operator, no cross-device sync needed yet).
@@ -402,6 +420,7 @@ export function LocalClaudeAgentManagement({
           variant="outline"
           size="sm"
           className={cn('h-[34px]', className)}
+          onClick={requireAuthToOpen}
         >
           Local Agent
         </Button>
