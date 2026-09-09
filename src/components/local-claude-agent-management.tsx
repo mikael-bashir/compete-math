@@ -419,7 +419,7 @@ export function LocalClaudeAgentManagement({
         <Button
           variant="outline"
           size="sm"
-          className={cn(className)}
+          className={cn('h-6 px-2 text-[10px]', className)}
           onClick={requireAuthToOpen}
         >
           Connect Agent

@@ -29,7 +29,7 @@ export function MCPServerManagement({ className }: MCPServerManagementProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className={cn(className)}>
+        <Button variant="outline" size="sm" className={cn('h-6 px-2 text-[10px]', className)}>
           MCP Servers
         </Button>
       </DialogTrigger>

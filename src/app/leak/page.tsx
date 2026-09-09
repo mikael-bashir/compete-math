@@ -25,7 +25,7 @@ export default function LeakPage() {
           Claude Code CLI as the prover, and send a statement straight from
           here.
         </p>
-        <div className="leak-dark-scope mt-6 mb-6 flex flex-wrap items-center gap-2">
+        <div className="leak-dark-scope mt-6 mb-6 flex flex-wrap items-center gap-1.5">
           <LocalClaudeAgentManagement />
           <MCPServerManagement />
         </div>

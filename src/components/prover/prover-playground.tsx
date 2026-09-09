@@ -179,28 +179,28 @@ export function ProverPlayground() {
         className="font-mono text-sm"
         placeholder="Enter a statement (Lean theorem, or a problem to prove)…"
       />
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <button
           type="button"
           onClick={() => setDecompose((v) => !v)}
           disabled={running}
-          className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+          className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] transition-colors ${
             decompose
               ? 'border-violet-500/50 bg-violet-500/10 text-violet-600 dark:text-violet-400'
               : 'text-muted-foreground hover:bg-muted'
           }`}
           title="Break the goal into verified sub-lemmas recursively (prove-or-split tree)"
         >
-          <GitBranch className="size-3.5" />
-          Decompose mode {decompose ? 'on' : 'off'}
+          <GitBranch className="size-3" />
+          Decompose {decompose ? 'on' : 'off'}
         </button>
-        <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+        <label className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
           Model
           <select
             value={isRiverStrategy(strategy) ? ARCHITECT_MODEL : model}
             onChange={(e) => setModel(e.target.value)}
             disabled={running || isRiverStrategy(strategy)}
-            className="w-auto! rounded-md border bg-background px-2 py-1 text-xs disabled:opacity-60"
+            className="w-auto! rounded-md border bg-background px-1.5 py-0.5 text-[10px] disabled:opacity-60"
             title={
               isRiverStrategy(strategy)
                 ? 'Leak River strategies always drive Grok directly — model is locked.'
@@ -223,13 +223,13 @@ export function ProverPlayground() {
           </select>
         </label>
         {decompose && (
-          <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          <label className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
             Strategy
             <select
               value={strategy}
               onChange={(e) => setStrategy(e.target.value)}
               disabled={running}
-              className="w-auto! max-w-[220px] truncate rounded-md border bg-background px-2 py-1 text-xs"
+              className="w-auto! max-w-[180px] truncate rounded-md border bg-background px-1.5 py-0.5 text-[10px]"
             >
               <option value="hacker">Hacker (compiler-driven)</option>
               <option value="pantograph">Pantograph (interactive Leak II)</option>
@@ -292,15 +292,15 @@ export function ProverPlayground() {
         )}
         {/* The refinement-budget control lives on the console below, alongside the
             clock control, so it can be raised MID-FLIGHT and not just per run. */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5">
           {!running && checkpoint && (
             <button
               type="button"
               onClick={() => run(checkpoint.skeleton)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-violet-500/50 bg-violet-500/10 px-2.5 py-1 text-xs text-violet-600 transition-colors hover:bg-violet-500/20 dark:text-violet-400"
+              className="inline-flex items-center gap-1 rounded-md border border-violet-500/50 bg-violet-500/10 px-1.5 py-0.5 text-[10px] text-violet-600 transition-colors hover:bg-violet-500/20 dark:text-violet-400"
               title="Continue from the saved checkpoint instead of restarting"
             >
-              <GitBranch className="size-3.5" />
+              <GitBranch className="size-3" />
               Resume ({checkpoint.filled}/{checkpoint.total})
             </button>
           )}
@@ -308,10 +308,10 @@ export function ProverPlayground() {
             <button
               type="button"
               onClick={terminate}
-              className="inline-flex items-center gap-1.5 rounded-md border border-rose-500/50 bg-rose-500/10 px-2.5 py-1 text-xs text-rose-600 transition-colors hover:bg-rose-500/20 dark:text-rose-400"
+              className="inline-flex items-center gap-1 rounded-md border border-rose-500/50 bg-rose-500/10 px-1.5 py-0.5 text-[10px] text-rose-600 transition-colors hover:bg-rose-500/20 dark:text-rose-400"
               title="Stop this prove — kills the claude run server-side via the bridge"
             >
-              <Square className="size-3.5" />
+              <Square className="size-3" />
               Terminate
             </button>
           )}
@@ -319,12 +319,12 @@ export function ProverPlayground() {
             size="sm"
             onClick={() => run()}
             disabled={running || !problem.trim()}
-            className="gap-1.5"
+            className="h-6 gap-1 px-2 text-[10px] [&_svg]:size-3"
           >
             {running ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <Loader2 className="animate-spin" />
             ) : (
-              <Send className="size-3.5" />
+              <Send />
             )}
             Send to prover
           </Button>
