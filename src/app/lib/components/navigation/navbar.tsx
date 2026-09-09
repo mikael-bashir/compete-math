@@ -235,26 +235,28 @@ export default function Navbar() {
         {navOpen && (
           <div className="flex flex-col items-stretch px-4 pb-3 gap-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
 
-            {/* Home: the label navigates; the arrow (a separate tap target)
-                reveals the sub-list without leaving the page — touch has no
-                hover, so Home's two behaviours need two targets. */}
-            <div className="flex items-stretch gap-0.5">
-              <Link href={HOME_HREF} className={`${linkCls(homeActive)} flex-1 text-center`}>
-                <span className={homeActive ? ACTIVE_UNDERLINE : undefined}>Home</span>
-              </Link>
-              <button
-                type="button"
-                onClick={() => setHomeOpen((o) => !o)}
-                aria-label="Toggle Home menu"
-                aria-expanded={homeOpen}
-                className={`${linkCls(false)} px-3 inline-flex items-center justify-center outline-none`}
-              >
-                <VArrow open={homeOpen} className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            {/* Home: on mobile this is a menu trigger, not a link — tapping it
+                reveals a list rather than navigating away, exactly like
+                Research below, so the two behave identically (no arrow icon,
+                no split target). Home's own page is still reachable: it is
+                the first item inside the list it reveals. */}
+            <a
+              role="button"
+              tabIndex={0}
+              onClick={() => setHomeOpen((o) => !o)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  setHomeOpen((o) => !o)
+                }
+              }}
+              className={`${linkCls(homeActive)} block text-center cursor-pointer select-none outline-none no-underline`}
+            >
+              <span className={homeActive ? ACTIVE_UNDERLINE : undefined}>Home</span>
+            </a>
             {homeOpen && (
               <div className="flex flex-col items-stretch gap-0.5 pb-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                {HOME_DROPDOWN.map((l) => {
+                {[{ label: "Home", href: HOME_HREF }, ...HOME_DROPDOWN].map((l) => {
                   const active = isActive(l.href)
                   return (
                     <Link key={l.href} href={l.href} className={`${linkCls(active)} text-center text-[11.5px]`}>
@@ -266,10 +268,8 @@ export default function Navbar() {
             )}
 
             {/* Research: no page of its own, so the whole row is one tap
-                target — but it mirrors Home's two-ZONE layout (flex-1 label +
-                fixed-width arrow slot) rather than centring "Research + arrow"
-                as a single group, so the arrow lands at the exact same X
-                position as Home's separate arrow button above. */}
+                target. Same shape as Home above — no icon, since a tap
+                anywhere on either row is already how you open it. */}
             <a
               role="button"
               tabIndex={0}
@@ -280,14 +280,9 @@ export default function Navbar() {
                   setResearchOpen((o) => !o)
                 }
               }}
-              className="flex items-stretch gap-0.5 cursor-pointer select-none outline-none no-underline"
+              className={`${linkCls(researchActive)} block text-center cursor-pointer select-none outline-none no-underline`}
             >
-              <span className={`${linkCls(researchActive)} flex-1 text-center`}>
-                <span className={researchActive ? ACTIVE_UNDERLINE : undefined}>Research</span>
-              </span>
-              <span className={`${linkCls(false)} px-3 inline-flex items-center justify-center`}>
-                <VArrow open={researchOpen} className="h-3.5 w-3.5" />
-              </span>
+              <span className={researchActive ? ACTIVE_UNDERLINE : undefined}>Research</span>
             </a>
             {researchOpen && (
               <div className="flex flex-col items-stretch gap-0.5 pb-1 animate-in fade-in slide-in-from-top-1 duration-200">
