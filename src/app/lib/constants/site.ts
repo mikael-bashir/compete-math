@@ -7,13 +7,17 @@ export function isAdminEmail(email?: string | null): boolean {
   return !!email && ADMIN_EMAILS.includes(email.toLowerCase());
 }
 
-// Tier-2 navbar: two hover-dropdown triggers (Home, Research) plus a Donate
-// button. Home itself is a real link (/home); its dropdown is everything
-// else that used to sit at the top level. Research has no page of its own —
+// Tier-2 navbar: two dropdown triggers (Learn, Research) plus a Donate
+// button. Neither trigger is itself a page any more — Home used to be a real
+// link, but on a wide touchscreen (desktop layout, no real hover) a trigger
+// that ALSO navigates on tap is exactly the soft-lock risk this shape avoids:
+// Home is now just the first item inside Learn's own dropdown, reached the
+// same way as everything else in it. Research has no page of its own either —
 // it is purely a menu onto the research-facing pages.
 export const HOME_HREF = "/home";
 
-export const HOME_DROPDOWN = [
+export const LEARN_DROPDOWN = [
+  { label: "Home", href: HOME_HREF },
   { label: "Community", href: "/community" },
   { label: "Practice", href: "/practice" },
   { label: "Leaderboard", href: "/global" },

@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation"
 import { useEffect, useId, useRef, useState } from "react"
 import { Heart } from "lucide-react"
 
-import { HOME_HREF, HOME_DROPDOWN, RESEARCH_DROPDOWN, DONATE_URL } from "../../constants/site"
+import { LEARN_DROPDOWN, RESEARCH_DROPDOWN, DONATE_URL } from "../../constants/site"
 
 // A 90° "V" (down-chevron) that carries the amber shine and flips orientation
-// when its target is open. Used for the Home/Research dropdown triggers (desktop
-// hover, mobile tap) and the mobile navbar toggle.
+// when its target is open. Used for the Learn/Research dropdown triggers
+// (desktop) and the mobile navbar toggle.
 function VArrow({ open, className = "h-5 w-5" }: { open: boolean; className?: string }) {
   const raw = useId()
   const gid = "v-" + raw.replace(/:/g, "")
@@ -46,73 +46,116 @@ const ACTIVE_UNDERLINE = "underline decoration-amber-400/70 underline-offset-4"
 type DropdownLink = { label: string; href: string }
 
 /**
- * Tier 2 of the navigation: Home (a real link, hover-reveals a dropdown of
- * Community/Practice/Leaderboard), Research (no page of its own — purely a
- * hover-dropdown onto Leak/LRR/Blog), and a standalone Donate button.
+ * Tier 2 of the navigation: Learn (a menu onto Home/Community/Practice/
+ * Leaderboard) and Research (a menu onto Leak/LRR/Blog), plus a standalone
+ * Donate button. Neither trigger navigates anywhere itself — Home lives
+ * INSIDE Learn's own list, reached the same way as everything else in it.
  *
- * Desktop: hover opens a floating panel under the trigger. Mobile has no
- * hover, so Home splits into a label (navigates to /home) + a separate arrow
- * tap-target (reveals the sub-list); Research's whole row is one tap-target
- * since it has nowhere of its own to navigate to.
+ * Desktop: hover opens a floating panel under the trigger, as normal. But a
+ * click on the trigger PINS it open regardless of hover state, and a second
+ * click un-pins and closes it — a plain mouse never needs this, but a wide
+ * touchscreen running the desktop layout has no real hover to begin with, so
+ * without a click that actually opens (and actually closes) the menu, a tap
+ * could open a dropdown a second tap can never dismiss. Mobile has no hover
+ * at all, so its trigger is a plain tap-toggle to start with.
  */
 export default function Navbar() {
   const pathname = usePathname()
 
   const [navOpen, setNavOpen] = useState(false)
-  const [homeOpen, setHomeOpen] = useState(false)
+  const [learnOpen, setLearnOpen] = useState(false)
   const [researchOpen, setResearchOpen] = useState(false)
-
-  // Collapse everything whenever the route changes.
-  useEffect(() => {
-    setNavOpen(false)
-    setHomeOpen(false)
-    setResearchOpen(false)
-  }, [pathname])
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/")
   const isAnyActive = (hrefs: readonly string[]) => hrefs.some(isActive)
 
-  // Home is "on" for its own page AND every page its dropdown leads to;
-  // Research has no page of its own, so it is only ever "on" via its dropdown.
-  const homeActive = isAnyActive([HOME_HREF, ...HOME_DROPDOWN.map((l) => l.href)])
+  // Each trigger is "on" for every page its own dropdown leads to — Home's
+  // page is INSIDE Learn's list now, so this alone covers it too.
+  const learnActive = isAnyActive(LEARN_DROPDOWN.map((l) => l.href))
   const researchActive = isAnyActive(RESEARCH_DROPDOWN.map((l) => l.href))
 
-  // Grace-period close, factored once and used for both triggers: crossing the
-  // gap between a trigger and the panel below it must not slam the menu shut,
-  // and a quick flick across the bar must not leave two panels open at once.
-  const homeCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Whether a trigger is PINNED — opened by a click/tap rather than by hover —
+  // and therefore immune to hover-leave until it is clicked again. A ref, not
+  // state: it only ever matters inside these handlers, and nothing needs to
+  // re-render when it changes.
+  const learnPinned = useRef(false)
+  const researchPinned = useRef(false)
+  const learnCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const researchCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // `closeOther` is called the instant this one opens: the two panels are now
-  // full-width strips at the SAME position (see DesktopPanel), so without this
-  // a quick flick from Home to Research could render both at once for the
-  // ~150ms grace window and show two stacked bars flickering on top of each
-  // other. Opening one now always closes the other immediately.
-  function hoverHandlers(
+
+  // Collapse everything whenever the route changes, pins included — a pin
+  // surviving a navigation would leave the NEXT page's menu un-closeable by
+  // hover-leave for no reason.
+  useEffect(() => {
+    setNavOpen(false)
+    setLearnOpen(false)
+    learnPinned.current = false
+    setResearchOpen(false)
+    researchPinned.current = false
+  }, [pathname])
+
+  // `closeOther` always releases the pin too: without that, hovering back
+  // onto a trigger that was pinned-then-closed-by-its-sibling would find
+  // pinned.current still true from before and refuse to close on mouse-leave
+  // — a stale pin masquerading as a fresh hover.
+  function triggerHandlers(
+    open: boolean,
     setOpen: (v: boolean) => void,
+    pinned: React.MutableRefObject<boolean>,
     timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
     closeOther: () => void,
   ) {
-    const clear = () => {
+    const clearTimer = () => {
       if (timer.current) {
         clearTimeout(timer.current)
         timer.current = null
       }
     }
+    const toggle = () => {
+      clearTimer()
+      if (open && pinned.current) {
+        // second click on an already-pinned trigger: close it
+        pinned.current = false
+        setOpen(false)
+      } else {
+        // first click (whether it was already open via hover or not): force
+        // it open and PIN it, so hover-leave — real or touch-synthesised —
+        // cannot close it again until this fires a second time
+        closeOther()
+        pinned.current = true
+        setOpen(true)
+      }
+    }
     return {
-      onMouseEnter: () => { clear(); closeOther(); setOpen(true) },
-      onMouseLeave: () => { clear(); timer.current = setTimeout(() => setOpen(false), 150) },
-      // Keyboard parity: focusing anything inside the trigger's container opens
-      // it; focus leaving the container (not just the trigger itself) closes
-      // it, so tabbing from the trigger into its own dropdown items is fine.
-      onFocus: () => { clear(); closeOther(); setOpen(true) },
+      onMouseEnter: () => { clearTimer(); closeOther(); setOpen(true) },
+      onMouseLeave: () => {
+        clearTimer()
+        if (pinned.current) return
+        timer.current = setTimeout(() => setOpen(false), 150)
+      },
+      // Keyboard parity for hover: focusing anything inside the trigger opens
+      // it; focus leaving it (not just the trigger itself) closes it, unless
+      // pinned — same rule as the mouse.
+      onFocus: () => { clearTimer(); closeOther(); setOpen(true) },
       onBlur: (e: React.FocusEvent) => {
+        if (pinned.current) return
         if (!e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false)
+      },
+      onClick: (e: React.MouseEvent) => { e.preventDefault(); toggle() },
+      onKeyDown: (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle() }
       },
     }
   }
-  const homeHover = hoverHandlers(setHomeOpen, homeCloseTimer, () => setResearchOpen(false))
-  const researchHover = hoverHandlers(setResearchOpen, researchCloseTimer, () => setHomeOpen(false))
+  const learnHandlers = triggerHandlers(learnOpen, setLearnOpen, learnPinned, learnCloseTimer, () => {
+    researchPinned.current = false
+    setResearchOpen(false)
+  })
+  const researchHandlers = triggerHandlers(researchOpen, setResearchOpen, researchPinned, researchCloseTimer, () => {
+    learnPinned.current = false
+    setLearnOpen(false)
+  })
 
   // Shared link styling: colour + hover feedback only. Underline (active) is
   // layered on separately so it can be scoped to just a label span when the
@@ -122,17 +165,27 @@ export default function Navbar() {
     `${linkBase} ${active ? "text-amber-200" : "text-white/60 hover:text-white hover:bg-white/5"}`
 
   // The full-width strip shared by both desktop dropdowns — the same shape the
-  // old Settings sub-bar used, brought back for Home/Research: a horizontal
-  // row of centred links spanning the ENTIRE navbar width, not a narrow box
-  // floating under just the trigger that opened it. `hover` is spread onto
-  // this panel too (it renders as a sibling of the trigger now, not nested
-  // inside its small wrapper), so the mouse staying on either keeps it open.
-  // No backdrop-filter — same reasoning as the rest of this file: avoid
-  // re-blurring the large fixed page background every frame.
-  function DesktopPanel({ links, hover }: { links: readonly DropdownLink[]; hover: ReturnType<typeof hoverHandlers> }) {
+  // old Settings sub-bar used: a horizontal row of centred links spanning the
+  // ENTIRE navbar width, not a narrow box floating under just the trigger.
+  // Only the two HOVER handlers are spread here (never onClick/onFocus/onBlur
+  // — those are trigger-only concerns), so the mouse staying on either the
+  // trigger or the panel keeps it open without the panel itself reacting to a
+  // click the way the trigger does. No backdrop-filter — same reasoning as
+  // the rest of this file: avoid re-blurring the large fixed page background
+  // every frame.
+  function DesktopPanel({
+    links,
+    onMouseEnter,
+    onMouseLeave,
+  }: {
+    links: readonly DropdownLink[]
+    onMouseEnter: () => void
+    onMouseLeave: () => void
+  }) {
     return (
       <div
-        {...hover}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
         className="absolute inset-x-0 top-full border-t border-white/[0.05] bg-[#0a0f14]/95 shadow-lg shadow-black/40 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
       >
         <div className="flex items-center justify-center gap-1 py-1.5">
@@ -164,39 +217,33 @@ export default function Navbar() {
     >
 
       {/* ==================== DESKTOP ==================== */}
-      {/* `relative` here (not on the small trigger wrappers below) so each
-          dropdown panel positions against the WHOLE row and can span its full
-          width, rather than being confined to the width of the trigger that
-          opened it. */}
+      {/* `relative` here (not on the triggers below) so each dropdown panel
+          positions against the WHOLE row and can span its full width, rather
+          than being confined to the width of the trigger that opened it. */}
       <div className="hidden md:block relative">
         <div className="flex items-center justify-center gap-1 py-1">
 
-          {/* Home — a real link, plus a hover dropdown onto everything else */}
-          <div {...homeHover}>
-            <Link href={HOME_HREF} className={`${linkCls(homeActive)} inline-flex items-center gap-1`}>
-              <span className={homeActive ? ACTIVE_UNDERLINE : undefined}>Home</span>
-              <VArrow open={homeOpen} className="h-3 w-3" />
-            </Link>
-          </div>
+          {/* Learn — a menu onto Home/Community/Practice/Leaderboard */}
+          <a
+            role="button"
+            tabIndex={0}
+            {...learnHandlers}
+            className={`${linkCls(learnActive)} inline-flex items-center gap-1 cursor-pointer select-none outline-none no-underline`}
+          >
+            <span className={learnActive ? ACTIVE_UNDERLINE : undefined}>Learn</span>
+            <VArrow open={learnOpen} className="h-3 w-3" />
+          </a>
 
-          {/* Research — no page of its own, purely a menu */}
-          <div {...researchHover}>
-            <a
-              role="button"
-              tabIndex={0}
-              onClick={() => setResearchOpen((o) => !o)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault()
-                  setResearchOpen((o) => !o)
-                }
-              }}
-              className={`${linkCls(researchActive)} inline-flex items-center gap-1 cursor-pointer select-none outline-none no-underline`}
-            >
-              <span className={researchActive ? ACTIVE_UNDERLINE : undefined}>Research</span>
-              <VArrow open={researchOpen} className="h-3 w-3" />
-            </a>
-          </div>
+          {/* Research — a menu onto Leak/LRR/Blog */}
+          <a
+            role="button"
+            tabIndex={0}
+            {...researchHandlers}
+            className={`${linkCls(researchActive)} inline-flex items-center gap-1 cursor-pointer select-none outline-none no-underline`}
+          >
+            <span className={researchActive ? ACTIVE_UNDERLINE : undefined}>Research</span>
+            <VArrow open={researchOpen} className="h-3 w-3" />
+          </a>
 
           {/* Donate — a standalone action, not a page link */}
           <a
@@ -212,8 +259,12 @@ export default function Navbar() {
 
         {/* full-width panels: siblings of the row above, not of one trigger,
             so they span the whole bar regardless of which trigger opened them */}
-        {homeOpen && <DesktopPanel links={HOME_DROPDOWN} hover={homeHover} />}
-        {researchOpen && <DesktopPanel links={RESEARCH_DROPDOWN} hover={researchHover} />}
+        {learnOpen && (
+          <DesktopPanel links={LEARN_DROPDOWN} onMouseEnter={learnHandlers.onMouseEnter} onMouseLeave={learnHandlers.onMouseLeave} />
+        )}
+        {researchOpen && (
+          <DesktopPanel links={RESEARCH_DROPDOWN} onMouseEnter={researchHandlers.onMouseEnter} onMouseLeave={researchHandlers.onMouseLeave} />
+        )}
       </div>
 
       {/* ==================== MOBILE ==================== */}
@@ -235,28 +286,26 @@ export default function Navbar() {
         {navOpen && (
           <div className="flex flex-col items-stretch px-4 pb-3 gap-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
 
-            {/* Home: on mobile this is a menu trigger, not a link — tapping it
-                reveals a list rather than navigating away, exactly like
-                Research below, so the two behave identically (no arrow icon,
-                no split target). Home's own page is still reachable: it is
-                the first item inside the list it reveals. */}
+            {/* Learn: touch has no hover, so this is a plain tap-toggle —
+                tapping it reveals the list rather than navigating away. Home
+                is simply the first item inside that list. */}
             <a
               role="button"
               tabIndex={0}
-              onClick={() => setHomeOpen((o) => !o)}
+              onClick={() => setLearnOpen((o) => !o)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault()
-                  setHomeOpen((o) => !o)
+                  setLearnOpen((o) => !o)
                 }
               }}
-              className={`${linkCls(homeActive)} block text-center cursor-pointer select-none outline-none no-underline`}
+              className={`${linkCls(learnActive)} block text-center cursor-pointer select-none outline-none no-underline`}
             >
-              <span className={homeActive ? ACTIVE_UNDERLINE : undefined}>Home</span>
+              <span className={learnActive ? ACTIVE_UNDERLINE : undefined}>Learn</span>
             </a>
-            {homeOpen && (
+            {learnOpen && (
               <div className="flex flex-col items-stretch gap-0.5 pb-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                {[{ label: "Home", href: HOME_HREF }, ...HOME_DROPDOWN].map((l) => {
+                {LEARN_DROPDOWN.map((l) => {
                   const active = isActive(l.href)
                   return (
                     <Link key={l.href} href={l.href} className={`${linkCls(active)} text-center text-[11.5px]`}>
@@ -268,8 +317,7 @@ export default function Navbar() {
             )}
 
             {/* Research: no page of its own, so the whole row is one tap
-                target. Same shape as Home above — no icon, since a tap
-                anywhere on either row is already how you open it. */}
+                target. Same shape as Learn above. */}
             <a
               role="button"
               tabIndex={0}
