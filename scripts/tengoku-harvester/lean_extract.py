@@ -99,9 +99,19 @@ def _find_proof_end(text: str, proof_start: int) -> int:
     return len(text)
 
 
-def extract_declarations(source: str) -> list[ExtractedDeclaration]:
+def extract_declarations(source: str, reject_sorry: bool = True) -> list[ExtractedDeclaration]:
     """Return every theorem/lemma declaration found in `source`, each split
-    into its statement and its full proof."""
+    into its statement and its full proof.
+
+    `reject_sorry=False` is for callers who only want the STATEMENT text and
+    already know the proof half is a deliberate placeholder — e.g. Prove2Me's
+    own `formal_statement` field is always a `:= by sorry` stub by design
+    (that's how a posed-but-unproven theorem is represented); the real proof
+    for those comes from a separate accepted submission, fetched elsewhere.
+    Rejecting sorry there would throw away every statement, not just open
+    ones. Default stays True: for a source scanned directly off disk
+    (harvest.py), sorry legitimately does mean "not actually proven, skip it".
+    """
     text = _strip_line_comments(source)
     results: list[ExtractedDeclaration] = []
 
@@ -125,7 +135,7 @@ def extract_declarations(source: str) -> list[ExtractedDeclaration]:
         proof_end = _find_proof_end(text, colon_eq)
         proof = text[colon_eq:proof_end].strip()
 
-        if _contains_sorry(proof):
+        if reject_sorry and _contains_sorry(proof):
             continue  # admitted, not proven — not a real proof
 
         results.append(

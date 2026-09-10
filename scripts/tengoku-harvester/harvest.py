@@ -53,7 +53,29 @@ def iter_lean_files(root: Path):
     yield from root.rglob("*.lean")
 
 
-def harvest(repo_url: str, library: str, toolchain: str, out_path: Path) -> int:
+def _split_key(rel_path: str) -> str:
+    """The second path component, lowercased (e.g. "Mathlib/Algebra/Group/
+    Defs.lean" -> "algebra") — used to bucket a huge library's output into
+    multiple git-friendly files instead of one massive one. Falls back to
+    the first component for a shallower path."""
+    parts = Path(rel_path).parts
+    key = parts[1] if len(parts) > 2 else parts[0]
+    return key.lower()
+
+
+def harvest(
+    repo_url: str,
+    library: str,
+    toolchain: str,
+    out_path: Path | None = None,
+    split_dir: Path | None = None,
+) -> int:
+    """Either write everything to one `out_path`, or — for a library too big
+    for one git-friendly file (e.g. Mathlib itself, 100k+ declarations) —
+    pass `split_dir` instead to bucket output into `<split_dir>/<library>-
+    <module>.jsonl` files by each declaration's second path component."""
+    assert (out_path is None) != (split_dir is None), "pass exactly one of out_path/split_dir"
+
     with tempfile.TemporaryDirectory(prefix="tengoku-harvest-") as tmp:
         repo_dir = Path(tmp) / "repo"
         clone_repo(repo_url, repo_dir)
@@ -74,8 +96,13 @@ def harvest(repo_url: str, library: str, toolchain: str, out_path: Path) -> int:
         repo_web = repo_url.removesuffix(".git")
         count = 0
         skipped_files = 0
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        with out_path.open("w", encoding="utf-8") as out:
+        open_files: dict[str, Any] = {}
+
+        try:
+            if out_path is not None:
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                open_files["__single__"] = out_path.open("w", encoding="utf-8")
+
             for lean_file in iter_lean_files(repo_dir):
                 rel_path = lean_file.relative_to(repo_dir).as_posix()
                 try:
@@ -95,14 +122,28 @@ def harvest(repo_url: str, library: str, toolchain: str, out_path: Path) -> int:
                         "source_url": f"{repo_web}/blob/{commit}/{rel_path}#L{decl.line}",
                         "toolchain": toolchain,
                     }
-                    out.write(json.dumps(record) + "\n")
+                    if out_path is not None:
+                        fh = open_files["__single__"]
+                    else:
+                        key = f"{library}-{_split_key(rel_path)}"
+                        if key not in open_files:
+                            split_dir.mkdir(parents=True, exist_ok=True)
+                            open_files[key] = (split_dir / f"{key}.jsonl").open("w", encoding="utf-8")
+                        fh = open_files[key]
+                    fh.write(json.dumps(record) + "\n")
                     count += 1
 
+                if skipped_files and skipped_files % 200 == 0:
+                    log.info("progress: %d declarations so far, %d files skipped", count, skipped_files)
+        finally:
+            for fh in open_files.values():
+                fh.close()
+
         log.info(
-            "done: %d declarations extracted, %d files skipped, written to %s",
+            "done: %d declarations extracted across %d file(s), %d source files skipped",
             count,
+            len(open_files),
             skipped_files,
-            out_path,
         )
         return count
 
@@ -112,14 +153,23 @@ def main() -> int:
     parser.add_argument("--repo", required=True, help="git URL to clone")
     parser.add_argument("--library", required=True, help="short library name, e.g. 'compfiles'")
     parser.add_argument("--toolchain", required=True, help="Lean toolchain string to record")
-    parser.add_argument("--out", required=True, type=Path, help="output JSONL path")
+    parser.add_argument("--out", type=Path, help="single output JSONL path")
+    parser.add_argument(
+        "--split-into", type=Path,
+        help="directory to write <library>-<module>.jsonl files into, for a library too "
+             "big for one git-friendly file (e.g. Mathlib itself). Mutually exclusive with --out.",
+    )
     args = parser.parse_args()
+
+    if bool(args.out) == bool(args.split_into):
+        log.error("pass exactly one of --out or --split-into")
+        return 1
 
     if shutil.which("git") is None:
         log.error("git is required on PATH")
         return 1
 
-    count = harvest(args.repo, args.library, args.toolchain, args.out)
+    count = harvest(args.repo, args.library, args.toolchain, out_path=args.out, split_dir=args.split_into)
     return 0 if count > 0 else 1
 
 

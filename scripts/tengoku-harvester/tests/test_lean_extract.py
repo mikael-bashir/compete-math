@@ -113,6 +113,21 @@ def test_identifier_containing_sorry_as_a_substring_is_not_flagged():
     assert len(decls) == 1
 
 
+def test_reject_sorry_false_keeps_a_sorry_stub_statement():
+    # Regression: harvest_prove2me.py parses Prove2Me's `formal_statement`
+    # field purely to extract the STATEMENT text, and that field is always a
+    # `:= by sorry` stub by Prove2Me's own convention (the posed, unproven
+    # form) — the real proof comes from a separate accepted submission.
+    # reject_sorry=False must actually keep the declaration, not just accept
+    # the parameter and ignore it.
+    src = "theorem posed_but_unproven (n : Nat) : n = n := by sorry"
+    decls = extract_declarations(src, reject_sorry=False)
+    assert len(decls) == 1
+    assert decls[0].statement == "theorem posed_but_unproven (n : Nat) : n = n"
+    # Default (reject_sorry=True) must still reject the same input.
+    assert extract_declarations(src) == []
+
+
 def test_proven_and_sorry_declarations_in_the_same_file_are_separated():
     src = (
         "theorem proven_one : 1 = 1 := rfl\n\n"
