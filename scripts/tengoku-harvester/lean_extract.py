@@ -36,6 +36,18 @@ _CLOSE = {v: k for k, v in _OPEN.items()}
 # grammar for every possible top-level keyword.
 _TOP_LEVEL_LINE_RE = re.compile(r"^[^\s].*$", re.MULTILINE)
 
+# `sorry` as a whole word anywhere in a proof means Lean did NOT actually
+# check it — it's an admitted gap, not a proof. Many real-world libraries
+# (this scanner's whole reason to exist) mix genuinely proven results with
+# still-`sorry`'d placeholders for open/in-progress problems in the same
+# file (e.g. a "catalog of competition problems" tracking what's done vs.
+# not yet). A proof corpus that can't tell those apart isn't a proof corpus.
+_SORRY_RE = re.compile(r"\bsorry\b")
+
+
+def _contains_sorry(proof: str) -> bool:
+    return bool(_SORRY_RE.search(proof))
+
 
 @dataclass
 class ExtractedDeclaration:
@@ -112,6 +124,9 @@ def extract_declarations(source: str) -> list[ExtractedDeclaration]:
 
         proof_end = _find_proof_end(text, colon_eq)
         proof = text[colon_eq:proof_end].strip()
+
+        if _contains_sorry(proof):
+            continue  # admitted, not proven — not a real proof
 
         results.append(
             ExtractedDeclaration(name=name, statement=statement, proof=proof, line=line_no)

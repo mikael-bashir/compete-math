@@ -92,3 +92,32 @@ def test_no_declarations_returns_empty():
 def test_unterminated_declaration_is_skipped():
     src = "theorem broken (a : Nat"  # never closes, no :=
     assert extract_declarations(src) == []
+
+
+def test_bare_sorry_proof_is_rejected():
+    src = "theorem admitted : 1 = 1 := sorry"
+    assert extract_declarations(src) == []
+
+
+def test_sorry_inside_a_longer_tactic_proof_is_still_rejected():
+    src = "theorem partial_proof : 1 = 1 := by\n  have h := rfl\n  sorry\n"
+    assert extract_declarations(src) == []
+
+
+def test_identifier_containing_sorry_as_a_substring_is_not_flagged():
+    # "sorry" must match as a whole word — an identifier that merely
+    # contains it (e.g. a hypothetical `sorryAx`-adjacent helper name) must
+    # not falsely disqualify a real proof.
+    src = "theorem uses_helper : 1 = 1 := by exact sorryLikeHelperButNotReally rfl"
+    decls = extract_declarations(src)
+    assert len(decls) == 1
+
+
+def test_proven_and_sorry_declarations_in_the_same_file_are_separated():
+    src = (
+        "theorem proven_one : 1 = 1 := rfl\n\n"
+        "theorem still_open : 2 = 2 := sorry\n\n"
+        "theorem proven_two : 3 = 3 := rfl\n"
+    )
+    decls = extract_declarations(src)
+    assert [d.name for d in decls] == ["proven_one", "proven_two"]
