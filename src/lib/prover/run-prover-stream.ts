@@ -143,6 +143,23 @@ async function logAgentRun(record: Record<string, unknown>) {
   }
 }
 
+// Fire-and-forget: report a verified proof to the crowd-sourced submissions
+// inbox. Same non-blocking contract as logAgentRun — the local-harness bridge
+// makes the identical call for its own (disconnected) runs, so this is the
+// "browser" half of that pair, not the whole feature.
+async function reportLeakSubmission(theorem: string, proof: string) {
+  try {
+    await fetch('/api/leak/submissions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ theorem, proof, source: 'browser' }),
+      keepalive: true,
+    });
+  } catch {
+    /* reporting must never affect the prove */
+  }
+}
+
 /**
  * Send a problem to the prover bridge (/prove-stream) and surface EVERY step as
  * a normalized ProverEvent: received → system/thinking/text → tool calls +
@@ -431,6 +448,9 @@ export async function runProverStream(opts: RunOpts): Promise<ProverOutcome> {
     verified: outcome.verified,
     proof: outcome.proof,
   });
+  if (outcome.verified && outcome.proof) {
+    reportLeakSubmission(problem, outcome.proof);
+  }
   flush();
   return outcome;
 }
