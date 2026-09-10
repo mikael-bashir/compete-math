@@ -56,3 +56,6 @@ developer.notes.txt
 *.run.xml
 *.toc
 latexmk.log
+scripts/tengoku-harvester/.venv/
+**/__pycache__/
+.pytest_cache/
