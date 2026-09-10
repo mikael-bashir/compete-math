@@ -3,6 +3,24 @@
 import { Badge } from '@/components/ui/badge';
 import type { TengokuEntry } from '@/app/lib/data/tengoku';
 
+function StatusBadge({ status }: { status: TengokuEntry['status'] }) {
+  if (status === 'trusted') {
+    return (
+      <Badge className="border-emerald-400/30 bg-emerald-500/10 font-code text-[10px] uppercase tracking-[0.16em] text-emerald-300">
+        Leak-trusted
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="border-amber-400/30 font-code text-[10px] uppercase tracking-[0.16em] text-amber-300/80"
+    >
+      Tentative
+    </Badge>
+  );
+}
+
 export function TengokuResultsList({
   results,
   loading,
@@ -31,28 +49,42 @@ export function TengokuResultsList({
   return (
     <div className="mt-8 space-y-3">
       {results.map((entry) => (
-        <a
+        <div
           key={entry.id}
-          href={entry.sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block rounded-xl border border-white/10 bg-white/[0.02] p-4 no-underline transition-colors hover:border-white/20"
+          className="rounded-xl border border-white/10 bg-white/[0.02] p-4 transition-colors hover:border-white/20"
         >
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className="font-code text-sm font-semibold text-white!">
               {entry.name}
             </span>
+            <StatusBadge status={entry.status} />
             <Badge variant="outline" className="font-code text-[10px] uppercase tracking-[0.16em]">
               {entry.library}
             </Badge>
             <span className="font-code text-[10px] text-white/30">
               {entry.toolchain}
             </span>
+            <a
+              href={entry.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto font-code text-[10px] text-emerald-300/80 no-underline hover:text-emerald-300"
+            >
+              source &rarr;
+            </a>
           </div>
           <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words font-code text-xs leading-relaxed text-white/60">
             {entry.statement}
           </pre>
-        </a>
+          <details className="mt-1.5 group">
+            <summary className="cursor-pointer font-code text-[10px] uppercase tracking-[0.12em] text-white/30 hover:text-white/50">
+              proof
+            </summary>
+            <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-black/30 p-2 font-code text-xs leading-relaxed text-white/50">
+              {entry.proof}
+            </pre>
+          </details>
+        </div>
       ))}
     </div>
   );

@@ -182,14 +182,20 @@ export async function POST() {
       );
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_leak_submissions_submitted_at ON leak_submissions(submitted_at DESC);`;
-    // Tengoku: harvested Lean theorem STATEMENTS (never proofs) from open
-    // libraries + CompeteMath's own certified problems, searchable here and
-    // staged for Leak to attempt later. See github.com/competemath/tengoku.
+    // Tengoku: a PROOF corpus (statement + full proof, always both), harvested
+    // from open libraries plus CompeteMath's own certified problems. `status`
+    // distinguishes what Leak has actually stamped ('trusted' — the proof
+    // came straight out of question_certificates, i.e. Leak's own toolchain
+    // already compiled it) from everything else, which is a real proof from
+    // a real source (see source_url) that Leak just hasn't re-verified itself
+    // yet ('tentative'). See github.com/competemath/tengoku.
     await sql`
       CREATE TABLE IF NOT EXISTS tengoku_entries (
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
         statement TEXT NOT NULL,
+        proof TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'tentative',
         library TEXT NOT NULL,
         source_url TEXT NOT NULL,
         toolchain TEXT NOT NULL,
@@ -199,8 +205,11 @@ export async function POST() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `;
+    await sql`ALTER TABLE tengoku_entries ADD COLUMN IF NOT EXISTS proof TEXT NOT NULL DEFAULT '';`;
+    await sql`ALTER TABLE tengoku_entries ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'tentative';`;
     await sql`CREATE INDEX IF NOT EXISTS idx_tengoku_entries_search ON tengoku_entries USING GIN (search_vector);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_tengoku_entries_library ON tengoku_entries(library);`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_tengoku_entries_status ON tengoku_entries(status);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_problems_status ON community_problems(status);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_answers_problem ON community_answers(problem_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_comments_problem ON community_comments(problem_id);`;

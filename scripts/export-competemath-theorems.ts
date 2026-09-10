@@ -1,14 +1,14 @@
-// Exports CompeteMath's own certified theorem statements into the same
-// JSONL shape the Python harvester (scripts/tengoku-harvester/) produces, so
-// Tengoku's importer can load both without a special case. Reads from
-// question_certificates (one row per proven problem per toolchain) — the
-// PROOF text already starts with a full `theorem ... :=` declaration (every
-// certified proof is a self-contained Lean script), so this just needs to
-// find the same top-level `:=` boundary the harvester finds, then discards
-// the proof body.
+// Exports CompeteMath's own certified theorem statements+proofs into the
+// same JSONL shape the Python harvester (scripts/tengoku-harvester/)
+// produces, for Tengoku's `trusted/` folder — these rows come straight out
+// of question_certificates, meaning Leak's own toolchain already compiled
+// and certified them. That certification IS the "trusted" stamp; nothing
+// else needs to happen before these are trusted, unlike harvested library
+// theorems (see harvest.py), which land in `tentative/` until Leak
+// re-verifies them itself.
 //
 // Usage:
-//   node --env-file=.env node_modules/.bin/tsx scripts/export-competemath-theorems.ts > /tmp/tengoku-data/competemath.jsonl
+//   node --env-file=.env $(which npx) tsx scripts/export-competemath-theorems.ts > /tmp/tengoku-data/trusted/competemath.jsonl
 
 import { sql } from '@vercel/postgres';
 
@@ -19,12 +19,11 @@ interface CertRow {
   proof: string;
 }
 
-// Same bracket-depth scan as lean_extract.py's Python version — finds the
-// top-level `:=` that starts the proof, ignoring one nested inside a
-// default-argument value. Kept deliberately simple: CompeteMath's own proofs
-// are already well-formed (the Lean kernel checked them), so this doesn't
-// need the harvester's defensive "give up rather than guess" fallbacks.
-function extractStatement(proof: string): string | null {
+// Bracket-depth scan (same idea as lean_extract.py's Python version) —
+// finds the top-level `:=` that starts the proof, ignoring one nested
+// inside a default-argument value, purely to split `proof` into a
+// `statement` prefix for display. The FULL proof is kept either way.
+function findStatementEnd(proof: string): number | null {
   const openers: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
   const closers = new Set(Object.values(openers));
   let depth = 0;
@@ -32,9 +31,7 @@ function extractStatement(proof: string): string | null {
     const ch = proof[i];
     if (ch in openers) depth++;
     else if (closers.has(ch)) depth = Math.max(0, depth - 1);
-    else if (depth === 0 && proof.startsWith(':=', i)) {
-      return proof.slice(0, i).trim();
-    }
+    else if (depth === 0 && proof.startsWith(':=', i)) return i;
   }
   return null;
 }
@@ -55,15 +52,19 @@ async function main() {
   let exported = 0;
   let skipped = 0;
   for (const row of rows) {
-    const statement = extractStatement(row.proof);
-    if (!statement) {
+    const splitAt = findStatementEnd(row.proof);
+    if (splitAt === null) {
       skipped++;
       console.error(`[export-competemath-theorems] could not find ':=' boundary for questionId=${row.questionId}, skipping`);
       continue;
     }
+    const statement = row.proof.slice(0, splitAt).trim();
+    const proof = row.proof.slice(splitAt).trim();
     const record = {
       name: extractName(statement),
       statement,
+      proof,
+      status: 'trusted',
       library: 'competemath',
       source_url: `https://competemath.com/practice/problems/${row.questionId}`,
       toolchain: row.toolchain,

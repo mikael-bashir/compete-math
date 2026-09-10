@@ -2,10 +2,14 @@ import "server-only";
 
 import { sql } from "@vercel/postgres";
 
+export type TengokuStatus = "tentative" | "trusted";
+
 export interface TengokuEntry {
   id: number;
   name: string;
   statement: string;
+  proof: string;
+  status: TengokuStatus;
   library: string;
   sourceUrl: string;
   toolchain: string;
@@ -23,7 +27,7 @@ export async function searchTengokuEntries(
 
   try {
     const { rows } = await sql`
-      SELECT id, name, statement, library, source_url, toolchain
+      SELECT id, name, statement, proof, status, library, source_url, toolchain
       FROM tengoku_entries
       WHERE search_vector @@ websearch_to_tsquery('english', ${trimmed})
       ORDER BY ts_rank(search_vector, websearch_to_tsquery('english', ${trimmed})) DESC
@@ -33,6 +37,8 @@ export async function searchTengokuEntries(
       id: r.id,
       name: r.name,
       statement: r.statement,
+      proof: r.proof,
+      status: r.status === "trusted" ? "trusted" : "tentative",
       library: r.library,
       sourceUrl: r.source_url,
       toolchain: r.toolchain,

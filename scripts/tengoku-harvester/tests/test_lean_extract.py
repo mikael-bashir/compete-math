@@ -6,12 +6,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lean_extract import extract_declarations
 
 
-def test_simple_theorem():
+def test_simple_theorem_keeps_statement_and_proof():
     src = "theorem add_comm (a b : Nat) : a + b = b + a := by ring"
     decls = extract_declarations(src)
     assert len(decls) == 1
     assert decls[0].name == "add_comm"
     assert decls[0].statement == "theorem add_comm (a b : Nat) : a + b = b + a"
+    assert decls[0].proof == ":= by ring"
 
 
 def test_lemma_keyword():
@@ -19,6 +20,7 @@ def test_lemma_keyword():
     decls = extract_declarations(src)
     assert len(decls) == 1
     assert decls[0].name == "foo"
+    assert decls[0].proof == ":= trivial"
 
 
 def test_default_argument_colon_equals_not_a_boundary():
@@ -28,20 +30,23 @@ def test_default_argument_colon_equals_not_a_boundary():
     decls = extract_declarations(src)
     assert len(decls) == 1
     assert decls[0].statement == "theorem bar (n : Nat := 0) : n = n"
+    assert decls[0].proof == ":= rfl"
 
 
-def test_multiline_signature():
+def test_multiline_proof_captured_in_full():
     src = (
         "theorem long_one\n"
         "    (a b c : Nat)\n"
         "    (h : a = b) :\n"
         "    a + c = b + c := by\n"
         "  rw [h]\n"
+        "  ring\n"
     )
     decls = extract_declarations(src)
     assert len(decls) == 1
     assert "a + c = b + c" in decls[0].statement
-    assert "rw [h]" not in decls[0].statement
+    assert "rw [h]" in decls[0].proof
+    assert "ring" in decls[0].proof
 
 
 def test_attribute_and_modifiers():
@@ -49,6 +54,7 @@ def test_attribute_and_modifiers():
     decls = extract_declarations(src)
     assert len(decls) == 1
     assert decls[0].name == "hidden_thing"
+    assert decls[0].proof == ":= rfl"
 
 
 def test_line_comment_does_not_break_scan():
@@ -56,15 +62,27 @@ def test_line_comment_does_not_break_scan():
     decls = extract_declarations(src)
     assert len(decls) == 1
     assert decls[0].name == "c"
+    assert "rfl" in decls[0].proof
 
 
-def test_multiple_declarations_in_one_file():
+def test_multiple_declarations_proof_does_not_bleed_into_next():
     src = (
-        "theorem one : 1 = 1 := rfl\n\n"
-        "theorem two : 2 = 2 := rfl\n"
+        "theorem one : 1 = 1 := by\n"
+        "  rfl\n\n"
+        "theorem two : 2 = 2 := by\n"
+        "  rfl\n"
     )
     decls = extract_declarations(src)
     assert [d.name for d in decls] == ["one", "two"]
+    assert "two" not in decls[0].proof
+    assert "one" not in decls[1].proof
+
+
+def test_last_declaration_proof_runs_to_eof():
+    src = "theorem only_one : 1 = 1 := by\n  rfl\n"
+    decls = extract_declarations(src)
+    assert len(decls) == 1
+    assert "rfl" in decls[0].proof
 
 
 def test_no_declarations_returns_empty():

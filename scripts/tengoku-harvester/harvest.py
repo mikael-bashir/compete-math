@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-"""Clone a Lean 4 repo, extract every theorem/lemma statement, write JSONL.
+"""Clone a Lean 4 repo, extract every theorem/lemma statement AND its proof,
+write JSONL for Tengoku's `tentative/` folder.
 
 Usage:
     python3 harvest.py --repo https://github.com/owner/name.git \\
         --library compfiles --toolchain leanprover/lean4:v4.34.0-rc1 \\
-        --out ../../../tengoku/data/compfiles.jsonl
+        --out ../../../tengoku/data/tentative/compfiles.jsonl
 
 Rerunnable per-library — this is the whole pipeline, not a one-off script.
 Only depends on `git` being on PATH; no Lean toolchain install required
-since this never builds or elaborates the project (see lean_extract.py for
-why a syntactic scan is enough for a "statements to re-attempt" corpus).
+since this never builds or elaborates the project (see lean_extract.py).
+
+Output always has status="tentative": these are real proofs from a real
+library, but Leak's own services haven't re-verified them yet — that's
+what `source_url` is for (the reason to believe it's correct until then).
+Only Leak's own certification moves an entry to `trusted/` — see
+export-competemath-theorems.ts, which reads already-Leak-certified proofs
+straight from the database.
 """
 
 from __future__ import annotations
@@ -82,6 +89,8 @@ def harvest(repo_url: str, library: str, toolchain: str, out_path: Path) -> int:
                     record = {
                         "name": decl.name,
                         "statement": decl.statement,
+                        "proof": decl.proof,
+                        "status": "tentative",
                         "library": library,
                         "source_url": f"{repo_web}/blob/{commit}/{rel_path}#L{decl.line}",
                         "toolchain": toolchain,

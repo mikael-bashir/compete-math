@@ -1,15 +1,17 @@
-"""Extract theorem/lemma statements from Lean 4 source text.
+"""Extract theorem/lemma declarations — statement AND proof — from Lean 4
+source text.
 
 This is a syntactic scanner, not a semantic one — it never elaborates the
 file (that would require the project's full toolchain + dependencies built,
-which is a multi-GB, multi-hour operation per library and not what Tengoku
-needs). It finds `theorem`/`lemma` declarations and captures everything from
-the keyword through the type signature, stopping at the top-level `:=` that
-starts the proof — tracking paren/bracket/brace depth so a `:=` inside a
-default-argument value (e.g. `(n : Nat := 0)`) doesn't end the capture early.
+which is a multi-GB, multi-hour operation per library and not what this
+needs). It finds `theorem`/`lemma` declarations, splits each into its
+`statement` (keyword through the type, up to the top-level `:=`) and its
+`proof` (everything after, up to the next top-level declaration or EOF).
 
-The proof body itself is discarded on purpose: Tengoku stores statements
-only, meant to be re-attempted later, not proofs already done elsewhere.
+Both halves are kept: a harvested declaration is a real, already-proven
+result from its source library, staged in Tengoku's `tentative/` folder
+until Leak's own services re-verify it and it can move to `trusted/`. This
+is NOT a proof-stripping tool — see export vs. harvest usage in harvest.py.
 """
 
 from __future__ import annotations
@@ -28,19 +30,26 @@ _DECL_KEYWORD_RE = re.compile(
 _OPEN = {"(": ")", "[": "]", "{": "}"}
 _CLOSE = {v: k for k, v in _OPEN.items()}
 
+# A line with no leading whitespace is, in Mathlib-style-linted Lean, always
+# the start of a new top-level command (theorem/def/namespace/end/#check/...).
+# Used to find where a proof body ends, without needing to know Lean's full
+# grammar for every possible top-level keyword.
+_TOP_LEVEL_LINE_RE = re.compile(r"^[^\s].*$", re.MULTILINE)
+
 
 @dataclass
 class ExtractedDeclaration:
     name: str
     statement: str
+    proof: str
     line: int
 
 
 def _strip_line_comments(text: str) -> str:
-    """Blank out `--` line comments so they can't hide a fake `:=` or
-    confuse bracket depth. Block comments (`/- ... -/`) are left alone —
-    they're rare inside a signature and handling nesting correctly isn't
-    worth the complexity for this heuristic pass."""
+    """Blank out `--` line comments so they can't hide a fake `:=`, confuse
+    bracket depth, or look like a top-level line. Block comments (`/- ... -/`)
+    are left alone — rare inside a signature/proof and handling nesting
+    correctly isn't worth the complexity for this heuristic pass."""
     out_lines = []
     for line in text.split("\n"):
         idx = line.find("--")
@@ -48,8 +57,39 @@ def _strip_line_comments(text: str) -> str:
     return "\n".join(out_lines)
 
 
+def _find_statement_end(text: str, search_from: int) -> int | None:
+    """Find the top-level `:=` that starts the proof, tracking bracket depth
+    so one nested inside a default-argument value (e.g. `(n : Nat := 0)`)
+    doesn't end the statement early. Returns None if unterminated."""
+    depth = 0
+    i = search_from
+    while i < len(text):
+        ch = text[i]
+        if ch in _OPEN:
+            depth += 1
+        elif ch in _CLOSE:
+            depth = max(0, depth - 1)
+        elif depth == 0 and text.startswith(":=", i):
+            return i
+        elif depth == 0 and ch == "\n" and text[i:].lstrip().startswith(("theorem ", "lemma ")):
+            # Next declaration started before `:=` was found — bail out
+            # rather than swallow it into this one.
+            return i
+        i += 1
+    return None
+
+
+def _find_proof_end(text: str, proof_start: int) -> int:
+    """Find where the proof body ends: the next line with no leading
+    whitespace (a new top-level command), or EOF."""
+    for match in _TOP_LEVEL_LINE_RE.finditer(text, proof_start + 1):
+        return match.start()
+    return len(text)
+
+
 def extract_declarations(source: str) -> list[ExtractedDeclaration]:
-    """Return every theorem/lemma declaration found in `source`."""
+    """Return every theorem/lemma declaration found in `source`, each split
+    into its statement and its full proof."""
     text = _strip_line_comments(source)
     results: list[ExtractedDeclaration] = []
 
@@ -58,38 +98,23 @@ def extract_declarations(source: str) -> list[ExtractedDeclaration]:
         start = match.start()
         line_no = text.count("\n", 0, start) + 1
 
-        # Walk forward from just after the name, tracking bracket depth, to
-        # find the top-level `:=` that starts the proof.
-        depth = 0
-        i = match.end()
-        end = None
-        while i < len(text):
-            ch = text[i]
-            if ch in _OPEN:
-                depth += 1
-            elif ch in _CLOSE:
-                depth = max(0, depth - 1)
-            elif depth == 0 and text.startswith(":=", i):
-                end = i
-                break
-            elif depth == 0 and ch == "\n" and text[i:].lstrip().startswith(("theorem ", "lemma ")):
-                # Next declaration started before we found `:=` (e.g. a
-                # statement with no proof body captured, or our scan missed
-                # the boundary) — bail out rather than swallow the next decl.
-                end = i
-                break
-            i += 1
-
-        if end is None:
+        colon_eq = _find_statement_end(text, match.end())
+        if colon_eq is None:
             continue  # unterminated — skip rather than guess
 
-        statement = text[start:end].strip()
+        statement = text[start:colon_eq].strip()
         # Skip declarations that are just `theorem`/`lemma` inside a string
         # literal or doc example rather than real code (heuristic: a real
         # declaration's statement must contain a top-level `:` separating
         # the binders from the type).
-        if ":" not in statement.split(":=")[0]:
+        if ":" not in statement:
             continue
-        results.append(ExtractedDeclaration(name=name, statement=statement, line=line_no))
+
+        proof_end = _find_proof_end(text, colon_eq)
+        proof = text[colon_eq:proof_end].strip()
+
+        results.append(
+            ExtractedDeclaration(name=name, statement=statement, proof=proof, line=line_no)
+        )
 
     return results

@@ -6,7 +6,7 @@ import { TengokuSearchBar } from "@/components/tengoku/search-bar";
 export const metadata: Metadata = {
   title: "Tengoku",
   description:
-    "A growing corpus of Lean 4 theorem statements from open libraries and CompeteMath, staged for Leak to attempt.",
+    "A growing corpus of Lean 4 theorems and their proofs, harvested from open libraries and CompeteMath, awaiting Leak's own stamp of verification.",
 };
 
 const TENGOKU_REPO = "https://github.com/competemath/tengoku";
@@ -17,10 +17,14 @@ export default function TengokuPage() {
       <section>
         <p>
           Tengoku (天国 — &ldquo;heaven&rdquo;) is a growing repository of Lean 4{" "}
-          <strong>theorem statements</strong>, not proofs, harvested from open
+          <strong>theorems and their proofs</strong>, harvested from open
           formalization libraries and from CompeteMath&rsquo;s own certified
-          problems. Every entry is a target waiting for{" "}
-          <a href="/leak">Leak</a> to attempt it.
+          problems. Every entry already has a real proof from somewhere —
+          the question is only whether <a href="/leak">Leak</a> has stamped
+          it yet. <strong>Tentative</strong> entries are proofs from a real
+          source (linked on every entry) that Leak hasn&rsquo;t re-verified
+          itself; <strong>Leak-trusted</strong> entries are ones Leak&rsquo;s
+          own toolchain has already compiled and certified.
         </p>
 
         <a
