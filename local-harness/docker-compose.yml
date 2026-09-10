@@ -1,0 +1,32 @@
+# Runs Leak-I, Leak-II, and Leak-IV entirely on your own machine, built
+# straight from their public GitHub repos (no Mathlib-heavy Dockerfiles
+# vendored into this repo — Docker supports a git URL as a build context).
+# Each service exposes its internal port 7860 on a distinct host port. There
+# is no queue proxy in front of these — that exists to protect a SHARED
+# deployment from concurrent strangers; here you have exclusive access to
+# your own containers, so there is nothing to queue.
+#
+# First build pulls a full Lean 4 + Mathlib toolchain per service (multiple
+# GB each) and can take a long time — this is expected, not a hang.
+
+services:
+  leak-i:
+    build:
+      context: https://github.com/mikael-bashir/leak-i.git
+    ports:
+      - "8011:7860"
+    restart: unless-stopped
+
+  leak-ii:
+    build:
+      context: https://github.com/mikael-bashir/leak-ii.git
+    ports:
+      - "8012:7860"
+    restart: unless-stopped
+
+  leak-iv:
+    build:
+      context: https://github.com/mikael-bashir/leak-iv.git
+    ports:
+      - "8014:7860"
+    restart: unless-stopped
