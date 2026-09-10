@@ -14,7 +14,8 @@
 // Usage:
 //   node --env-file=.env $(which npx) tsx scripts/import-tengoku.ts /path/to/tengoku-repo/data/**/*.jsonl
 
-import { readFileSync } from 'node:fs';
+import { createReadStream } from 'node:fs';
+import { createInterface } from 'node:readline';
 import { resolveShardKey, type ShardKey } from '../src/app/lib/data/tengoku-shard-config';
 import { getShardSql, ensureShardEntriesTable, allShardKeys } from '../src/app/lib/data/tengoku-shard-clients';
 import { ensureShardRegistry, updateShardRowStats } from '../src/app/lib/data/tengoku-shard-usage';
@@ -32,10 +33,15 @@ interface TengokuRecord {
   toolchain: string;
 }
 
-function parseJsonl(path: string): TengokuRecord[] {
-  const text = readFileSync(path, 'utf-8');
+// Streamed line-by-line rather than a single readFileSync + split('\n') —
+// some harvested proofs are individually enormous (LeanBridge's LMFDB
+// q-expansion coefficient certificates run 400KB+ per proof), and a big
+// enough file pushes readFileSync past Node's ~536MB max string length.
+// Reading line-by-line has no such ceiling regardless of file size.
+async function parseJsonl(path: string): Promise<TengokuRecord[]> {
   const records: TengokuRecord[] = [];
-  for (const line of text.split('\n')) {
+  const rl = createInterface({ input: createReadStream(path, 'utf-8'), crlfDelay: Infinity });
+  for await (const line of rl) {
     if (!line.trim()) continue;
     let record: TengokuRecord;
     try {
@@ -102,7 +108,7 @@ async function main() {
   const byStatus: Record<string, number> = { tentative: 0, trusted: 0 };
 
   for (const path of paths) {
-    const records = parseJsonl(path);
+    const records = await parseJsonl(path);
     const grouped = new Map<ShardKey, TengokuRecord[]>();
     for (const record of records) {
       const shardKey = resolveShardKey(record.library, record.source_url, record.name);

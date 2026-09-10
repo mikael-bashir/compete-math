@@ -55,9 +55,41 @@ function prove2meBucketKey(sourceUrl: string, name: string): string {
   return match ? match[1] : name;
 }
 
+// "misc" (ANGEL1) filled its 512MB free-tier cap — some harvested repos
+// turned out to carry individually enormous proofs (LeanBridge's LMFDB
+// q-expansion certificates run 400KB+ each). It still holds everything
+// already imported there and stays fully searchable; it just can't safely
+// accept more writes. New small-library overflow is hashed instead across
+// mathlib's shard and all 8 Prove2Me shards, which each still have
+// hundreds of MB of spare room (mathlib is a fixed one-time import that
+// doesn't grow, and Prove2Me's per-theorem hashing leaves real headroom in
+// every bucket) — far more combined capacity than provisioning one more
+// shard for "misc" alone would give.
+const MISC_OVERFLOW_TARGETS: ShardKey[] = [
+  "mathlib",
+  "prove2me-0",
+  "prove2me-1",
+  "prove2me-2",
+  "prove2me-3",
+  "prove2me-4",
+  "prove2me-5",
+  "prove2me-6",
+  "prove2me-7",
+];
+
 export function resolveShardKey(library: string, sourceUrl: string, name: string): ShardKey {
   if (library === "mathlib") return "mathlib";
-  if (library !== "prove2me") return "misc";
-  const bucket = fnv1a(prove2meBucketKey(sourceUrl, name)) % PROVE2ME_BUCKET_COUNT;
-  return `prove2me-${bucket}` as ShardKey;
+  if (library === "prove2me") {
+    const bucket = fnv1a(prove2meBucketKey(sourceUrl, name)) % PROVE2ME_BUCKET_COUNT;
+    return `prove2me-${bucket}` as ShardKey;
+  }
+  // Hashed per record (source_url, stable across reharvests), not per
+  // library — a library-level hash puts an entire library in one target,
+  // and some overflow libraries turn out to be individually huge (Lean
+  // Bridge's LMFDB certificates alone ran ~450MB+), which just reproduces
+  // the original "misc" overflow problem one shard later. Per-record
+  // hashing spreads any single library's rows evenly across all 9 targets
+  // regardless of its size.
+  const bucket = fnv1a(sourceUrl || name) % MISC_OVERFLOW_TARGETS.length;
+  return MISC_OVERFLOW_TARGETS[bucket];
 }

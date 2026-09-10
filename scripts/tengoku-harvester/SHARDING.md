@@ -18,14 +18,24 @@ popularity counts. No theorem text lives there.
 `src/app/lib/data/tengoku-shard-config.ts` is the single source of truth:
 
 - `mathlib` → its own shard (`ANGEL0`) — 188k declarations but small rows
-  (~700 bytes avg), comfortably under 512MB with room to grow.
-- Every other small library (equational-theories, PrimeNumberTheoremAnd,
-  compfiles, Carleson, FLT, formal-conjectures, batteries, pfr,
-  CompeteMath's own certified problems) → one shared `misc` shard (`ANGEL1`)
-  — all of them combined are ~35MB.
+  (~700 bytes avg).
 - `prove2me` → hash-bucketed across 8 shards (`ANGEL2`..`ANGEL9`) by a
   stable hash of the theorem's Prove2Me UUID (parsed from `source_url`), so
   rerunning the harvester lands each theorem in the same bucket every time.
+- Every other library → originally one shared `misc` shard (`ANGEL1`). As
+  of the sixth harvesting round `misc` filled its 512MB cap (some harvested
+  repos turned out to carry individually enormous proofs — LeanBridge's
+  LMFDB q-expansion certificates run 400KB+ each). It still holds
+  everything already imported there and stays fully searchable, but no
+  longer accepts new writes. **New non-mathlib/non-prove2me libraries are
+  now hashed per record (not per library — a library-level hash just
+  reproduces the same problem one shard later if that library turns out to
+  be huge) across mathlib's shard plus all 8 Prove2Me shards**, which each
+  still have hundreds of MB of spare room. See `MISC_OVERFLOW_TARGETS` in
+  `tengoku-shard-config.ts`. If this pool also fills, the fix is either
+  more angel databases or trimming `MISC_OVERFLOW_TARGETS`' load — check
+  `getShardStatusReport()` in `tengoku-shard-usage.ts` for per-shard sizes
+  before starting a large new harvesting round.
 
 ## Usage governance
 
