@@ -182,34 +182,47 @@ export async function POST() {
       );
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_leak_submissions_submitted_at ON leak_submissions(submitted_at DESC);`;
-    // Tengoku: a PROOF corpus (statement + full proof, always both), harvested
-    // from open libraries plus CompeteMath's own certified problems. `status`
-    // distinguishes what Leak has actually stamped ('trusted' — the proof
-    // came straight out of question_certificates, i.e. Leak's own toolchain
-    // already compiled it) from everything else, which is a real proof from
-    // a real source (see source_url) that Leak just hasn't re-verified itself
-    // yet ('tentative'). See github.com/competemath/tengoku.
+    // Tengoku's actual theorem rows (statement + full proof) live across 10
+    // sharded Neon databases (ANGEL0..ANGEL9 — see tengoku-shard-config.ts),
+    // each a separate free-tier project since Prove2Me's proofs alone
+    // (~870MB, whole self-contained files) exceed one project's 512MB cap.
+    // This database only holds the control plane: which shard owns which
+    // library, per-shard monthly query usage (a self-tracked proxy so a
+    // heavily-hit free shard doesn't get suspended mid-month), a cached
+    // stats snapshot (so the public stats pill doesn't fan out on every
+    // page load), and popularity counts. No theorem text lives here.
     await sql`
-      CREATE TABLE IF NOT EXISTS tengoku_entries (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        statement TEXT NOT NULL,
-        proof TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'tentative',
-        library TEXT NOT NULL,
-        source_url TEXT NOT NULL,
-        toolchain TEXT NOT NULL,
-        search_vector TSVECTOR GENERATED ALWAYS AS (
-          to_tsvector('english', name || ' ' || statement)
-        ) STORED,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      CREATE TABLE IF NOT EXISTS tengoku_shards (
+        shard_key TEXT PRIMARY KEY,
+        env_var TEXT NOT NULL,
+        row_count INT NOT NULL DEFAULT 0,
+        byte_estimate BIGINT NOT NULL DEFAULT 0,
+        queries_this_month INT NOT NULL DEFAULT 0,
+        monthly_query_budget INT NOT NULL DEFAULT 20000,
+        month_reset_at DATE NOT NULL DEFAULT date_trunc('month', now()),
+        status TEXT NOT NULL DEFAULT 'active',
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `;
-    await sql`ALTER TABLE tengoku_entries ADD COLUMN IF NOT EXISTS proof TEXT NOT NULL DEFAULT '';`;
-    await sql`ALTER TABLE tengoku_entries ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'tentative';`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_tengoku_entries_search ON tengoku_entries USING GIN (search_vector);`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_tengoku_entries_library ON tengoku_entries(library);`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_tengoku_entries_status ON tengoku_entries(status);`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS tengoku_stats_cache (
+        id INT PRIMARY KEY DEFAULT 1,
+        total INT NOT NULL DEFAULT 0,
+        trusted INT NOT NULL DEFAULT 0,
+        tentative INT NOT NULL DEFAULT 0,
+        library_count INT NOT NULL DEFAULT 0,
+        refreshed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS tengoku_popularity (
+        shard_key TEXT NOT NULL,
+        entry_id INT NOT NULL,
+        hits INT NOT NULL DEFAULT 0,
+        last_hit_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (shard_key, entry_id)
+      );
+    `;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_problems_status ON community_problems(status);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_answers_problem ON community_answers(problem_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_comments_problem ON community_comments(problem_id);`;
