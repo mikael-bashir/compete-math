@@ -1,5 +1,5 @@
 import { sql } from "@vercel/postgres";
-import { getShardPool, allShardKeys } from "./tengoku-shard-clients";
+import { getShardSql, allShardKeys } from "./tengoku-shard-clients";
 import { getActiveShardKeys, recordShardQueries, recordPopularityHits } from "./tengoku-shard-usage";
 import type { ShardKey } from "./tengoku-shard-config";
 
@@ -38,26 +38,35 @@ export async function getTengokuStats(): Promise<TengokuStats> {
   }
 }
 
-// Recomputes the cached snapshot with one COUNT per shard. Deliberately not
-// on the hot path — call this from the importer after a harvest lands, or
-// from an admin action, not from a request handler.
+// Recomputes the cached snapshot with one COUNT per shard, run in parallel
+// (each is an independent stateless HTTP query — see tengoku-shard-clients).
+// Deliberately not on the hot path — call this from the importer after a
+// harvest lands, or from an admin action, not from a request handler.
 export async function refreshTengokuStatsCache(): Promise<TengokuStats> {
+  const perShard = await Promise.allSettled(
+    allShardKeys().map(async (key) => {
+      const sqlFor = getShardSql(key);
+      const rows = await sqlFor`
+        SELECT count(*)::int AS n,
+               count(*) FILTER (WHERE status = 'trusted')::int AS trusted,
+               array_agg(DISTINCT library) AS libs
+        FROM tengoku_entries;
+      `;
+      return rows[0] as { n: number; trusted: number; libs: string[] | null };
+    }),
+  );
+
   let total = 0;
   let trusted = 0;
   const libraries = new Set<string>();
-
-  for (const key of allShardKeys()) {
-    const pool = getShardPool(key);
-    const { rows } = await pool.sql`
-      SELECT count(*)::int AS n,
-             count(*) FILTER (WHERE status = 'trusted')::int AS trusted,
-             array_agg(DISTINCT library) AS libs
-      FROM tengoku_entries;
-    `;
-    const r = rows[0];
-    total += r?.n ?? 0;
-    trusted += r?.trusted ?? 0;
-    for (const lib of r?.libs ?? []) {
+  for (const result of perShard) {
+    if (result.status === "rejected") {
+      console.error("[tengoku] stats refresh: a shard failed:", result.reason);
+      continue;
+    }
+    total += result.value?.n ?? 0;
+    trusted += result.value?.trusted ?? 0;
+    for (const lib of result.value?.libs ?? []) {
       if (lib) libraries.add(lib);
     }
   }
@@ -93,7 +102,9 @@ interface ShardHit {
 // the right choice for a Google-style search box. Fans out to every shard
 // that isn't resting this month, merges by rank, and re-slices to `limit` —
 // a shard that errors or is asleep just quietly contributes nothing rather
-// than failing the whole search.
+// than failing the whole search. Each shard query is a single stateless
+// HTTP round trip (see tengoku-shard-clients), so 10 in parallel costs
+// roughly what one costs, not 10x.
 export async function searchTengokuEntries(query: string, limit = 30): Promise<TengokuEntry[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
@@ -107,8 +118,8 @@ export async function searchTengokuEntries(query: string, limit = 30): Promise<T
 
     const settled = await Promise.allSettled<ShardHit>(
       activeShards.map(async (key) => {
-        const pool = getShardPool(key);
-        const { rows } = await pool.sql`
+        const sqlFor = getShardSql(key);
+        const rows = await sqlFor`
           SELECT id, name, statement, proof, status, library, source_url, toolchain,
                  ts_rank(search_vector, websearch_to_tsquery('english', ${trimmed})) AS rank
           FROM tengoku_entries

@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@neondatabase/serverless':
+        specifier: ^0.9.5
+        version: 0.9.5
       '@paper-design/shaders-react':
         specifier: ^0.0.70
         version: 0.0.70(@types/react@19.2.9)(react@19.2.4)

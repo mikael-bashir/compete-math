@@ -16,8 +16,8 @@
 
 import { readFileSync } from 'node:fs';
 import { resolveShardKey, type ShardKey } from '../src/app/lib/data/tengoku-shard-config';
-import { getShardPool, ensureShardEntriesTable, allShardKeys } from '../src/app/lib/data/tengoku-shard-clients';
-import { updateShardRowStats } from '../src/app/lib/data/tengoku-shard-usage';
+import { getShardSql, ensureShardEntriesTable, allShardKeys } from '../src/app/lib/data/tengoku-shard-clients';
+import { ensureShardRegistry, updateShardRowStats } from '../src/app/lib/data/tengoku-shard-usage';
 import { refreshTengokuStatsCache } from '../src/app/lib/data/tengoku';
 
 type TengokuStatus = 'tentative' | 'trusted';
@@ -64,10 +64,10 @@ const CHUNK_SIZE = 500;
 // unnest()-based bulk insert — one round trip per chunk instead of one per
 // row, which matters at Tengoku's scale (thousands of rows per shard).
 async function insertBatch(shardKey: ShardKey, records: TengokuRecord[]) {
-  const pool = getShardPool(shardKey);
+  const sql = getShardSql(shardKey);
   for (let i = 0; i < records.length; i += CHUNK_SIZE) {
     const chunk = records.slice(i, i + CHUNK_SIZE);
-    await pool.query(
+    await sql(
       `INSERT INTO tengoku_entries (name, statement, proof, status, library, source_url, toolchain)
        SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[])`,
       [
@@ -90,6 +90,8 @@ async function main() {
     process.exit(1);
   }
 
+  await ensureShardRegistry();
+
   // Processed one input file at a time (not all files loaded into memory
   // together) — some shard files run ~40MB and Prove2Me's proofs alone
   // average ~15KB/row, so holding the whole corpus in memory at once isn't
@@ -110,7 +112,7 @@ async function main() {
     }
     for (const [shardKey, group] of grouped) {
       if (!shardTablesReady.has(shardKey)) {
-        await ensureShardEntriesTable(getShardPool(shardKey));
+        await ensureShardEntriesTable(getShardSql(shardKey));
         shardTablesReady.add(shardKey);
       }
       await insertBatch(shardKey, group);
@@ -126,8 +128,8 @@ async function main() {
 
   console.log('[import-tengoku] refreshing per-shard size stats...');
   for (const shardKey of allShardKeys()) {
-    const pool = getShardPool(shardKey);
-    const { rows } = await pool.sql`SELECT count(*)::int AS n, pg_database_size(current_database())::bigint AS bytes FROM tengoku_entries;`;
+    const sql = getShardSql(shardKey);
+    const rows = await sql`SELECT count(*)::int AS n, pg_database_size(current_database())::bigint AS bytes FROM tengoku_entries;`;
     await updateShardRowStats(shardKey, rows[0]?.n ?? 0, Number(rows[0]?.bytes ?? 0));
   }
 

@@ -8,15 +8,19 @@ import { SHARDS, type ShardKey } from "./tengoku-shard-config";
 // shard per calendar month as a deliberately conservative stand-in, so a
 // free shard rests before it ever gets close to being throttled or
 // suspended by Neon rather than failing requests mid-month.
+//
+// Every function here does exactly one round trip to master regardless of
+// shard count (unnest()-based batch writes, ANY($1) batch updates) — this
+// used to be a per-shard loop, which alone added ~1.5s to every search
+// once there were 10 shards to register/update sequentially.
 
 export async function ensureShardRegistry(): Promise<void> {
-  for (const shard of SHARDS) {
-    await sql`
-      INSERT INTO tengoku_shards (shard_key, env_var)
-      VALUES (${shard.key}, ${shard.envVar})
-      ON CONFLICT (shard_key) DO NOTHING;
-    `;
-  }
+  await sql.query(
+    `INSERT INTO tengoku_shards (shard_key, env_var)
+     SELECT * FROM unnest($1::text[], $2::text[])
+     ON CONFLICT (shard_key) DO NOTHING`,
+    [SHARDS.map((s) => s.key), SHARDS.map((s) => s.envVar)],
+  );
 }
 
 interface ShardRow {
@@ -27,18 +31,20 @@ interface ShardRow {
 }
 
 // Which shards are safe to query right now. Called once per search request
-// (fanning out only to what this returns), so a resting shard costs nothing
-// beyond this one lightweight read against the master database. The reset
-// itself is one conditional bulk UPDATE (comparing full dates in SQL, not
-// JS-side month numbers, so it doesn't misfire across a year boundary).
+// (fanning out only to what this returns). One round trip total — the month
+// rollover (comparing full dates in SQL, not JS-side month numbers, so it
+// doesn't misfire across a year boundary) and the read are one statement via
+// a CTE, not two sequential queries. Does NOT call ensureShardRegistry —
+// that's a one-time setup step (run from the importer), not a per-request one.
 export async function getActiveShardKeys(): Promise<ShardKey[]> {
-  await ensureShardRegistry();
-  await sql`
-    UPDATE tengoku_shards
-    SET queries_this_month = 0, status = 'active', month_reset_at = date_trunc('month', now()), updated_at = NOW()
-    WHERE month_reset_at < date_trunc('month', now());
+  const { rows } = await sql<ShardRow>`
+    WITH rollover AS (
+      UPDATE tengoku_shards
+      SET queries_this_month = 0, status = 'active', month_reset_at = date_trunc('month', now()), updated_at = NOW()
+      WHERE month_reset_at < date_trunc('month', now())
+    )
+    SELECT shard_key, queries_this_month, monthly_query_budget, status FROM tengoku_shards;
   `;
-  const { rows } = await sql<ShardRow>`SELECT shard_key, queries_this_month, monthly_query_budget, status FROM tengoku_shards;`;
   return rows.filter((r) => r.status === "active" && r.queries_this_month < r.monthly_query_budget).map((r) => r.shard_key);
 }
 
@@ -46,17 +52,22 @@ export async function getActiveShardKeys(): Promise<ShardKey[]> {
 // 'resting' the moment it crosses its budget, so every subsequent request
 // this month skips it instead of risking a suspended/throttled connection.
 export async function recordShardQueries(shardKeys: ShardKey[]): Promise<void> {
-  for (const key of shardKeys) {
-    const { rows } = await sql<{ over_budget: boolean }>`
-      UPDATE tengoku_shards
-      SET queries_this_month = queries_this_month + 1, updated_at = NOW()
-      WHERE shard_key = ${key}
-      RETURNING queries_this_month >= monthly_query_budget AS over_budget;
-    `;
-    if (rows[0]?.over_budget) {
-      await sql`UPDATE tengoku_shards SET status = 'resting' WHERE shard_key = ${key} AND status != 'resting';`;
-      console.warn(`[tengoku] shard ${key} hit its monthly query budget — resting until next month`);
-    }
+  if (shardKeys.length === 0) return;
+  const { rows } = await sql.query<{ shard_key: ShardKey; over_budget: boolean }>(
+    `UPDATE tengoku_shards
+     SET queries_this_month = queries_this_month + 1, updated_at = NOW()
+     WHERE shard_key = ANY($1::text[])
+     RETURNING shard_key, queries_this_month >= monthly_query_budget AS over_budget`,
+    [shardKeys],
+  );
+  const overBudget = rows.filter((r) => r.over_budget).map((r) => r.shard_key);
+  if (overBudget.length === 0) return;
+
+  await sql.query(`UPDATE tengoku_shards SET status = 'resting' WHERE shard_key = ANY($1::text[]) AND status != 'resting'`, [
+    overBudget,
+  ]);
+  for (const key of overBudget) {
+    console.warn(`[tengoku] shard ${key} hit its monthly query budget — resting until next month`);
   }
 }
 
@@ -79,7 +90,6 @@ export interface ShardStatusRow {
 }
 
 export async function getShardStatusReport(): Promise<ShardStatusRow[]> {
-  await ensureShardRegistry();
   const { rows } = await sql`
     SELECT shard_key, row_count, byte_estimate, queries_this_month, monthly_query_budget, status
     FROM tengoku_shards ORDER BY shard_key;
@@ -99,12 +109,11 @@ export async function getShardStatusReport(): Promise<ShardStatusRow[]> {
 // duplicate theorem text onto the main database.
 export async function recordPopularityHits(shardKey: ShardKey, entryIds: number[]): Promise<void> {
   if (entryIds.length === 0) return;
-  for (const entryId of entryIds) {
-    await sql`
-      INSERT INTO tengoku_popularity (shard_key, entry_id, hits, last_hit_at)
-      VALUES (${shardKey}, ${entryId}, 1, NOW())
-      ON CONFLICT (shard_key, entry_id) DO UPDATE
-        SET hits = tengoku_popularity.hits + 1, last_hit_at = NOW();
-    `;
-  }
+  await sql.query(
+    `INSERT INTO tengoku_popularity (shard_key, entry_id, hits, last_hit_at)
+     SELECT $1, e, 1, NOW() FROM unnest($2::int[]) AS e
+     ON CONFLICT (shard_key, entry_id) DO UPDATE
+       SET hits = tengoku_popularity.hits + 1, last_hit_at = NOW()`,
+    [shardKey, entryIds],
+  );
 }
