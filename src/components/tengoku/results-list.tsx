@@ -64,6 +64,15 @@ export function TengokuResultsList({
             <span className="font-code text-[10px] text-white/30">
               {entry.toolchain}
             </span>
+            {entry.compatibleToolchains.length > 0 && (
+              <span
+                className="font-code text-[10px] text-white/25"
+                title={`Also verified under: ${entry.compatibleToolchains.join(', ')}`}
+              >
+                + {entry.compatibleToolchains.length} more toolchain
+                {entry.compatibleToolchains.length === 1 ? '' : 's'}
+              </span>
+            )}
             <a
               href={entry.sourceUrl}
               target="_blank"

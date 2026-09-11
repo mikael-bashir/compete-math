@@ -59,14 +59,24 @@ function prove2meBucketKey(sourceUrl: string, name: string): string {
 // turned out to carry individually enormous proofs (LeanBridge's LMFDB
 // q-expansion certificates run 400KB+ each). It still holds everything
 // already imported there and stays fully searchable; it just can't safely
-// accept more writes. New small-library overflow is hashed instead across
-// mathlib's shard and all 8 Prove2Me shards, which each still have
-// hundreds of MB of spare room (mathlib is a fixed one-time import that
-// doesn't grow, and Prove2Me's per-theorem hashing leaves real headroom in
-// every bucket) — far more combined capacity than provisioning one more
-// shard for "misc" alone would give.
-const MISC_OVERFLOW_TARGETS: ShardKey[] = [
-  "mathlib",
+// accept more writes.
+//
+// "mathlib" (ANGEL0) filled up too, but for a different reason: adding
+// per-row search metadata (embeddings + an HNSW index) turned out to cost
+// ~4.4KB/row all-in — cheap per row, but mathlib alone holds ~188k rows, so
+// its *existing* content pushed it over 512MB partway through backfilling
+// search metadata, even though the raw theorem text itself always fit
+// comfortably. It's in the same boat as misc now: fully searchable via its
+// existing columns, can't safely take more writes of any kind (new rows OR
+// new metadata for old rows).
+//
+// New small-library overflow (for brand new harvested content) and search
+// metadata for existing full-shard rows are both hashed instead across the
+// 8 Prove2Me shards, which each still have hundreds of MB of spare room
+// (Prove2Me's own per-theorem hashing leaves real headroom in every
+// bucket) — comfortably more combined capacity than either full shard
+// needs to offload.
+export const MISC_OVERFLOW_TARGETS: ShardKey[] = [
   "prove2me-0",
   "prove2me-1",
   "prove2me-2",
@@ -76,6 +86,20 @@ const MISC_OVERFLOW_TARGETS: ShardKey[] = [
   "prove2me-6",
   "prove2me-7",
 ];
+
+// Search metadata (embeddings, concept glosses, compatible-toolchain tags)
+// for a row that lives on a shard with no room for it (misc, or mathlib
+// once it filled up mid-backfill) goes to a companion table
+// (`tengoku_search_meta_overflow`) on one of the 8 Prove2Me targets,
+// bucketed by the row's own (source_url, name) — the same inputs
+// `resolveShardKey` already hashes for new writes — so a row's metadata
+// always lands on exactly the shard a fresh copy of that row would be
+// routed to today, regardless of which now-full shard it actually lives
+// on. One hashing scheme, reused for every "this shard is full" case.
+export function resolveMiscOverflowMetaShard(sourceUrl: string, name: string): ShardKey {
+  const bucket = fnv1a(sourceUrl || name) % MISC_OVERFLOW_TARGETS.length;
+  return MISC_OVERFLOW_TARGETS[bucket];
+}
 
 export function resolveShardKey(library: string, sourceUrl: string, name: string): ShardKey {
   if (library === "mathlib") return "mathlib";

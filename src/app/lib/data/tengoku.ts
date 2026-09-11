@@ -1,7 +1,7 @@
 import { sql } from "@vercel/postgres";
 import { getShardSql, allShardKeys } from "./tengoku-shard-clients";
 import { getActiveShardKeys, recordShardQueries, recordPopularityHits } from "./tengoku-shard-usage";
-import type { ShardKey } from "./tengoku-shard-config";
+import { resolveMiscOverflowMetaShard, type ShardKey } from "./tengoku-shard-config";
 
 export type TengokuStatus = "tentative" | "trusted";
 
@@ -14,6 +14,11 @@ export interface TengokuEntry {
   library: string;
   sourceUrl: string;
   toolchain: string;
+  // Other toolchains this exact proof (same statement, same tactic script)
+  // is independently confirmed to also verify under — not a second copy of
+  // the proof, just a tag. `toolchain` stays the one it was actually
+  // harvested/certified in.
+  compatibleToolchains: string[];
 }
 
 export interface TengokuStats {
@@ -93,6 +98,7 @@ interface ShardHit {
     library: string;
     source_url: string;
     toolchain: string;
+    compatible_toolchains: string[] | null;
     rank: number;
   }[];
 }
@@ -119,14 +125,28 @@ export async function searchTengokuEntries(query: string, limit = 30): Promise<T
     const settled = await Promise.allSettled<ShardHit>(
       activeShards.map(async (key) => {
         const sqlFor = getShardSql(key);
-        const rows = await sqlFor`
-          SELECT id, name, statement, proof, status, library, source_url, toolchain,
-                 ts_rank(search_vector, websearch_to_tsquery('english', ${trimmed})) AS rank
-          FROM tengoku_entries
-          WHERE search_vector @@ websearch_to_tsquery('english', ${trimmed})
-          ORDER BY rank DESC
-          LIMIT ${limit};
-        `;
+        // "misc" is full and has no compatible_toolchains column of its own
+        // (see tengoku-shard-config.ts) — that metadata lives in a
+        // companion table on another shard, hydrated separately below.
+        const rows =
+          key === "misc"
+            ? await sqlFor`
+                SELECT id, name, statement, proof, status, library, source_url, toolchain,
+                       NULL::text[] AS compatible_toolchains,
+                       ts_rank(search_vector, websearch_to_tsquery('english', ${trimmed})) AS rank
+                FROM tengoku_entries
+                WHERE search_vector @@ websearch_to_tsquery('english', ${trimmed})
+                ORDER BY rank DESC
+                LIMIT ${limit};
+              `
+            : await sqlFor`
+                SELECT id, name, statement, proof, status, library, source_url, toolchain, compatible_toolchains,
+                       ts_rank(search_vector, websearch_to_tsquery('english', ${trimmed})) AS rank
+                FROM tengoku_entries
+                WHERE search_vector @@ websearch_to_tsquery('english', ${trimmed})
+                ORDER BY rank DESC
+                LIMIT ${limit};
+              `;
         return { key, rows: rows as ShardHit["rows"] };
       }),
     );
@@ -149,6 +169,7 @@ export async function searchTengokuEntries(query: string, limit = 30): Promise<T
           library: r.library,
           sourceUrl: r.source_url,
           toolchain: r.toolchain,
+          compatibleToolchains: r.compatible_toolchains ?? [],
           rank: r.rank,
           shardKey: result.value.key,
         });
@@ -170,6 +191,36 @@ export async function searchTengokuEntries(query: string, limit = 30): Promise<T
       recordPopularityHits(key, ids).catch((err) => console.error("[tengoku] popularity tracking failed:", err));
     }
 
+    // "misc" results don't carry compatible_toolchains from their own row
+    // (no such column there) — hydrate it from the overflow companion table
+    // each one buckets to, for just the handful of misc hits in this page.
+    const miscHits = top.filter((e) => e.shardKey === "misc");
+    if (miscHits.length > 0) {
+      const byTarget = new Map<ShardKey, number[]>();
+      for (const e of miscHits) {
+        const target = resolveMiscOverflowMetaShard(e.sourceUrl, e.name);
+        const list = byTarget.get(target) ?? [];
+        list.push(e.id);
+        byTarget.set(target, list);
+      }
+      const overrides = new Map<number, string[]>();
+      await Promise.all(
+        Array.from(byTarget.entries()).map(async ([target, ids]) => {
+          const sqlFor = getShardSql(target);
+          const rows = await sqlFor`
+            SELECT entry_id, compatible_toolchains FROM tengoku_search_meta_overflow WHERE entry_id = ANY(${ids}::int[]);
+          `;
+          for (const r of rows as { entry_id: number; compatible_toolchains: string[] }[]) {
+            overrides.set(r.entry_id, r.compatible_toolchains ?? []);
+          }
+        }),
+      ).catch((err) => console.error("[tengoku] misc overflow metadata hydration failed:", err));
+      for (const e of miscHits) {
+        const found = overrides.get(e.id);
+        if (found) e.compatibleToolchains = found;
+      }
+    }
+
     return top.map((entry) => ({
       id: entry.id,
       name: entry.name,
@@ -179,6 +230,7 @@ export async function searchTengokuEntries(query: string, limit = 30): Promise<T
       library: entry.library,
       sourceUrl: entry.sourceUrl,
       toolchain: entry.toolchain,
+      compatibleToolchains: entry.compatibleToolchains,
     }));
   } catch (error) {
     console.error("[tengoku] search failed:", error);
