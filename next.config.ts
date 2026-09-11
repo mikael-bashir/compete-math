@@ -40,20 +40,18 @@ const nextConfig: NextConfig = {
       "./node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/onnxruntime_binding.node",
     ],
   },
-  // sharp is a transitive dependency of @huggingface/transformers used for
-  // its image-input pipelines — this route only ever calls text
-  // ("feature-extraction") embedding, so sharp's native binary is traced
-  // (require()-reachable, even if never actually invoked at runtime) but
-  // never needed. Excluded outright rather than letting it ride along
-  // unused and eating into the size budget.
+  // sharp is a transitive dependency of @huggingface/transformers, imported
+  // unconditionally at its top level — and sharp's *own* top-level code
+  // (lib/sharp.js) unconditionally requires its native platform binary too,
+  // throwing immediately if it's missing, regardless of whether this route
+  // ever calls an actual image function. Confirmed the hard way: excluding
+  // sharp's package broke the route with "Cannot find package 'sharp'";
+  // excluding just its native @img/sharp-* binaries broke it with sharp's
+  // own "Could not load the sharp module" error instead. There's no lazy
+  // path here — the native binary has to ship. Only the (separate, and
+  // actually unnecessary) GPU provider libraries get excluded.
   outputFileTracingExcludes: {
     "/api/tengoku/search": [
-      "./node_modules/.pnpm/@img+sharp-*/**/*",
-      "./node_modules/.pnpm/sharp@*/**/*",
-      // Belt-and-suspenders against the GPU provider libraries specifically
-      // (see the comment above) — outputFileTracingIncludes above no longer
-      // globs them in, but excluding them too means a future glob edit
-      // can't silently reintroduce this failure mode.
       "./node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libonnxruntime_providers_*.so",
     ],
   },
