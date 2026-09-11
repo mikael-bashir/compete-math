@@ -23,14 +23,38 @@ const nextConfig: NextConfig = {
   // execution time, which is invisible to any JS-level static analysis.
   // Confirmed via a real deployed function's logs: "libonnxruntime.so.1:
   // cannot open shared object file" — the .node file shipped, its ~35MB
-  // sibling .so didn't. Scoped to linux/x64 specifically (Vercel's actual
-  // serverless runtime) rather than every platform onnxruntime-node ships
-  // (darwin/win32/arm64 included) — those would just be dead weight in a
-  // deployed function.
+  // sibling .so didn't.
+  //
+  // IMPORTANT: this must name the two files explicitly, not a directory
+  // glob. onnxruntime-node's own postinstall unconditionally downloads a
+  // GPU build (microsoft.ml.onnxruntime.gpu.linux, confirmed 196MB) into
+  // this exact same linux/x64 directory — a `**/*` glob here silently pulls
+  // in the CUDA/TensorRT provider .so files too, which is what actually
+  // blew the function up to 465MB against Vercel's 250MB limit. This route
+  // only ever does CPU inference on a small sentence-embedding model and
+  // never touches GPU execution providers.
   outputFileTracingIncludes: {
     "/api/tengoku/search": [
       "./.tengoku-model-cache/**/*",
-      "./node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/**/*",
+      "./node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libonnxruntime.so.1",
+      "./node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/onnxruntime_binding.node",
+    ],
+  },
+  // sharp is a transitive dependency of @huggingface/transformers used for
+  // its image-input pipelines — this route only ever calls text
+  // ("feature-extraction") embedding, so sharp's native binary is traced
+  // (require()-reachable, even if never actually invoked at runtime) but
+  // never needed. Excluded outright rather than letting it ride along
+  // unused and eating into the size budget.
+  outputFileTracingExcludes: {
+    "/api/tengoku/search": [
+      "./node_modules/.pnpm/@img+sharp-*/**/*",
+      "./node_modules/.pnpm/sharp@*/**/*",
+      // Belt-and-suspenders against the GPU provider libraries specifically
+      // (see the comment above) — outputFileTracingIncludes above no longer
+      // globs them in, but excluding them too means a future glob edit
+      // can't silently reintroduce this failure mode.
+      "./node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libonnxruntime_providers_*.so",
     ],
   },
   async redirects() {
