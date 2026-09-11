@@ -14,7 +14,7 @@ function StatusBadge({ status }: { status: TengokuEntry['status'] }) {
   return (
     <Badge
       variant="outline"
-      className="border-amber-400/30 font-code text-[10px] uppercase tracking-[0.16em] text-amber-300/80"
+      className="border-amber-400/30 font-code text-[10px] uppercase tracking-[0.16em] text-white"
     >
       Tentative
     </Badge>
@@ -50,15 +50,18 @@ export function TengokuResultsList({
     <div className="mt-8 space-y-3">
       {results.map((entry) => (
         <div
-          key={entry.id}
+          key={`${entry.library}:${entry.name}`}
           className="rounded-xl border border-white/10 bg-white/[0.02] p-4 transition-colors hover:border-white/20"
         >
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <span className="font-code text-sm font-semibold text-white!">
+            <span className="w-full break-all font-code text-sm font-semibold text-white!">
               {entry.name}
             </span>
             <StatusBadge status={entry.status} />
-            <Badge variant="outline" className="font-code text-[10px] uppercase tracking-[0.16em]">
+            <Badge
+              variant="outline"
+              className="border-white/15 font-code text-[10px] uppercase tracking-[0.16em] text-white/60"
+            >
               {entry.library}
             </Badge>
             <span className="font-code text-[10px] text-white/30">
