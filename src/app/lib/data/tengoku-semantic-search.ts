@@ -283,19 +283,35 @@ export async function smartSearchTengokuEntries(query: string, limit = 30): Prom
   // uniformly-irrelevant matches (e.g. a gibberish query) would otherwise
   // look just as "confident" as a pool of genuinely good ones. A real
   // tsvector/trigram lexical hit is unambiguous on its own (the row only
-  // appears here because it matched), and MiniLM cosine similarity has a
-  // real absolute floor below which pairs are simply unrelated (empirically
-  // ~0.0-0.15 for unrelated text with this model, ~0.25+ once genuinely on
-  // topic) — either one being real is enough to trust the result set.
-  // Calibrated empirically against this model/corpus: a genuinely unrelated
-  // ("gibberish") query's *best* candidate (out of hundreds scanned, so
-  // there's always some noise-driven maximum) topped out around 0.23, while
-  // on-topic queries' top candidates ran 0.46-0.49 — 0.28 sits with real
-  // margin above the noise ceiling rather than splitting the difference.
-  const MEANING_FLOOR = 0.28;
+  // appears here because it matched) — either signal being real is enough
+  // to trust the result set.
+  //
+  // MEANING_FLOOR was re-measured directly against this corpus (300k+ rows,
+  // dominated by dense technical Lean identifiers — hashing, bit-packing,
+  // word arithmetic) rather than assumed: keyboard-mash and unrelated-word
+  // queries ("qwertyuiopasdfghjkl", "banana rocket telescope",
+  // "zzzzzzzzzzzzzzzzzzzz") topped out at 0.36 (random noise can coincide
+  // with *some* row out of hundreds of thousands scanned), while genuine
+  // one-word math queries ran as low as 0.39 ("pigeonhole") up to 0.69
+  // ("commutative ring", "1+1=2"). 0.28 was stale — measured against a much
+  // smaller, earlier corpus — and let real noise queries through. 0.37 sits
+  // just above the measured noise ceiling, but the margin to a short/rare
+  // genuine term like "pigeonhole" is only ~0.02: a single-word query using
+  // vocabulary this corpus doesn't otherwise contain much of could still
+  // land on either side. No raw-cosine floor cleanly separates these for
+  // short queries against a general-purpose sentence embedding — flagged
+  // here rather than papered over.
+  const MEANING_FLOOR = 0.37;
   const TRIGRAM_FLOOR = 0.15;
+  // ts_rank() is a plain SELECT column in lexicalCandidates' query, computed
+  // for every row the WHERE clause lets through — including rows that only
+  // matched via the trigram side of its `@@ ... OR ... %` condition, where
+  // ts_rank legitimately comes back as 0 (a real number), not null. So
+  // `tsRankRaw !== undefined` is true for those rows too, and doesn't
+  // actually tell a genuine tsvector match apart from a trigram-only one —
+  // it has to be a positive rank to mean anything.
   const hasRealLexicalHit = pool.some(
-    (c) => c.tsRankRaw !== undefined || (c.trigramRaw !== undefined && c.trigramRaw >= TRIGRAM_FLOOR),
+    (c) => (c.tsRankRaw !== undefined && c.tsRankRaw > 0) || (c.trigramRaw !== undefined && c.trigramRaw >= TRIGRAM_FLOOR),
   );
   const topRawMeaning = pool.reduce((max, c) => Math.max(max, c.meaningRaw ?? -1), -1);
   const confident = hasRealLexicalHit || topRawMeaning >= MEANING_FLOOR;

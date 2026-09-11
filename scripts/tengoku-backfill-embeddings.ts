@@ -30,6 +30,23 @@ function isSizeLimitError(e: unknown): boolean {
   return typeof e === "object" && e !== null && "code" in e && (e as { code?: string }).code === NEON_SIZE_LIMIT_CODE;
 }
 
+// Neon's HTTP-transport driver occasionally chokes on a specific row's raw
+// text (harvested from arbitrary third-party sources, so anything can show
+// up in it) with wire-protocol-level parse errors rather than a normal
+// Postgres error — seen in practice: "could not parse the HTTP request
+// body: unexpected end of hex escape". These have no `code`, unlike real
+// Postgres errors, which is exactly how they're told apart from a genuine
+// query/constraint failure that should still fail loudly.
+function isMalformedWireError(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "message" in e &&
+    typeof (e as { message?: unknown }).message === "string" &&
+    (e as { message: string }).message.includes("could not parse the HTTP request body")
+  );
+}
+
 async function embedBatch(rows: Row[]): Promise<{ ids: number[]; glosses: string[]; vectors: string[] }> {
   const glosses = rows.map((r) => buildConceptGloss(r));
   const vecs = await embedTexts(glosses);
@@ -105,6 +122,50 @@ async function backfillViaOverflow(sourceKey: ShardKey, startOffset = 0): Promis
   return totalDone;
 }
 
+// A zero vector as a "we tried, this row's text won't write, stop
+// retrying" sentinel — it's a real value (so `WHERE embedding IS NULL`
+// stops matching this row on the next page fetch, which is what actually
+// matters here: without this, a row whose content permanently fails to
+// write would be re-selected and re-fail every single batch, forever), and
+// zero similarity to every real query keeps it from ever surfacing as a
+// false match.
+const SENTINEL_VECTOR = toPgVector(new Array(384).fill(0));
+
+// Retries a failed batch one row at a time, skipping (and logging) whichever
+// individual row actually can't be written, instead of losing the other 63
+// perfectly good rows in the batch to one bad apple.
+async function embedRowsIndividually(
+  sql: ShardSql,
+  key: ShardKey,
+  rows: Row[],
+  glosses: string[],
+  vectors: string[],
+): Promise<number> {
+  let done = 0;
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      await sql`
+        UPDATE tengoku_entries SET concept_gloss = ${glosses[i]}, embedding = ${vectors[i]}::vector
+        WHERE id = ${rows[i].id};
+      `;
+      done++;
+    } catch (e) {
+      console.warn(`[${key}] id=${rows[i].id} (name="${rows[i].name}") — write failed: ${(e as Error).message}`);
+      try {
+        // The gloss/vector text itself is presumably what triggered the
+        // wire-parse error, so don't resend it — just the sentinel, keyed
+        // by id (a plain integer, never the problem).
+        await sql`UPDATE tengoku_entries SET embedding = ${SENTINEL_VECTOR}::vector WHERE id = ${rows[i].id};`;
+        console.warn(`[${key}] id=${rows[i].id} — marked with a sentinel embedding, will not be retried`);
+      } catch (e2) {
+        console.error(`[${key}] id=${rows[i].id} — even the sentinel write failed, will retry on the next full run: ${(e2 as Error).message}`);
+      }
+    }
+  }
+  console.log(`[${key}] +${done}/${rows.length} (individually, after a batch failure)`);
+  return done;
+}
+
 // Tries to embed `key`'s own rows inline (its own embedding column). If the
 // shard fills up mid-run (Neon's 512MB project cap), falls back to routing
 // its *remaining* rows through the overflow mechanism instead of crashing
@@ -114,6 +175,7 @@ async function backfillViaOverflow(sourceKey: ShardKey, startOffset = 0): Promis
 async function backfillDirectShard(key: ShardKey): Promise<number> {
   const sql = getShardSql(key);
   let totalDone = 0;
+  let consecutiveStalls = 0;
   for (;;) {
     const rows = (await sql`
       SELECT id, name, statement, library, source_url
@@ -137,25 +199,54 @@ async function backfillDirectShard(key: ShardKey): Promise<number> {
         WHERE t.id = v.id;
       `;
       totalDone += rows.length;
+      consecutiveStalls = 0;
       console.log(`[${key}] +${rows.length} (total ${totalDone})`);
+      continue;
     } catch (e) {
+      if (isMalformedWireError(e)) {
+        // Some row's raw text (name/statement, harvested from arbitrary
+        // third-party sources) contains a byte sequence Neon's HTTP wire
+        // protocol chokes on (seen: "unexpected end of hex escape") — this
+        // is a data quirk in one row, not a reason to abandon the other 63
+        // in the batch. Retry one at a time so only the actual offending
+        // row gets skipped (and sentinel-marked, so it isn't re-selected
+        // forever by the WHERE embedding IS NULL above).
+        const done = await embedRowsIndividually(sql, key, rows, glosses, vectors);
+        totalDone += done;
+        // Every row in this batch either wrote for real or got a sentinel
+        // (see embedRowsIndividually) except in the near-impossible case
+        // where even the trivial, text-free sentinel write itself fails.
+        // If that happens, this exact batch would be re-selected and
+        // re-fail forever — better to stop loudly than spin silently.
+        if (done === 0) {
+          consecutiveStalls++;
+          if (consecutiveStalls >= 3) {
+            throw new Error(
+              `[${key}] made no progress on the same batch (starting id=${rows[0].id}) 3 times in a row — stopping instead of looping forever.`,
+            );
+          }
+        } else {
+          consecutiveStalls = 0;
+        }
+        continue;
+      }
       if (!isSizeLimitError(e)) throw e;
-      // `totalDone` only counts rows committed in *this* invocation — on a
-      // resumed run it starts back at 0 even though earlier rows already
-      // have inline embeddings from a previous run. The overflow pass pages
-      // by raw offset over every row (not `embedding IS NULL`), so it needs
-      // the *actual* already-embedded count, queried fresh, or it would
-      // needlessly re-embed and duplicate-write rows that already have a
-      // perfectly good inline embedding.
-      const [{ n: alreadyEmbedded }] = (await sql`
-        SELECT count(*)::int AS n FROM tengoku_entries WHERE embedding IS NOT NULL;
-      `) as { n: number }[];
-      console.warn(
-        `[${key}] hit the project size limit (${alreadyEmbedded} rows already embedded inline) — switching remaining rows to overflow routing`,
-      );
-      totalDone = alreadyEmbedded + (await backfillViaOverflow(key, alreadyEmbedded));
-      break;
     }
+    // `totalDone` only counts rows committed in *this* invocation — on a
+    // resumed run it starts back at 0 even though earlier rows already
+    // have inline embeddings from a previous run. The overflow pass pages
+    // by raw offset over every row (not `embedding IS NULL`), so it needs
+    // the *actual* already-embedded count, queried fresh, or it would
+    // needlessly re-embed and duplicate-write rows that already have a
+    // perfectly good inline embedding.
+    const [{ n: alreadyEmbedded }] = (await sql`
+      SELECT count(*)::int AS n FROM tengoku_entries WHERE embedding IS NOT NULL;
+    `) as { n: number }[];
+    console.warn(
+      `[${key}] hit the project size limit (${alreadyEmbedded} rows already embedded inline) — switching remaining rows to overflow routing`,
+    );
+    totalDone = alreadyEmbedded + (await backfillViaOverflow(key, alreadyEmbedded));
+    break;
   }
   return totalDone;
 }
