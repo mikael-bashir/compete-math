@@ -105,21 +105,78 @@ async function backfillViaOverflow(sourceKey: ShardKey, startOffset = 0): Promis
       if (pending.length === 0) continue;
 
       const { ids: pendingIds, glosses, vectors } = await embedBatch(pending);
-      await targetSql`
-        INSERT INTO tengoku_search_meta_overflow (entry_id, concept_gloss, embedding)
-        SELECT unnest(${pendingIds}::int[]), unnest(${glosses}::text[]), unnest(${vectors}::text[])::vector
-        ON CONFLICT (entry_id) DO UPDATE SET
-          concept_gloss = EXCLUDED.concept_gloss,
-          embedding = EXCLUDED.embedding,
-          updated_at = NOW();
-      `;
-      console.log(`[${sourceKey} -> ${target}] +${pending.length}`);
+      try {
+        await targetSql`
+          INSERT INTO tengoku_search_meta_overflow (entry_id, concept_gloss, embedding)
+          SELECT unnest(${pendingIds}::int[]), unnest(${glosses}::text[]), unnest(${vectors}::text[])::vector
+          ON CONFLICT (entry_id) DO UPDATE SET
+            concept_gloss = EXCLUDED.concept_gloss,
+            embedding = EXCLUDED.embedding,
+            updated_at = NOW();
+        `;
+        console.log(`[${sourceKey} -> ${target}] +${pending.length}`);
+      } catch (e) {
+        // Same wire-protocol quirk backfillDirectShard guards against (see
+        // isMalformedWireError) — one row's raw text chokes Neon's HTTP
+        // driver. This path has no `WHERE embedding IS NULL` re-select to
+        // fall back on (the existence check above is what makes this
+        // resumable), so a batch that dies here with no fallback would
+        // crash the whole run outright — which is exactly what happened:
+        // this exact INSERT killed a real backfill in production with an
+        // unhandled NeonDbError. Retry one row at a time instead.
+        if (!isMalformedWireError(e)) throw e;
+        await embedOverflowRowsIndividually(targetSql, `${sourceKey} -> ${target}`, pending, glosses, vectors);
+      }
     }
     offset += rows.length;
     totalDone += rows.length;
     console.log(`[${sourceKey}] paged ${offset}`);
   }
   return totalDone;
+}
+
+// The backfillViaOverflow counterpart to embedRowsIndividually: retries a
+// failed overflow-table batch insert one row at a time so a single
+// unwritable row (bad raw text tripping Neon's wire parser) doesn't lose
+// the rest of the batch or crash the run. A row that still can't be
+// written gets a sentinel embedding row instead — without this, the
+// existence check in backfillViaOverflow would keep re-selecting it as
+// "pending" on every resumed run, forever.
+async function embedOverflowRowsIndividually(
+  targetSql: ShardSql,
+  label: string,
+  rows: Row[],
+  glosses: string[],
+  vectors: string[],
+): Promise<number> {
+  let done = 0;
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      await targetSql`
+        INSERT INTO tengoku_search_meta_overflow (entry_id, concept_gloss, embedding)
+        VALUES (${rows[i].id}, ${glosses[i]}, ${vectors[i]}::vector)
+        ON CONFLICT (entry_id) DO UPDATE SET
+          concept_gloss = EXCLUDED.concept_gloss,
+          embedding = EXCLUDED.embedding,
+          updated_at = NOW();
+      `;
+      done++;
+    } catch (e) {
+      console.warn(`[${label}] entry_id=${rows[i].id} (name="${rows[i].name}") — write failed: ${(e as Error).message}`);
+      try {
+        await targetSql`
+          INSERT INTO tengoku_search_meta_overflow (entry_id, concept_gloss, embedding)
+          VALUES (${rows[i].id}, ${rows[i].name}, ${SENTINEL_VECTOR}::vector)
+          ON CONFLICT (entry_id) DO UPDATE SET embedding = EXCLUDED.embedding, updated_at = NOW();
+        `;
+        console.warn(`[${label}] entry_id=${rows[i].id} — marked with a sentinel embedding, will not be retried`);
+      } catch (e2) {
+        console.error(`[${label}] entry_id=${rows[i].id} — even the sentinel write failed, will retry on the next full run: ${(e2 as Error).message}`);
+      }
+    }
+  }
+  console.log(`[${label}] +${done}/${rows.length} (individually, after a batch failure)`);
+  return done;
 }
 
 // A zero vector as a "we tried, this row's text won't write, stop
