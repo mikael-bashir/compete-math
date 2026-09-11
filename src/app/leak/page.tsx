@@ -1,18 +1,39 @@
 import type { Metadata } from "next";
 import { InfoPage } from "../lib/components/info-page";
+import { LocalClaudeAgentManagement } from "@/components/local-claude-agent-management";
+import { MCPServerManagement } from "@/components/mcp-server-management";
+import { ProverPlayground } from "@/components/prover/prover-playground";
 
 export const metadata: Metadata = {
   title: "Leak",
   description: "Leak, CompeteMath's automated theorem-proving research effort.",
 };
 
-// Placeholder. Reached from the navbar's Research dropdown; the real writeup
-// on Leak's architecture and methodology currently lives at /about/leak — this
-// route is deliberately separate rather than a redirect, so it can grow into
-// its own page without disturbing that one.
+// Reached from the navbar's Research dropdown; the real writeup on Leak's
+// architecture and methodology lives at /about/leak. This route is
+// deliberately separate so it can grow into its own page without disturbing
+// that one — the playground below is the first thing growing here. Open to
+// everyone; only the Local Agent setup dialog itself requires being signed
+// in (see local-claude-agent-management.tsx).
 export default function LeakPage() {
   return (
     <InfoPage kicker="leak" title="Leak">
+      <section>
+        <h2>Playground</h2>
+        <p className="mt-3">
+          Choose a harness and a driving model, connect your own local
+          Claude Code CLI as the prover, and send a statement straight from
+          here.
+        </p>
+        <div className="leak-dark-scope mt-6 mb-6 flex flex-wrap items-center gap-1.5">
+          <LocalClaudeAgentManagement />
+          <MCPServerManagement />
+        </div>
+        <div className="leak-dark-scope not-prose">
+          <ProverPlayground />
+        </div>
+      </section>
+
       <section>
         <p className="mt-3">
           This page is under construction. In the meantime, read{" "}
