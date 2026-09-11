@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "warm-tengoku-model": "tsx scripts/warm-tengoku-model.ts",
+    "build": "pnpm run warm-tengoku-model && next build",
     "start": "next start",
     "lint": "next lint"
   },

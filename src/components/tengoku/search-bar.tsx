@@ -54,7 +54,7 @@ export function TengokuSearchBar() {
         <button
           type="submit"
           aria-label="Search"
-          className="flex size-9 shrink-0 items-center justify-center rounded-full text-white/50 transition-colors hover:bg-white/10 hover:text-emerald-300"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full text-white/50 outline-none transition-colors hover:text-emerald-300 focus-visible:text-emerald-300"
         >
           <Send className="size-4" />
         </button>
