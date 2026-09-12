@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import HeroContent from "@/app/lib/components/landing/hero";
+import { CONTACT_EMAIL, ORG_URL } from "@/app/lib/constants/site";
 
 /**
  * Device gate for the shader film. Every check errs toward the static page —
@@ -107,52 +108,51 @@ function StaticStories() {
               </p>
             </div>
             <p className="text-lg text-gray-300 mt-4 max-w-lg mx-auto">
-              Work through a bottomless pool of fresh problems, climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted competitions. Every solve pushes you up the ranks.
+              Race to be the first to solve a new practice problem, climb the global leaderboards, earn exclusive badges, and push yourself to share creative ways to solve community made problems. We learn by competing.
             </p>
           </div>
         </div>
 
-        {/* Feature 2: Practice — never stay stuck (insight + Lean proof) */}
+        {/* Tenet 2: Empowering the ambitious */}
         <div className="flex flex-col items-center gap-12">
           <div className="flex-1 text-center">
             <div className="inline-flex items-center gap-3 mb-2">
               <p className="font-display text-4xl md:text-5xl font-bold text-white! text-center">
-                Never stay <span className="italic">stuck</span>
+                Empowering the <span className="italic">ambitious</span>
               </p>
             </div>
             <p className="text-lg text-gray-300 mt-4 max-w-xl mx-auto">
-              Doubt a problem? You&rsquo;re never left guessing. After a few honest attempts, every practice problem reveals its{" "}
-              <span className="text-amber-200/90">key insight</span> — the core idea behind the answer — backed by a{" "}
-              <span className="text-amber-200/90">machine-checked formal proof in Lean&nbsp;4</span> you can open, copy, and verify yourself. No hand-waving, no &ldquo;trust me.&rdquo;
+              All of our services aim to solve real problems in the real world. Part of the reason CompeteMath was even created was with frustrations towards the cost of entry to do something that is genuinely meaningful and challenging at the same time. We welcome <em>anyone</em> who feels the same way to get involved, however they feel like doing so — beginner, expert, or anything in between. We promise to never intentionally remove credits to your contributions; drop a pull request to improve one of our current{" "}
+              <a href={ORG_URL} target="_blank" rel="noreferrer" className="underline underline-offset-4 decoration-amber-200/50 text-amber-200/90 hover:text-amber-100">open-source projects</a>{" "}
+              today, or <a href={`mailto:${CONTACT_EMAIL}`} className="underline underline-offset-4 decoration-amber-200/50 text-amber-200/90 hover:text-amber-100">get in touch</a>.
             </p>
           </div>
         </div>
 
-        {/* Feature 3: Community (discussion / contest answers) */}
+        {/* Tenet 3: Sharing useful knowledge */}
         <div className="flex flex-col items-center gap-12">
           <div className="flex-1 text-center">
             <div className="inline-flex items-center gap-3 mb-2">
               <p className="font-display text-4xl md:text-5xl font-bold text-white! text-center">
-                Grow with the Community
+                Sharing useful <span className="italic">knowledge</span>
               </p>
             </div>
             <p className="text-lg text-gray-300 mt-4 max-w-xl mx-auto">
-              It&rsquo;s not just about winning. Submit your own challenges, and on every community problem join an open{" "}
-              <span className="text-amber-200/90">discussion</span> to contest an answer, suggest a sharper solution, and compare methods with solvers who see the problem differently.
+              We are grateful that you chose to use our services — if we have helped you to learn or do something useful, that means more than the world to us. This is the sole purpose of CompeteMath, and we intend to keep our services free forever. The beneficial things that we taught others will long outlive us.
             </p>
           </div>
         </div>
 
-        {/* Feature 4: Quality you can trust (admin review + formal verification) */}
+        {/* Tenet 4: Relentless passion */}
         <div className="flex flex-col items-center gap-12">
           <div className="flex-1 text-center">
             <div className="inline-flex items-center gap-3 mb-2">
               <p className="font-display text-4xl md:text-5xl font-bold text-white! text-center">
-                Quality you can <span className="italic">trust</span>
+                Relentless <span className="italic">passion</span>
               </p>
             </div>
             <p className="text-lg text-gray-300 mt-4 max-w-xl mx-auto">
-              Nothing goes live unchecked. Every question is reviewed by an admin for quality and correctness before it reaches you, and its answer is enforced by a formal Lean&nbsp;4 certificate — so the problems you train on are the real deal.
+              We value the impact of our work to even one person. Nothing great was ever built through excuses — we work unreasonably hard with layered tests and incessant resourcefulness, to ensure our services are the best they can be, making use of a mixture of autonomous and HITL systems.
             </p>
           </div>
         </div>

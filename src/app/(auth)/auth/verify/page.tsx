@@ -30,7 +30,7 @@ export default async function VerifyResultPage({
           };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#180f0e] px-4 text-white">
+    <div className="flex min-h-screen items-center justify-center bg-[#12170d] px-4 text-white">
       <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center">
         <div className="mb-4 flex justify-center">{view.icon}</div>
         <h1 className="text-xl font-semibold">{view.title}</h1>

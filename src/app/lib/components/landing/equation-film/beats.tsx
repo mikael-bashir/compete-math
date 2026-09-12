@@ -1,4 +1,6 @@
-export const CHAPTER_LABELS = ["compete", "insight", "community", "trust"] as const
+import { CONTACT_EMAIL, ORG_URL } from "@/app/lib/constants/site"
+
+export const CHAPTER_LABELS = ["compete", "ambition", "knowledge", "passion"] as const
 
 export type Beat = {
   in: number
@@ -12,7 +14,9 @@ export type Beat = {
   cta?: boolean // render the Start-solving call to action (finale beat)
 }
 
-// The four stories — same copy as the static sections this film replaces.
+const linkClass = "underline underline-offset-4 decoration-amber-200/50 text-amber-200/90 hover:text-amber-100"
+
+// The four tenets — same copy as the static sections this film replaces.
 // Timings are in STORY progress (post-hero).
 export const BEATS: Beat[] = [
   {
@@ -21,48 +25,41 @@ export const BEATS: Beat[] = [
     title: (
       <>Learn through <span className="italic">Competition</span></>
     ),
-    body: "Work through a bottomless pool of fresh problems, climb the global leaderboards, earn exclusive badges, and prove your skills in officially hosted competitions. Every solve pushes you up the ranks.",
+    body: "Race to be the first to solve a new practice problem, climb the global leaderboards, earn exclusive badges, and push yourself to share creative ways to solve community made problems. We learn by competing.",
   },
   {
     in: 0.43, peak: 0.465, hold: 0.545, out: 0.585,
-    kicker: "// practice",
+    kicker: "// ambition",
     title: (
-      <>Never stay <span className="italic">stuck</span></>
+      <>Empowering the <span className="italic">ambitious</span></>
     ),
     body: (
       <>
-        After a few honest attempts, every practice problem reveals its{" "}
-        <span className="text-amber-200/90">key insight</span> — backed by a{" "}
-        <span className="text-amber-200/90">machine-checked formal proof in Lean&nbsp;4</span>{" "}
-        you can open, copy, and verify yourself. No hand-waving, no &ldquo;trust me.&rdquo;
+        All of our services aim to solve real problems in the real world. Part of the reason
+        CompeteMath was even created was with frustrations towards the cost of entry to do
+        something that is genuinely meaningful and challenging at the same time. We welcome{" "}
+        <em>anyone</em> who feels the same way to get involved, however they feel like doing so
+        — beginner, expert, or anything in between. We promise to never intentionally remove
+        credits to your contributions; drop a pull request to improve one of our current{" "}
+        <a href={ORG_URL} target="_blank" rel="noreferrer" className={linkClass}>open-source projects</a>{" "}
+        today, or <a href={`mailto:${CONTACT_EMAIL}`} className={linkClass}>get in touch</a>.
       </>
     ),
-    lean: `theorem am_gm (a b : ℝ) :\n    a * b ≤ ((a + b) / 2) ^ 2 := by\n  nlinarith [sq_nonneg (a - b)]`,
   },
   {
     in: 0.63, peak: 0.665, hold: 0.755, out: 0.80,
-    kicker: "// community",
-    title: "Grow with the Community",
-    body: (
-      <>
-        Submit your own challenges, and on every community problem join an open{" "}
-        <span className="text-amber-200/90">discussion</span> to contest an answer, suggest a
-        sharper solution, and compare methods with solvers who see the problem differently.
-      </>
+    kicker: "// knowledge",
+    title: (
+      <>Sharing useful <span className="italic">knowledge</span></>
     ),
+    body: "We are grateful that you chose to use our services — if we have helped you to learn or do something useful, that means more than the world to us. This is the sole purpose of CompeteMath, and we intend to keep our services free forever. The beneficial things that we taught others will long outlive us.",
   },
   {
     in: 0.88, peak: 0.93, hold: 2, out: 2, cta: true,
-    kicker: "// quality",
+    kicker: "// passion",
     title: (
-      <>Quality you can <span className="italic">trust</span></>
+      <>Relentless <span className="italic">passion</span></>
     ),
-    body: (
-      <>
-        Nothing goes live unchecked. Every question is reviewed for quality and correctness
-        before it reaches you, and its answer is enforced by a formal Lean&nbsp;4 certificate —
-        so the problems you train on are the real deal.
-      </>
-    ),
+    body: "We value the impact of our work to even one person. Nothing great was ever built through excuses — we work unreasonably hard with layered tests and incessant resourcefulness, to ensure our services are the best they can be, making use of a mixture of autonomous and HITL systems.",
   },
 ]

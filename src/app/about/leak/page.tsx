@@ -14,7 +14,7 @@ const SERVICES_REPO = "https://github.com/mikael-bashir/leak-services";
 
 export default function AboutLeakPage() {
   return (
-    <InfoPage kicker="leak" title="What is Leak?" logo="/logos/Leak.png">
+    <InfoPage kicker="leak" title="What is Leak?">
       <section>
         <p>
           Leak is the proving engine behind CompeteMath. When a problem here is

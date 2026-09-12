@@ -7,7 +7,7 @@ import { signIn } from '@/app/(auth)/auth';
 export default function DevLoginPage() {
   if (process.env.NODE_ENV !== 'development') redirect('/');
   return (
-    <div className="min-h-screen bg-[#180f0e] flex items-center justify-center">
+    <div className="min-h-screen bg-[#12170d] flex items-center justify-center">
       <form
         action={async () => {
           'use server';

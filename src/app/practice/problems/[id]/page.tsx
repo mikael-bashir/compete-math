@@ -475,12 +475,12 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
     }
   };
 
-  if (authStatus === 'loading' || loadingData) return <div className="min-h-screen bg-[#180f0e] flex items-center justify-center"><Loader2 className="animate-spin text-amber-500 w-8 h-8" /></div>;
+  if (authStatus === 'loading' || loadingData) return <div className="min-h-screen bg-[#12170d] flex items-center justify-center"><Loader2 className="animate-spin text-amber-500 w-8 h-8" /></div>;
 
-  if (!problem) return <div className="min-h-screen bg-[#180f0e] text-white/50 flex items-center justify-center">Problem not found.</div>;
+  if (!problem) return <div className="min-h-screen bg-[#12170d] text-white/50 flex items-center justify-center">Problem not found.</div>;
 
   return (
-    <div className="min-h-screen bg-[#180f0e] text-slate-300 font-sans selection:bg-amber-500/30 mt-3.75 pt-10">
+    <div className="min-h-screen bg-[#12170d] text-slate-300 font-sans selection:bg-amber-500/30 mt-3.75 pt-10">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#241413_0%,#140c0b_60%)]" />
       <div className="relative z-10 container max-w-4xl mx-auto px-4 py-12">
         <Link href="/practice" className="inline-flex items-center text-amber-400/70 hover:text-amber-300 transition-colors mb-8 group font-medium text-sm">
