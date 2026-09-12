@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 // in (see local-claude-agent-management.tsx).
 export default function LeakPage() {
   return (
-    <InfoPage kicker="leak" title="Leak">
+    <InfoPage kicker="leak" title="Leak" logo="/logos/Leak.png">
       <section>
         <h2>Playground</h2>
         <p className="mt-3">

@@ -56,3 +56,13 @@ developer.notes.txt
 *.run.xml
 *.toc
 latexmk.log
+scripts/tengoku-harvester/.venv/
+**/__pycache__/
+.pytest_cache/
+.tengoku-model-cache/
+
+# tengoku/ is its OWN git repo (Emissary-Archangel stages verified theorems
+# there as local commits — see emissary-archangel/app/api/queue/route.ts).
+# Kept out of compete-math's own history on purpose: staged-but-not-yet-
+# promoted proofs shouldn't show up as compete-math commits/diffs.
+/tengoku/

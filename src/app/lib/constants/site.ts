@@ -25,6 +25,7 @@ export const LEARN_DROPDOWN = [
 
 export const RESEARCH_DROPDOWN = [
   { label: "Leak", href: "/leak" },
+  { label: "Tengoku", href: "/tengoku" },
   { label: "LRR", href: "/lrr" },
   { label: "Blog", href: "/blog" },
 ] as const;
@@ -172,4 +173,6 @@ export const PRACTICE_REVEAL_ATTEMPTS = 3;
 
 export const DONATE_URL = "https://buy.stripe.com/eVq6oGethg9na8B7WD0Jq00";
 export const GITHUB_URL = "https://github.com/mikael-bashir/compete-math";
+/** The public organisation: every open-source project we are working on. */
+export const ORG_URL = "https://github.com/competemath";
 export const CONTACT_EMAIL = "bashir.mikael@outlook.com";

@@ -135,6 +135,100 @@ function json(res, status, body) {
   res.end(payload)
 }
 
+// Fire-and-forget: report a verified proof to CompeteMath's crowd-sourced
+// submissions inbox. Used by the /prove route below — the LOCAL harness path,
+// where nobody's browser is around to do this reporting itself (that's what
+// run-prover-stream.ts's reportLeakSubmission does for the connected/browser
+// flow via /prove-stream). Never lets a network hiccup affect the prove.
+const SUBMISSION_ENDPOINT =
+  process.env.LEAK_SUBMISSION_ENDPOINT || "https://competemath.com/api/leak/submissions"
+function reportLocalProof(theorem, proof) {
+  fetch(SUBMISSION_ENDPOINT, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ theorem, proof, source: "local-harness" }),
+  }).catch((err) => {
+    console.error(`[local-harness] could not report proof: ${err.message}`)
+  })
+}
+
+// Incredibly simple local UI for the fully-disconnected harness: one static
+// page, no build step, no framework — a textarea, a strategy/model picker,
+// a prove button, a plain-text log. Served at GET / so `docker compose up` +
+// opening http://localhost:PORT is the entire setup. Exempted from the
+// token/CORS gate below (a plain browser navigation can't carry a custom
+// header) — the token is embedded in the page itself instead, so every
+// *subsequent* fetch this page makes still goes through the same tokenValid()
+// check as any other caller. Nothing about the security model changes; this
+// just lets the bridge hand itself the token instead of a human copy-pasting it.
+function localHarnessHtml() {
+  return `<!doctype html><html><head><meta charset="utf-8"/>
+<title>Leak — local harness</title>
+<style>
+  body{font-family:ui-monospace,monospace;background:#0a0f14;color:#e5e7eb;max-width:760px;margin:40px auto;padding:0 16px}
+  h1{font-size:1.1rem;color:#fff}
+  textarea{width:100%;min-height:100px;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:6px;padding:8px;font-family:inherit;font-size:13px}
+  input,select{background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:6px;padding:6px 8px;font-family:inherit;font-size:12px}
+  button{background:#fff;color:#000;border:none;border-radius:6px;padding:6px 14px;font-family:inherit;font-size:12px;cursor:pointer}
+  button:disabled{opacity:.5;cursor:default}
+  #log{white-space:pre-wrap;background:#111827;border:1px solid #374151;border-radius:6px;padding:8px;font-size:12px;min-height:60px;margin-top:12px}
+  .row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  label{font-size:11px;color:#9ca3af}
+</style></head><body>
+<h1>// leak — local harness</h1>
+<p style="color:#9ca3af;font-size:13px">Driving your own local Claude Code CLI against the Leak-I/II/IV containers from <code>local-harness/docker-compose.yml</code>. Nothing here talks to competemath.com except reporting a proof once it's verified.</p>
+<textarea id="theorem">theorem sample : 1 + 1 = 2 := by sorry</textarea>
+<div class="row">
+  <label>Leak-I <input id="leak1" value="http://localhost:8011"/></label>
+  <label>Leak-II <input id="leak2" value="http://localhost:8012"/></label>
+  <label>Leak-IV <input id="leak4" value="http://localhost:8014"/></label>
+</div>
+<div class="row">
+  <label>Model <select id="model">
+    <option value="">Default</option>
+    <option value="claude-opus-4-8">Opus 4.8</option>
+    <option value="claude-sonnet-5">Sonnet 5</option>
+    <option value="claude-fable-5">Fable 5</option>
+    <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+  </select></label>
+  <button id="go">Prove</button>
+</div>
+<div id="log">No activity yet — send a problem to the prover.</div>
+<script>
+const TOKEN = ${JSON.stringify(TOKEN)}
+const btn = document.getElementById("go")
+const logEl = document.getElementById("log")
+btn.addEventListener("click", async () => {
+  const theorem = document.getElementById("theorem").value.trim()
+  if (!theorem) return
+  const mcpServers = [
+    { name: "Leak-I", url: document.getElementById("leak1").value.trim() },
+    { name: "Leak-II", url: document.getElementById("leak2").value.trim() },
+    { name: "Leak-IV", url: document.getElementById("leak4").value.trim() },
+  ].filter((s) => s.url)
+  const model = document.getElementById("model").value
+  btn.disabled = true
+  logEl.textContent = "Proving…"
+  try {
+    const res = await fetch("/prove", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-bridge-token": TOKEN },
+      body: JSON.stringify({ theorem, mcpServers, options: { model, timeoutMs: 900000 } }),
+    })
+    const data = await res.json()
+    logEl.textContent = data.verified
+      ? "Verified.\\n\\n" + (data.proof || "")
+      : "Not verified.\\n\\n" + (data.stderr || data.error || JSON.stringify(data, null, 2))
+  } catch (err) {
+    logEl.textContent = "Request failed: " + err.message
+  } finally {
+    btn.disabled = false
+  }
+})
+</script>
+</body></html>`
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = ""
@@ -12304,6 +12398,16 @@ const server = createServer(async (req, res) => {
   // It carries no bridge token / browser Origin, so it is handled BEFORE the CORS
   // + token gate. The whole bridge binds 127.0.0.1 only, and these routes proxy
   // read-only library search behind a per-run id, so this is safe.
+  // The local-harness UI is served here too, for the same reason as /gov below:
+  // a plain browser navigation carries no custom headers, so it can't pass the
+  // token gate. The page embeds the token itself and attaches it on every
+  // fetch it makes afterward — see localHarnessHtml() above.
+  if (req.method === "GET" && url.pathname === "/") {
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+    res.end(localHarnessHtml())
+    return
+  }
+
   const govMatch = url.pathname.match(/^\/gov\/([^/]+)\/(sse|message)$/)
   if (govMatch) {
     const [, govId, kind] = govMatch
@@ -12422,6 +12526,7 @@ const server = createServer(async (req, res) => {
         return json(res, 400, { error: "theorem_required" })
       }
       const result = await runProve(theorem, body.mcpServers || [], body.options || {})
+      if (result?.verified && result?.proof) reportLocalProof(theorem, result.proof)
       return json(res, 200, result)
     }
 

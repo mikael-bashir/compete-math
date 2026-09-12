@@ -1,0 +1,22 @@
+# Runtime
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+fastmcp==4.0.3
+pydantic==2.13.5
+pydantic-settings==2.15.0
+
+# fastmcp==4.0.3 depends on these; pinned explicitly because tests/ imports
+# them directly (see tests/test_integration.py for why: fastmcp's own
+# Client/transport layer is built on httpx2, a separate/newer package, not
+# the classic httpx below).
+httpx2==2.12.0
+mcp==2.2.0
+mcp-types==2.2.0
+
+# Test tooling (this service, unlike the rest of this repo's Python
+# services, uses a real test framework -- see README.md).
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-timeout==2.4.0
+httpx==0.28.1
+asgi-lifespan==2.1.0
