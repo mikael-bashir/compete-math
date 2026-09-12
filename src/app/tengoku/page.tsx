@@ -20,7 +20,7 @@ export default async function TengokuPage() {
   const stats = await getTengokuStats();
 
   return (
-    <InfoPage kicker="tengoku" title="Tengoku">
+    <InfoPage kicker="tengoku" title="Tengoku" logo="/logos/Tengoku.png">
       <section className="text-center">
         <p className="text-white/60! text-base leading-relaxed max-w-2xl mx-auto">
           Tengoku (天国 — &ldquo;heaven&rdquo;) is the world&rsquo;s biggest
