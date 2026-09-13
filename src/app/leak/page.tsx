@@ -4,6 +4,8 @@ import { LocalClaudeAgentManagement } from "@/components/local-claude-agent-mana
 import { MCPServerManagement } from "@/components/mcp-server-management";
 import { ProverPlayground } from "@/components/prover/prover-playground";
 
+const SERVICES_REPO = "https://github.com/mikael-bashir/leak-services";
+
 export const metadata: Metadata = {
   title: "Leak",
   description: "Leak, CompeteMath's automated theorem-proving research effort.",
@@ -24,6 +26,12 @@ export default function LeakPage() {
           Choose a harness and a driving model, connect your own local
           Claude Code CLI as the prover, and send a statement straight from
           here.
+        </p>
+        <p className="mt-3">
+          Leak&rsquo;s main strength is the strength of its tools &mdash; see the{" "}
+          <a href={SERVICES_REPO} target="_blank" rel="noopener noreferrer">Leak services</a>.
+          Be sure to connect context-rich tools when using this harness for the
+          best performance.
         </p>
         <div className="leak-dark-scope mt-6 mb-6 flex flex-wrap items-center gap-1.5">
           <LocalClaudeAgentManagement />
