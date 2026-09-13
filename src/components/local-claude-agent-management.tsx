@@ -175,6 +175,14 @@ export function LocalClaudeAgentManagement({
     }
   };
   const leakIvPortOk = /^\d{2,5}$/.test(leakIvPort) && Number(leakIvPort) >= 1024 && Number(leakIvPort) <= 65535;
+  const copyText = async (text: string, what: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${what} copied — paste it in a terminal.`);
+    } catch {
+      toast.error('Copy failed — select the command and copy it manually.');
+    }
+  };
   const addLeakIvToMcp = () => {
     if (!leakIvPortOk) {
       toast.error('Pick a port between 1024 and 65535 first.');
@@ -687,10 +695,20 @@ export function LocalClaudeAgentManagement({
                     Servers</strong> (or add it yourself as <code>Leak_IV</code>), then
                     send a statement from the playground.
                   </li>
-                  <li>
-                    Stop: <code>docker stop leak-iv</code> · start again:{' '}
-                    <code>docker start leak-iv</code> · remove it and its image:{' '}
-                    <code>docker rm -f leak-iv && docker rmi leak-iv:tengoku</code>
+                  <li className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span>Later:</span>
+                    <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => copyText('docker stop leak-iv', 'Stop command')}>
+                      Copy stop
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => copyText('docker start leak-iv', 'Start command')}>
+                      Copy start
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => copyText('docker rm -f leak-iv && docker rmi leak-iv:tengoku', 'Remove command')}>
+                      Copy remove (frees ~15 GB)
+                    </Button>
+                    <span className="basis-full text-[11px]">
+                      stop / start keep the image; remove deletes the container and the image — re-run the install command to get it back.
+                    </span>
                   </li>
                   <li>
                     Bring it up to date with the tree later by calling its{' '}
