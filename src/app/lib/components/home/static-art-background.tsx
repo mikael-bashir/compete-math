@@ -1,36 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
-
-// Static, art-driven backdrop for the home dashboard. The wrapper is painted
-// with the requested home fallback colour (#180f0e) so that colour is the
-// suspense fallback shown until the large image decodes; the image then fades
-// in over it.
-export function StaticArtBackground({ src = "/images/blood-night-art-mk2.png" }: { src?: string }) {
-  const [loaded, setLoaded] = useState(false);
-
+// Backdrop for the home dashboard and the learn pages: the site's green
+// (#12170d, the landing's own colour) with gentle shaping toward the footer.
+// The stock art that used to sit here is gone; only the landing keeps its
+// image.
+export function StaticArtBackground() {
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#180f0e]" aria-hidden>
-      <Image
-        src={src}
-        alt=""
-        fill
-        priority
-        sizes="100vw"
-        onLoad={() => setLoaded(true)}
-        className={`object-cover object-center opacity-90 transition-opacity duration-700 ${loaded ? "opacity-90" : "opacity-0"}`}
-      />
-
+    <div className="fixed inset-0 overflow-hidden bg-[#12170d]" aria-hidden>
       {/* Gentle top/bottom shaping, darkening toward the footer */}
       <div
         className="absolute inset-0"
         style={{
           background: `linear-gradient(to bottom,
-            rgba(24, 12, 16, 0.35) 0%,
-            rgba(24, 12, 16, 0.05) 30%,
-            rgba(24, 12, 16, 0.25) 65%,
-            rgba(18, 10, 13, 0.85) 100%
+            rgba(0, 0, 0, 0.10) 0%,
+            rgba(0, 0, 0, 0.00) 30%,
+            rgba(0, 0, 0, 0.15) 65%,
+            rgba(0, 0, 0, 0.45) 100%
           )`,
         }}
       />
@@ -41,8 +26,8 @@ export function StaticArtBackground({ src = "/images/blood-night-art-mk2.png" }:
         style={{
           background: `radial-gradient(ellipse 90% 75% at 50% 38%,
             transparent 0%,
-            rgba(18, 10, 13, 0.25) 75%,
-            rgba(18, 10, 13, 0.55) 100%
+            rgba(0, 0, 0, 0.15) 75%,
+            rgba(0, 0, 0, 0.35) 100%
           )`,
         }}
       />

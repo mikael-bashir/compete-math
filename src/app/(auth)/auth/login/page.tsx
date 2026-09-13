@@ -3,13 +3,13 @@ import AuthenticationCard from "@/app/lib/components/auth/authentication-card"
 
 export default function Login() {
   return (
-    <div className="w-full min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[#2a708d]">
-      
-      {/* 1. BACKGROUND IMAGE */}
+    <div className="w-full min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[#12170d]">
+
+      {/* 1. BACKGROUND IMAGE — the landing's own art, shared with register */}
       {/* 'fill' mimics absolute inset-0 w-full h-full */}
       {/* 'object-cover' ensures it covers the screen without stretching */}
       <Image
-        src="/images/greenery_a.png"
+        src="/images/true-masterpiece-extended.png"
         alt="Login Background"
         fill
         className="object-cover"

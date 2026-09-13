@@ -44,7 +44,7 @@ export default function HomePage() {
           </div>
 
           {/* Quick navigation — console-menu style */}
-          <div className="mt-8 rounded-2xl border border-white/[0.08] bg-[#141013]/92 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] divide-y divide-white/[0.06] mb-10 overflow-hidden">
+          <div className="mt-8 rounded-2xl border border-white/[0.08] bg-[#0d1109]/92 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] divide-y divide-white/[0.06] mb-10 overflow-hidden">
             {QUICK_LINKS.map((q) => (
               <Link
                 key={q.href}

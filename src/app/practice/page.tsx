@@ -127,7 +127,7 @@ function Pager({
           onKeyDown={(e) => { if (e.key === "Enter") submitJump(); }}
           placeholder="Go to"
           aria-label="Go to page"
-          className="font-code w-[84px] bg-[#141013] border border-white/10 rounded px-2 h-[34px] text-[12px] text-white/70 focus:outline-none focus:border-amber-400/50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          className="font-code w-[84px] bg-[#0d1109] border border-white/10 rounded px-2 h-[34px] text-[12px] text-white/70 focus:outline-none focus:border-amber-400/50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <button
           onClick={submitJump}
@@ -226,7 +226,7 @@ export default function PracticePage() {
   const hasFilters = topic || difficulty || knowledge;
 
   const selectCls =
-    "font-code bg-[#141013]/70 backdrop-blur-sm border border-white/10 rounded px-2 py-1 text-[12px] text-white/70 focus:outline-none focus:border-amber-400/50";
+    "font-code bg-[#0d1109]/70 backdrop-blur-sm border border-white/10 rounded px-2 py-1 text-[12px] text-white/70 focus:outline-none focus:border-amber-400/50";
 
   return (
     <div className="relative min-h-screen overflow-hidden pt-24 pb-24">
@@ -313,7 +313,7 @@ export default function PracticePage() {
                           ? "border-amber-400/25 bg-amber-500/[0.05] hover:border-amber-400/45"
                           : p.gaveUp
                           ? "border-white/10 bg-white/[0.015] opacity-65 hover:opacity-90 hover:border-white/20"
-                          : "border-white/[0.08] bg-[#141013]/70 hover:bg-[#1a1315] hover:border-white/15"
+                          : "border-white/[0.08] bg-[#0d1109]/70 hover:bg-[#161c11] hover:border-white/15"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3 mb-2.5">

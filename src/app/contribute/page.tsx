@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { InfoPage } from "../lib/components/info-page";
-import { GITHUB_URL, CONTACT_EMAIL } from "../lib/constants/site";
+import { ORG_URL } from "../lib/constants/site";
 
 export const metadata: Metadata = {
   title: "Contribute",
@@ -25,22 +25,17 @@ export default function ContributePage() {
       <section>
         <h2>Formalise with Lean 4</h2>
         <p className="mt-3">
-          We formally verify problems and solutions using{" "}
-          <a href="https://lean-lang.org" target="_blank" rel="noreferrer">Lean 4</a>{" "}
-          and Mathlib. If you can write Lean proofs — or want to learn — this is the
-          most valuable contribution of all. Reach out at{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and we'll get you
-          set up with the verification pipeline.
-        </p>
-      </section>
-
-      <section>
-        <h2>Hack on the platform</h2>
-        <p className="mt-3">
-          CompeteMath is an evolving codebase — find it on{" "}
-          <a href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>. Issues,
-          bug reports and pull requests are all welcome, from typo fixes to whole
-          features.
+          We formally verify answers to problems using{" "}
+          <a href="https://lean-lang.org" target="_blank" rel="noreferrer">Lean 4</a>,{" "}
+          <a href="https://github.com/leanprover-community/mathlib4" target="_blank" rel="noreferrer">Mathlib</a>, and{" "}
+          <a href="https://github.com/competemath/tengoku" target="_blank" rel="noreferrer">Tengoku</a>.
+          If you can produce high-quality Lean 4 proofs, think you can make an
+          improvement to our services, or are genuinely curious about something and
+          just want to talk, these are the most valuable contribution of all. Visit
+          our{" "}
+          <a href={ORG_URL} target="_blank" rel="noreferrer">public organisation repository</a>{" "}
+          to see what we are currently working on, or contact me directly using the
+          mail icon in the footer.
         </p>
       </section>
 

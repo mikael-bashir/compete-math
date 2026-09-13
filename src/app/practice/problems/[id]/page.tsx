@@ -94,7 +94,7 @@ function CertificatePanel({
     }
   };
   return (
-    <div className="relative mt-4 overflow-hidden rounded-xl border border-amber-400/20 bg-[#141013] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] animate-in fade-in slide-in-from-top-2 duration-200">
+    <div className="relative mt-4 overflow-hidden rounded-xl border border-amber-400/20 bg-[#0d1109] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] animate-in fade-in slide-in-from-top-2 duration-200">
       {/* Close — anchored to the panel's top-right corner */}
       <button onClick={onClose} aria-label="Close certificate" className="absolute top-3 right-3 z-10 text-white/40 hover:text-amber-200"><X size={14} /></button>
 
@@ -117,7 +117,7 @@ function CertificatePanel({
             className="shrink-0 rounded border border-amber-400/25 bg-amber-500/[0.06] px-1 py-0.5 text-[5px] text-amber-200 font-mono"
           >
             {certs.map((c, i) => (
-              <option key={i} value={i} className="bg-[#141013]">
+              <option key={i} value={i} className="bg-[#0d1109]">
                 {certToolchain(c.toolchain)}
               </option>
             ))}
@@ -475,13 +475,13 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
     }
   };
 
-  if (authStatus === 'loading' || loadingData) return <div className="min-h-screen bg-[#180f0e] flex items-center justify-center"><Loader2 className="animate-spin text-amber-500 w-8 h-8" /></div>;
+  if (authStatus === 'loading' || loadingData) return <div className="min-h-screen bg-[#12170d] flex items-center justify-center"><Loader2 className="animate-spin text-amber-500 w-8 h-8" /></div>;
 
-  if (!problem) return <div className="min-h-screen bg-[#180f0e] text-white/50 flex items-center justify-center">Problem not found.</div>;
+  if (!problem) return <div className="min-h-screen bg-[#12170d] text-white/50 flex items-center justify-center">Problem not found.</div>;
 
   return (
-    <div className="min-h-screen bg-[#180f0e] text-slate-300 font-sans selection:bg-amber-500/30 mt-3.75 pt-10">
-      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#241413_0%,#140c0b_60%)]" />
+    <div className="min-h-screen bg-[#12170d] text-slate-300 font-sans selection:bg-amber-500/30 mt-3.75 pt-10">
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#1b2413_0%,#0e1209_60%)]" />
       <div className="relative z-10 container max-w-4xl mx-auto px-4 py-12">
         <Link href="/practice" className="inline-flex items-center text-amber-400/70 hover:text-amber-300 transition-colors mb-8 group font-medium text-sm">
           <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" /> Back to Archives
@@ -538,8 +538,8 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
           </div>
         )}
 
-        <div className="bg-[#141013]/92 border border-white/[0.08] rounded-2xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_20px_60px_-20px_rgba(0,0,0,0.8)]">
-          <div className="bg-[#1a1315] border-b border-white/[0.06] px-8 py-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="bg-[#0d1109]/92 border border-white/[0.08] rounded-2xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_20px_60px_-20px_rgba(0,0,0,0.8)]">
+          <div className="bg-[#161c11] border-b border-white/[0.06] px-8 py-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
              <div>
                <h1 className="font-code text-3xl text-white font-bold tracking-tight mb-1">{problem.title}</h1>
                <div className="flex items-center gap-3 text-xs uppercase tracking-widest font-semibold text-amber-400/70">

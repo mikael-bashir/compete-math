@@ -45,9 +45,9 @@ export default function AboutPage() {
       <section>
         <h2>Who builds this</h2>
         <p className="mt-3">
-          CompeteMath is an independent project built by a small team that believes
-          competition is the fastest way to fall in love with mathematics. Want to
-          help? See <Link href="/contribute">Contribute</Link>.
+          CompeteMath is an independent project built by an individual who believes
+          healthy competition is the best road to excellence. Want to help? See{" "}
+          <Link href="/contribute">Contribute</Link>.
         </p>
       </section>
     </InfoPage>
