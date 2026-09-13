@@ -29,7 +29,7 @@ export function InfoPage({
         <p className="font-code text-xs tracking-[0.3em] uppercase text-amber-400/80 mb-2">
           // {kicker}
         </p>
-        <div className="flex items-center gap-4 mb-10">
+        <div className="flex items-center gap-3 mb-10">
           {logo ? (
             // `!`: a global unlayered `img { height: auto }` rule outranks Tailwind's layered utilities.
             // eslint-disable-next-line @next/next/no-img-element -- static asset, sized by height only

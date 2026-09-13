@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import HeroContent from "@/app/lib/components/landing/hero";
+import Link from "next/link";
 import { CONTACT_EMAIL, ORG_URL } from "@/app/lib/constants/site";
+
+const LINK = "underline underline-offset-4 decoration-amber-200/50 text-amber-200/90 hover:text-amber-100";
 
 /**
  * Device gate for the shader film. Every check errs toward the static page —
@@ -122,9 +125,10 @@ function StaticStories() {
               </p>
             </div>
             <p className="text-lg text-gray-300 mt-4 max-w-xl mx-auto">
-              All of our services aim to solve real problems in the real world. Part of the reason CompeteMath was even created was with frustrations towards the cost of entry to do something that is genuinely meaningful and challenging at the same time. We welcome <em>anyone</em> who feels the same way to get involved, however they feel like doing so — beginner, expert, or anything in between. We promise to never intentionally remove credits to your contributions; drop a pull request to improve one of our current{" "}
-              <a href={ORG_URL} target="_blank" rel="noreferrer" className="underline underline-offset-4 decoration-amber-200/50 text-amber-200/90 hover:text-amber-100">open-source projects</a>{" "}
-              today, or <a href={`mailto:${CONTACT_EMAIL}`} className="underline underline-offset-4 decoration-amber-200/50 text-amber-200/90 hover:text-amber-100">get in touch</a>.
+              CompeteMath lowers the barrier to solving genuinely meaningful challenges. This is an open-source project tackling active mathematical research — building Lean&nbsp;4 knowledge trees and free AI harnesses capable of proving PhD qualifying exam problems. All skill levels are welcome, perfection isn&rsquo;t required, and your contributions are never intentionally removed. Join us by{" "}
+              <a href={ORG_URL} target="_blank" rel="noreferrer" className={LINK}>dropping a PR</a>,{" "}
+              <Link href="/community" className={LINK}>sharing a problem</Link>, or{" "}
+              <a href={`mailto:${CONTACT_EMAIL}`} className={LINK}>suggesting an improvement</a> today.
             </p>
           </div>
         </div>

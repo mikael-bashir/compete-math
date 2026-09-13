@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { CONTACT_EMAIL, ORG_URL } from "@/app/lib/constants/site"
 
 export const CHAPTER_LABELS = ["compete", "ambition", "knowledge", "passion"] as const
@@ -35,14 +36,14 @@ export const BEATS: Beat[] = [
     ),
     body: (
       <>
-        All of our services aim to solve real problems in the real world. Part of the reason
-        CompeteMath was even created was with frustrations towards the cost of entry to do
-        something that is genuinely meaningful and challenging at the same time. We welcome{" "}
-        <em>anyone</em> who feels the same way to get involved, however they feel like doing so
-        — beginner, expert, or anything in between. We promise to never intentionally remove
-        credits to your contributions; drop a pull request to improve one of our current{" "}
-        <a href={ORG_URL} target="_blank" rel="noreferrer" className={linkClass}>open-source projects</a>{" "}
-        today, or <a href={`mailto:${CONTACT_EMAIL}`} className={linkClass}>get in touch</a>.
+        CompeteMath lowers the barrier to solving genuinely meaningful challenges. This is an
+        open-source project tackling active mathematical research — building Lean&nbsp;4 knowledge
+        trees and free AI harnesses capable of proving PhD qualifying exam problems. All skill levels
+        are welcome, perfection isn&rsquo;t required, and your contributions are never intentionally
+        removed. Join us by{" "}
+        <a href={ORG_URL} target="_blank" rel="noreferrer" className={linkClass}>dropping a PR</a>,{" "}
+        <Link href="/community" className={linkClass}>sharing a problem</Link>, or{" "}
+        <a href={`mailto:${CONTACT_EMAIL}`} className={linkClass}>suggesting an improvement</a> today.
       </>
     ),
   },
