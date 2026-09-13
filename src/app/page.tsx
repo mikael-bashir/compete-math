@@ -125,9 +125,9 @@ function StaticStories() {
               </p>
             </div>
             <p className="text-lg text-gray-300 mt-4 max-w-xl mx-auto">
-              CompeteMath lowers the barrier to solving genuinely meaningful challenges. This is an open-source project tackling active mathematical research — building Lean&nbsp;4 knowledge trees and free AI harnesses capable of proving PhD qualifying exam problems. All skill levels are welcome, perfection isn&rsquo;t required, and your contributions are never intentionally removed. Join us by{" "}
+              CompeteMath was created to lower the barrier to solving challenges which actually matter in the real world. We welcome people of all backgrounds and skills to contribute, promising to never intentionally remove credits to your work. Join us by{" "}
               <a href={ORG_URL} target="_blank" rel="noreferrer" className={LINK}>dropping a PR</a>,{" "}
-              <Link href="/community" className={LINK}>sharing a problem</Link>, or{" "}
+              <Link href="/community" className={LINK}>sharing a problem you found interesting</Link>, or{" "}
               <a href={`mailto:${CONTACT_EMAIL}`} className={LINK}>suggesting an improvement</a> today.
             </p>
           </div>
