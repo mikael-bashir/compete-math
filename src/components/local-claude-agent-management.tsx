@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { listMcpServers } from '@/lib/mcp/local-mcp-store';
+import { addMcpServer, listMcpServers } from '@/lib/mcp/local-mcp-store';
 import {
   DEFAULT_LOCAL_CLAUDE_CONFIG,
   DEFAULT_LOCAL_CLAUDE_CONNECTION,
@@ -68,9 +68,13 @@ function bridgeUnreachableMessage(bridgeUrl: string): string {
 
 // One command that fetches and runs the installer from the Leak services
 // repository: builds a Leak IV image on the current Tengoku tree (with the
-// tree's published build cache) and starts it as a container.
-const LEAK_IV_INSTALL_COMMAND =
-  'curl -fsSL https://raw.githubusercontent.com/mikael-bashir/leak-services/main/install-leak-iv.sh | bash';
+// tree's published build cache) and starts it as a container on the chosen
+// port. The port is remembered in this browser and drives the MCP URL below.
+const LEAK_IV_INSTALL_URL = 'https://raw.githubusercontent.com/mikael-bashir/leak-services/main/install-leak-iv.sh';
+const LEAK_IV_PORT_STORAGE_KEY = 'lca.leakIvPort';
+const LEAK_IV_DEFAULT_PORT = '7862';
+const leakIvCommand = (port: string) => `LEAK_IV_PORT='${port}' curl -fsSL ${LEAK_IV_INSTALL_URL} | bash`;
+const leakIvMcpUrl = (port: string) => `http://localhost:${port}/sse`;
 
 // Generate a URL-safe token in the browser. Setup needs no copy-back because
 // the app injects this same value into the run command shown to the user.
@@ -152,6 +156,39 @@ export function LocalClaudeAgentManagement({
   const [origin, setOrigin] = useState('');
   const [copied, setCopied] = useState(false);
   const [copiedLeakIv, setCopiedLeakIv] = useState(false);
+  const [leakIvPort, setLeakIvPort] = useState(LEAK_IV_DEFAULT_PORT);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LEAK_IV_PORT_STORAGE_KEY);
+      if (saved && /^\d{2,5}$/.test(saved)) setLeakIvPort(saved);
+    } catch {
+      /* no localStorage */
+    }
+  }, []);
+  const updateLeakIvPort = (value: string) => {
+    const v = value.replace(/\D/g, '').slice(0, 5);
+    setLeakIvPort(v);
+    try {
+      localStorage.setItem(LEAK_IV_PORT_STORAGE_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  };
+  const leakIvPortOk = /^\d{2,5}$/.test(leakIvPort) && Number(leakIvPort) >= 1024 && Number(leakIvPort) <= 65535;
+  const addLeakIvToMcp = () => {
+    if (!leakIvPortOk) {
+      toast.error('Pick a port between 1024 and 65535 first.');
+      return;
+    }
+    const url = leakIvMcpUrl(leakIvPort);
+    const existing = listMcpServers().find((s) => s.url.trim() === url);
+    if (existing) {
+      toast.success(`Already in MCP Servers as ${existing.name}.`);
+      return;
+    }
+    addMcpServer({ name: 'Leak_IV', url });
+    toast.success(`Leak_IV added to MCP Servers (${url}). Open MCP Servers to confirm, then use /leak.`);
+  };
 
   const [testing, setTesting] = useState(false);
   const [checks, setChecks] = useState<{
@@ -226,7 +263,7 @@ export function LocalClaudeAgentManagement({
 
   const copyLeakIvCommand = async () => {
     try {
-      await navigator.clipboard.writeText(LEAK_IV_INSTALL_COMMAND);
+      await navigator.clipboard.writeText(leakIvCommand(leakIvPort));
       setCopiedLeakIv(true);
       setTimeout(() => setCopiedLeakIv(false), 1500);
     } catch {
@@ -607,9 +644,20 @@ export function LocalClaudeAgentManagement({
                     tree&rsquo;s published build cache so it takes minutes, not hours.
                   </p>
                 </div>
+                <div className="grid grid-cols-[auto_1fr] items-center gap-3">
+                  <Label htmlFor="lca-leak-iv-port">Port</Label>
+                  <Input
+                    id="lca-leak-iv-port"
+                    inputMode="numeric"
+                    value={leakIvPort}
+                    placeholder={LEAK_IV_DEFAULT_PORT}
+                    onChange={(e) => updateLeakIvPort(e.target.value)}
+                    className={cn('max-w-[10rem]', !leakIvPortOk && 'border-destructive')}
+                  />
+                </div>
                 <div className="relative">
                   <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted p-2 pr-16 text-xs">
-                    {LEAK_IV_INSTALL_COMMAND}
+                    {leakIvCommand(leakIvPort)}
                   </pre>
                   <Button
                     type="button"
@@ -621,19 +669,23 @@ export function LocalClaudeAgentManagement({
                     {copiedLeakIv ? 'Copied' : 'Copy'}
                   </Button>
                 </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">MCP URL for this port:</span>
+                  <code className="rounded bg-muted px-1.5 py-0.5">{leakIvMcpUrl(leakIvPort)}</code>
+                  <Button type="button" size="sm" variant="secondary" className="h-6 px-2 text-xs" onClick={addLeakIvToMcp}>
+                    Add to MCP Servers
+                  </Button>
+                </div>
                 <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
                   <li>
                     Needs Docker running and about 20&nbsp;GB of free disk (the
-                    image is roughly 15&nbsp;GB; the download is a few GB).
+                    image is roughly 15&nbsp;GB; the download is a few GB). Change
+                    the port above and the command and URL follow.
                   </li>
                   <li>
-                    Another port: prefix the command with{' '}
-                    <code>LEAK_IV_PORT=7900</code> (default 7862).
-                  </li>
-                  <li>
-                    Then add it under <strong>MCP Servers</strong> with name{' '}
-                    <code>Leak_IV</code> and URL{' '}
-                    <code>http://localhost:7862/sse</code> (your port).
+                    Once the terminal says it is running, press <strong>Add to MCP
+                    Servers</strong> (or add it yourself as <code>Leak_IV</code>), then
+                    send a statement from the playground.
                   </li>
                   <li>
                     Stop: <code>docker stop leak-iv</code> · start again:{' '}
