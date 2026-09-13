@@ -41,7 +41,7 @@ export default async function TengokuPage() {
             <span>
               Welcomes contributions from anyone (
               <a href={`mailto:${CONTACT_EMAIL}`}>get in touch</a> if you have any
-              questions)
+              questions).
             </span>
           </li>
           <li className="flex gap-3">

@@ -29,7 +29,7 @@ export function LevelInfo({ align = "right" }: { align?: "left" | "right" }) {
       {open && (
         <div
           role="tooltip"
-          className={`absolute top-6 z-50 w-72 rounded-xl border border-white/10 bg-[#141013] p-4 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)] normal-case tracking-normal ${
+          className={`absolute top-6 z-50 w-72 rounded-xl border border-white/10 bg-[#0d1109] p-4 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)] normal-case tracking-normal ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >

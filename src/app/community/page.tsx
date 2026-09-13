@@ -256,7 +256,7 @@ export default function CommunityPage() {
       {/* ---- Draft modal with live preview ---- */}
       {showDraft && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 md:p-10">
-          <div className="w-full max-w-4xl rounded-2xl border border-white/10 bg-[#141013] shadow-2xl">
+          <div className="w-full max-w-4xl rounded-2xl border border-white/10 bg-[#0d1109] shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
               <h2 className="font-code text-lg text-white! font-semibold">Draft a Problem</h2>
               <div className="flex items-center gap-2">

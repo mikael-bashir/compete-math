@@ -44,7 +44,7 @@ const RegisterForm = () => {
 
             <form
                 onSubmit={handleSubmit(onSubmit)}
-                className="relative z-10 w-full max-w-md rounded-2xl border border-white/10 bg-[#141013]/90 p-8 text-white shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] backdrop-blur-sm"
+                className="relative z-10 w-full max-w-md rounded-2xl border border-white/10 bg-[#0d1109]/90 p-8 text-white shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] backdrop-blur-sm"
             >
                 <p className="text-2xl font-bold text-center mb-6 text-white">Create Account</p>
 
