@@ -66,6 +66,12 @@ function bridgeUnreachableMessage(bridgeUrl: string): string {
   return `Couldn't reach the bridge at ${bridgeUrl}. Check that: (1) the bridge is running (the command in the Configuration tab), (2) the URL/port match, and (3) you're on Chrome, Edge, or Firefox — Safari blocks calls from HTTPS pages to http://localhost.`;
 }
 
+// One command that fetches and runs the installer from the Leak services
+// repository: builds a Leak IV image on the current Tengoku tree (with the
+// tree's published build cache) and starts it as a container.
+const LEAK_IV_INSTALL_COMMAND =
+  'curl -fsSL https://raw.githubusercontent.com/mikael-bashir/leak-services/main/install-leak-iv.sh | bash';
+
 // Generate a URL-safe token in the browser. Setup needs no copy-back because
 // the app injects this same value into the run command shown to the user.
 function generateToken(): string {
@@ -145,6 +151,7 @@ export function LocalClaudeAgentManagement({
   );
   const [origin, setOrigin] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedLeakIv, setCopiedLeakIv] = useState(false);
 
   const [testing, setTesting] = useState(false);
   const [checks, setChecks] = useState<{
@@ -216,6 +223,16 @@ export function LocalClaudeAgentManagement({
     origin && connection.token
       ? `curl -fsSL '${origin}/local-claude-bridge.mjs' -o claude-bridge.mjs && ${portEnv}BRIDGE_TOKEN='${connection.token}' ALLOWED_ORIGINS='${origin}' node claude-bridge.mjs`
       : '';
+
+  const copyLeakIvCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(LEAK_IV_INSTALL_COMMAND);
+      setCopiedLeakIv(true);
+      setTimeout(() => setCopiedLeakIv(false), 1500);
+    } catch {
+      toast.error('Copy failed — select the command and copy it manually.');
+    }
+  };
 
   const copyCommand = async () => {
     if (!setupCommand) return;
@@ -576,6 +593,58 @@ export function LocalClaudeAgentManagement({
                   Regenerating the token means re-running the command above with
                   the new value.
                 </p>
+              </div>
+
+              <Separator />
+
+              {/* Leak IV on the user's machine — most harnesses depend on it */}
+              <div className="space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold">2. Leak IV on your machine</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Most Leak modes depend on Leak IV, the verifier. This runs it
+                    in a Docker container on the current Tengoku tree, using the
+                    tree&rsquo;s published build cache so it takes minutes, not hours.
+                  </p>
+                </div>
+                <div className="relative">
+                  <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted p-2 pr-16 text-xs">
+                    {LEAK_IV_INSTALL_COMMAND}
+                  </pre>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="absolute right-1.5 top-1.5 h-6 px-2 text-xs"
+                    onClick={copyLeakIvCommand}
+                  >
+                    {copiedLeakIv ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
+                <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                  <li>
+                    Needs Docker running and about 20&nbsp;GB of free disk (the
+                    image is roughly 15&nbsp;GB; the download is a few GB).
+                  </li>
+                  <li>
+                    Another port: prefix the command with{' '}
+                    <code>LEAK_IV_PORT=7900</code> (default 7862).
+                  </li>
+                  <li>
+                    Then add it under <strong>MCP Servers</strong> with name{' '}
+                    <code>Leak_IV</code> and URL{' '}
+                    <code>http://localhost:7862/sse</code> (your port).
+                  </li>
+                  <li>
+                    Stop: <code>docker stop leak-iv</code> · start again:{' '}
+                    <code>docker start leak-iv</code> · remove it and its image:{' '}
+                    <code>docker rm -f leak-iv && docker rmi leak-iv:tengoku</code>
+                  </li>
+                  <li>
+                    Bring it up to date with the tree later by calling its{' '}
+                    <code>tengoku_sync</code> tool, or re-run the command.
+                  </li>
+                </ul>
               </div>
 
               <Separator />
