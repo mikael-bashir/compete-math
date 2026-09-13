@@ -231,7 +231,7 @@ export default function AccountPage() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-emerald-500/30 mt-10">
-      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#1a120b_0%,#050505_60%)]" />
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#18200f_0%,#050505_60%)]" />
 
       <div className="relative z-10 container max-w-5xl mx-auto px-4 py-16">
         

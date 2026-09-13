@@ -481,7 +481,7 @@ export default function ProblemPage({ params }: { params: Promise<{ id: string }
 
   return (
     <div className="min-h-screen bg-[#12170d] text-slate-300 font-sans selection:bg-amber-500/30 mt-3.75 pt-10">
-      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#241413_0%,#140c0b_60%)]" />
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_0%,#1b2413_0%,#0e1209_60%)]" />
       <div className="relative z-10 container max-w-4xl mx-auto px-4 py-12">
         <Link href="/practice" className="inline-flex items-center text-amber-400/70 hover:text-amber-300 transition-colors mb-8 group font-medium text-sm">
           <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" /> Back to Archives
