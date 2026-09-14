@@ -86,7 +86,7 @@ export default function AboutLeakPage() {
 
         <div className="mt-6 space-y-4">
           <FeatureCard name="Leak-I & Leak-XI" badge="Library Search" tone="slate">
-            Lemma search over Mathlib. The agent describes the shape of the required theorem, and the service retrieves existing declarations so the prover builds on the library rather than reinventing it. (Leak-XI targets a newer toolchain than Leak-I).
+            Lemma search over Tengoku. The agent describes the shape of the required theorem, and the service retrieves existing declarations so the prover builds on the library rather than reinventing it. (Leak-XI targets a newer toolchain than Leak-I).
           </FeatureCard>
 
           <FeatureCard name="Leak-II" badge="Proof-State Daemon" tone="slate">

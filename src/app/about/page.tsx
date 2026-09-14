@@ -37,8 +37,9 @@ export default function AboutPage() {
         <p className="mt-3">
           Where possible, our problems and solutions are formally verified with the{" "}
           <a href="https://lean-lang.org" target="_blank" rel="noreferrer">Lean 4</a>{" "}
-          proof assistant against Mathlib. When we say an answer is correct, we mean
-          a computer checked the proof — not that someone eyeballed it.
+          proof assistant against <a href="/tengoku">Tengoku</a>, our own Lean 4
+          library, seeded from Mathlib and other open libraries. When we say an answer
+          is correct, we mean a computer checked the proof — not that someone eyeballed it.
         </p>
       </section>
 
