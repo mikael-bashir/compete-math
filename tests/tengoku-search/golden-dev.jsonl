@@ -1,0 +1,80 @@
+{"q": "Nat.add_comm", "intent": "name", "expect": ["Nat.add_comm"]}
+{"q": "add_comm", "intent": "name", "expect": ["add_comm", "Nat.add_comm"]}
+{"q": "Finset.sum_range_succ", "intent": "name", "expect": ["Finset.sum_range_succ"]}
+{"q": "List.reverse_reverse", "intent": "name", "expect": ["List.reverse_reverse"]}
+{"q": "length_append", "intent": "name", "expect": ["List.length_append"]}
+{"q": "sqrt_nonneg", "intent": "name", "expect": ["Real.sqrt_nonneg"]}
+{"q": "Real.exp_pos", "intent": "name", "expect": ["Real.exp_pos"]}
+{"q": "Nat.Prime", "intent": "name", "expect": ["Nat.Prime"]}
+{"q": "gcd_comm", "intent": "name", "expect": ["Nat.gcd_comm", "gcd_comm"]}
+{"q": "le_antisymm", "intent": "name", "expect": ["le_antisymm"]}
+{"q": "Function.Injective", "intent": "name", "expect": ["Function.Injective"]}
+{"q": "Continuous.comp", "intent": "name", "expect": ["Continuous.comp"]}
+{"q": "Nat.factorial", "intent": "name", "expect": ["Nat.factorial"]}
+{"q": "Nat.choose_symm", "intent": "name", "expect": ["Nat.choose_symm"]}
+{"q": "mul_self_nonneg", "intent": "name", "expect": ["mul_self_nonneg"]}
+{"q": "Nat.sub_add_cancel", "intent": "name", "expect": ["Nat.sub_add_cancel"]}
+{"q": "Nat.mod_lt", "intent": "name", "expect": ["Nat.mod_lt"]}
+{"q": "intermediate_value_Icc", "intent": "name", "expect": ["intermediate_value_Icc"]}
+{"q": "Real.pi_gt_three", "intent": "name", "expect": ["Real.pi_gt_three"]}
+{"q": "deriv_add", "intent": "name", "expect": ["deriv_add"]}
+{"q": "tendsto_nhds_unique", "intent": "name", "expect": ["tendsto_nhds_unique"]}
+{"q": "Matrix.det_mul", "intent": "name", "expect": ["Matrix.det_mul"]}
+{"q": "Polynomial.degree_mul", "intent": "name", "expect": ["Polynomial.degree_mul"]}
+{"q": "irrational_sqrt_two", "intent": "name", "expect": ["irrational_sqrt_two"]}
+{"q": "?a + ?b = ?b + ?a", "intent": "pattern", "expect": ["add_comm", "Nat.add_comm", "AddCommMagma.add_comm"]}
+{"q": "?a * (?b + ?c) = ?a * ?b + ?a * ?c", "intent": "pattern", "expect": ["mul_add", "left_distrib"]}
+{"q": "List.length (?l ++ ?m) = _", "intent": "pattern", "expect": ["List.length_append"]}
+{"q": "0 ≤ Real.sqrt ?x", "intent": "pattern", "expect": ["Real.sqrt_nonneg"]}
+{"q": "?n < Nat.succ ?n", "intent": "pattern", "expect": ["Nat.lt_succ_self", "Nat.lt_add_one"]}
+{"q": "-(-?a) = ?a", "intent": "pattern", "expect": ["neg_neg"]}
+{"q": "?a - ?a = 0", "intent": "pattern", "expect": ["sub_self"]}
+{"q": "(?a + ?b)^2 = _", "intent": "pattern", "expect": ["add_sq", "add_pow_two"]}
+{"q": "List.map ?f (List.map ?g ?l) = _", "intent": "pattern", "expect": ["List.map_map"]}
+{"q": "Real.exp ?x > 0", "intent": "pattern", "expect": ["Real.exp_pos"]}
+{"q": "a^2 + b^2", "intent": "notation", "expect": ["add_sq", "add_pow_two", "sq_add_sq_eq_zero", "Nat.sq_add_sq"]}
+{"q": "(a + b)^2", "intent": "notation", "expect": ["add_sq", "add_pow_two"]}
+{"q": "√x ≥ 0", "intent": "notation", "expect": ["Real.sqrt_nonneg"]}
+{"q": "|a| ≥ 0", "intent": "notation", "expect": ["abs_nonneg"]}
+{"q": "e^x > 0", "intent": "notation", "expect": ["Real.exp_pos"]}
+{"q": "π > 3", "intent": "notation", "expect": ["Real.pi_gt_three"]}
+{"q": "n! ", "intent": "notation", "expect": ["Nat.factorial"]}
+{"q": "sin^2 + cos^2 = 1", "intent": "notation", "expect": ["Real.sin_sq_add_cos_sq", "Real.cos_sq_add_sin_sq"]}
+{"q": "a * b = b * a", "intent": "notation", "expect": ["mul_comm", "Nat.mul_comm"]}
+{"q": "2 * a = a + a", "intent": "notation", "expect": ["two_mul"]}
+{"q": "pigeonhole principle", "intent": "named", "expect": ["Finset.exists_ne_map_eq_of_card_lt_of_maps_to", "Fintype.exists_ne_map_eq_of_card_lt"]}
+{"q": "Cauchy-Schwarz inequality", "intent": "named", "expect": ["inner_mul_le_norm_mul_norm", "abs_inner_le_norm", "real_inner_mul_inner_self_le"]}
+{"q": "Fermat's little theorem", "intent": "named", "expect": ["ZMod.pow_card_sub_one_eq_one", "Int.ModEq.pow_card_sub_one_eq_one"]}
+{"q": "Euler's totient theorem", "intent": "named", "expect": ["Nat.ModEq.pow_totient", "ZMod.pow_totient"]}
+{"q": "there are infinitely many primes", "intent": "named", "expect": ["Nat.exists_infinite_primes", "Nat.infinite_setOf_prime"]}
+{"q": "intermediate value theorem", "intent": "named", "expect": ["intermediate_value_Icc", "intermediate_value_Icc'"]}
+{"q": "square root of 2 is irrational", "intent": "named", "expect": ["irrational_sqrt_two"]}
+{"q": "Pythagorean identity", "intent": "named", "expect": ["Real.sin_sq_add_cos_sq", "Real.cos_sq_add_sin_sq"]}
+{"q": "commutative addition of natural numbers", "intent": "nl", "expect": ["Nat.add_comm", "add_comm"]}
+{"q": "square root is nonnegative", "intent": "nl", "expect": ["Real.sqrt_nonneg"]}
+{"q": "absolute value is nonnegative", "intent": "nl", "expect": ["abs_nonneg"]}
+{"q": "square of a real number is nonnegative", "intent": "nl", "expect": ["sq_nonneg", "mul_self_nonneg", "pow_two_nonneg"]}
+{"q": "every prime is at least two", "intent": "nl", "expect": ["Nat.Prime.two_le"]}
+{"q": "derivative of a sum", "intent": "nl", "expect": ["deriv_add", "HasDerivAt.add"]}
+{"q": "integral of a sum", "intent": "nl", "expect": ["MeasureTheory.integral_add", "intervalIntegral.integral_add"]}
+{"q": "reverse a list twice", "intent": "nl", "expect": ["List.reverse_reverse"]}
+{"q": "length of two lists appended", "intent": "nl", "expect": ["List.length_append"]}
+{"q": "map of a map on lists", "intent": "nl", "expect": ["List.map_map"]}
+{"q": "union of sets is commutative", "intent": "nl", "expect": ["Set.union_comm", "Finset.union_comm"]}
+{"q": "intersection is commutative", "intent": "nl", "expect": ["Set.inter_comm", "Finset.inter_comm", "inf_comm"]}
+{"q": "pi is greater than three", "intent": "nl", "expect": ["Real.pi_gt_three"]}
+{"q": "exponential is positive", "intent": "nl", "expect": ["Real.exp_pos"]}
+{"q": "gcd is commutative", "intent": "nl", "expect": ["Nat.gcd_comm", "gcd_comm"]}
+{"q": "every natural number is even or odd", "intent": "nl", "expect": ["Nat.even_or_odd"]}
+{"q": "remainder is less than the divisor", "intent": "nl", "expect": ["Nat.mod_lt", "Int.emod_lt_of_pos"]}
+{"q": "limits are unique", "intent": "nl", "expect": ["tendsto_nhds_unique"]}
+{"q": "composition of continuous functions is continuous", "intent": "nl", "expect": ["Continuous.comp"]}
+{"q": "determinant of a product of matrices", "intent": "nl", "expect": ["Matrix.det_mul"]}
+{"q": "two times a number", "intent": "nl", "expect": ["two_mul"]}
+{"q": "negation of a negation", "intent": "nl", "expect": ["neg_neg", "not_not"]}
+{"q": "subtracting a number from itself gives zero", "intent": "nl", "expect": ["sub_self"]}
+{"q": "a compact set attains its minimum", "intent": "nl", "expect": ["IsCompact.exists_isMinOn", "IsCompact.exists_forall_le"]}
+{"q": "sum over a range with one more term", "intent": "nl", "expect": ["Finset.sum_range_succ"]}
+{"q": "cardinality of Fin n", "intent": "nl", "expect": ["Fintype.card_fin", "Finset.card_fin"]}
+{"q": "exp of log", "intent": "nl", "expect": ["Real.exp_log"]}
+{"q": "successor is less than or equal iff", "intent": "nl", "expect": ["Nat.succ_le_iff", "Nat.succ_le"]}
