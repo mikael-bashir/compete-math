@@ -3,7 +3,7 @@ import { SiGithub } from "react-icons/si";
 import { InfoPage } from "../lib/components/info-page";
 import { TengokuSearchBar } from "@/components/tengoku/search-bar";
 import { StatPill } from "@/components/tengoku/stat-pill";
-import { getTengokuStats } from "@/app/lib/data/tengoku";
+import { getTreeStats } from "@/app/lib/data/tengoku-stats";
 import { CONTACT_EMAIL } from "../lib/constants/site";
 
 export const metadata: Metadata = {
@@ -19,7 +19,7 @@ function formatCount(n: number): string {
 }
 
 export default async function TengokuPage() {
-  const stats = await getTengokuStats();
+  const stats = await getTreeStats();
 
   return (
     <InfoPage kicker="tengoku" title="Tengoku" logo="/logos/Tengoku.png">

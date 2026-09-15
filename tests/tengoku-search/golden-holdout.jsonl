@@ -1,0 +1,20 @@
+{"q": "mul_comm", "intent": "name", "expect": ["mul_comm", "Nat.mul_comm"]}
+{"q": "Set.subset_def", "intent": "name", "expect": ["Set.subset_def"]}
+{"q": "Nat.lt_succ_iff", "intent": "name", "expect": ["Nat.lt_succ_iff"]}
+{"q": "abs_sub_comm", "intent": "name", "expect": ["abs_sub_comm"]}
+{"q": "Real.sqrt_sq", "intent": "name", "expect": ["Real.sqrt_sq"]}
+{"q": "?a + 0 = ?a", "intent": "pattern", "expect": ["add_zero", "Nat.add_zero"]}
+{"q": "?a * 1 = ?a", "intent": "pattern", "expect": ["mul_one", "Nat.mul_one"]}
+{"q": "(?a - ?b)^2 = _", "intent": "pattern", "expect": ["sub_sq"]}
+{"q": "|a - b| = |b - a|", "intent": "notation", "expect": ["abs_sub_comm"]}
+{"q": "gcd(a, b) ∣ a", "intent": "notation", "expect": ["Nat.gcd_dvd_left", "gcd_dvd_left"]}
+{"q": "log(exp x) = x", "intent": "notation", "expect": ["Real.log_exp"]}
+{"q": "Euclid's theorem on primes", "intent": "named", "expect": ["Nat.exists_infinite_primes", "Nat.infinite_setOf_prime"]}
+{"q": "binomial theorem", "intent": "named", "expect": ["add_pow", "Commute.add_pow"]}
+{"q": "triangle inequality", "intent": "named", "expect": ["abs_add", "norm_add_le", "dist_triangle"]}
+{"q": "a number divides itself", "intent": "nl", "expect": ["dvd_refl", "dvd_rfl", "Nat.dvd_refl"]}
+{"q": "adding zero changes nothing", "intent": "nl", "expect": ["add_zero", "zero_add", "Nat.add_zero"]}
+{"q": "sine is bounded by one", "intent": "nl", "expect": ["Real.sin_le_one", "Real.abs_sin_le_one"]}
+{"q": "an injective function on a finite type is surjective", "intent": "nl", "expect": ["Finite.injective_iff_surjective", "Fintype.injective_iff_surjective"]}
+{"q": "divisibility is transitive", "intent": "nl", "expect": ["dvd_trans", "Dvd.dvd.trans", "Nat.dvd_trans"]}
+{"q": "count the elements of a range", "intent": "nl", "expect": ["Finset.card_range", "List.length_range"]}

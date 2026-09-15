@@ -33,7 +33,7 @@ const FAQS = [
   },
   {
     q: "What does “verified with Lean 4” mean?",
-    a: "Some problems and solutions are machine-checked with the Lean 4 proof assistant against Mathlib, guaranteeing the mathematics is airtight.",
+    a: "Some problems and solutions are machine-checked with the Lean 4 proof assistant against Tengoku, our own Lean 4 library, guaranteeing the mathematics is airtight.",
   },
   {
     q: "Is CompeteMath free?",

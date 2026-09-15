@@ -86,7 +86,7 @@ export default function AboutLeakPage() {
 
         <div className="mt-6 space-y-4">
           <FeatureCard name="Leak-I & Leak-XI" badge="Library Search" tone="slate">
-            Lemma search over Mathlib. The agent describes the shape of the required theorem, and the service retrieves existing declarations so the prover builds on the library rather than reinventing it. (Leak-XI targets a newer toolchain than Leak-I).
+            Lemma search over Tengoku. The agent describes the shape of the required theorem, and the service retrieves existing declarations so the prover builds on the library rather than reinventing it. (Leak-XI targets a newer toolchain than Leak-I).
           </FeatureCard>
 
           <FeatureCard name="Leak-II" badge="Proof-State Daemon" tone="slate">
@@ -104,15 +104,29 @@ export default function AboutLeakPage() {
       </section>
 
       <section>
-        <h2>Source &amp; Availability</h2>
+        <h2>Try It &amp; Source</h2>
         <p className="mt-3">
-          To maintain a consolidated codebase and simplify deployments, the experimental pipelines and harnesses do not live in separate repositories. 
+          You can drive Leak yourself from the playground. To maintain a consolidated codebase and simplify deployments, the experimental pipelines and harnesses do not live in separate repositories.
         </p>
         <p className="mt-3">
           The code for all five harnesses, along with their prompts and MCP tool configurations, is open-source and available directly within the main CompeteMath infrastructure repositories.
         </p>
 
         <div className="mt-6 flex flex-col gap-3">
+          <Link
+            href="/leak"
+            className="flex items-center justify-between rounded-lg border border-emerald-400/25 bg-emerald-400/[0.04] p-4 transition-colors hover:border-emerald-400/50 no-underline"
+          >
+            <div className="flex items-center gap-3">
+              <img src="/logos/Leak.png" alt="" className="h-5 w-5 opacity-80" />
+              <div>
+                <div className="text-sm font-semibold text-white">Try Leak</div>
+                <div className="text-xs text-white/50">The playground at /leak: pick a harness, connect your own prover, and send a statement.</div>
+              </div>
+            </div>
+            <span className="text-xs text-emerald-300/80 font-code">&rarr;</span>
+          </Link>
+
           <a
             href={MAIN_REPO}
             target="_blank"

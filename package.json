@@ -7,7 +7,10 @@
     "warm-tengoku-model": "tsx scripts/warm-tengoku-model.ts",
     "build": "pnpm run warm-tengoku-model && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:tengoku": "node --import tsx --test 'tests/tengoku-search/*.test.ts' 'src/app/lib/tengoku-search/*.test.ts'",
+    "tengoku:eval": "tsx scripts/tengoku-search-eval.ts",
+    "tengoku:load": "tsx scripts/tengoku-index-load.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

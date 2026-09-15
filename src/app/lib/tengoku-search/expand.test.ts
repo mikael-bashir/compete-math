@@ -1,0 +1,73 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { expandQuery } from "./expand";
+
+test("English words become name tokens and constants", () => {
+  const e = expandQuery("square root is nonnegative");
+  assert.ok(e.tokens.includes("sqrt") && e.tokens.includes("nonneg"), JSON.stringify(e));
+  assert.ok(e.constants.includes("Real.sqrt"));
+  assert.ok(e.phrases.includes("square root"));
+});
+test("stop words are dropped, unknown words kept as tokens", () => {
+  const e = expandQuery("the length of the concatenation of two lists");
+  assert.ok(!e.words.includes("the") && !e.words.includes("of"));
+  assert.ok(e.tokens.includes("length") && e.tokens.includes("append") && e.tokens.includes("list"));
+});
+test("notation maps to constants", () => {
+  const e = expandQuery("√x ≥ 0");
+  assert.ok(e.constants.includes("Real.sqrt") && e.constants.includes("GE.ge"), JSON.stringify(e));
+  const f = expandQuery("?a + ?b = ?b + ?a");
+  assert.ok(f.constants.includes("HAdd.hAdd") && f.constants.includes("Eq"));
+});
+test("dotted Lean names are constants", () => {
+  assert.ok(expandQuery("lemmas about Finset.sum over range").constants.includes("Finset.sum"));
+});
+test("notation becomes Mathlib name tokens", () => {
+  assert.ok(expandQuery("a^2 + b^2").tokens.includes("sq") && expandQuery("a^2 + b^2").tokens.includes("add"));
+  assert.ok(expandQuery("√x ≥ 0").tokens.includes("sqrt") && expandQuery("√x ≥ 0").tokens.includes("nonneg"));
+  assert.ok(expandQuery("|a| ≥ 0").tokens.includes("abs"));
+  assert.ok(expandQuery("n!").tokens.includes("factorial"));
+  assert.ok(expandQuery("2 * a = a + a").tokens.includes("two") && expandQuery("2 * a = a + a").tokens.includes("mul"));
+});
+test("unary and binary minus, and repeated operands", () => {
+  const neg = expandQuery("-(-?a) = ?a");
+  assert.ok(neg.tokens.includes("neg") && neg.constants.includes("Neg.neg") && !neg.constants.includes("HSub.hSub"), JSON.stringify(neg));
+  const sub = expandQuery("?a - ?a = 0");
+  assert.ok(sub.tokens.includes("sub") && sub.tokens.includes("self") && sub.constants.includes("HSub.hSub"), JSON.stringify(sub));
+});
+test("a matched phrase consumes its words; inflections resolve", () => {
+  const e = expandQuery("square root is nonnegative");
+  assert.ok(!e.tokens.includes("sq"), JSON.stringify(e));
+  assert.ok(expandQuery("limits are unique").tokens.includes("tendsto"));
+  assert.ok(expandQuery("subtracting a number from itself").tokens.includes("sub") && expandQuery("subtracting a number from itself").tokens.includes("self"));
+});
+test("e^x and π and small numbers become tokens", () => {
+  const e = expandQuery("e^x > 0");
+  assert.ok(e.tokens.includes("exp") && e.tokens.includes("pos") && !e.tokens.includes("pow"), JSON.stringify(e));
+  const p = expandQuery("π > 3");
+  assert.ok(p.tokens.includes("pi") && p.tokens.includes("three") && p.tokens.includes("gt"), JSON.stringify(p));
+});
+test("token groups: alternatives of one word share a group, notation rules form their own", () => {
+  const e = expandQuery("integral of a sum");
+  assert.ok(e.tokenGroups.some((g) => g.includes("add") && g.includes("sum")), JSON.stringify(e.tokenGroups));
+  assert.ok(e.tokenGroups.some((g) => g.length === 1 && g[0] === "integral"));
+  const n = expandQuery("2 * a = a + a");
+  assert.ok(n.tokenGroups.some((g) => g.includes("two") && g.includes("mul")), JSON.stringify(n.tokenGroups));
+  assert.equal(expandQuery("composition of continuous functions").tokens.includes("function"), false);
+});
+test("++ is append, not two additions; comparison phrases map to one token", () => {
+  const e = expandQuery("List.length (?l ++ ?m) = _");
+  assert.ok(e.tokens.includes("append") && !e.tokens.includes("add") && e.constants.includes("HAppend.hAppend") && !e.constants.includes("HAdd.hAdd"), JSON.stringify(e));
+  const s = expandQuery("successor is less than or equal iff");
+  assert.ok(s.tokens.includes("le") && !s.tokens.includes("lt") && s.tokens.includes("succ") && s.tokens.includes("iff"), JSON.stringify(s));
+});
+test("swapped operands mean commutativity", () => {
+  assert.ok(expandQuery("a * b = b * a").tokens.includes("comm"));
+  assert.ok(expandQuery("?a + ?b = ?b + ?a").tokens.includes("comm"));
+  assert.ok(!expandQuery("?a - ?a = 0").tokens.includes("comm"));
+});
+test("a + a beside 2 * is the two_mul shape, not self; 'at least' also means le (Mathlib states 2 ≤ p)", () => {
+  assert.ok(!expandQuery("2 * a = a + a").tokens.includes("self"));
+  assert.ok(expandQuery("a + a = b").tokens.includes("self"));
+  assert.ok(expandQuery("every prime is at least two").tokenGroups.some((g) => g.includes("ge") && g.includes("le")));
+});
