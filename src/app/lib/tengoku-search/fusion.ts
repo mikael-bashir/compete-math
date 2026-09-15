@@ -6,6 +6,8 @@ import type { Intent } from "./intent";
 export interface Hit {
   id: string; name: string; kind: string; tier: string; statement: string; module: string; docstring: string | null;
   type_hash: string | null; pagerank: number; deprecated_for: string | null; permalink?: string;
+  /** From the name channel: the name (or its last component) is exactly what was asked. Survives fusion. */
+  exact?: boolean;
 }
 export interface ChannelResult { channel: string; hits: Hit[] }
 export interface Ranked extends Hit { score: number; channels: string[]; variants: number }
@@ -30,6 +32,7 @@ export function rrf(results: ChannelResult[], intent: Intent, k = 60): Ranked[] 
     hits.forEach((h, i) => {
       const cur = by.get(h.id) ?? { ...h, score: 0, channels: [], variants: 1 };
       cur.score += weight / (k + i + 1);
+      if (h.exact) cur.exact = true;
       if (!cur.channels.includes(channel)) cur.channels.push(channel);
       by.set(h.id, cur);
     });
@@ -44,6 +47,10 @@ export function prior(h: Ranked, intent: Intent): number {
   s += KIND_PRIOR[intent][h.kind] ?? 0;
   s += Math.min(0.03, Math.log10(1 + h.pagerank * 1e5) * 0.01);
   if (h.deprecated_for) s *= 0.6;
+  // Reciprocal ranks flatten the gap between an exact name and a near miss; an exact name is what the person asked for.
+  if (h.exact) s += intent === "name" ? 0.05 : 0.03;
+  // Between otherwise equal names, prefer the general statement to a namespaced copy (mul_add over Int.mul_add).
+  s -= 0.006 * (h.name.split(".").length - 1);
   if (h.channels.length > 1) s *= 1 + 0.08 * (h.channels.length - 1); // agreement between channels
   return s;
 }

@@ -55,3 +55,14 @@ test("token groups: alternatives of one word share a group, notation rules form 
   assert.ok(n.tokenGroups.some((g) => g.includes("two") && g.includes("mul")), JSON.stringify(n.tokenGroups));
   assert.equal(expandQuery("composition of continuous functions").tokens.includes("function"), false);
 });
+test("++ is append, not two additions; comparison phrases map to one token", () => {
+  const e = expandQuery("List.length (?l ++ ?m) = _");
+  assert.ok(e.tokens.includes("append") && !e.tokens.includes("add") && e.constants.includes("HAppend.hAppend") && !e.constants.includes("HAdd.hAdd"), JSON.stringify(e));
+  const s = expandQuery("successor is less than or equal iff");
+  assert.ok(s.tokens.includes("le") && !s.tokens.includes("lt") && s.tokens.includes("succ") && s.tokens.includes("iff"), JSON.stringify(s));
+});
+test("swapped operands mean commutativity", () => {
+  assert.ok(expandQuery("a * b = b * a").tokens.includes("comm"));
+  assert.ok(expandQuery("?a + ?b = ?b + ?a").tokens.includes("comm"));
+  assert.ok(!expandQuery("?a - ?a = 0").tokens.includes("comm"));
+});

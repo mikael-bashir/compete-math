@@ -10,7 +10,7 @@ export const WORD_TO_TOKENS: Record<string, string[]> = {
   division: ["div"], divided: ["div"], negation: ["neg"], negative: ["neg"], inverse: ["inv"], power: ["pow"], square: ["sq", "pow_two"], squared: ["sq"], root: ["sqrt"],
   nonnegative: ["nonneg"], positive: ["pos"], negativity: ["neg"], injective: ["injective", "inj"], surjective: ["surjective", "surj"], bijective: ["bijective"],
   monotone: ["mono", "monotone"], itself: ["self"], attains: ["exists"], attain: ["exists"], achieves: ["exists"], "one more": ["succ"], "plus one": ["succ"], next: ["succ"], twice: ["two", "mul"], double: ["two", "mul"], half: ["two", "div"],
-  unit: ["one"], nothing: ["zero"], vanishes: ["zero"], smaller: ["lt", "le"], bigger: ["gt", "ge"], nonzero: ["ne", "zero"], "square root": ["sqrt"], "absolute value": ["abs"], "finite set": ["finset"], continuous: ["continuous"], differentiable: ["differentiable"], derivative: ["deriv"], integral: ["integral"], limit: ["tendsto", "lim"],
+  unit: ["one"], nothing: ["zero"], vanishes: ["zero"], smaller: ["lt", "le"], bigger: ["gt", "ge"], nonzero: ["ne", "zero"], "square root": ["sqrt"], "absolute value": ["abs"], "finite set": ["finset"], "less than or equal": ["le"], "greater than or equal": ["ge"], "less than": ["lt"], "greater than": ["gt"], "not equal": ["ne"], continuous: ["continuous"], differentiable: ["differentiable"], derivative: ["deriv"], integral: ["integral"], limit: ["tendsto", "lim"],
   supremum: ["sup"], infimum: ["inf"], absolute: ["abs"], natural: ["nat"], naturals: ["nat"], integer: ["int"], integers: ["int"], rational: ["rat"], real: ["real"], reals: ["real"], complex: ["complex"],
   finite: ["finite", "fin"], cardinality: ["card"], length: ["length"], member: ["mem"], membership: ["mem"], complement: ["compl"], divides: ["dvd"], divisor: ["dvd"], divisible: ["dvd"],
   gcd: ["gcd"], lcm: ["lcm"], coprime: ["coprime"], modulo: ["mod", "emod"], remainder: ["mod", "emod"], cancellation: ["cancel"], cancel: ["cancel"], zero: ["zero"], one: ["one"], two: ["two"],
@@ -41,10 +41,12 @@ export const NOTATION_TO_TOKENS: [RegExp, string[]][] = [
   [/\be\s*\^/g, ["exp"]], [/\^\s*2\b/g, ["sq"]], [/\^\s*3\b/g, ["cube"]], [/\^/g, ["pow"]], [/√/g, ["sqrt"]], [/\|[^|]+\|/g, ["abs"]], [/(≥\s*0\b|\b0\s*≤)/g, ["nonneg"]], [/(>\s*0\b|\b0\s*<)/g, ["pos"]],
   [/(≤\s*0\b|\b0\s*≥)/g, ["nonpos"]], [/(<\s*0\b|\b0\s*>)/g, ["neg"]], [/π/g, ["pi"]], [/\bsin\b/g, ["sin"]], [/\bcos\b/g, ["cos"]], [/\btan\b/g, ["tan"]],
   [/\blog\b/g, ["log"]], [/\bexp\b/g, ["exp"]], [/!/g, ["factorial"]], [/\b2\s*\*/g, ["two", "mul"]], [/\b0\b/g, ["zero"]], [/\b1\b/g, ["one"]], [/\b2\b/g, ["two"]], [/\b3\b/g, ["three"]], [/\b4\b/g, ["four"]], [/∑/g, ["sum"]], [/∏/g, ["prod"]], [/∘/g, ["comp"]], [/∣/g, ["dvd"]], [/⁻¹/g, ["inv"]],
-  [/\+/g, ["add"]], [/\*/g, ["mul"]], [/\//g, ["div"]], [/↔/g, ["iff"]], [/≠/g, ["ne"]], [/≤/g, ["le"]], [/</g, ["lt"]], [/≥/g, ["ge"]], [/>/g, ["gt"]], [/∪/g, ["union"]], [/∩/g, ["inter"]], [/⊆/g, ["subset"]],
+  [/\+\+/g, ["append"]], [/\+/g, ["add"]], [/\*/g, ["mul"]], [/\//g, ["div"]], [/↔/g, ["iff"]], [/≠/g, ["ne"]], [/≤/g, ["le"]], [/</g, ["lt"]], [/≥/g, ["ge"]], [/>/g, ["gt"]], [/∪/g, ["union"]], [/∩/g, ["inter"]], [/⊆/g, ["subset"]],
 ];
 const UNARY_MINUS = /(^|[(=<>≤≥,+*/])\s*-\s*[(?\w√|]/;
 const BINARY_MINUS = /[\w)|]\s*-\s*[(?\w√|]/;
+// x ∘ y = y ∘ x for any operator: the statement is a commutativity.
+const SWAPPED = /(\?\w+|\b[a-z]\b)\s*([-+*∘∪∩])\s*(\?\w+|\b[a-z]\b)\s*=\s*\3\s*\2\s*\1(?![\w])/;
 const SAME_OPERAND = /(\?\w+|\b[a-z]\b)\s*[-+*/]\s*\1(?![\w])/;
 const STOP = new Set(["the", "a", "an", "of", "is", "are", "for", "to", "in", "on", "with", "and", "or", "that", "this", "its", "any", "all", "every", "each", "by", "from", "as", "be", "than", "then", "there", "which", "what", "when", "does", "do", "if", "it", "number", "numbers", "theorem", "lemma", "definition", "def"]);
 
@@ -64,16 +66,24 @@ export function expandQuery(q: string): Expansion {
   const groups: string[][] = [];
   const group = (toks: Iterable<string>) => { const g = [...new Set(toks)].filter((x) => x && !tokens.has(x)); for (const x of g) tokens.add(x); if (g.length) groups.push(g); };
   for (const m of q.match(/[A-Za-z_][\w']*(\.[A-Za-z_][\w']*)+/g) || []) constants.add(m); // dotted Lean names, case kept
-  for (const key of Object.keys(WORD_TO_CONSTANTS)) if (key.includes(" ") && lower.includes(key)) { phrases.push(key); for (const c of WORD_TO_CONSTANTS[key]) constants.add(c); }
-  for (const key of Object.keys(WORD_TO_TOKENS)) if (key.includes(" ") && lower.includes(key)) { phrases.push(key); group(WORD_TO_TOKENS[key]); }
+  // Longest phrase first, and a matched phrase is consumed, so "less than or equal" does not also mean "less than".
+  let rest = lower;
+  const phraseKeys = [...new Set([...Object.keys(WORD_TO_CONSTANTS), ...Object.keys(WORD_TO_TOKENS)].filter((k) => k.includes(" ")))].sort((a, b) => b.length - a.length);
+  for (const key of phraseKeys) if (rest.includes(key)) {
+    phrases.push(key); rest = rest.split(key).join(" ");
+    for (const c of WORD_TO_CONSTANTS[key] || []) constants.add(c);
+    if (WORD_TO_TOKENS[key]) group(WORD_TO_TOKENS[key]);
+  }
   // Every notation character names a constant for the symbol channel.
-  for (const ch of lower) if (!/[a-z0-9\s]/.test(ch) && WORD_TO_CONSTANTS[ch]) for (const c of WORD_TO_CONSTANTS[ch]) constants.add(c);
+  if (lower.includes("++")) constants.add("HAppend.hAppend");
+  for (const ch of lower.replace(/\+\+/g, " ")) if (!/[a-z0-9\s]/.test(ch) && WORD_TO_CONSTANTS[ch]) for (const c of WORD_TO_CONSTANTS[ch]) constants.add(c);
   // Notation says which Mathlib name pieces to look for: a^2 + b^2 → sq, add.
   let stripped = lower;
   for (const [re, toks] of NOTATION_TO_TOKENS) if (re.test(stripped)) { group(toks); stripped = stripped.replace(re, " "); }
   if (UNARY_MINUS.test(lower)) { group(["neg"]); constants.add("Neg.neg"); }
   if (BINARY_MINUS.test(lower)) { group(["sub"]); constants.add("HSub.hSub"); }
   if (SAME_OPERAND.test(lower)) group(["self"]);
+  if (SWAPPED.test(lower)) group(["comm"]);
   // A phrase that matched ("square root") consumes its words, so "square" alone does not also mean sq.
   for (const ph of phrases) stripped = stripped.replace(ph, " ");
   const words = stripped.replace(/[^\p{L}\p{N}\s.'_+*/^=<>≤≥≠→↔∀∃∑∏∫∘∣√π|!ℕℤℚℝℂ¬∧∨∈⊆∪∩-]/gu, " ").split(/\s+/).filter((w) => w && !STOP.has(w));

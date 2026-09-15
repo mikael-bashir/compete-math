@@ -25,3 +25,9 @@ test("deprecated and tentative results are demoted, trusted promoted", () => {
   assert.equal(r[0].id, "new");
   assert.equal(r[r.length - 1].id, "old");
 });
+test("an exact name beats a near miss the other channels prefer; general beats namespaced", () => {
+  const r = rank([{ channel: "name", hits: [h("Nat.factorial", { exact: true }), h("Nat.factorial_le")] }, { channel: "fts", hits: [h("Nat.factorial_le"), h("Nat.factorial_succ"), h("Nat.factorial")] }], "name");
+  assert.equal(r[0].id, "Nat.factorial");
+  const g = rank([{ channel: "name", hits: [h("Int.mul_add", { exact: true }), h("mul_add", { exact: true })] }], "pattern");
+  assert.equal(g[0].id, "mul_add");
+});

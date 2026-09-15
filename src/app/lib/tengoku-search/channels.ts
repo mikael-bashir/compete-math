@@ -15,10 +15,11 @@ export async function nameChannel(c: Ctx): Promise<ChannelResult> {
     const q = c.q.toLowerCase();
     const rows = await fanout(c.shards,
       `SELECT ${DECL_COLS},
-         (CASE WHEN lower(d.name) = $1 THEN 4 WHEN lower(d.name) LIKE '%.' || $1 THEN 3 WHEN lower(d.name) LIKE $1 || '%' THEN 2 WHEN lower(d.name) LIKE '%' || $1 || '%' THEN 1 ELSE 0 END) + similarity(d.name, $2) AS score
+         (CASE WHEN lower(d.name) = $1 THEN 4 WHEN lower(d.name) LIKE '%.' || $1 THEN 3 WHEN lower(d.name) LIKE $1 || '%' THEN 2 WHEN lower(d.name) LIKE '%' || $1 || '%' THEN 1 ELSE 0 END) + similarity(d.name, $2) AS score,
+         (lower(d.name) = $1 OR lower(d.name) LIKE '%.' || $1) AS exact
        FROM decl d
        WHERE lower(d.name) LIKE '%' || $1 || '%' OR d.name % $2
-       ORDER BY score DESC, d.pagerank DESC LIMIT $3`, [q, c.q, c.limit]);
+       ORDER BY score DESC, length(d.name) - length(replace(d.name, '.', '')) ASC, d.pagerank DESC LIMIT $3`, [q, c.q, c.limit]);
     return { channel: "name", hits: byScore(rows, c.limit) };
   }
   const toks = c.expansion.tokens.filter((t) => t.length > 1);
@@ -34,13 +35,17 @@ export async function nameChannel(c: Ctx): Promise<ChannelResult> {
   // One query word can mean several tokens ("sum" → add, sum); a name earns credit for the best one, not all of them.
   const flat: string[] = [], ws: number[] = [], gs: number[] = [];
   c.expansion.tokenGroups.forEach((g, gi) => { for (const tk of g) if (tk.length > 1) { flat.push(tk); ws.push(weight(tk)); gs.push(gi); } });
+  const groups = c.expansion.tokenGroups.length || 1;
   const rows = await fanout(c.shards,
-    `SELECT ${DECL_COLS},
-       (SELECT coalesce(sum(mx), 0) FROM (SELECT max(u.w) AS mx FROM unnest($1::text[], $2::float8[], $3::int[]) AS u(tk, w, g) WHERE d.name_tokens @> ARRAY[u.tk] GROUP BY u.g) s)
-       + (CASE WHEN coalesce(d.local_tokens, d.name_tokens) <@ $1::text[] THEN 2.0 WHEN d.name_tokens <@ $1::text[] THEN 2.0 ELSE 0 END)
-       - cardinality(d.name_tokens) / 100.0 AS score
-     FROM decl d WHERE d.name_tokens && $1::text[]
-     ORDER BY score DESC, d.pagerank DESC LIMIT $4`, [flat, ws, gs, c.limit]);
+    `SELECT ${DECL_COLS}, s.score, s.exact FROM decl d, LATERAL (
+       SELECT
+         m.w + (CASE WHEN ex THEN 2.0 ELSE 0 END) + m.g::float / $4 - cardinality(d.name_tokens) / 100.0 AS score, ex AS exact
+       FROM (SELECT coalesce(sum(mx), 0) AS w, count(*) AS g FROM (SELECT max(u.w) AS mx FROM unnest($1::text[], $2::float8[], $3::int[]) AS u(tk, w, g) WHERE d.name_tokens @> ARRAY[u.tk] GROUP BY u.g) t) m,
+            LATERAL (SELECT ((coalesce(d.local_tokens, d.name_tokens) <@ $1::text[] AND cardinality(coalesce(d.local_tokens, d.name_tokens)) >= least(2, $4))
+                          OR (d.name_tokens <@ $1::text[] AND cardinality(d.name_tokens) >= least(2, $4))) AS ex) e
+     ) s
+     WHERE d.name_tokens && $1::text[]
+     ORDER BY s.score DESC, length(d.name) - length(replace(d.name, '.', '')) ASC, d.pagerank DESC LIMIT $5`, [flat, ws, gs, groups, c.limit]);
   return { channel: "name", hits: byScore(rows, c.limit) };
 }
 
@@ -69,9 +74,9 @@ export async function symbolChannel(c: Ctx): Promise<ChannelResult> {
   // Notation and patterns name every constant that must occur; English names some that may.
   const op = (c.intent === "notation" || c.intent === "pattern") && consts.length > 1 ? "@>" : "&&";
   const rows = await fanout(c.shards,
-    `SELECT ${DECL_COLS}, (SELECT coalesce(sum(u.w), 0) FROM unnest($1::text[], $2::float8[]) AS u(k, w) WHERE d.constants_used @> ARRAY[u.k]) - cardinality(d.constants_used) / 1000.0 AS score
+    `SELECT ${DECL_COLS}, (SELECT coalesce(sum(u.w), 0) FROM unnest($1::text[], $2::float8[]) AS u(k, w) WHERE d.constants_used @> ARRAY[u.k]) - greatest(cardinality(d.constants_used) - coalesce(d.inst_count, 0), 0) / 1000.0 AS score
      FROM decl d WHERE d.constants_used ${op} $1::text[]
-     ORDER BY score DESC, d.pagerank DESC LIMIT $3`, [consts, weights, c.limit]);
+     ORDER BY score DESC, length(d.name) - length(replace(d.name, '.', '')) ASC, d.pagerank DESC LIMIT $3`, [consts, weights, c.limit]);
   return { channel: "symbol", hits: byScore(rows, c.limit) };
 }
 
@@ -91,10 +96,10 @@ export async function patternChannel(c: Ctx): Promise<ChannelResult> {
   const consts = c.expansion.constants.filter((k) => !["Eq", "Ne", "LE.le", "LT.lt", "GE.ge", "GT.gt", "Iff"].includes(k));
   if (!rel && !consts.length) return { channel: "pattern", hits: [] };
   const rows = await fanout(c.shards,
-    `SELECT ${DECL_COLS}, -cardinality(d.constants_used)::float + (CASE WHEN d.conclusion_head = $1 THEN 100 ELSE 0 END) AS score
+    `SELECT ${DECL_COLS}, -greatest(cardinality(d.constants_used) - coalesce(d.inst_count, 0), 0)::float + (CASE WHEN d.conclusion_head = $1 THEN 100 ELSE 0 END) AS score
      FROM decl d
      WHERE ($1::text IS NULL OR d.conclusion_head = $1) AND ($2::text[] = '{}' OR d.constants_used @> $2::text[]) AND d.kind IN ('theorem', 'lemma')
-     ORDER BY score DESC, d.pagerank DESC LIMIT $3`, [rel, consts, c.limit]);
+     ORDER BY score DESC, length(d.name) - length(replace(d.name, '.', '')) ASC, d.pagerank DESC LIMIT $3`, [rel, consts, c.limit]);
   return { channel: "pattern", hits: byScore(rows, c.limit) };
 }
 
