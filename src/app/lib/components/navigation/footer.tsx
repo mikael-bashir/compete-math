@@ -16,6 +16,17 @@ const LINK_COLUMNS = [
     ],
   },
   {
+    // Plain links on every page: the navbar's Research menu is client-rendered,
+    // so without these a crawler only finds Tengoku, Leak, LRR and the blog via the sitemap.
+    title: "Research",
+    links: [
+      { label: "Tengoku", href: "/tengoku" },
+      { label: "Leak", href: "/leak" },
+      { label: "LRR", href: "/lrr" },
+      { label: "Blog", href: "/blog" },
+    ],
+  },
+  {
     title: "Resources",
     links: [
       { label: "About", href: "/about" },
@@ -42,7 +53,7 @@ export default function Footer() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent" />
 
       <div className="max-w-7xl mx-auto px-6 pt-16 pb-10">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-10">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-10">
 
           {/* Brand column */}
           <div className="col-span-2">
