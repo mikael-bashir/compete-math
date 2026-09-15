@@ -75,20 +75,22 @@ That is a category the golden set catches and unit tests never would.
 
 Sandbox: `competemath/tengoku-sandbox` (public; merge queue needs public or Enterprise Cloud).
 
-| Scenario PR | Expectation | Result |
+| Scenario PR | Expectation | Result (round 3, main after #20) |
 |---|---|---|
-| clean append to staging | pass gate, merge via queue | gate pass |
-| content + tooling in one PR | fail `classify` | fail (multi-purpose) |
-| deletion in staging | fail `append-only` | fail |
-| `#eval` in a record | fail `content-lint` | fail |
-| Authors line removed | fail `credits` | fail |
-| credential-shaped string | fail `secrets` | fail |
-| commit without sign-off | fail `dco` | fail |
-| hand edit of a generated module | fail `classify` (derived) | fail |
-| source not on the allowlist | fail `records` | fail |
-| broken proof | pass gate, ejected by the queue with a comment | see below |
-| comment in a script | pass gate (lint + tooling tests run) | pass after main's own lint was fixed |
-| the tooling PR itself | merge through the queue | merged; both required checks green on the merge group |
+| clean append to staging (#2) | pass gate, merge via queue | gate pass; queued; candidate module built in 5 s; **merged** |
+| content + tooling in one PR (#3) | fail `classify` | fail (multi-purpose) |
+| deletion in staging (#4) | fail `append-only` | fail |
+| `#eval` in a record (#5) | fail `content-lint` | fail |
+| Authors line removed (#6) | fail `credits` | fail |
+| credential-shaped string (#7) | fail `secrets` | fail |
+| commit without sign-off (#8) | fail `dco` | fail |
+| source not on the allowlist (#9) | fail `records` | fail (after the fixture was fixed) |
+| broken proof (#10) | pass gate, ejected by the queue with a comment | gate pass; queued; **ejected**, comment names `_candidate_Definability.lean:200:12`, the source line and `Selftest.broken` |
+| comment in a script (#11) | pass gate (lint + tooling tests run) | pass |
+| hand edit of a generated module (#12) | fail `classify` (derived); as a promotion-class PR: ejected by the queue | gate pass (bot identity = tester); queued; **ejected** by the regeneration check, comment names the file |
+| promotion by the bot (#17) | class `promotion`; queue builds the library and diffs regeneration; merge | **merged** on the third attempt (two gate gaps and one merge-group gap fixed on the way) |
+| tooling PRs #13–#21 | merge through the queue | all merged via the queue; each tooling-only group passes in ~3 min |
+| attested cache, `TENGOKU_VERIFY=require` | unattested part refused; attested part accepted; tampered part refused | refusal of an unattested part verified locally (warn → warning, require → REFUSED); the accept/tamper half is blocked: the sandbox build's publish step gets HTTP 403 creating a release from a `workflow_dispatch` run while push-triggered probes with the same scopes succeed — under investigation |
 
 What the sandbox caught before it reached the library:
 
@@ -108,6 +110,7 @@ What the sandbox caught before it reached the library:
 14. A PR in the merge queue reports `autoMergeRequest: null`; the queue entry (`isInMergeQueue`, `mergeQueueEntry.state`) is the thing to watch. `gh pr merge --auto` on an ejected PR enqueues it again directly.
 15. Second queue round, the pipeline itself worked (corpus clone, candidate module, cache replay of 8,775 modules, a 5 s build of one module), but the clean PR was ejected: the candidate module for its source file also pulled in an older, still-broken staging record of the same file (`Definable.trans`, one of the 79 the promote loop had already declined). The queue now passes the group's own record names to the generator (`--candidate-names`).
 16. The ejection comment was composed and posted to nobody: a squash merge group's commit subjects read `<title> (#N)`, not `Merge pull request #N`. It also missed lake's `error: <file>:<line>:<col>:` form and so quoted no source line or record. Fixed, with a dry-run test on a simulated two-PR group.
+24. Promotion PR, third attempt: merged through the queue. Gate class `promotion`, credits and data rules pass, queue builds the library target from the cache plus the regenerated modules, axioms scan, regeneration diff clean, pr-gate on the merge group accepts the class.
 22. Promotion PR, second attempt: gate green (class promotion, credits and data rules pass), queue build of the library green, and then the *pr-gate* run on the merge group removed it: a `merge_group` event carries no pull-request actor, so the classifier refused the derived files. The classifier now accepts the promotion class on merge-group runs (the PR's own gate verified the actor; the queue only holds PRs that passed it).
 23. Two tooling PRs that each append a test class to the same file conflict once the first merges (the queue reports DIRTY, auto-merge waits). A merge commit on the branch fixes it; the queue squashes anyway.
 21. The derived-edit PR, queued as a promotion-class PR, was ejected by the queue's "Derived files match their generator" step with the hand-edit hint. Defence in depth holds even when the actor rule is satisfied.
