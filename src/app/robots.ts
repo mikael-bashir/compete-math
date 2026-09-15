@@ -1,13 +1,14 @@
-import { MetadataRoute } from 'next'
+import { MetadataRoute } from "next";
 
+// Served at /robots.txt. Keep the crawler out of the API, private account
+// pages and the development-only routes; everything else is public.
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
-      userAgent: '*',
-      allow: '/',
-      // Don't let Google try to crawl your API or private user settings
-      disallow: ['/api/', '/account/'],
+      userAgent: "*",
+      allow: "/",
+      disallow: ["/api/", "/account/", "/dev-login", "/component-test", "/auth/verify"],
     },
-    sitemap: 'https://competemath.com/sitemap.xml',
-  }
+    sitemap: "https://competemath.com/sitemap.xml",
+  };
 }

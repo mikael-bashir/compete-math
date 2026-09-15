@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { InfoPage } from "../lib/components/info-page";
 import { LocalClaudeAgentManagement } from "@/components/local-claude-agent-management";
 import { MCPServerManagement } from "@/components/mcp-server-management";
@@ -20,6 +21,16 @@ export const metadata: Metadata = {
 export default function LeakPage() {
   return (
     <InfoPage kicker="leak" title="Leak" logo="/logos/Leak.png">
+      <section>
+        <p className="mt-1 text-sm text-white/60">
+          New to Leak?{" "}
+          <Link href="/about/leak" className="underline underline-offset-4 hover:text-emerald-200">
+            Read what it is and how it works
+          </Link>{" "}
+          &mdash; the harnesses, the services, and the results on FATE-X.
+        </p>
+      </section>
+
       <section>
         <h2>Playground</h2>
         <p className="mt-3">
@@ -44,8 +55,9 @@ export default function LeakPage() {
 
       <section>
         <p className="mt-3">
-          This page is under construction. In the meantime, read{" "}
-          <a href="/about/leak" className="underline underline-offset-4 hover:text-emerald-200">what Leak is and how it works</a>.
+          This page is under construction; the write-up on Leak&rsquo;s
+          architecture and methodology is at{" "}
+          <Link href="/about/leak" className="underline underline-offset-4 hover:text-emerald-200">/about/leak</Link>.
         </p>
       </section>
     </InfoPage>
