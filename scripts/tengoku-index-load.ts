@@ -59,8 +59,9 @@ async function main() {
   console.log(`${shards.length} data shards: ${shards.map((s) => s.key.replace("_DATABASE_URL", "")).join(", ")}; control ${control.key.replace("_DATABASE_URL", "")}`);
   const dataSql = fs.readFileSync(path.join("sql", "tengoku-index-data.sql"), "utf8");
   const controlSql = fs.readFileSync(path.join("sql", "tengoku-index-control.sql"), "utf8");
-  for (const s of shards) for (const stmt of dataSql.split(";").map((x) => x.trim()).filter(Boolean)) await s.sql(stmt);
-  for (const stmt of controlSql.split(";").map((x) => x.trim()).filter(Boolean)) await control.sql(stmt);
+  const stmts = (text: string) => text.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n").split(";").map((x) => x.trim()).filter(Boolean);
+  for (const s of shards) for (const stmt of stmts(dataSql)) await s.sql(stmt);
+  for (const stmt of stmts(controlSql)) await control.sql(stmt);
   if (!keep) {
     await Promise.all(shards.map((s) => s.sql(`TRUNCATE decl_text, decl_embedding, decl`)));
     await control.sql(`TRUNCATE symbol, gazetteer`);
