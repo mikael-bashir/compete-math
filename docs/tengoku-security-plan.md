@@ -37,8 +37,8 @@ not style.
 
 Rulesets (Settings → Rules), not legacy branch protection:
 
-- **`main` ruleset**: require PR; 1 approval (2 for CODEOWNERS paths in §3 tier 4); dismiss stale approvals; require review of the most recent push; require status checks `pr-gate` and `queue-gate`; require merge queue; require linear history; block force-push and deletion; require conversation resolution; no bypass actors.
-- **All-branches ruleset (`~ALL`)**: block force-push and deletion only. Contributors work on their own branches and forks; "PR-only on every branch" would stop them pushing their own work.
+- **`main` ruleset**: require PR; approvals 0 with *code-owner review required* (so tier 1–2 bot PRs need nobody and tier 3–4 paths need an owner); dismiss stale approvals; require status checks `pr-gate` and `queue-gate`; require merge queue; require linear history; block force-push and deletion; require conversation resolution; no bypass actors. Caveat found in the sandbox: an author cannot approve their own PR, so a solo maintainer with code-owner review on cannot merge tooling PRs at all. Turn it on only once a second reviewer identity exists (the break-glass account, or a collaborator); until then the sandbox runs with it off.
+- **No ruleset on other branches.** Tried in the sandbox: blocking force-push on `~ALL` also blocked contributors rebasing their own PR branches, and blocking deletion broke auto-delete after merge. Protect `main` (and later `bank`); leave feature branches alone.
 - **Merge settings**: squash only; default commit title = PR title; auto-delete head branches.
 - **Merge queue**: merge method squash; build concurrency 2; group min 1, max 5; wait 5 min; status-check timeout 40 min; "only merge non-failing".
 - **DCO**: install the [DCO app](https://github.com/apps/dco) and require its check. Contributors `git commit -s`. This is a sign-off trailer, not GPG; keep GPG/SSH signing as maintainer policy only.
@@ -149,7 +149,7 @@ parsed from the merge commits' `Merge pull request #N` messages):
 
 ## 10. Not locking yourself out
 
-- No bypass actors. The escape hatch is disabling a ruleset in Settings, which is logged and reversible.
+- No bypass actors. The escape hatch is disabling a ruleset in Settings, which is logged and reversible. Used once in the sandbox on 2026-09-15: the first `pr-gate.yml` had a YAML error, so the required check could never report and its own fix could not merge; the ruleset was disabled for one push and re-enabled. Lesson for the order of work: land workflows on `main` *before* making them required checks.
 - Required checks are all deterministic and self-contained. The Neon index, the Spaces and the promote loop are never required checks.
 - Break-glass admin account with a hardware key, offline.
 - Quarterly drill: disable, push a trivial commit, re-enable, open a real PR, confirm every required check runs.
