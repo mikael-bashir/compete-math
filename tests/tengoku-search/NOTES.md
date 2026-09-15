@@ -69,3 +69,33 @@ That is a category the golden set catches and unit tests never would.
   (same expectation, new wording) to grow the set without hand-writing, and
   have a model judge "is this top-1 a reasonable answer" on the misses to
   separate ranking bugs from bad expectations.
+
+
+## Sandbox ledger — Tengoku security rework (2026-09-15)
+
+Sandbox: `competemath/tengoku-sandbox` (public; merge queue needs public or Enterprise Cloud).
+
+| Scenario PR | Expectation | Result |
+|---|---|---|
+| clean append to staging | pass gate, merge via queue | gate pass |
+| content + tooling in one PR | fail `classify` | fail (multi-purpose) |
+| deletion in staging | fail `append-only` | fail |
+| `#eval` in a record | fail `content-lint` | fail |
+| Authors line removed | fail `credits` | fail |
+| credential-shaped string | fail `secrets` | fail |
+| commit without sign-off | fail `dco` | fail |
+| hand edit of a generated module | fail `classify` (derived) | fail |
+| source not on the allowlist | fail `records` | fail |
+| broken proof | pass gate, ejected by the queue with a comment | see below |
+| comment in a script | pass gate (lint + tooling tests run) | pass after main's own lint was fixed |
+| the tooling PR itself | merge through the queue | merged; both required checks green on the merge group |
+
+What the sandbox caught before it reached the library:
+
+1. The first `pr-gate.yml` had a YAML error; GitHub lists such a file by path and runs it on push. With the check already required, its own fix could not merge: the escape hatch (disable the ruleset for one push) was used once. Land workflows before requiring them.
+2. A ruleset on `~ALL` branches blocked contributors' own force-pushes and auto-delete after merge. Removed; only `main` is protected.
+3. Code-owner review with a single owner freezes every tooling PR (authors cannot approve their own). Off until a second reviewer identity exists.
+4. Required checks must report on both the PR and the merge group, or nothing enters the queue.
+5. `stats.json` changes with every commit and cannot be in the regeneration diff.
+6. A failed merge-group run disarms auto-merge; the ejection comment says how to re-queue.
+7. The gate scripts have their own 14-case test suite (`scripts/ci/tests/test_gates.py`, synthetic git repos), which caught the DCO message and the derived-path rule before the first push.
