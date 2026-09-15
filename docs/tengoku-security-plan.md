@@ -91,6 +91,12 @@ Authors build locally; the queue is the only CI that runs Lean.
 6. **Content lint again** (same script; cheap; protects against a PR retargeted after review).
 7. **`queue-gate`** summary: the required check.
 
+Three things the sandbox taught about the queue:
+
+- A required check must report on the PR *and* on the merge group, or nothing ever enters the queue. `pr-gate.yml` runs on both events; `queue-gate.yml` runs on both too and on a plain PR passes immediately ("the build happens in the queue").
+- `data/stats.json` cannot be part of the regeneration diff: its counts and commit change with every commit. The diff covers `Tengoku/**` only; the derived-tier rule at the PR gate still blocks hand edits to `stats.json`.
+- When a merge-group run fails, GitHub removes the PR *and disarms auto-merge*. The ejection comment tells the author to re-queue with `gh pr merge --squash --auto` or *Merge when ready*.
+
 Dependencies between PRs: merge groups are cumulative (PR1; PR1+PR2; …), so
 a PR that depends on another only needs to be *behind* it in the queue. A PR
 declares `Depends-On: #123` in its body; `pr-gate` job `depends` fails until
