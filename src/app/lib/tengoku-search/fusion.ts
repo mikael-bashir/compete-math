@@ -12,11 +12,11 @@ export interface Ranked extends Hit { score: number; channels: string[]; variant
 
 export const CHANNEL_WEIGHTS: Record<Intent, Record<string, number>> = {
   name:     { name: 3, fts: 1, symbol: 0.5, semantic: 0.5, gazetteer: 2, pattern: 1, click: 1 },
-  pattern:  { name: 1, fts: 0.5, symbol: 2, semantic: 0.5, gazetteer: 1, pattern: 3, click: 1 },
-  notation: { name: 0.5, fts: 0.7, symbol: 2.5, semantic: 1, gazetteer: 1, pattern: 2, click: 1 },
-  named:    { name: 0.5, fts: 1, symbol: 0.5, semantic: 1.5, gazetteer: 4, pattern: 0.5, click: 1.5 },
+  pattern:  { name: 2.5, fts: 0.5, symbol: 1.5, semantic: 0.5, gazetteer: 1, pattern: 2, click: 1 },
+  notation: { name: 3, fts: 0.7, symbol: 1.5, semantic: 1, gazetteer: 1, pattern: 1.5, click: 1 },
+  named:    { name: 1.5, fts: 1, symbol: 0.5, semantic: 1.5, gazetteer: 4, pattern: 0.5, click: 1.5 },
   module:   { name: 2, fts: 2, symbol: 0.2, semantic: 0.2, gazetteer: 0.5, pattern: 0.2, click: 0.5 },
-  nl:       { name: 1, fts: 1.5, symbol: 1, semantic: 2, gazetteer: 2.5, pattern: 0.5, click: 1.5 },
+  nl:       { name: 2, fts: 1.5, symbol: 1, semantic: 2.5, gazetteer: 2.5, pattern: 0.5, click: 1.5 },
 };
 const KIND_PRIOR: Record<Intent, Record<string, number>> = {
   name: {}, pattern: { theorem: 0.05 }, notation: { theorem: 0.05 }, named: { theorem: 0.05 }, module: {}, nl: { theorem: 0.04, def: 0.02, structure: 0.02, inductive: 0.02 },

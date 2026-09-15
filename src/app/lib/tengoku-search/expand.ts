@@ -9,7 +9,8 @@ export const WORD_TO_TOKENS: Record<string, string[]> = {
   addition: ["add"], add: ["add"], adding: ["add"], plus: ["add"], sum: ["add", "sum"], subtraction: ["sub"], minus: ["sub"], multiplication: ["mul"], times: ["mul"], product: ["mul", "prod"],
   division: ["div"], divided: ["div"], negation: ["neg"], negative: ["neg"], inverse: ["inv"], power: ["pow"], square: ["sq", "pow_two"], squared: ["sq"], root: ["sqrt"],
   nonnegative: ["nonneg"], positive: ["pos"], negativity: ["neg"], injective: ["injective", "inj"], surjective: ["surjective", "surj"], bijective: ["bijective"],
-  monotone: ["mono", "monotone"], continuous: ["continuous"], differentiable: ["differentiable"], derivative: ["deriv"], integral: ["integral"], limit: ["tendsto", "lim"],
+  monotone: ["mono", "monotone"], itself: ["self"], attains: ["exists"], attain: ["exists"], achieves: ["exists"], "one more": ["succ"], "plus one": ["succ"], next: ["succ"], twice: ["two", "mul"], double: ["two", "mul"], half: ["two", "div"],
+  unit: ["one"], nothing: ["zero"], vanishes: ["zero"], smaller: ["lt", "le"], bigger: ["gt", "ge"], nonzero: ["ne", "zero"], "square root": ["sqrt"], "absolute value": ["abs"], "finite set": ["finset"], continuous: ["continuous"], differentiable: ["differentiable"], derivative: ["deriv"], integral: ["integral"], limit: ["tendsto", "lim"],
   supremum: ["sup"], infimum: ["inf"], absolute: ["abs"], natural: ["nat"], naturals: ["nat"], integer: ["int"], integers: ["int"], rational: ["rat"], real: ["real"], reals: ["real"], complex: ["complex"],
   finite: ["finite", "fin"], cardinality: ["card"], length: ["length"], member: ["mem"], membership: ["mem"], complement: ["compl"], divides: ["dvd"], divisor: ["dvd"], divisible: ["dvd"],
   gcd: ["gcd"], lcm: ["lcm"], coprime: ["coprime"], modulo: ["mod", "emod"], remainder: ["mod", "emod"], cancellation: ["cancel"], cancel: ["cancel"], zero: ["zero"], one: ["one"], two: ["two"],
@@ -17,14 +18,14 @@ export const WORD_TO_TOKENS: Record<string, string[]> = {
   empty: ["empty"], range: ["range"], image: ["image"], preimage: ["preimage"], reverse: ["reverse"], append: ["append"], concatenate: ["append"], concatenation: ["append"], map: ["map"],
   prime: ["prime"], primes: ["prime"], even: ["even"], odd: ["odd"], factorial: ["factorial"], choose: ["choose"], binomial: ["choose", "add_pow"], exponential: ["exp"], logarithm: ["log"], log: ["log"],
   sine: ["sin"], cosine: ["cos"], tangent: ["tan"], pi: ["pi"], irrational: ["irrational"], determinant: ["det"], matrix: ["matrix"], unique: ["unique"], uniqueness: ["unique"], antisymmetric: ["antisymm"],
-  reflexive: ["refl"], transitive: ["trans"], symmetric: ["symm"], irreflexive: ["irrefl"], compact: ["compact"], minimum: ["min", "isminon"], maximum: ["max", "ismaxon"], bound: ["bound", "le"],
-  bounded: ["bounded"], equal: ["eq"], equals: ["eq"], less: ["lt", "le"], greater: ["gt", "ge"], "at most": ["le"], "at least": ["ge"], iff: ["iff"], implies: ["imp"], "if and only if": ["iff"],
+  reflexive: ["refl"], transitive: ["trans"], symmetric: ["symm"], irreflexive: ["irrefl"], compact: ["compact"], minimum: ["min"], maximum: ["max"], bound: ["bound", "le"],
+  bounded: ["bounded"], subtracting: ["sub"], subtract: ["sub"], equal: ["eq"], equals: ["eq"], less: ["lt", "le"], greater: ["gt", "ge"], "at most": ["le"], "at least": ["ge"], iff: ["iff"], implies: ["imp"], "if and only if": ["iff"],
   list: ["list"], lists: ["list"], set: ["set"], sets: ["set"], function: ["function"], polynomial: ["polynomial"], degree: ["degree"], ideal: ["ideal"], group: ["group"], ring: ["ring"], field: ["field"],
   measure: ["measure"], measurable: ["measurable"], probability: ["probability"], expectation: ["integral"], totient: ["totient"], infinitely: ["exists_infinite", "infinite"], infinite: ["infinite"],
 };
 /** english phrase or symbol → constants for the symbol channel. */
 export const WORD_TO_CONSTANTS: Record<string, string[]> = {
-  "+": ["HAdd.hAdd"], "-": ["HSub.hSub", "Neg.neg"], "*": ["HMul.hMul"], "/": ["HDiv.hDiv"], "^": ["HPow.hPow"], "=": ["Eq"], "≠": ["Ne"], "≤": ["LE.le"], "<": ["LT.lt"], "≥": ["GE.ge"], ">": ["GT.gt"],
+  "+": ["HAdd.hAdd"], "-": [], "*": ["HMul.hMul"], "/": ["HDiv.hDiv"], "^": ["HPow.hPow"], "=": ["Eq"], "≠": ["Ne"], "≤": ["LE.le"], "<": ["LT.lt"], "≥": ["GE.ge"], ">": ["GT.gt"],
   "∧": ["And"], "∨": ["Or"], "¬": ["Not"], "↔": ["Iff"], "∃": ["Exists"], "∈": ["Membership.mem"], "⊆": ["HasSubset.Subset"], "∪": ["Union.union"], "∩": ["Inter.inter"], "∑": ["Finset.sum"],
   "∏": ["Finset.prod"], "∘": ["Function.comp"], "∣": ["Dvd.dvd"], "√": ["Real.sqrt"], "π": ["Real.pi"], "ℕ": ["Nat"], "ℤ": ["Int"], "ℚ": ["Rat"], "ℝ": ["Real"], "ℂ": ["Complex"], "|": ["abs"], "!": ["Nat.factorial"],
   "square root": ["Real.sqrt"], sqrt: ["Real.sqrt"], "absolute value": ["abs"], sum: ["Finset.sum"], product: ["Finset.prod"], prime: ["Nat.Prime"], primes: ["Nat.Prime"], gcd: ["Nat.gcd"], lcm: ["Nat.lcm"],
@@ -35,6 +36,16 @@ export const WORD_TO_CONSTANTS: Record<string, string[]> = {
   remainder: ["HMod.hMod"], factorial: ["Nat.factorial"], choose: ["Nat.choose"], even: ["Even"], odd: ["Odd"], natural: ["Nat"], naturals: ["Nat"], integer: ["Int"], integers: ["Int"], real: ["Real"], reals: ["Real"],
   polynomial: ["Polynomial"], degree: ["Polynomial.degree"], measure: ["MeasureTheory.Measure"], totient: ["Nat.totient"], "power": ["HPow.hPow"], squared: ["HPow.hPow"], square: ["HPow.hPow"],
 };
+/** Notation in the query → the name tokens Mathlib uses for it. Order matters: the first matching alternative wins per position. */
+export const NOTATION_TO_TOKENS: [RegExp, string[]][] = [
+  [/\be\s*\^/g, ["exp"]], [/\^\s*2\b/g, ["sq"]], [/\^\s*3\b/g, ["cube"]], [/\^/g, ["pow"]], [/√/g, ["sqrt"]], [/\|[^|]+\|/g, ["abs"]], [/(≥\s*0\b|\b0\s*≤)/g, ["nonneg"]], [/(>\s*0\b|\b0\s*<)/g, ["pos"]],
+  [/(≤\s*0\b|\b0\s*≥)/g, ["nonpos"]], [/(<\s*0\b|\b0\s*>)/g, ["neg"]], [/π/g, ["pi"]], [/\bsin\b/g, ["sin"]], [/\bcos\b/g, ["cos"]], [/\btan\b/g, ["tan"]],
+  [/\blog\b/g, ["log"]], [/\bexp\b/g, ["exp"]], [/!/g, ["factorial"]], [/\b2\s*\*/g, ["two", "mul"]], [/\b0\b/g, ["zero"]], [/\b1\b/g, ["one"]], [/\b2\b/g, ["two"]], [/\b3\b/g, ["three"]], [/\b4\b/g, ["four"]], [/∑/g, ["sum"]], [/∏/g, ["prod"]], [/∘/g, ["comp"]], [/∣/g, ["dvd"]], [/⁻¹/g, ["inv"]],
+  [/\+/g, ["add"]], [/\*/g, ["mul"]], [/\//g, ["div"]], [/↔/g, ["iff"]], [/≠/g, ["ne"]], [/≤/g, ["le"]], [/</g, ["lt"]], [/≥/g, ["ge"]], [/>/g, ["gt"]], [/∪/g, ["union"]], [/∩/g, ["inter"]], [/⊆/g, ["subset"]],
+];
+const UNARY_MINUS = /(^|[(=<>≤≥,+*/])\s*-\s*[(?\w√|]/;
+const BINARY_MINUS = /[\w)|]\s*-\s*[(?\w√|]/;
+const SAME_OPERAND = /(\?\w+|\b[a-z]\b)\s*[-+*/]\s*\1(?![\w])/;
 const STOP = new Set(["the", "a", "an", "of", "is", "are", "for", "to", "in", "on", "with", "and", "or", "that", "this", "its", "any", "all", "every", "each", "by", "from", "as", "be", "than", "then", "there", "which", "what", "when", "does", "do", "if", "it", "number", "numbers", "theorem", "lemma", "definition", "def"]);
 
 export interface Expansion {
@@ -52,12 +63,23 @@ export function expandQuery(q: string): Expansion {
   for (const m of q.match(/[A-Za-z_][\w']*(\.[A-Za-z_][\w']*)+/g) || []) constants.add(m); // dotted Lean names, case kept
   for (const key of Object.keys(WORD_TO_CONSTANTS)) if (key.includes(" ") && lower.includes(key)) { phrases.push(key); for (const c of WORD_TO_CONSTANTS[key]) constants.add(c); }
   for (const key of Object.keys(WORD_TO_TOKENS)) if (key.includes(" ") && lower.includes(key)) { phrases.push(key); for (const t of WORD_TO_TOKENS[key]) tokens.add(t); }
-  const words = lower.replace(/[^\p{L}\p{N}\s.'_+*/^=<>≤≥≠→↔∀∃∑∏∫∘∣√π|!ℕℤℚℝℂ¬∧∨∈⊆∪∩-]/gu, " ").split(/\s+/).filter((w) => w && !STOP.has(w));
+  // Every notation character names a constant for the symbol channel.
+  for (const ch of lower) if (!/[a-z0-9\s]/.test(ch) && WORD_TO_CONSTANTS[ch]) for (const c of WORD_TO_CONSTANTS[ch]) constants.add(c);
+  // Notation says which Mathlib name pieces to look for: a^2 + b^2 → sq, add.
+  let stripped = lower;
+  for (const [re, toks] of NOTATION_TO_TOKENS) if (re.test(stripped)) { for (const tk of toks) tokens.add(tk); stripped = stripped.replace(re, " "); }
+  if (UNARY_MINUS.test(lower)) { tokens.add("neg"); constants.add("Neg.neg"); }
+  if (BINARY_MINUS.test(lower)) { tokens.add("sub"); constants.add("HSub.hSub"); }
+  if (SAME_OPERAND.test(lower)) tokens.add("self");
+  // A phrase that matched ("square root") consumes its words, so "square" alone does not also mean sq.
+  for (const ph of phrases) stripped = stripped.replace(ph, " ");
+  const words = stripped.replace(/[^\p{L}\p{N}\s.'_+*/^=<>≤≥≠→↔∀∃∑∏∫∘∣√π|!ℕℤℚℝℂ¬∧∨∈⊆∪∩-]/gu, " ").split(/\s+/).filter((w) => w && !STOP.has(w));
   for (const w of words) {
-    const base = w.replace(/'s$/, "");
+    const raw = w.replace(/'s$/, "");
+    // English inflections: limits → limit, subtracting → subtraction/sub, attains → attain.
+    const base = [raw, raw.replace(/s$/, ""), raw.replace(/ing$/, ""), raw.replace(/ing$/, "e"), raw.replace(/ed$/, ""), raw.replace(/es$/, "")].find((c) => WORD_TO_TOKENS[c] || WORD_TO_CONSTANTS[c]) ?? raw;
     for (const t of WORD_TO_TOKENS[base] || []) tokens.add(t);
     for (const c of WORD_TO_CONSTANTS[base] || []) constants.add(c);
-    for (const ch of base) if (WORD_TO_CONSTANTS[ch] && !/[a-z0-9]/.test(ch)) for (const c of WORD_TO_CONSTANTS[ch]) constants.add(c);
     if (/^[a-z]{3,}$/.test(base) && !WORD_TO_TOKENS[base]) tokens.add(base); // unknown word: try it as a token as-is
     for (const t of nameTokens(w)) if (t.length > 2) tokens.add(t);
   }

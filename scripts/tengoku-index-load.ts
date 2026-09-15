@@ -10,7 +10,7 @@ import path from "node:path";
 import readline from "node:readline";
 import { createHash } from "node:crypto";
 import { loadEnv } from "./tengoku-index/env";
-import { controlShard, dataShards, shardIndexFor, type Shard } from "../src/app/lib/tengoku-search/shards";
+import { controlShard, dataShards, findNames, shardIndexFor, type Shard } from "../src/app/lib/tengoku-search/shards";
 import { NAMED_THEOREMS } from "../src/app/lib/tengoku-search/intent";
 loadEnv();
 
@@ -21,6 +21,28 @@ if (!dir) { console.error("usage: tengoku:load <index dir> [--commit sha] [--kee
 const treeCommit = opt("--commit") || "unknown";
 const keep = args.includes("--keep");
 const BATCH = 150;
+// Named results Mathlib docstrings do not always spell out (plan §2, gazetteer: curated + docstrings, later clicks).
+const CURATED_GAZETTEER: Record<string, string[]> = {
+  "pigeonhole": ["Finset.exists_ne_map_eq_of_card_lt_of_maps_to", "Fintype.exists_ne_map_eq_of_card_lt", "Finset.exists_lt_card_fiber_of_mul_lt_card_of_maps_to"],
+  "cauchy schwarz": ["inner_mul_le_norm_mul_norm", "real_inner_mul_inner_self_le", "abs_inner_le_norm", "Finset.inner_mul_le_norm_mul_norm", "Finset.sum_mul_sq_le_sq_mul_sq"],
+  "fermat little": ["ZMod.pow_card_sub_one_eq_one", "Int.ModEq.pow_card_sub_one_eq_one", "ZMod.pow_card"],
+  "euler totient": ["Nat.ModEq.pow_totient", "ZMod.pow_totient"],
+  "infinitely many primes": ["Nat.exists_infinite_primes", "Nat.infinite_setOf_prime"],
+  "intermediate value": ["intermediate_value_Icc", "intermediate_value_Icc'", "intermediate_value_univ"],
+  "pythagorean identity": ["Real.sin_sq_add_cos_sq", "Real.cos_sq_add_sin_sq", "Complex.sin_sq_add_cos_sq"],
+  "bolzano weierstrass": ["tendsto_subseq_of_bounded", "tendsto_subseq_of_frequently_bounded"],
+  "zorn": ["zorn_le", "zorn_preorder", "zorn_subset"],
+  "chinese remainder": ["Nat.chineseRemainder", "Ideal.quotientInfRingEquivPiQuotient", "ZMod.chineseRemainder"],
+  "wilson": ["ZMod.wilsons_lemma", "Nat.prime_iff_fac_equiv_neg_one"],
+  "bezout": ["Nat.gcd_eq_gcd_ab", "Int.gcd_eq_gcd_ab", "Nat.exists_mul_emod_eq_gcd"],
+  "binomial theorem": ["add_pow", "Commute.add_pow", "Nat.add_pow"],
+  "irrational sqrt two": ["irrational_sqrt_two"],
+  "mean value": ["exists_deriv_eq_slope", "exists_ratio_deriv_eq_ratio_slope", "exists_hasDerivAt_eq_slope"],
+  "fundamental theorem": ["intervalIntegral.integral_eq_sub_of_hasDerivAt", "Complex.exists_root", "Nat.primeFactorsList_unique"],
+  "lagrange": ["Subgroup.card_subgroup_dvd_card", "Subgroup.card_dvd_of_le", "exists_deriv_eq_slope"],
+  "triangle inequality": ["abs_add", "norm_add_le", "dist_triangle", "abs_sub_le"],
+  "am gm": ["Real.geom_mean_le_arith_mean2_weighted", "Real.geom_mean_le_arith_mean_weighted", "Real.inner_le_nnorm_mul_nnorm"],
+};
 
 async function* lines(file: string) {
   if (!fs.existsSync(file)) return;
@@ -64,7 +86,7 @@ async function main() {
   for (const stmt of stmts(controlSql)) await control.sql(stmt);
   if (!keep) {
     await Promise.all(shards.map((s) => s.sql(`TRUNCATE decl_text, decl_embedding, decl`)));
-    await control.sql(`TRUNCATE symbol, gazetteer`);
+    await control.sql(`TRUNCATE symbol, gazetteer, name_token`);
     console.log("truncated");
   }
   const derived = new Map<string, Record<string, unknown>>();
@@ -73,12 +95,14 @@ async function main() {
 
   const writers = shards.map((s) => new ShardWriter(s));
   const gaz = new Map<string, { id: string; weight: number }[]>();
+  const ids = new Map<string, string>();
   let n = 0;
   const t0 = Date.now();
   for await (const d of lines(path.join(dir, "decls.jsonl"))) {
     const x = derived.get(d.name) || {};
     const library = libraryOf(d.module || "");
     const id = `${library}/${d.name}`;
+    ids.set(d.name, id);
     const w = writers[shardIndexFor(d.name, shards.length)];
     const contentHash = createHash("sha1").update(JSON.stringify([d.statement, d.docstring, d.kind, d.module])).digest("hex").slice(0, 16);
     const permalink = `https://github.com/competemath/tengoku/blob/${treeCommit}/${(d.module || "").replace(/\./g, "/")}.lean${d.line ? `#L${d.line}` : ""}`;
@@ -104,6 +128,16 @@ async function main() {
   for await (const sym of lines(path.join(dir, "symbols.jsonl"))) { batch.push([sym.name, sym.symbol, sym.gloss || "", sym.df || 0]); if (batch.length >= 300) await flushSym(); }
   await flushSym();
   console.log(`symbol: ${s} rows`);
+  let tk = 0;
+  let tbatch: unknown[][] = [];
+  const flushTok = async () => {
+    if (!tbatch.length) return;
+    await control.sql(`INSERT INTO name_token (token, df) VALUES ${tbatch.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(",")} ON CONFLICT (token) DO UPDATE SET df = EXCLUDED.df`, tbatch.flat());
+    tk += tbatch.length; tbatch = [];
+  };
+  for await (const row of lines(path.join(dir, "tokens.jsonl"))) { tbatch.push([row.token, row.df || 0]); if (tbatch.length >= 500) await flushTok(); }
+  await flushTok();
+  console.log(`name_token: ${tk} rows`);
 
   let g = 0;
   for (const [key, list] of gaz) {
@@ -112,9 +146,20 @@ async function main() {
     g += top.length;
   }
   console.log(`gazetteer: ${g} rows from docstrings across ${gaz.size} keys`);
+  let cur = 0;
+  for (const [key, names] of Object.entries(CURATED_GAZETTEER)) {
+    const present = await findNames(names, shards);
+    const rows = names.filter((nm) => present.includes(nm));
+    if (!rows.length) continue;
+    // A curated entry outranks a docstring mention; earlier names in the list rank higher.
+    await control.sql(`INSERT INTO gazetteer (key, decl_id, weight, source) VALUES ${rows.map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3}, 'curated')`).join(",")} ON CONFLICT (key, decl_id) DO UPDATE SET weight = EXCLUDED.weight, source = 'curated'`,
+      rows.flatMap((nm, i) => [key, `${ids.get(nm)}`, 1000 - i]));
+    cur += rows.length;
+  }
+  console.log(`gazetteer: ${cur} curated rows`);
 
   await Promise.all(writers.map((w, i) => w.shard.sql(`INSERT INTO index_version (id, tree_commit, decl_count, shard_index, shard_count) VALUES (1, $1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET tree_commit = EXCLUDED.tree_commit, decl_count = EXCLUDED.decl_count, shard_index = EXCLUDED.shard_index, shard_count = EXCLUDED.shard_count, loaded_at = now()`, [treeCommit, w.n, i, shards.length])));
-  await control.sql(`INSERT INTO index_version (id, tree_commit, decl_count, shard_count, extractor) VALUES (1, $1, $2, $3, 'tengoku-extract') ON CONFLICT (id) DO UPDATE SET tree_commit = EXCLUDED.tree_commit, decl_count = EXCLUDED.decl_count, shard_count = EXCLUDED.shard_count, loaded_at = now()`, [treeCommit, n, shards.length]);
+  await control.sql(`INSERT INTO index_control (id, tree_commit, decl_count, shard_count, extractor) VALUES (1, $1, $2, $3, 'tengoku-extract') ON CONFLICT (id) DO UPDATE SET tree_commit = EXCLUDED.tree_commit, decl_count = EXCLUDED.decl_count, shard_count = EXCLUDED.shard_count, loaded_at = now()`, [treeCommit, n, shards.length]);
   const sizes = await Promise.all(shards.map(async (sh) => `${sh.key.replace("_DATABASE_URL", "")}=${(Number((await sh.sql(`SELECT pg_database_size(current_database())::bigint AS b`))[0].b) / 1048576).toFixed(0)}MB`));
   console.log(`index at ${treeCommit}: ${n} declarations over ${shards.length} shards; sizes ${sizes.join(" ")}`);
 }

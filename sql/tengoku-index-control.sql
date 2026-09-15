@@ -1,6 +1,7 @@
 -- Tengoku search index, CONTROL shard: the small shared tables.
-CREATE TABLE IF NOT EXISTS index_version (id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1), tree_commit TEXT NOT NULL, cache_commit TEXT, built_at TIMESTAMPTZ NOT NULL DEFAULT now(), loaded_at TIMESTAMPTZ NOT NULL DEFAULT now(), decl_count INTEGER NOT NULL DEFAULT 0, shard_count INTEGER NOT NULL DEFAULT 1, extractor TEXT);
+CREATE TABLE IF NOT EXISTS index_control (id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1), tree_commit TEXT NOT NULL, cache_commit TEXT, built_at TIMESTAMPTZ NOT NULL DEFAULT now(), loaded_at TIMESTAMPTZ NOT NULL DEFAULT now(), decl_count INTEGER NOT NULL DEFAULT 0, shard_count INTEGER NOT NULL DEFAULT 1, extractor TEXT);
 CREATE TABLE IF NOT EXISTS symbol (name TEXT PRIMARY KEY, kind TEXT, arity INTEGER, symbol TEXT, gloss TEXT NOT NULL DEFAULT '', aliases TEXT[] NOT NULL DEFAULT '{}', df INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS name_token (token TEXT PRIMARY KEY, df INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS name_lm (prev TEXT NOT NULL, next TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY (prev, next));
 CREATE TABLE IF NOT EXISTS translation (english TEXT NOT NULL, token TEXT NOT NULL, p REAL NOT NULL, PRIMARY KEY (english, token));
 CREATE TABLE IF NOT EXISTS lexicon (term TEXT NOT NULL, expansion TEXT NOT NULL, direction TEXT NOT NULL DEFAULT 'both', source TEXT NOT NULL DEFAULT 'curated', PRIMARY KEY (term, expansion));

@@ -23,10 +23,19 @@ export async function nameChannel(c: Ctx): Promise<ChannelResult> {
   }
   const toks = c.expansion.tokens.filter((t) => t.length > 1);
   if (!toks.length) return { channel: "name", hits: [] };
+  // Rare tokens count more ("comm" over "nat"); a name made only of query tokens is the strongest signal Mathlib naming gives.
+  const [meta, dfs] = await Promise.all([
+    c.control.sql(`SELECT decl_count FROM index_control WHERE id = 1`).catch(() => [] as Record<string, unknown>[]),
+    c.control.sql(`SELECT token, df FROM name_token WHERE token = ANY($1::text[])`, [toks]).catch(() => [] as Record<string, unknown>[]),
+  ]);
+  const n = Number(meta[0]?.decl_count) || 350000;
+  const df = new Map(dfs.map((r) => [r.token as string, Number(r.df)]));
+  const weights = toks.map((tk) => Math.max(0.3, Math.log((n + 1) / ((df.get(tk) ?? Math.round(n / 50)) + 1)) / 3));
   const rows = await fanout(c.shards,
-    `SELECT ${DECL_COLS}, cardinality(ARRAY(SELECT unnest(d.name_tokens) INTERSECT SELECT unnest($1::text[])))::float - cardinality(d.name_tokens) / 100.0 AS score
+    `SELECT ${DECL_COLS}, (SELECT coalesce(sum(u.w), 0) FROM unnest($1::text[], $2::float8[]) AS u(tk, w) WHERE d.name_tokens @> ARRAY[u.tk])
+       + (CASE WHEN d.name_tokens <@ $1::text[] THEN 2.0 ELSE 0 END) - cardinality(d.name_tokens) / 100.0 AS score
      FROM decl d WHERE d.name_tokens && $1::text[]
-     ORDER BY score DESC, d.pagerank DESC LIMIT $2`, [toks, c.limit]);
+     ORDER BY score DESC, d.pagerank DESC LIMIT $3`, [toks, weights, c.limit]);
   return { channel: "name", hits: byScore(rows, c.limit) };
 }
 
@@ -46,15 +55,17 @@ export async function symbolChannel(c: Ctx): Promise<ChannelResult> {
   const consts = c.expansion.constants;
   if (!consts.length) return { channel: "symbol", hits: [] };
   const [meta, dfs] = await Promise.all([
-    c.control.sql(`SELECT decl_count FROM index_version WHERE id = 1`),
+    c.control.sql(`SELECT decl_count FROM index_control WHERE id = 1`),
     c.control.sql(`SELECT name, df FROM symbol WHERE name = ANY($1::text[])`, [consts]),
   ]);
   const n = Number(meta[0]?.decl_count) || 300000;
   const df = new Map(dfs.map((r) => [r.name as string, Number(r.df)]));
   const weights = consts.map((k) => Math.log((n + 1) / ((df.get(k) ?? 0) + 1)));
+  // Notation and patterns name every constant that must occur; English names some that may.
+  const op = (c.intent === "notation" || c.intent === "pattern") && consts.length > 1 ? "@>" : "&&";
   const rows = await fanout(c.shards,
     `SELECT ${DECL_COLS}, (SELECT coalesce(sum(u.w), 0) FROM unnest($1::text[], $2::float8[]) AS u(k, w) WHERE d.constants_used @> ARRAY[u.k]) - cardinality(d.constants_used) / 1000.0 AS score
-     FROM decl d WHERE d.constants_used && $1::text[]
+     FROM decl d WHERE d.constants_used ${op} $1::text[]
      ORDER BY score DESC, d.pagerank DESC LIMIT $3`, [consts, weights, c.limit]);
   return { channel: "symbol", hits: byScore(rows, c.limit) };
 }

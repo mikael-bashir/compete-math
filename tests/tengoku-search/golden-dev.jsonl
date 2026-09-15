@@ -43,7 +43,7 @@
 {"q": "a * b = b * a", "intent": "notation", "expect": ["mul_comm", "Nat.mul_comm"]}
 {"q": "2 * a = a + a", "intent": "notation", "expect": ["two_mul"]}
 {"q": "pigeonhole principle", "intent": "named", "expect": ["Finset.exists_ne_map_eq_of_card_lt_of_maps_to", "Fintype.exists_ne_map_eq_of_card_lt"]}
-{"q": "Cauchy-Schwarz inequality", "intent": "named", "expect": ["inner_mul_le_norm_mul_norm", "abs_inner_le_norm", "real_inner_mul_inner_self_le"]}
+{"q": "Cauchy-Schwarz inequality", "intent": "named", "expect": ["inner_mul_le_norm_mul_norm", "abs_inner_le_norm", "real_inner_mul_inner_self_le", "Finset.inner_mul_le_norm_mul_norm", "Finset.sum_mul_sq_le_sq_mul_sq", "norm_inner_le_norm"]}
 {"q": "Fermat's little theorem", "intent": "named", "expect": ["ZMod.pow_card_sub_one_eq_one", "Int.ModEq.pow_card_sub_one_eq_one"]}
 {"q": "Euler's totient theorem", "intent": "named", "expect": ["Nat.ModEq.pow_totient", "ZMod.pow_totient"]}
 {"q": "there are infinitely many primes", "intent": "named", "expect": ["Nat.exists_infinite_primes", "Nat.infinite_setOf_prime"]}
@@ -55,8 +55,8 @@
 {"q": "absolute value is nonnegative", "intent": "nl", "expect": ["abs_nonneg"]}
 {"q": "square of a real number is nonnegative", "intent": "nl", "expect": ["sq_nonneg", "mul_self_nonneg", "pow_two_nonneg"]}
 {"q": "every prime is at least two", "intent": "nl", "expect": ["Nat.Prime.two_le"]}
-{"q": "derivative of a sum", "intent": "nl", "expect": ["deriv_add", "HasDerivAt.add"]}
-{"q": "integral of a sum", "intent": "nl", "expect": ["MeasureTheory.integral_add", "intervalIntegral.integral_add"]}
+{"q": "derivative of a sum", "intent": "nl", "expect": ["deriv_add", "HasDerivAt.add", "deriv_sum", "deriv_fun_sum", "HasDerivAt.sum"]}
+{"q": "integral of a sum", "intent": "nl", "expect": ["MeasureTheory.integral_add", "intervalIntegral.integral_add", "MeasureTheory.integral_finset_sum", "intervalIntegral.integral_finset_sum"]}
 {"q": "reverse a list twice", "intent": "nl", "expect": ["List.reverse_reverse"]}
 {"q": "length of two lists appended", "intent": "nl", "expect": ["List.length_append"]}
 {"q": "map of a map on lists", "intent": "nl", "expect": ["List.map_map"]}

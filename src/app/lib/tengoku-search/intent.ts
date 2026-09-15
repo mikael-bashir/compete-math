@@ -6,9 +6,9 @@ const OPERATORS = /[=≤≥<>→↔∀∃∑∏∫∘∣√^+*\/|¬∧∨∈∉�
 const HOLE = /\?[A-Za-z_]\w*|(^|[\s(])_(?=[\s)]|$)/;
 const LEAN_IDENT = /^[A-Za-z_][\w']*(\.[A-Za-z_][\w']*)*$/;
 export const NAMED_THEOREMS: [RegExp, string][] = [
-  [/pigeon\s*hole/i, "pigeonhole"], [/cauchy[\s–-]*schwarz/i, "cauchy schwarz"], [/fermat.{0,12}little/i, "fermat little"],
-  [/euler.{0,12}(totient|theorem)/i, "euler totient"], [/euclid|infinitely many primes/i, "infinitely many primes"],
-  [/intermediate value/i, "intermediate value"], [/pythagor|sin.{0,6}squared.{0,12}cos/i, "pythagorean identity"],
+  [/pigeon\s*-?\s*hole/i, "pigeonhole"], [/cauchy[\s–-]*schwarz/i, "cauchy schwarz"], [/fermat.{0,12}little/i, "fermat little"],
+  [/euler.{0,12}(totient|theorem)/i, "euler totient"], [/euclid|infinitely many primes|infinitude of (the )?primes|primes (is|are) infinite|set of primes is infinite|infinite.{0,12}primes/i, "infinitely many primes"],
+  [/intermediate value/i, "intermediate value"], [/pythagor|sin.{0,6}squared.{0,12}cos|sin\s*\^\s*2.{0,8}cos\s*\^\s*2/i, "pythagorean identity"],
   [/bolzano|weierstrass/i, "bolzano weierstrass"], [/rouch[eé]/i, "rouche"], [/zorn/i, "zorn"], [/chinese remainder/i, "chinese remainder"],
   [/wilson/i, "wilson"], [/b[eé]zout/i, "bezout"], [/binomial theorem/i, "binomial theorem"], [/irrational.{0,20}(sqrt|root).{0,6}(2|two)|sqrt.{0,6}(2|two).{0,20}irrational/i, "irrational sqrt two"],
   [/mean value theorem/i, "mean value"], [/fundamental theorem of (calculus|arithmetic|algebra)/i, "fundamental theorem"], [/lagrange.{0,10}theorem/i, "lagrange"],
