@@ -90,7 +90,7 @@ Sandbox: `competemath/tengoku-sandbox` (public; merge queue needs public or Ente
 | hand edit of a generated module (#12) | fail `classify` (derived); as a promotion-class PR: ejected by the queue | gate pass (bot identity = tester); queued; **ejected** by the regeneration check, comment names the file |
 | promotion by the bot (#17) | class `promotion`; queue builds the library and diffs regeneration; merge | **merged** on the third attempt (two gate gaps and one merge-group gap fixed on the way) |
 | tooling PRs #13–#21 | merge through the queue | all merged via the queue; each tooling-only group passes in ~3 min |
-| attested cache, `TENGOKU_VERIFY=require` | unattested part refused; attested part accepted; tampered part refused | refusal of an unattested part verified locally (warn → warning, require → REFUSED); the accept/tamper half is blocked: the sandbox build's publish step gets HTTP 403 creating a release from a `workflow_dispatch` run while push-triggered probes with the same scopes succeed — under investigation |
+| attested cache, `TENGOKU_VERIFY=require` | unattested part refused; attested part accepted; tampered part refused | all three: the library's current (unattested) part → REFUSED in require mode, warning in warn mode; the sandbox's attested `cache-20260915T1930Z` part → `attestations verified`; the same part with one byte appended → REFUSED (warn mode only warns, which is why the default flips to require once every published cache is attested) |
 
 What the sandbox caught before it reached the library:
 
