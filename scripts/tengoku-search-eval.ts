@@ -1,8 +1,10 @@
 // Golden-set evaluation of the search index (tests/tengoku-search/README.md).
-//   TENGOKU_INDEX_DATABASE_URL=… pnpm tengoku:eval [tests/tengoku-search/golden-dev.jsonl] [--min-hit10 0.7] [--verbose]
+//   pnpm tengoku:eval [tests/tengoku-search/golden-dev.jsonl] [--min-hit10 0.7] [--verbose]
 import fs from "node:fs";
 import { searchIndex } from "../src/app/lib/tengoku-search/search";
-import { indexSql } from "../src/app/lib/tengoku-search/db";
+import { findNames } from "../src/app/lib/tengoku-search/shards";
+import { loadEnv } from "./tengoku-index/env";
+loadEnv();
 
 const args = process.argv.slice(2);
 const file = args.find((a) => !a.startsWith("--")) || "tests/tengoku-search/golden-dev.jsonl";
@@ -11,15 +13,14 @@ const verbose = args.includes("--verbose");
 
 async function main() {
   const golden = fs.readFileSync(file, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { q: string; intent: string; expect: string[] });
-  const sql = indexSql();
   let hit1 = 0, hit10 = 0, mrr = 0, evaluated = 0;
   const byIntent: Record<string, { n: number; hit10: number }> = {};
   const missing: string[] = [];
   const misses: string[] = [];
   for (const g of golden) {
-    const present = (await sql(`SELECT name FROM decl WHERE name = ANY($1::text[])`, [g.expect])).map((r) => r.name as string);
+    const present = await findNames(g.expect);
     if (!present.length) { missing.push(`${g.q} → ${g.expect.join(" | ")}`); continue; }
-    const r = await searchIndex(g.q, { sql, limit: 10 });
+    const r = await searchIndex(g.q, { limit: 10 });
     const rank = r.results.findIndex((h) => present.includes(h.name));
     evaluated++;
     const bi = (byIntent[g.intent] ||= { n: 0, hit10: 0 }); bi.n++;

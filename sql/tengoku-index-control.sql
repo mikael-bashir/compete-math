@@ -1,0 +1,10 @@
+-- Tengoku search index, CONTROL shard: the small shared tables.
+CREATE TABLE IF NOT EXISTS index_version (id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1), tree_commit TEXT NOT NULL, cache_commit TEXT, built_at TIMESTAMPTZ NOT NULL DEFAULT now(), loaded_at TIMESTAMPTZ NOT NULL DEFAULT now(), decl_count INTEGER NOT NULL DEFAULT 0, shard_count INTEGER NOT NULL DEFAULT 1, extractor TEXT);
+CREATE TABLE IF NOT EXISTS symbol (name TEXT PRIMARY KEY, kind TEXT, arity INTEGER, symbol TEXT, gloss TEXT NOT NULL DEFAULT '', aliases TEXT[] NOT NULL DEFAULT '{}', df INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS name_lm (prev TEXT NOT NULL, next TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY (prev, next));
+CREATE TABLE IF NOT EXISTS translation (english TEXT NOT NULL, token TEXT NOT NULL, p REAL NOT NULL, PRIMARY KEY (english, token));
+CREATE TABLE IF NOT EXISTS lexicon (term TEXT NOT NULL, expansion TEXT NOT NULL, direction TEXT NOT NULL DEFAULT 'both', source TEXT NOT NULL DEFAULT 'curated', PRIMARY KEY (term, expansion));
+CREATE TABLE IF NOT EXISTS gazetteer (key TEXT NOT NULL, decl_id TEXT NOT NULL, weight REAL NOT NULL DEFAULT 1, source TEXT NOT NULL DEFAULT 'curated', PRIMARY KEY (key, decl_id));
+CREATE TABLE IF NOT EXISTS query_log (id BIGSERIAL PRIMARY KEY, at TIMESTAMPTZ NOT NULL DEFAULT now(), session TEXT, raw TEXT NOT NULL, normalised TEXT NOT NULL, intent TEXT, result_count INTEGER, latency_ms INTEGER);
+CREATE TABLE IF NOT EXISTS impression (query_id BIGINT NOT NULL REFERENCES query_log(id) ON DELETE CASCADE, decl_id TEXT NOT NULL, rank INTEGER NOT NULL, channels TEXT[] NOT NULL DEFAULT '{}', PRIMARY KEY (query_id, decl_id));
+CREATE TABLE IF NOT EXISTS click (query_id BIGINT NOT NULL REFERENCES query_log(id) ON DELETE CASCADE, decl_id TEXT NOT NULL, at TIMESTAMPTZ NOT NULL DEFAULT now(), dwell_ms INTEGER, PRIMARY KEY (query_id, decl_id));

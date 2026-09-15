@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { smartSearchTengokuEntries } from "@/app/lib/data/tengoku-semantic-search";
-import { indexConfigured } from "@/app/lib/tengoku-search/db";
+import { indexConfigured } from "@/app/lib/tengoku-search/shards";
 import { searchIndex } from "@/app/lib/tengoku-search/search";
 import { createHash } from "node:crypto";
 

@@ -1,119 +1,120 @@
-// Load an extracted + derived index directory into the search database.
-//   TENGOKU_INDEX_DATABASE_URL=postgres://… pnpm tengoku:load <index dir> [--commit <tree sha>] [--library <name>]
-// Reads decls.jsonl, deps.jsonl, derived.jsonl, symbols.jsonl (tengoku:
-// lake exe tengoku-extract, then scripts/derive.py). Upserts by id, batched.
+// Load an extracted + derived index directory into the angel shards.
+//   pnpm tengoku:load <index dir> [--commit <tree sha>] [--keep]
+// Reads decls.jsonl, derived.jsonl, symbols.jsonl (tree: lake exe
+// tengoku-extract, then scripts/derive.py). Routes each declaration to its
+// shard by name hash, truncates first (the index is derived; a reload is the
+// unit of change), and seeds the gazetteer from docstrings that name their
+// theorem. Never prints a connection string.
 import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { createHash } from "node:crypto";
-import { Pool } from "pg";
+import { loadEnv } from "./tengoku-index/env";
+import { controlShard, dataShards, shardIndexFor, type Shard } from "../src/app/lib/tengoku-search/shards";
+import { NAMED_THEOREMS } from "../src/app/lib/tengoku-search/intent";
+loadEnv();
 
 const args = process.argv.slice(2);
 const dir: string = args.find((a) => !a.startsWith("--")) ?? "";
 const opt = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
-if (!dir) { console.error("usage: tengoku-index-load <index dir> [--commit sha] [--library name]"); process.exit(2); }
-const url = process.env.TENGOKU_INDEX_DATABASE_URL;
-if (!url) { console.error("TENGOKU_INDEX_DATABASE_URL is not set"); process.exit(2); }
+if (!dir) { console.error("usage: tengoku:load <index dir> [--commit sha] [--keep]"); process.exit(2); }
 const treeCommit = opt("--commit") || "unknown";
-const defaultLibrary = opt("--library") || "tengoku";
+const keep = args.includes("--keep");
+const BATCH = 150;
 
 async function* lines(file: string) {
   if (!fs.existsSync(file)) return;
   const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity });
   for await (const l of rl) if (l.trim()) yield JSON.parse(l);
 }
-
 function libraryOf(module: string): string {
-  // Tengoku.<Library>.… for translated libraries; the seeded root is 'mathlib'.
   const parts = module.split(".");
-  return parts[1] && /^[A-Z][a-z]+[A-Z]/.test(parts[1]) ? parts[1].replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase() : defaultLibrary;
+  return parts[1] && /^[A-Z][a-z]+[A-Z]/.test(parts[1]) ? parts[1].replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase() : "mathlib";
+}
+const DECL_COLS = ["id","name","namespace","name_tokens","kind","library","module","line","permalink","statement","type_hash","binders","arity","universe_params","conclusion_head","hypothesis_heads","constants_used","notation_used","docstring","is_simp","is_instance","deprecated_for","proof_depth","value_consts","content_hash","pagerank","in_degree","out_degree","index_commit"];
+
+class ShardWriter {
+  decl: unknown[][] = []; text: unknown[][] = []; n = 0;
+  constructor(public shard: Shard) {}
+  async flush() {
+    if (this.decl.length) {
+      const vals = this.decl.flat();
+      const rows = this.decl.map((r, i) => `(${r.map((_, j) => `$${i * DECL_COLS.length + j + 1}`).join(",")})`).join(",");
+      await this.shard.sql(`INSERT INTO decl (${DECL_COLS.join(",")}) VALUES ${rows} ON CONFLICT (id) DO UPDATE SET ${DECL_COLS.filter((c) => c !== "id").map((c) => `${c} = EXCLUDED.${c}`).join(", ")}`, vals);
+      this.n += this.decl.length; this.decl = [];
+    }
+    if (this.text.length) {
+      const W = 7;
+      const rows = this.text.map((_, i) => `($${i * W + 1}, $${i * W + 2}, $${i * W + 3}, $${i * W + 4}::text[], setweight(to_tsvector('english', $${i * W + 5}), 'A') || setweight(to_tsvector('english', $${i * W + 6}), 'B') || setweight(to_tsvector('english', $${i * W + 3} || ' ' || array_to_string($${i * W + 4}::text[], ' ')), 'C') || setweight(to_tsvector('simple', $${i * W + 7}), 'D'))`).join(",");
+      await this.shard.sql(`INSERT INTO decl_text (id, name_gloss, statement_gloss, topic_labels, search_text) VALUES ${rows} ON CONFLICT (id) DO UPDATE SET name_gloss = EXCLUDED.name_gloss, statement_gloss = EXCLUDED.statement_gloss, topic_labels = EXCLUDED.topic_labels, search_text = EXCLUDED.search_text`, this.text.flat());
+      this.text = [];
+    }
+  }
 }
 
 async function main() {
-  const pool = new Pool({ connectionString: url, max: 4 });
-  const sql = fs.readFileSync(path.join(process.cwd(), "sql", "tengoku-index.sql"), "utf8");
-  await pool.query(sql);
+  const shards = dataShards();
+  const control = controlShard();
+  if (!shards.length) { console.error("no index shards configured (ANGEL10..16 or TENGOKU_INDEX_SHARDS)"); process.exit(2); }
+  console.log(`${shards.length} data shards: ${shards.map((s) => s.key.replace("_DATABASE_URL", "")).join(", ")}; control ${control.key.replace("_DATABASE_URL", "")}`);
+  const dataSql = fs.readFileSync(path.join("sql", "tengoku-index-data.sql"), "utf8");
+  const controlSql = fs.readFileSync(path.join("sql", "tengoku-index-control.sql"), "utf8");
+  for (const s of shards) for (const stmt of dataSql.split(";").map((x) => x.trim()).filter(Boolean)) await s.sql(stmt);
+  for (const stmt of controlSql.split(";").map((x) => x.trim()).filter(Boolean)) await control.sql(stmt);
+  if (!keep) {
+    await Promise.all(shards.map((s) => s.sql(`TRUNCATE decl_text, decl_embedding, decl`)));
+    await control.sql(`TRUNCATE symbol, gazetteer`);
+    console.log("truncated");
+  }
   const derived = new Map<string, Record<string, unknown>>();
   for await (const d of lines(path.join(dir, "derived.jsonl"))) derived.set(d.name as string, d);
+  console.log(`derived rows: ${derived.size}`);
+
+  const writers = shards.map((s) => new ShardWriter(s));
+  const gaz = new Map<string, { id: string; weight: number }[]>();
   let n = 0;
-  let batch: unknown[][] = [];
-  const flush = async () => {
-    if (!batch.length) return;
-    const cols = ["id","name","namespace","name_tokens","kind","library","module","line","permalink","statement","type_hash","binders","arity","universe_params","conclusion_head","hypothesis_heads","constants_used","notation_used","docstring","is_simp","is_instance","deprecated_for","proof_depth","value_consts","content_hash","pagerank","in_degree","out_degree","index_commit"];
-    const values: unknown[] = [];
-    const rows = batch.map((r, i) => `(${r.map((_, j) => `$${i * cols.length + j + 1}`).join(",")})`).join(",");
-    for (const r of batch) values.push(...r);
-    await pool.query(
-      `INSERT INTO decl (${cols.join(",")}) VALUES ${rows}
-       ON CONFLICT (id) DO UPDATE SET ${cols.filter((c) => c !== "id").map((c) => `${c} = EXCLUDED.${c}`).join(", ")}, updated_at = now()`,
-      values,
-    );
-    batch = [];
-  };
+  const t0 = Date.now();
   for await (const d of lines(path.join(dir, "decls.jsonl"))) {
     const x = derived.get(d.name) || {};
     const library = libraryOf(d.module || "");
     const id = `${library}/${d.name}`;
+    const w = writers[shardIndexFor(d.name, shards.length)];
     const contentHash = createHash("sha1").update(JSON.stringify([d.statement, d.docstring, d.kind, d.module])).digest("hex").slice(0, 16);
     const permalink = `https://github.com/competemath/tengoku/blob/${treeCommit}/${(d.module || "").replace(/\./g, "/")}.lean${d.line ? `#L${d.line}` : ""}`;
-    batch.push([
-      id, d.name, d.name.includes(".") ? d.name.slice(0, d.name.lastIndexOf(".")) : "", x.name_tokens || [], d.kind, library, d.module || "", d.line ?? null, permalink,
+    w.decl.push([id, d.name, d.name.includes(".") ? d.name.slice(0, d.name.lastIndexOf(".")) : "", x.name_tokens || [], d.kind, library, d.module || "", d.line ?? null, permalink,
       d.statement || "", x.type_hash || null, JSON.stringify(d.binders || []), (d.binders || []).length, d.universe_params || [], d.conclusion_head || null,
       d.hypothesis_heads || [], d.constants_type || [], x.notation_used || [], d.docstring || null, !!d.is_simp, !!d.is_instance, d.deprecated_for || null,
-      d.proof_depth ?? null, d.value_consts ?? null, contentHash, x.pagerank || 0, x.in_degree || 0, x.out_degree || 0, treeCommit,
-    ]);
-    if (batch.length >= 200) await flush();
-    n++;
-    if (n % 20000 === 0) console.log(`  ${n} declarations`);
+      d.proof_depth ?? null, d.value_consts ?? null, contentHash, x.pagerank || 0, x.in_degree || 0, x.out_degree || 0, treeCommit]);
+    w.text.push([id, x.name_gloss || "", x.statement_gloss || "", x.topics || [], `${d.name} ${((x.name_tokens as string[]) || []).join(" ")} ${x.name_gloss || ""}`, d.docstring || "", (d.module || "").replace(/\./g, " ")]);
+    if (d.docstring) for (const [re, key] of NAMED_THEOREMS) if (re.test(d.docstring)) gaz.set(key, [...(gaz.get(key) || []), { id, weight: 1 + Number(x.pagerank || 0) * 1e4 }]);
+    if (w.decl.length >= BATCH) await w.flush();
+    if (++n % 20000 === 0) console.log(`  ${n} declarations (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
   }
-  await flush();
-  console.log(`decl: ${n} rows`);
-
-  // Derived text + weighted full-text vector (A name/gloss, B docstring, C statement gloss/topics, D module).
-  let m = 0;
-  for await (const d of lines(path.join(dir, "decls.jsonl"))) {
-    const x = derived.get(d.name) || {};
-    const id = `${libraryOf(d.module || "")}/${d.name}`;
-    await pool.query(
-      `INSERT INTO decl_text (id, name_gloss, statement_gloss, topic_labels, search_text)
-       VALUES ($1, $2, $3, $4,
-         setweight(to_tsvector('english', $5), 'A') || setweight(to_tsvector('english', coalesce($6, '')), 'B') ||
-         setweight(to_tsvector('english', $3 || ' ' || array_to_string($4, ' ')), 'C') || setweight(to_tsvector('simple', $7), 'D'))
-       ON CONFLICT (id) DO UPDATE SET name_gloss = EXCLUDED.name_gloss, statement_gloss = EXCLUDED.statement_gloss, topic_labels = EXCLUDED.topic_labels, search_text = EXCLUDED.search_text`,
-      [id, x.name_gloss || "", x.statement_gloss || "", x.topics || [], `${d.name} ${(x.name_tokens as string[] || []).join(" ")} ${x.name_gloss || ""}`, d.docstring, (d.module || "").replace(/\./g, " ")],
-    );
-    if (++m % 20000 === 0) console.log(`  ${m} text rows`);
-  }
-  console.log(`decl_text: ${m} rows`);
+  await Promise.all(writers.map((w) => w.flush()));
+  console.log(`decl + decl_text: ${n} rows in ${((Date.now() - t0) / 1000).toFixed(0)}s; per shard: ${writers.map((w) => w.n).join("/")}`);
 
   let s = 0;
-  for await (const sym of lines(path.join(dir, "symbols.jsonl"))) {
-    await pool.query(`INSERT INTO symbol (name, symbol, gloss, df) VALUES ($1, $2, $3, $4) ON CONFLICT (name) DO UPDATE SET symbol = EXCLUDED.symbol, gloss = EXCLUDED.gloss, df = EXCLUDED.df`, [sym.name, sym.symbol, sym.gloss || "", sym.df || 0]);
-    s++;
-  }
+  let batch: unknown[][] = [];
+  const flushSym = async () => {
+    if (!batch.length) return;
+    await control.sql(`INSERT INTO symbol (name, symbol, gloss, df) VALUES ${batch.map((_, i) => `($${i * 4 + 1}, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4})`).join(",")} ON CONFLICT (name) DO UPDATE SET symbol = EXCLUDED.symbol, gloss = EXCLUDED.gloss, df = EXCLUDED.df`, batch.flat());
+    s += batch.length; batch = [];
+  };
+  for await (const sym of lines(path.join(dir, "symbols.jsonl"))) { batch.push([sym.name, sym.symbol, sym.gloss || "", sym.df || 0]); if (batch.length >= 300) await flushSym(); }
+  await flushSym();
   console.log(`symbol: ${s} rows`);
 
-  let e = 0;
-  let edges: string[][] = [];
-  const flushEdges = async () => {
-    if (!edges.length) return;
-    const values = edges.flat();
-    await pool.query(`INSERT INTO dep_edge (src, dst) VALUES ${edges.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(",")} ON CONFLICT DO NOTHING`, values);
-    e += edges.length; edges = [];
-  };
-  const ids = new Map<string, string>();
-  for await (const d of lines(path.join(dir, "decls.jsonl"))) ids.set(d.name, `${libraryOf(d.module || "")}/${d.name}`);
-  for await (const dep of lines(path.join(dir, "deps.jsonl"))) {
-    const src = ids.get(dep.from);
-    if (!src) continue;
-    for (const t of dep.to as string[]) { const dst = ids.get(t); if (dst && dst !== src) edges.push([src, dst]); }
-    if (edges.length >= 500) await flushEdges();
+  let g = 0;
+  for (const [key, list] of gaz) {
+    const top = list.sort((a, b) => b.weight - a.weight).slice(0, 25);
+    await control.sql(`INSERT INTO gazetteer (key, decl_id, weight, source) VALUES ${top.map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3}, 'docstring')`).join(",")} ON CONFLICT (key, decl_id) DO UPDATE SET weight = EXCLUDED.weight`, top.flatMap((e) => [key, e.id, e.weight]));
+    g += top.length;
   }
-  await flushEdges();
-  console.log(`dep_edge: ${e} rows`);
+  console.log(`gazetteer: ${g} rows from docstrings across ${gaz.size} keys`);
 
-  await pool.query(`INSERT INTO index_version (id, tree_commit, decl_count, extractor) VALUES (1, $1, $2, 'tengoku-extract') ON CONFLICT (id) DO UPDATE SET tree_commit = EXCLUDED.tree_commit, decl_count = EXCLUDED.decl_count, loaded_at = now()`, [treeCommit, n]);
-  await pool.end();
-  console.log(`index at ${treeCommit}: ${n} declarations loaded`);
+  await Promise.all(writers.map((w, i) => w.shard.sql(`INSERT INTO index_version (id, tree_commit, decl_count, shard_index, shard_count) VALUES (1, $1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET tree_commit = EXCLUDED.tree_commit, decl_count = EXCLUDED.decl_count, shard_index = EXCLUDED.shard_index, shard_count = EXCLUDED.shard_count, loaded_at = now()`, [treeCommit, w.n, i, shards.length])));
+  await control.sql(`INSERT INTO index_version (id, tree_commit, decl_count, shard_count, extractor) VALUES (1, $1, $2, $3, 'tengoku-extract') ON CONFLICT (id) DO UPDATE SET tree_commit = EXCLUDED.tree_commit, decl_count = EXCLUDED.decl_count, shard_count = EXCLUDED.shard_count, loaded_at = now()`, [treeCommit, n, shards.length]);
+  const sizes = await Promise.all(shards.map(async (sh) => `${sh.key.replace("_DATABASE_URL", "")}=${(Number((await sh.sql(`SELECT pg_database_size(current_database())::bigint AS b`))[0].b) / 1048576).toFixed(0)}MB`));
+  console.log(`index at ${treeCommit}: ${n} declarations over ${shards.length} shards; sizes ${sizes.join(" ")}`);
 }
 main().catch((e) => { console.error(e); process.exit(1); });
