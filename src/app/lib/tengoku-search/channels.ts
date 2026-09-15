@@ -30,12 +30,17 @@ export async function nameChannel(c: Ctx): Promise<ChannelResult> {
   ]);
   const n = Number(meta[0]?.decl_count) || 350000;
   const df = new Map(dfs.map((r) => [r.token as string, Number(r.df)]));
-  const weights = toks.map((tk) => Math.max(0.3, Math.log((n + 1) / ((df.get(tk) ?? Math.round(n / 50)) + 1)) / 3));
+  const weight = (tk: string) => Math.max(0.3, Math.log((n + 1) / ((df.get(tk) ?? Math.round(n / 50)) + 1)) / 3);
+  // One query word can mean several tokens ("sum" → add, sum); a name earns credit for the best one, not all of them.
+  const flat: string[] = [], ws: number[] = [], gs: number[] = [];
+  c.expansion.tokenGroups.forEach((g, gi) => { for (const tk of g) if (tk.length > 1) { flat.push(tk); ws.push(weight(tk)); gs.push(gi); } });
   const rows = await fanout(c.shards,
-    `SELECT ${DECL_COLS}, (SELECT coalesce(sum(u.w), 0) FROM unnest($1::text[], $2::float8[]) AS u(tk, w) WHERE d.name_tokens @> ARRAY[u.tk])
-       + (CASE WHEN d.name_tokens <@ $1::text[] THEN 2.0 ELSE 0 END) - cardinality(d.name_tokens) / 100.0 AS score
+    `SELECT ${DECL_COLS},
+       (SELECT coalesce(sum(mx), 0) FROM (SELECT max(u.w) AS mx FROM unnest($1::text[], $2::float8[], $3::int[]) AS u(tk, w, g) WHERE d.name_tokens @> ARRAY[u.tk] GROUP BY u.g) s)
+       + (CASE WHEN coalesce(d.local_tokens, d.name_tokens) <@ $1::text[] THEN 2.0 WHEN d.name_tokens <@ $1::text[] THEN 2.0 ELSE 0 END)
+       - cardinality(d.name_tokens) / 100.0 AS score
      FROM decl d WHERE d.name_tokens && $1::text[]
-     ORDER BY score DESC, d.pagerank DESC LIMIT $3`, [toks, weights, c.limit]);
+     ORDER BY score DESC, d.pagerank DESC LIMIT $4`, [flat, ws, gs, c.limit]);
   return { channel: "name", hits: byScore(rows, c.limit) };
 }
 

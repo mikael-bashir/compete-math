@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { loadEnv } from "./tengoku-index/env";
 import { controlShard, dataShards, findNames, shardIndexFor, type Shard } from "../src/app/lib/tengoku-search/shards";
 import { NAMED_THEOREMS } from "../src/app/lib/tengoku-search/intent";
+import { nameTokens } from "../src/app/lib/tengoku-search/normalize";
 loadEnv();
 
 const args = process.argv.slice(2);
@@ -53,7 +54,7 @@ function libraryOf(module: string): string {
   const parts = module.split(".");
   return parts[1] && /^[A-Z][a-z]+[A-Z]/.test(parts[1]) ? parts[1].replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase() : "mathlib";
 }
-const DECL_COLS = ["id","name","namespace","name_tokens","kind","library","module","line","permalink","statement","type_hash","binders","arity","universe_params","conclusion_head","hypothesis_heads","constants_used","notation_used","docstring","is_simp","is_instance","deprecated_for","proof_depth","value_consts","content_hash","pagerank","in_degree","out_degree","index_commit"];
+const DECL_COLS = ["id","name","namespace","name_tokens","local_tokens","kind","library","module","line","permalink","statement","type_hash","binders","arity","universe_params","conclusion_head","hypothesis_heads","constants_used","notation_used","docstring","is_simp","is_instance","deprecated_for","proof_depth","value_consts","content_hash","pagerank","in_degree","out_degree","index_commit"];
 
 class ShardWriter {
   decl: unknown[][] = []; text: unknown[][] = []; n = 0;
@@ -106,7 +107,8 @@ async function main() {
     const w = writers[shardIndexFor(d.name, shards.length)];
     const contentHash = createHash("sha1").update(JSON.stringify([d.statement, d.docstring, d.kind, d.module])).digest("hex").slice(0, 16);
     const permalink = `https://github.com/competemath/tengoku/blob/${treeCommit}/${(d.module || "").replace(/\./g, "/")}.lean${d.line ? `#L${d.line}` : ""}`;
-    w.decl.push([id, d.name, d.name.includes(".") ? d.name.slice(0, d.name.lastIndexOf(".")) : "", x.name_tokens || [], d.kind, library, d.module || "", d.line ?? null, permalink,
+    const localTokens = nameTokens(d.name.includes(".") ? d.name.slice(d.name.lastIndexOf(".") + 1) : d.name);
+    w.decl.push([id, d.name, d.name.includes(".") ? d.name.slice(0, d.name.lastIndexOf(".")) : "", x.name_tokens || [], localTokens, d.kind, library, d.module || "", d.line ?? null, permalink,
       d.statement || "", x.type_hash || null, JSON.stringify(d.binders || []), (d.binders || []).length, d.universe_params || [], d.conclusion_head || null,
       d.hypothesis_heads || [], d.constants_type || [], x.notation_used || [], d.docstring || null, !!d.is_simp, !!d.is_instance, d.deprecated_for || null,
       d.proof_depth ?? null, d.value_consts ?? null, contentHash, x.pagerank || 0, x.in_degree || 0, x.out_degree || 0, treeCommit]);

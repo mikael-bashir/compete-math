@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS decl (
   docstring TEXT, is_simp BOOLEAN NOT NULL DEFAULT false, is_instance BOOLEAN NOT NULL DEFAULT false, deprecated_for TEXT, proof_depth INTEGER, value_consts INTEGER,
   content_hash TEXT NOT NULL DEFAULT '', pagerank DOUBLE PRECISION NOT NULL DEFAULT 0, in_degree INTEGER NOT NULL DEFAULT 0, out_degree INTEGER NOT NULL DEFAULT 0,
   views_30d INTEGER NOT NULL DEFAULT 0, clicks_30d INTEGER NOT NULL DEFAULT 0, ctr REAL NOT NULL DEFAULT 0, updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+ALTER TABLE decl ADD COLUMN IF NOT EXISTS local_tokens TEXT[] NOT NULL DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS decl_name_trgm ON decl USING gin (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS decl_name_lower ON decl (lower(name) text_pattern_ops);
 CREATE INDEX IF NOT EXISTS decl_tokens_gin ON decl USING gin (name_tokens);

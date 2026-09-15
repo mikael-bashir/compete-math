@@ -20,7 +20,7 @@ export const WORD_TO_TOKENS: Record<string, string[]> = {
   sine: ["sin"], cosine: ["cos"], tangent: ["tan"], pi: ["pi"], irrational: ["irrational"], determinant: ["det"], matrix: ["matrix"], unique: ["unique"], uniqueness: ["unique"], antisymmetric: ["antisymm"],
   reflexive: ["refl"], transitive: ["trans"], symmetric: ["symm"], irreflexive: ["irrefl"], compact: ["compact"], minimum: ["min"], maximum: ["max"], bound: ["bound", "le"],
   bounded: ["bounded"], subtracting: ["sub"], subtract: ["sub"], equal: ["eq"], equals: ["eq"], less: ["lt", "le"], greater: ["gt", "ge"], "at most": ["le"], "at least": ["ge"], iff: ["iff"], implies: ["imp"], "if and only if": ["iff"],
-  list: ["list"], lists: ["list"], set: ["set"], sets: ["set"], function: ["function"], polynomial: ["polynomial"], degree: ["degree"], ideal: ["ideal"], group: ["group"], ring: ["ring"], field: ["field"],
+  list: ["list"], lists: ["list"], set: ["set"], sets: ["set"], function: [], functions: [], polynomial: ["polynomial"], degree: ["degree"], ideal: ["ideal"], group: ["group"], ring: ["ring"], field: ["field"],
   measure: ["measure"], measurable: ["measurable"], probability: ["probability"], expectation: ["integral"], totient: ["totient"], infinitely: ["exists_infinite", "infinite"], infinite: ["infinite"],
 };
 /** english phrase or symbol → constants for the symbol channel. */
@@ -50,7 +50,8 @@ const STOP = new Set(["the", "a", "an", "of", "is", "are", "for", "to", "in", "o
 
 export interface Expansion {
   words: string[];          // content words of the query
-  tokens: string[];         // Lean name tokens to look for
+  tokens: string[];         // Lean name tokens to look for (flat)
+  tokenGroups: string[][];  // the same tokens grouped by the query word or notation that produced them: alternatives share credit
   constants: string[];      // constants for the symbol channel
   phrases: string[];        // multi-word lexicon hits used
 }
@@ -60,17 +61,19 @@ export function expandQuery(q: string): Expansion {
   const phrases: string[] = [];
   const tokens = new Set<string>();
   const constants = new Set<string>();
+  const groups: string[][] = [];
+  const group = (toks: Iterable<string>) => { const g = [...new Set(toks)].filter((x) => x && !tokens.has(x)); for (const x of g) tokens.add(x); if (g.length) groups.push(g); };
   for (const m of q.match(/[A-Za-z_][\w']*(\.[A-Za-z_][\w']*)+/g) || []) constants.add(m); // dotted Lean names, case kept
   for (const key of Object.keys(WORD_TO_CONSTANTS)) if (key.includes(" ") && lower.includes(key)) { phrases.push(key); for (const c of WORD_TO_CONSTANTS[key]) constants.add(c); }
-  for (const key of Object.keys(WORD_TO_TOKENS)) if (key.includes(" ") && lower.includes(key)) { phrases.push(key); for (const t of WORD_TO_TOKENS[key]) tokens.add(t); }
+  for (const key of Object.keys(WORD_TO_TOKENS)) if (key.includes(" ") && lower.includes(key)) { phrases.push(key); group(WORD_TO_TOKENS[key]); }
   // Every notation character names a constant for the symbol channel.
   for (const ch of lower) if (!/[a-z0-9\s]/.test(ch) && WORD_TO_CONSTANTS[ch]) for (const c of WORD_TO_CONSTANTS[ch]) constants.add(c);
   // Notation says which Mathlib name pieces to look for: a^2 + b^2 → sq, add.
   let stripped = lower;
-  for (const [re, toks] of NOTATION_TO_TOKENS) if (re.test(stripped)) { for (const tk of toks) tokens.add(tk); stripped = stripped.replace(re, " "); }
-  if (UNARY_MINUS.test(lower)) { tokens.add("neg"); constants.add("Neg.neg"); }
-  if (BINARY_MINUS.test(lower)) { tokens.add("sub"); constants.add("HSub.hSub"); }
-  if (SAME_OPERAND.test(lower)) tokens.add("self");
+  for (const [re, toks] of NOTATION_TO_TOKENS) if (re.test(stripped)) { group(toks); stripped = stripped.replace(re, " "); }
+  if (UNARY_MINUS.test(lower)) { group(["neg"]); constants.add("Neg.neg"); }
+  if (BINARY_MINUS.test(lower)) { group(["sub"]); constants.add("HSub.hSub"); }
+  if (SAME_OPERAND.test(lower)) group(["self"]);
   // A phrase that matched ("square root") consumes its words, so "square" alone does not also mean sq.
   for (const ph of phrases) stripped = stripped.replace(ph, " ");
   const words = stripped.replace(/[^\p{L}\p{N}\s.'_+*/^=<>≤≥≠→↔∀∃∑∏∫∘∣√π|!ℕℤℚℝℂ¬∧∨∈⊆∪∩-]/gu, " ").split(/\s+/).filter((w) => w && !STOP.has(w));
@@ -78,10 +81,11 @@ export function expandQuery(q: string): Expansion {
     const raw = w.replace(/'s$/, "");
     // English inflections: limits → limit, subtracting → subtraction/sub, attains → attain.
     const base = [raw, raw.replace(/s$/, ""), raw.replace(/ing$/, ""), raw.replace(/ing$/, "e"), raw.replace(/ed$/, ""), raw.replace(/es$/, "")].find((c) => WORD_TO_TOKENS[c] || WORD_TO_CONSTANTS[c]) ?? raw;
-    for (const t of WORD_TO_TOKENS[base] || []) tokens.add(t);
+    const g: string[] = [...(WORD_TO_TOKENS[base] || [])];
     for (const c of WORD_TO_CONSTANTS[base] || []) constants.add(c);
-    if (/^[a-z]{3,}$/.test(base) && !WORD_TO_TOKENS[base]) tokens.add(base); // unknown word: try it as a token as-is
-    for (const t of nameTokens(w)) if (t.length > 2) tokens.add(t);
+    if (/^[a-z]{3,}$/.test(base) && !WORD_TO_TOKENS[base]) g.push(base); // unknown word: try it as a token as-is
+    for (const t of nameTokens(w)) if (t.length > 2) g.push(t);
+    group(g);
   }
-  return { words, tokens: [...tokens], constants: [...constants], phrases };
+  return { words, tokens: [...tokens], tokenGroups: groups, constants: [...constants], phrases };
 }

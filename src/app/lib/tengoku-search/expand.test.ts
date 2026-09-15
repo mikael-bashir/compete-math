@@ -47,3 +47,11 @@ test("e^x and π and small numbers become tokens", () => {
   const p = expandQuery("π > 3");
   assert.ok(p.tokens.includes("pi") && p.tokens.includes("three") && p.tokens.includes("gt"), JSON.stringify(p));
 });
+test("token groups: alternatives of one word share a group, notation rules form their own", () => {
+  const e = expandQuery("integral of a sum");
+  assert.ok(e.tokenGroups.some((g) => g.includes("add") && g.includes("sum")), JSON.stringify(e.tokenGroups));
+  assert.ok(e.tokenGroups.some((g) => g.length === 1 && g[0] === "integral"));
+  const n = expandQuery("2 * a = a + a");
+  assert.ok(n.tokenGroups.some((g) => g.includes("two") && g.includes("mul")), JSON.stringify(n.tokenGroups));
+  assert.equal(expandQuery("composition of continuous functions").tokens.includes("function"), false);
+});
