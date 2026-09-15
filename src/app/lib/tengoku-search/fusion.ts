@@ -68,7 +68,25 @@ export function collapseVariants(ranked: Ranked[]): Ranked[] {
   return out;
 }
 
+/** Namespaces whose copy of a general lemma (Int8.two_mul, Nat.sub_self) is a variant of the root one, not a different result. */
+export const NUMERIC_NAMESPACES = new Set(["Nat", "Int", "Int8", "Int16", "Int32", "Int64", "ISize", "UInt8", "UInt16", "UInt32", "UInt64", "USize", "Fin", "BitVec", "Rat", "Real", "Complex", "NNReal", "ENNReal", "EReal", "ENat", "PNat", "ZMod", "Ordinal", "Cardinal", "NNRat", "Nat.Cast", "Int.Cast"]);
+
+/** Fold numeric-type copies into the general lemma when it is present; the family's best evidence lifts the root. */
+export function collapseFamilies(ranked: Ranked[]): Ranked[] {
+  const roots = new Map(ranked.filter((h) => !h.name.includes(".")).map((h) => [h.name, h]));
+  const out: Ranked[] = [];
+  for (const h of ranked) {
+    const dot = h.name.lastIndexOf(".");
+    const ns = dot > 0 ? h.name.slice(0, dot) : "";
+    const root = ns && NUMERIC_NAMESPACES.has(ns) ? roots.get(h.name.slice(dot + 1)) : undefined;
+    // Never fold what was asked for by name: `Nat.add_comm` typed verbatim is the answer, not a variant of add_comm.
+    if (root && root !== h && root.kind === h.kind && !h.exact) { root.variants += 1; root.score = Math.max(root.score, h.score); continue; }
+    out.push(h);
+  }
+  return out.sort((a, b) => b.score - a.score);
+}
+
 export function rank(results: ChannelResult[], intent: Intent, limit = 30): Ranked[] {
   const fused = rrf(results, intent).map((h) => ({ ...h, score: prior(h, intent) })).sort((a, b) => b.score - a.score);
-  return collapseVariants(fused).slice(0, limit);
+  return collapseFamilies(collapseVariants(fused)).slice(0, limit);
 }

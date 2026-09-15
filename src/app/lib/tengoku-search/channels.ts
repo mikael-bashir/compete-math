@@ -54,9 +54,11 @@ export async function ftsChannel(c: Ctx): Promise<ChannelResult> {
   const text = c.intent === "name" ? c.expansion.tokens.join(" ") : [...c.expansion.words, ...c.expansion.tokens].join(" ");
   if (!text.trim()) return { channel: "fts", hits: [] };
   const rows = await fanout(c.shards,
-    `SELECT ${DECL_COLS}, ts_rank_cd(t.search_text, q, 32) AS score
+    // Weights D,C,B,A: a word in the name (A) outweighs the same word in a docstring (B) five to one, so
+    // "two" in Int8.mul_two's docstring cannot lift it over two_mul itself.
+    `SELECT ${DECL_COLS}, ts_rank_cd('{0.05, 0.1, 0.2, 1.0}', t.search_text, q, 32) AS score
      FROM decl_text t JOIN decl d ON d.id = t.id, websearch_to_tsquery('english', $1) q
-     WHERE t.search_text @@ q ORDER BY score DESC, d.pagerank DESC LIMIT $2`, [text, c.limit]);
+     WHERE t.search_text @@ q ORDER BY score DESC, length(d.name) - length(replace(d.name, '.', '')) ASC, d.pagerank DESC LIMIT $2`, [text, c.limit]);
   return { channel: "fts", hits: byScore(rows, c.limit) };
 }
 

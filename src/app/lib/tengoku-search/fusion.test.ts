@@ -31,3 +31,15 @@ test("an exact name beats a near miss the other channels prefer; general beats n
   const g = rank([{ channel: "name", hits: [h("Int.mul_add", { exact: true }), h("mul_add", { exact: true })] }], "pattern");
   assert.equal(g[0].id, "mul_add");
 });
+test("numeric-type copies fold into the general lemma and lift it", () => {
+  const r = rank([{ channel: "fts", hits: [h("Int8.mul_two"), h("Int8.two_mul"), h("Int64.two_mul"), h("two_mul"), h("Continuous.comp"), h("Measurable.comp")] }], "nl");
+  assert.equal(r[0].id, "two_mul");
+  assert.equal(r.find((x) => x.id === "two_mul")!.variants, 3);
+  assert.ok(!r.some((x) => x.id === "Int8.two_mul"));
+  assert.ok(r.some((x) => x.id === "Continuous.comp") && r.some((x) => x.id === "Measurable.comp"), "dot-notation lemmas are not a family");
+});
+test("an exact name is never folded into its general form", () => {
+  const r = rank([{ channel: "name", hits: [h("Nat.add_comm", { exact: true }), h("add_comm")] }], "name");
+  assert.equal(r[0].id, "Nat.add_comm");
+  assert.ok(r.some((x) => x.id === "add_comm"));
+});

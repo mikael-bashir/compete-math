@@ -66,3 +66,8 @@ test("swapped operands mean commutativity", () => {
   assert.ok(expandQuery("?a + ?b = ?b + ?a").tokens.includes("comm"));
   assert.ok(!expandQuery("?a - ?a = 0").tokens.includes("comm"));
 });
+test("a + a beside 2 * is the two_mul shape, not self; 'at least' also means le (Mathlib states 2 ≤ p)", () => {
+  assert.ok(!expandQuery("2 * a = a + a").tokens.includes("self"));
+  assert.ok(expandQuery("a + a = b").tokens.includes("self"));
+  assert.ok(expandQuery("every prime is at least two").tokenGroups.some((g) => g.includes("ge") && g.includes("le")));
+});

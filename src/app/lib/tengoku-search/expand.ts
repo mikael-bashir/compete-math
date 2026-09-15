@@ -10,7 +10,7 @@ export const WORD_TO_TOKENS: Record<string, string[]> = {
   division: ["div"], divided: ["div"], negation: ["neg"], negative: ["neg"], inverse: ["inv"], power: ["pow"], square: ["sq", "pow_two"], squared: ["sq"], root: ["sqrt"],
   nonnegative: ["nonneg"], positive: ["pos"], negativity: ["neg"], injective: ["injective", "inj"], surjective: ["surjective", "surj"], bijective: ["bijective"],
   monotone: ["mono", "monotone"], itself: ["self"], attains: ["exists"], attain: ["exists"], achieves: ["exists"], "one more": ["succ"], "plus one": ["succ"], next: ["succ"], twice: ["two", "mul"], double: ["two", "mul"], half: ["two", "div"],
-  unit: ["one"], nothing: ["zero"], vanishes: ["zero"], smaller: ["lt", "le"], bigger: ["gt", "ge"], nonzero: ["ne", "zero"], "square root": ["sqrt"], "absolute value": ["abs"], "finite set": ["finset"], "less than or equal": ["le"], "greater than or equal": ["ge"], "less than": ["lt"], "greater than": ["gt"], "not equal": ["ne"], continuous: ["continuous"], differentiable: ["differentiable"], derivative: ["deriv"], integral: ["integral"], limit: ["tendsto", "lim"],
+  unit: ["one"], nothing: ["zero"], vanishes: ["zero"], smaller: ["lt", "le"], bigger: ["gt", "ge"], nonzero: ["ne", "zero"], "square root": ["sqrt"], "absolute value": ["abs"], "finite set": ["finset"], "less than or equal": ["le"], "greater than or equal": ["ge", "le"], "less than": ["lt"], "greater than": ["gt", "lt"], "not equal": ["ne"], continuous: ["continuous"], differentiable: ["differentiable"], derivative: ["deriv"], integral: ["integral"], limit: ["tendsto", "lim"],
   supremum: ["sup"], infimum: ["inf"], absolute: ["abs"], natural: ["nat"], naturals: ["nat"], integer: ["int"], integers: ["int"], rational: ["rat"], real: ["real"], reals: ["real"], complex: ["complex"],
   finite: ["finite", "fin"], cardinality: ["card"], length: ["length"], member: ["mem"], membership: ["mem"], complement: ["compl"], divides: ["dvd"], divisor: ["dvd"], divisible: ["dvd"],
   gcd: ["gcd"], lcm: ["lcm"], coprime: ["coprime"], modulo: ["mod", "emod"], remainder: ["mod", "emod"], cancellation: ["cancel"], cancel: ["cancel"], zero: ["zero"], one: ["one"], two: ["two"],
@@ -19,7 +19,7 @@ export const WORD_TO_TOKENS: Record<string, string[]> = {
   prime: ["prime"], primes: ["prime"], even: ["even"], odd: ["odd"], factorial: ["factorial"], choose: ["choose"], binomial: ["choose", "add_pow"], exponential: ["exp"], logarithm: ["log"], log: ["log"],
   sine: ["sin"], cosine: ["cos"], tangent: ["tan"], pi: ["pi"], irrational: ["irrational"], determinant: ["det"], matrix: ["matrix"], unique: ["unique"], uniqueness: ["unique"], antisymmetric: ["antisymm"],
   reflexive: ["refl"], transitive: ["trans"], symmetric: ["symm"], irreflexive: ["irrefl"], compact: ["compact"], minimum: ["min"], maximum: ["max"], bound: ["bound", "le"],
-  bounded: ["bounded"], subtracting: ["sub"], subtract: ["sub"], equal: ["eq"], equals: ["eq"], less: ["lt", "le"], greater: ["gt", "ge"], "at most": ["le"], "at least": ["ge"], iff: ["iff"], implies: ["imp"], "if and only if": ["iff"],
+  bounded: ["bounded"], subtracting: ["sub"], subtract: ["sub"], equal: ["eq"], equals: ["eq"], less: ["lt", "le"], greater: ["gt", "ge"], "at most": ["le"], "at least": ["ge", "le"], iff: ["iff"], implies: ["imp"], "if and only if": ["iff"],
   list: ["list"], lists: ["list"], set: ["set"], sets: ["set"], function: [], functions: [], polynomial: ["polynomial"], degree: ["degree"], ideal: ["ideal"], group: ["group"], ring: ["ring"], field: ["field"],
   measure: ["measure"], measurable: ["measurable"], probability: ["probability"], expectation: ["integral"], totient: ["totient"], infinitely: ["exists_infinite", "infinite"], infinite: ["infinite"],
 };
@@ -82,7 +82,9 @@ export function expandQuery(q: string): Expansion {
   for (const [re, toks] of NOTATION_TO_TOKENS) if (re.test(stripped)) { group(toks); stripped = stripped.replace(re, " "); }
   if (UNARY_MINUS.test(lower)) { group(["neg"]); constants.add("Neg.neg"); }
   if (BINARY_MINUS.test(lower)) { group(["sub"]); constants.add("HSub.hSub"); }
-  if (SAME_OPERAND.test(lower)) group(["self"]);
+  // a - a, a * a, a / a name sub_self, mul_self, div_self; "a + a" next to a "2 *" is the two_mul shape instead.
+  const same = lower.match(SAME_OPERAND);
+  if (same && !(same[0].includes("+") && /\b2\s*\*|\*\s*2\b/.test(lower))) group(["self"]);
   if (SWAPPED.test(lower)) group(["comm"]);
   // A phrase that matched ("square root") consumes its words, so "square" alone does not also mean sq.
   for (const ph of phrases) stripped = stripped.replace(ph, " ");
