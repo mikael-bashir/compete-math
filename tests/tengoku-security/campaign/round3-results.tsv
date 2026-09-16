@@ -1,0 +1,4 @@
+r3-keyid-in-record	fail	secrets	fail	secrets/detect-secrets on the changed files (every class),pr-gate/Every job of this PR's class passed	OK	124
+r3-token-in-record	fail	secrets	fail	secrets/detect-secrets on the changed files (every class),pr-gate/Every job of this PR's class passed	OK	125
+r3-secretkey-in-record	fail	secrets	pass	-	WRONG	126
+r3-clean-content	pass	-	pass	-	OK	127
