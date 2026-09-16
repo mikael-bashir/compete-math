@@ -1,0 +1,66 @@
+clean-append	pass	-	fail	data-rules/records,pr-gate/Every job of this PR's class passed	WRONG	33
+two-purposes	fail	classify	fail	classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed	OK	34
+delete-in-staging	fail	data-rules/append-only	fail	data-rules/append-only,credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,pr-gate/Every job of this PR's class passed	OK	35
+eval-in-record	fail	data-rules/content-lint	fail	data-rules/content-lint,pr-gate/Every job of this PR's class passed	OK	36
+credit-removed	fail	credits	fail	credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,pr-gate/Every job of this PR's class passed	OK	37
+fake-secret	fail	secrets	fail	lint-python/Run pipx install pre-commit && pre-commit run --all-files --show-diff-on-failure,pr-gate/Every job of this PR's class passed	WRONG-JOB	38
+unsigned	fail	dco	fail	dco/Run python3 scripts/ci/dco.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed	OK	39
+derived-edit	fail	classify	fail	classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed	OK	40
+bad-source	fail	data-rules/records	fail	data-rules/records,pr-gate/Every job of this PR's class passed	OK	41
+broken-proof	pass	-	pass	-	OK	42
+tooling-change	pass	-	pass	-	OK	43
+sorry-proof	pass	-	pass	-	OK	44
+allowed-option	pass	-	pass	-	OK	45
+forbidden-option	fail	data-rules/content-lint	fail	data-rules/content-lint,pr-gate/Every job of this PR's class passed	OK	46
+native-decide	fail	data-rules/content-lint	fail	data-rules/content-lint,pr-gate/Every job of this PR's class passed	OK	47
+run-cmd	fail	data-rules/content-lint	fail	data-rules/content-lint,pr-gate/Every job of this PR's class passed	OK	48
+extern-attr	fail	data-rules/content-lint	fail	data-rules/content-lint,pr-gate/Every job of this PR's class passed	OK	49
+unsafe-def	fail	data-rules/content-lint	fail	data-rules/content-lint,pr-gate/Every job of this PR's class passed	OK	50
+import-in-context	fail	data-rules/content-lint	fail	data-rules/content-lint,pr-gate/Every job of this PR's class passed	OK	51
+initialize-in-context	fail	data-rules/content-lint	fail	data-rules/content-lint,pr-gate/Every job of this PR's class passed	OK	52
+axiom-in-context	fail	data-rules/content-lint	fail	data-rules/content-lint,pr-gate/Every job of this PR's class passed	OK	53
+io-process	fail	data-rules/content-lint	fail	data-rules/content-lint,pr-gate/Every job of this PR's class passed	OK	54
+duplicate-in-pr	fail	data-rules/records	fail	data-rules/records,pr-gate/Every job of this PR's class passed	OK	55
+duplicate-vs-trusted	fail	data-rules/records	fail	data-rules/records,pr-gate/Every job of this PR's class passed	OK	56
+missing-field	fail	data-rules/records	fail	data-rules/records,pr-gate/Every job of this PR's class passed	OK	57
+malformed-json	fail	data-rules/records	fail	data-rules/records,pr-gate/Every job of this PR's class passed	OK	58
+library-mismatch	fail	data-rules/records	fail	data-rules/records,pr-gate/Every job of this PR's class passed	OK	59
+missing-source-path	fail	data-rules/records	fail	data-rules/records,pr-gate/Every job of this PR's class passed	OK	60
+name-with-space	fail	data-rules/records	pass	-	WRONG	61
+tentative-append	pass	-	pass	-	OK	62
+two-libraries	pass	-	pass	-	OK	63
+bigger-append	pass	-	pass	-	OK	64
+tombstone-valid	pass	-	pass	-	OK	65
+tombstone-missing-target	fail	data-rules/records	fail	data-rules/records,pr-gate/Every job of this PR's class passed	OK	66
+tombstone-plus-content	fail	classify	fail	classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed	OK	67
+edit-line-in-staging	fail	data-rules/append-only	fail	credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,data-rules/append-only,pr-gate/Every job of this PR's class passed	OK	68
+reorder-lines	fail	data-rules/append-only	fail	credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,data-rules/append-only,pr-gate/Every job of this PR's class passed	OK	69
+whitespace-change	fail	data-rules/append-only	fail	data-rules/append-only,credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,pr-gate/Every job of this PR's class passed	OK	70
+rename-data-file	fail	data-rules/append-only	fail	data-rules/append-only,credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,pr-gate/Every job of this PR's class passed	OK	71
+crlf-append	pass	-	pass	-	OK	72
+stats-json-edit	fail	classify	fail	classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed	OK	73
+all-lean-edit	fail	classify	fail	classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed	OK	74
+workflow-in-content	fail	classify	fail	classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed	OK	75
+docs-only	pass	-	pass	-	OK	76
+docs-plus-content	pass	-	pass	-	OK	77
+binary-in-docs	pass	-	pass	-	OK	78
+seeded-module-unsafe	pass	-	pass	-	OK	79
+promotion-not-bot	fail	classify	fail	classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed	OK	80
+actionlint-error	fail	tooling-tests	fail	tooling-tests/Run rhysd/actionlint@03d0035246f3e81f36aed592ffb4bebf33a03106,pr-gate/Every job of this PR's class passed	OK	81
+ruff-error	fail	lint-python	fail	lint-python/Run pipx install pre-commit && pre-commit run --all-files --show-diff-on-failure,dco/Run python3 scripts/ci/dco.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed	OK	82
+failing-unit-test	fail	tooling-tests	pass	-	WRONG	83
+hook-removed	pass	-	pass	-	OK	84
+private-key	fail	secrets	fail	lint-python/Run pipx install pre-commit && pre-commit run --all-files --show-diff-on-failure,pr-gate/Every job of this PR's class passed	WRONG-JOB	85
+github-token-shaped	fail	secrets	fail	lint-python/Run pipx install pre-commit && pre-commit run --all-files --show-diff-on-failure,pr-gate/Every job of this PR's class passed	WRONG-JOB	86
+depends-open	fail	depends	fail	depends/Run printf '%s' "$BODY" > body.txt && python3 scripts/ci/depends.py body.txt,pr-gate/Every job of this PR's class passed	OK	87
+depends-merged	pass	-	fail	depends/Run printf '%s' "$BODY" > body.txt && python3 scripts/ci/depends.py body.txt,pr-gate/Every job of this PR's class passed	WRONG	88
+unknown-identifier	pass	-	pass	-	OK	89
+type-mismatch	pass	-	pass	-	OK	90
+unsolved-goals	pass	-	pass	-	OK	91
+heartbeat-timeout	pass	-	pass	-	OK	92
+decide-native	pass	-	pass	-	OK	93
+clean-b	pass	-	pass	-	OK	94
+clean-c	pass	-	pass	-	OK	95
+clean-d	pass	-	pass	-	OK	96
+clean-e	pass	-	pass	-	OK	97
+depends-chain-x	pass	-	fail	depends/Run printf '%s' "$BODY" > body.txt && python3 scripts/ci/depends.py body.txt,pr-gate/Every job of this PR's class passed	WRONG	98
