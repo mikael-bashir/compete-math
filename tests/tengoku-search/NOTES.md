@@ -147,6 +147,8 @@ The banking pipeline got a **PR mode** (2026-09-16, off by default): Emissary-Ar
 
 **Enforced on competemath/tengoku, 2026-09-16 ~11:50 UTC:** ruleset (PR only, required `pr-gate` + `queue-gate`, merge queue, linear history), auto-merge on, `TENGOKU_BOT` = the machine's login, the app and the promote loop in PR mode. A direct push to `main` is refused (`GH013`). The loop's first PR-mode cycle put the old broken staging record's file on the 24 h skip list, as designed.
 
+**Cache build priority (2026-09-16):** the nightly's relaunch was defeated by two workflow merges during the retried run, so no cache published; a queue that never empties could do that every night. Now a merge group touching `.github/workflows/` waits (≤35 min) for a running cache build, content and promotion groups never wait, and the build relaunches up to twice. Sandbox proof: build dispatched, workflow PR queued behind it; its queue run waited 12:09:56→12:13:36, the build published and attested without relaunching, the PR merged 90 s after. With the first attested library cache (`cache-20260916T1152Z`) the queue moved to `TENGOKU_VERIFY=require`.
+
 Comment quality fixes on the way: the `sorry` ejection names the file, line and record; the queue lint's findings reach the comment; the comment stops at lake's trailer; the axiom hint matches the tool's wording.
 
 **Publish guard:** two end-to-end runs both had the workflow PR land after the build had already published (a build from the saved cache takes ~9 minutes; a queue merge 6–10), so the guard saw no change and published normally, and the relaunch step was skipped as designed. A third run dispatches the build only once the workflow PR is inside a running merge group.
