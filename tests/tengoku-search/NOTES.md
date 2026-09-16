@@ -145,6 +145,8 @@ After the campaign, the gate got a verdict comment per PR (`scripts/ci/gate_summ
 
 The banking pipeline got a **PR mode** (2026-09-16, off by default): Emissary-Archangel banks into an ignored `.bank/<library>/` batch file and opens one content PR per batch (200 records or 10 minutes) from a throwaway worktree — signed off, auto-merge armed, names already on `main` refused rather than duplicated (`lib/tengoku-pr.ts`, commit 7109094); the tree's promote loop opens one promotion PR per source file and waits for each merge, with a 24 h skip list for ejected files (competemath/tengoku PR #9). The PR module was exercised against the sandbox: one record → PR #149 through gate and queue, clone left untouched. It goes live with the ruleset, once `TENGOKU_BOT` names the account the machine uses.
 
+**Enforced on competemath/tengoku, 2026-09-16 ~11:50 UTC:** ruleset (PR only, required `pr-gate` + `queue-gate`, merge queue, linear history), auto-merge on, `TENGOKU_BOT` = the machine's login, the app and the promote loop in PR mode. A direct push to `main` is refused (`GH013`). The loop's first PR-mode cycle put the old broken staging record's file on the 24 h skip list, as designed.
+
 Comment quality fixes on the way: the `sorry` ejection names the file, line and record; the queue lint's findings reach the comment; the comment stops at lake's trailer; the axiom hint matches the tool's wording.
 
 **Publish guard:** two end-to-end runs both had the workflow PR land after the build had already published (a build from the saved cache takes ~9 minutes; a queue merge 6–10), so the guard saw no change and published normally, and the relaunch step was skipped as designed. A third run dispatches the build only once the workflow PR is inside a running merge group.
