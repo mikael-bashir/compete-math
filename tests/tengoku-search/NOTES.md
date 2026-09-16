@@ -141,6 +141,8 @@ Scripts (copied to `tests/tengoku-security/campaign/`, paths point at the sessio
 
 7. **The build job could not dispatch itself.** The third guard run finally landed a workflow change mid-build: the guard skipped publishing as designed, and the relaunch step failed with `could not create workflow dispatch event: HTTP 403`. The rework's `permissions: {}` had removed the `actions: write` the self-dispatch needs — which also means the pre-existing resume-after-time-cap path had been broken since the port. Fixed by adding `actions: write` to the build job; a fourth guard run verifies the relaunch end to end.
 
+After the campaign, the gate got a verdict comment per PR (`scripts/ci/gate_summary.py`: failed check, step, log excerpt, what to do, a prefilled gate-bug issue link for the fragile checks) and `pipefail` became the default for every step. Verified on the sandbox with six failing scenario PRs and a clean one.
+
 Comment quality fixes on the way: the `sorry` ejection names the file, line and record; the queue lint's findings reach the comment; the comment stops at lake's trailer; the axiom hint matches the tool's wording.
 
 **Publish guard:** two end-to-end runs both had the workflow PR land after the build had already published (a build from the saved cache takes ~9 minutes; a queue merge 6–10), so the guard saw no change and published normally, and the relaunch step was skipped as designed. A third run dispatches the build only once the workflow PR is inside a running merge group.

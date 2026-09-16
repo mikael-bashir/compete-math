@@ -75,7 +75,7 @@ Jobs in order. A failed blocking job stops the rest (`needs:` chain).
 7. **`secrets`** (blocking, all). `trufflesecurity/trufflehog@<sha>` on `base..head` with `--results=verified,unknown`; plus GitHub push protection upstream of it.
 8. **`lint-python`** (blocking, tooling). `pre-commit run --all-files` — ruff check + format, JSON validity, large-file check, gitleaks. Reads `.pre-commit-config.yaml` only (§7).
 9. **`tooling-tests`** (blocking, tooling). `python3 -m unittest discover -s scripts/tests`; a build of `tengoku-extract` on one module; a dry run of `scripts/derive.py` on a fixture; `actionlint` on workflows.
-10. **`pr-gate`** (blocking summary). Passes only if every job of the PR's class passed. This is the required check.
+10. **`pr-gate`** (blocking summary). Passes only if every job of the PR's class passed. This is the required check. It also posts one comment per PR (updated in place, `scripts/ci/gate_summary.py`): each failed check with its step, the first error lines from its log, what the check looks for, what to do, and — for the checks that reason about paths, text patterns or other services (classify, credits, secrets, append-only, records, content lint, depends, tooling tests) — a prefilled *Report a gate bug* issue link, since those can be wrong themselves. Exact checks (DCO, lint) get advice only. Every `run:` step in the three workflows runs under `bash -e -o pipefail` (workflow `defaults`), after the campaign found two checks whose findings never failed their job.
 
 Bot PRs (`bank` branch, tier 1–2 only) get auto-merge enabled by a workflow once `pr-gate` is green; they need no reviewer (CODEOWNERS has no entry for those paths).
 
