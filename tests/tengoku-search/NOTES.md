@@ -160,3 +160,40 @@ Comment quality fixes on the way: the `sorry` ejection names the file, line and 
 **Publish guard, runs 3 and 4:** with the workflow PR queued first and the build dispatched once its merge group was running, the change landed mid-build both times. Run 3: the guard skipped publishing and the relaunch was refused (finding 7). Run 4, with `actions: write`: the guard skipped publishing, the relaunch dispatched a second run on the tip, and that run restored the saved build, published `cache-…` at the tip and attested it, with its own relaunch step skipped — the full path, end to end.
 
 **Round 2 (after the fixes): 12 of 13** — the failing unit test now fails the job; fake credentials fail at `secrets`; names with a space or comma and a statement that declares another name fail `records`; a namespaced name declared by its last component passes; the real type mismatch (`3 = 3`) and `decide +native` are ejected in the queue with the right messages; the merged dependency passes `depends`.
+
+## Top-ups — per-merge incremental caches, and the Leak Spaces riding them (2026-09-19)
+
+The problem: with a busy queue the hosted Leak services are either rebuilding all day or a day stale. The answer tested here: every merge publishes the compiled files that differ from the nightly cache (a "top-up", cumulative, ~1.2 MB for a promotion, 22 bytes for a content merge) **before it is allowed to land**; a workflow on push names it in `cache-latest.json` only once its commit is on main; the services lay it over the cache they already hold. Tree docs: `docs/topups.md`. Scripts and the traffic generator: `tests/tengoku-security/topups/`.
+
+**Where it ran.** Sandbox PRs #152, #153, #155, #157, #163 carry the feature and the fixes below. The three real Spaces (BarkingTree Leak-I/II/IV) were upgraded (mikael-bashir/leak-i#3, leak-ii#4, leak-iv#4 → `tengoku-env`), pointed at the sandbox through a Space variable, and hit with one call every 30 s each for about four hours while 29 scenario checks ran. A new Space could not be created (free Docker Spaces now need PRO) — hence the real ones.
+
+**Scenarios — 29 checks; 28 as expected on the first run.** The 29th (re-queue after the pretend breakage was lifted) failed because my script re-queued within seconds of the ejection comment, before GitHub had taken the PR out of the queue, so the request did nothing; re-queued by hand it merged with a top-up over the freshly rebuilt cache.
+
+| | what was done | what happened |
+| --- | --- | --- |
+| P1 | content merge | waited for its (empty) top-up; pointer named it |
+| P2 | promotion | 24-file top-up; Leak II on the commit 2 min after the merge, Leak IV 3 min, Leak I 6 min (index swap); Leak IV verified a proof using the new lemma |
+| P3 | publish made to fail for one PR, another queued behind it | that PR ejected with a "not because of your change" comment; the one behind merged; the top-up of the group that contained the ejected PR was published, **never named by the pointer**, and collected; the ejected PR merged on re-queue |
+| P4 | clean, broken, clean | broken one ejected with file:line; both clean ones merged with top-ups |
+| P5 | four at once | all merged, each with its own top-up; pointer ended on the last |
+| P6 | second promotion | merge 21:30:01 → verified proof using the new lemma on Leak IV 21:32:21 (**2 min 20 s**, nothing compiled) |
+| P7 | nightly cache rebuilt while a merge landed | the top-up for that merge (built over the OLD cache) survived in the pointer; all three services re-based onto the new cache and applied it; first merge over the new cache fine |
+| P8 | promoted top-up swapped for random bytes | Leak IV refused it twice, Leak I once (digest mismatch → back to the state they came from, exit 4, nothing restarted); Leak II did not attempt inside the window (draining); **0 failed calls**; all three advanced within 8 min of the genuine file returning |
+| P9 | main made to look broken (sandbox switch) | a content merge still landed, marked incomplete, pointer untouched, a cache build started by itself and published 6 min later; a promotion (changes Lean files) was ejected with a located error; with the switch off the promotion merged with a top-up over the rebuilt cache |
+| invariant | pointer sampled every 20 s | 382 + phase-B samples: it never named a commit that was not on main |
+
+37 successful merge-group checks in phase A: median 3.5 min, max 8 (they start from the cache plus the newest top-up, so each compiles only its own change).
+
+**What the soak found (all fixed, all re-tested under traffic).**
+
+1. **Leak IV refresh race.** The refresh stopped the elaborator under the lock and started the new one after releasing it; a verification waiting on the lock found none, started its own, and the two collided: 3 failed verifications. Harmless at one refresh a night, not at one per merge. The new elaborator now starts before the lock is released — 0 failures over the next ~10 refreshes.
+2. **Leak II cold start.** The first proof arrived while the start-up refresh was unpacking the cache; Pantograph loaded a half-moved tree and never came up (1 failed call). Loads and tree moves now take turns (`_tree_lock`, Leak I too); the same situation on the next container cost a 92 s wait, not a failure.
+3. **Leak I never refreshed.** Its image deletes `.lake/build/ir`; loogle's own build recreates a sliver of it; "already unpacked" looked at the directory, passed, and the replay failed for good (search stayed up throughout). The check now looks for `ir/Tengoku/All.c`; `pin.sh` unpacks the cache again once before any fallback; and `pin.sh` re-execs its newest copy first — it used to renew itself only after a success, so a broken copy could never pick up its own fix. `scripts/tests/test_pin.py` drives pin.sh's decisions with shims (7 tests).
+4. **Stale pointer.** The promote workflow asked the services to refresh 3 s after updating the pointer; they read the old one through the CDN, answered "current" and stayed one merge behind. Now the workflow waits until the new pointer is publicly visible, and a service that is told to refresh and sees nothing new looks once more 75 s later. Both halves fired in the very next round (Leak IV saw it at once, Leak I needed the re-check).
+5. **A broken main would wedge the queue** behind the new whole-library build (found by thinking, not by failing): P9 above.
+
+**What was not a service fault.** Two calls got HTTP 502 from the hf.space gateway after exactly 136.6 s, at the same moment on two Spaces that were both idle and answering status requests. Seven "unknown identifier" results were my fixture (the generator appends records inside the source file's trailing namespaces, so `Selftest.x` is really `FirstOrder.Language.Formula.Selftest.x`) or the ~2-minute window before a merge reaches the service. Three long-lived proofs died with containers I replaced by redeploying mid-soak.
+
+**Leak II's policy, measured.** A worker with live proofs is retired, not restarted: a proof held open by the traffic generator survived three tree refreshes and ended at the 45-minute drain limit (three times, each by the clock). The price: while proofs are live Leak II refreshes at most once per drain, so it can trail main by up to 45 min when Leak IV trails by 2–3. `TENGOKU_DRAIN_MAX` is the knob.
+
+**Fixture lessons.** A content-only merge changes no compiled module, so a "bad top-up" test needs a promotion. `pinned` is the checkout, which moves at the START of a refresh — wait for `refreshing: false` and `last` instead. A `screen -X quit` leaves the Python child alive: two traffic generators ran for ten minutes. An unquoted heredoc ate a `\n`.
