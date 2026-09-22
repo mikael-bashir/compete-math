@@ -223,6 +223,13 @@ export async function POST() {
         PRIMARY KEY (shard_key, entry_id)
       );
     `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS tengoku_search_stats (
+        id INT PRIMARY KEY DEFAULT 1,
+        total_searches INT NOT NULL DEFAULT 0,
+        last_searched_at TIMESTAMPTZ
+      );
+    `;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_problems_status ON community_problems(status);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_answers_problem ON community_answers(problem_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_community_comments_problem ON community_comments(problem_id);`;

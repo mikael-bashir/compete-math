@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sql } from "@vercel/postgres";
 import { smartSearchTengokuEntries } from "@/app/lib/data/tengoku-semantic-search";
 import { indexConfigured } from "@/app/lib/tengoku-search/shards";
 import { searchIndex } from "@/app/lib/tengoku-search/search";
 import { createHash } from "node:crypto";
+
+function recordSearch() {
+  sql`
+    INSERT INTO tengoku_search_stats (id, total_searches, last_searched_at)
+    VALUES (1, 1, NOW())
+    ON CONFLICT (id) DO UPDATE SET total_searches = tengoku_search_stats.total_searches + 1, last_searched_at = NOW();
+  `.catch((error) => console.error("[tengoku-search] failed to record search count:", error));
+}
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q") ?? "";
   if (!query.trim()) {
     return NextResponse.json({ results: [] });
   }
+  recordSearch();
   // The new index (docs/tengoku-search-plan.md) serves as soon as it is
   // configured; the sharded copy remains the fallback until it is retired.
   const results = indexConfigured()
