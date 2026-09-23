@@ -14,7 +14,6 @@ const REPO = "https://github.com/competemath/tengoku";
 const EMISSARY = "https://github.com/competemath/emissary-archangel";
 
 export default function AboutTengokuPage() {
-  const total = SOURCES.reduce((n, s) => n + s.count, 0);
   return (
     <InfoPage kicker="tengoku" title="Tengoku" logo="/logos/Tengoku.png">
       <section>
@@ -46,58 +45,67 @@ export default function AboutTengokuPage() {
           </li>
           <li>
             <strong>Leak I, the free MCP service:</strong> the same search from
-            inside your editor or agent. Configure OAuth or an API key at{" "}
-            <Link href="/leak-services">competemath.com/leak-services</Link>; the
-            index is managed by CompeteMath and follows every merge of the tree.
+            inside your editor or agent, at{" "}
+            <code>https://barkingtree-leak-i.hf.space/sse</code>. No auth
+            configuration required. The index is managed by CompeteMath and
+            follows every merge of the tree.
+          </li>
+          <li>
+            <strong>API:</strong>{" "}
+            <code>GET https://competemath.com/api/tengoku/search?q=…</code>{" "}
+            returns JSON, no key. Input and output shapes:{" "}
+            <a href={`${REPO}/blob/main/docs/api.md`} target="_blank" rel="noopener noreferrer">
+              docs/api.md
+            </a>
+            .
           </li>
           <li>
             <strong>Self-serve services:</strong> proof states (Leak II) and
-            verification (Leak IV), hosted or on your own machine, also from{" "}
-            <Link href="/leak-services">/leak-services</Link>. What each Leak
-            harness does is on the <Link href="/about/leak">Leak page</Link>.
+            verification (Leak IV), hosted or on your own machine:{" "}
+            <a href="https://github.com/mikael-bashir/leak-services" target="_blank" rel="noopener noreferrer">
+              github.com/mikael-bashir/leak-services
+            </a>
+            . What each Leak harness does is on the{" "}
+            <Link href="/about/leak">Leak page</Link>.
           </li>
         </ul>
       </section>
 
       <section>
         <h2>The tree</h2>
-        <p className="mt-3">
-          A single root, <code>Tengoku/</code>, and no Lake dependencies; the
-          only thing outside it is the toolchain pinned in{" "}
-          <code>lean-toolchain</code> (<code>leanprover/lean4:v4.34.0-rc2</code>).
-          The source files of Mathlib and of every package its build pulled in
-          were folded into the tree once, under topic paths
-          (<code>Tengoku/Algebra/…</code>, <code>Tengoku/Std/…</code>,{" "}
-          <code>Tengoku/Tactic/Aesop/…</code>), imports rewritten, declaration
-          names untouched — <code>Nat.add_comm</code> is still{" "}
-          <code>Nat.add_comm</code>. <code>SEED.md</code> records what came from
-          where; after seeding those origins have no relationship to Tengoku.
-        </p>
-        <p className="mt-4">
-          <strong>Trusted, precisely:</strong> a theorem is trusted iff it is in
-          the tree and the tree builds on the pinned toolchain with no errors, no{" "}
-          <code>sorry</code>, and no axiom beyond Lean&rsquo;s three. The seed and
-          every later addition are trusted for the same reason: the same kernel
-          compiled them, in this tree.
-        </p>
-        <p className="mt-4">
-          <strong>Additions</strong> are generated into{" "}
-          <code>Tengoku/&lt;Library&gt;/…</code>, one module per original source
-          file plus a <code>Deps/</code> directory for the definitions they rely
-          on, all under the library&rsquo;s namespace. Every module under{" "}
-          <code>Tengoku/</code> is built.
-        </p>
-        <p className="mt-4">
-          <strong>Nobody builds the tree from scratch.</strong> A nightly CI build
-          (03:00 UTC, never triggered by a push, so a bad commit has a day&rsquo;s
-          grace) publishes the compiled tree as a release;{" "}
-          <code>scripts/cache.sh get</code> fetches the newest cache in your
-          branch&rsquo;s ancestry and Lake rebuilds only what differs, and{" "}
-          <code>scripts/pin.sh</code> checks the tree out at that cache&rsquo;s
-          commit so a build compiles nothing at all. On top of that, every merge
-          publishes its compiled difference as a top-up, so the hosted Leak
-          services follow <code>main</code> within minutes without ever compiling.
-        </p>
+        <ul className="mt-3 list-disc pl-5 space-y-2">
+          <li>
+            <strong>No Dependencies:</strong> Everything lives in the{" "}
+            <code>Tengoku/</code> folder. The only external requirement is the
+            pinned Lean toolchain (v4.34.0-rc2).
+          </li>
+          <li>
+            <strong>Self-Contained Seed:</strong> Mathlib and its dependencies
+            were copied in once. <code>SEED.md</code> tracks their origins, but we
+            no longer sync with them. Original declaration names are unchanged.
+          </li>
+          <li>
+            <strong>Strict Trust:</strong> A theorem is &ldquo;trusted&rdquo; only
+            if it compiles cleanly in this tree with no errors, no missing proofs
+            (<code>sorry</code>), and no extra axioms.
+          </li>
+          <li>
+            <strong>New Additions:</strong> Saved in{" "}
+            <code>Tengoku/&lt;Library&gt;/</code>. Every module is built.
+          </li>
+          <li>
+            <strong>Zero-Build Caching:</strong> You never build from scratch.
+            Nightly releases cache the compiled tree. Run{" "}
+            <code>scripts/cache.sh get</code> to download the latest cache and
+            only build your changes, or use <code>scripts/pin.sh</code> to sync
+            perfectly and build nothing.
+          </li>
+          <li>
+            <strong>Live Updates:</strong> Every merge publishes its compiled
+            difference instantly. This keeps the hosted Leak services synced with{" "}
+            <code>main</code> in minutes without compiling.
+          </li>
+        </ul>
       </section>
 
       <section>
@@ -235,8 +243,7 @@ export default function AboutTengokuPage() {
       <section>
         <h2>Sources</h2>
         <p className="mt-3">
-          {SOURCES.length} libraries, {total.toLocaleString()} harvested
-          statements (589,019 indexed after validation). A declaration whose
+          100+ source libraries, 500,000+ theorems. A declaration whose
           proof contains <code>sorry</code> anywhere is dropped at harvest, never
           mislabelled as tentative.
         </p>
@@ -304,7 +311,7 @@ export default function AboutTengokuPage() {
       <section>
         <h2>Independence</h2>
         <p className="mt-3">
-          Tengoku and the wider CompeteMath ecosystem are built by one person.
+          Tengoku and the wider CompeteMath ecosystem were founded by one person.
           There is no intention of making money from this project, and it is not
           affiliated with, nor does it support, any organization, company or
           political group. No donation or partnership buys influence over the
