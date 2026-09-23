@@ -116,6 +116,13 @@ export const authConfig = {
         // const isOnArchives = nextUrl.pathname.startsWith('/archives');
         const isOnAuth = nextUrl.pathname.startsWith('/auth');
 
+        // /whoami shows the signed-in user's own ID; anyone else signs in and comes straight back.
+        if (nextUrl.pathname === '/whoami' && !isLoggedIn) {
+            const login = new URL('/auth/login', nextUrl);
+            login.searchParams.set('callbackUrl', new URL('/whoami', nextUrl).toString());
+            return Response.redirect(login);
+        }
+
         if (isLoggedIn && isOnAuth) {
             const callbackUrl = nextUrl.searchParams.get("callbackUrl");
             
