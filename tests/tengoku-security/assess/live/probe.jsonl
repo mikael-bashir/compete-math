@@ -1,0 +1,1 @@
+{"name": "BlindProbe.easy", "statement": "theorem BlindProbe.easy (a b : Nat) : a + b = b + a", "proof": ":= Nat.add_comm a b", "status": "staging", "library": "competemath", "source_url": "https://competemath.com/practice/problems/0", "toolchain": "leanprover/lean4:v4.34.0-rc2"}

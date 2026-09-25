@@ -1,0 +1,1 @@
+{"name": "BlindProbe.nesbitt", "statement": "theorem BlindProbe.nesbitt (a b c : ℝ) (ha : 0 < a) (hb : 0 < b) (hc : 0 < c) : a / (b + c) + b / (c + a) + c / (a + b) ≥ 3 / 2", "proof": ":= by sorry", "status": "staging", "library": "competemath", "source_url": "https://competemath.com/practice/problems/0", "toolchain": "leanprover/lean4:v4.34.0-rc2"}
