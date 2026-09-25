@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { InfoPage } from "../lib/components/info-page";
 import { CONTACT_EMAIL } from "../lib/constants/site";
 
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <InfoPage kicker="legal" title="Terms of Service">
-      <p className="font-code text-xs text-white/35">Last updated: July 2026</p>
+      <p className="font-code text-xs text-white/35">Last updated: September 2026</p>
 
       <section>
         <h2>The deal</h2>
@@ -33,10 +34,21 @@ export default function TermsPage() {
       <section>
         <h2>Your content</h2>
         <p className="mt-3">
-          You keep ownership of problems, answers and comments you post, and grant
-          CompeteMath a licence to display and distribute them on the platform.
-          Post only content you have the right to share; problems lifted verbatim
-          from copyrighted collections will be removed.
+          You keep ownership of everything you post. Problems and proofs, including
+          their Lean formalisations, are released under the{" "}
+          <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>{" "}
+          when you post them: anyone may use, change and share them, commercially or
+          not, as long as they keep your credit and the licence with them. That is
+          what lets them join <Link href="/about/tengoku">Tengoku</Link>, the open Lean
+          library, and stay free for everyone to build on.
+        </p>
+        <p className="mt-3">
+          Answers and comments are different: you grant CompeteMath a licence to
+          display and distribute them on the platform, and nothing more.
+        </p>
+        <p className="mt-3">
+          Post only content you have the right to share on these terms; problems
+          lifted verbatim from copyrighted collections will be removed.
         </p>
       </section>
 
