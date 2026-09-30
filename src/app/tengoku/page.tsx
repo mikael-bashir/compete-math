@@ -4,7 +4,6 @@ import { InfoPage } from "../lib/components/info-page";
 import { TengokuSearchBar } from "@/components/tengoku/search-bar";
 import { StatPill } from "@/components/tengoku/stat-pill";
 import { getTreeStats } from "@/app/lib/data/tengoku-stats";
-import { CONTACT_EMAIL } from "../lib/constants/site";
 
 export const metadata: Metadata = {
   title: "Tengoku",
@@ -26,38 +25,17 @@ export default async function TengokuPage() {
       <section className="text-center">
         <p className="text-white/60! text-base leading-relaxed max-w-2xl mx-auto">
           Tengoku (天国 — &ldquo;heaven&rdquo;) is an open-source Lean&nbsp;4 formal
-          knowledge tree, with a few key features:
+          knowledge tree.
         </p>
-        <ol className="not-prose mx-auto mt-4 max-w-xl space-y-2 text-left text-[15px] leading-relaxed text-white/60">
-          <li className="flex gap-3">
-            <span className="font-code text-amber-400/80 shrink-0">1)</span>
-            <span>
-              Unifies many open-source Lean&nbsp;4 libraries, translating them to the
-              newest Lean&nbsp;4 toolchain that Tengoku tracks.
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span className="font-code text-amber-400/80 shrink-0">2)</span>
-            <span>
-              Welcomes contributions from anyone (
-              <a href={`mailto:${CONTACT_EMAIL}`}>get in touch</a> if you have any
-              questions).
-            </span>
-          </li>
-          <li className="flex gap-3">
-            <span className="font-code text-amber-400/80 shrink-0">3)</span>
-            <span>
-              Continues to expand autonomously with <a href="/leak">Leak</a>{" "}
-              integration.
-            </span>
-          </li>
-        </ol>
 
         <div className="not-prose mt-8 flex flex-wrap items-center justify-center gap-3 font-code text-xs">
           <StatPill tone="neutral">
             <strong className="text-white!">{formatCount(stats.total)}</strong> theorems
           </StatPill>
-          <StatPill tone="trusted" note="Anything marked Leak-trusted has been verified by Leak itself.">
+          <StatPill
+            tone="trusted"
+            note="Anything marked Leak-trusted compiles from scratch in the self-contained Tengoku tree, on its one pinned Lean toolchain, with no sorry, only the standard axioms, and assumptions that are not contradictory."
+          >
             <strong className="text-emerald-300">{formatCount(stats.trusted)}</strong> Leak-trusted
           </StatPill>
           <StatPill
