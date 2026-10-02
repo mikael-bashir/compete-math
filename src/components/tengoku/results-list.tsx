@@ -2,6 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import type { TengokuEntry } from '@/app/lib/data/tengoku';
+import { SquircleLoader } from './squircle-loader';
 
 function StatusBadge({ status }: { status: TengokuEntry['status'] }) {
   if (status === 'trusted') {
@@ -32,7 +33,9 @@ export function TengokuResultsList({
 }) {
   if (loading) {
     return (
-      <p className="mt-8 text-center text-sm text-white/40">Searching…</p>
+      <div className="mt-8 flex justify-center">
+        <SquircleLoader label="Searching" />
+      </div>
     );
   }
 
