@@ -50,7 +50,7 @@ function turnsAt(t: number) {
 }
 
 export function SquircleLoader({
-  size = 72,
+  size = 18,
   label = 'Searching',
   className,
 }: {
