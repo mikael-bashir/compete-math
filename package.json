@@ -8,7 +8,7 @@
     "build": "pnpm run warm-tengoku-model && next build",
     "start": "next start",
     "lint": "next lint",
-    "test:tengoku": "node --import tsx --test 'tests/tengoku-search/*.test.ts' 'src/app/lib/tengoku-search/*.test.ts'",
+    "test:tengoku": "node --import tsx --test 'tests/tengoku-search/*.test.ts' 'src/app/lib/tengoku-search/*.test.ts' 'src/app/lib/tengoku-source/*.test.ts'",
     "tengoku:eval": "tsx scripts/tengoku-search-eval.ts",
     "tengoku:load": "tsx scripts/tengoku-index-load.ts"
   },

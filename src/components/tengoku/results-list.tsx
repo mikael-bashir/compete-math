@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import type { TengokuEntry } from '@/app/lib/data/tengoku';
 import { SquircleLoader } from './squircle-loader';
@@ -19,6 +20,99 @@ function StatusBadge({ status }: { status: TengokuEntry['status'] }) {
     >
       Tentative
     </Badge>
+  );
+}
+
+interface SourceInfo {
+  proof: string;
+  script: string;
+  declaration: string;
+  generatedFrom: string | null;
+}
+
+// The index keeps no proofs: the dropdown reads the declaration from the tree, at the commit the result came from, the first time it is opened.
+function ProofPanel({ entry }: { entry: TengokuEntry }) {
+  const [info, setInfo] = useState<SourceInfo | null>(
+    entry.proof ? { proof: entry.proof, script: '', declaration: '', generatedFrom: null } : null,
+  );
+  const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [copied, setCopied] = useState(false);
+
+  async function load() {
+    if (info || state === 'loading' || !entry.sourceUrl) return;
+    setState('loading');
+    try {
+      const qs = new URLSearchParams({
+        url: entry.sourceUrl,
+        name: entry.name,
+        statement: entry.statement,
+        library: entry.library,
+        tier: entry.status,
+      });
+      const res = await fetch(`/api/tengoku/source?${qs.toString()}`);
+      if (!res.ok) throw new Error(String(res.status));
+      setInfo((await res.json()) as SourceInfo);
+      setState('idle');
+    } catch {
+      setState('error');
+    }
+  }
+
+  async function copy() {
+    if (!info?.script) return;
+    try {
+      await navigator.clipboard.writeText(info.script);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <details className="mt-1.5 group" onToggle={(e) => e.currentTarget.open && void load()}>
+      <summary className="cursor-pointer font-code text-[10px] uppercase tracking-[0.12em] text-white/30 hover:text-white/50">
+        proof
+      </summary>
+      {state === 'loading' && <p className="mt-1.5 font-code text-xs text-white/40">Reading the proof from the tree…</p>}
+      {state === 'error' && (
+        <p className="mt-1.5 font-code text-xs text-white/40">
+          Could not read the proof here.{' '}
+          <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-300/80 no-underline hover:text-emerald-300">
+            Open the source &rarr;
+          </a>
+        </p>
+      )}
+      {info && (
+        <>
+          {info.generatedFrom && (
+            <p className="mt-1.5 font-code text-[11px] text-white/40">
+              Generated from <span className="text-white/60">{info.generatedFrom}</span> by an attribute (<code>to_additive</code>): this is the proof of that declaration.
+            </p>
+          )}
+          <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-black/30 p-2 font-code text-xs leading-relaxed text-white/50">
+            {info.proof || '(no proof term: a definition, structure or class)'}
+          </pre>
+          {info.script && (
+            <div className="mt-2">
+              <div className="flex items-center gap-3">
+                <span className="font-code text-[10px] uppercase tracking-[0.12em] text-white/30">run it in a Tengoku checkout</span>
+                <button
+                  type="button"
+                  onClick={copy}
+                  className="ml-auto cursor-pointer rounded border border-white/15 px-2 py-0.5 font-code text-[10px] uppercase tracking-[0.12em] text-white/60 hover:border-white/30 hover:text-white"
+                >
+                  {copied ? 'copied' : 'copy script'}
+                </button>
+              </div>
+              <pre className="mt-1.5 max-h-64 overflow-auto whitespace-pre rounded bg-black/30 p-2 font-code text-xs leading-relaxed text-white/50">
+                {info.script}
+              </pre>
+            </div>
+          )}
+        </>
+      )}
+    </details>
   );
 }
 
@@ -91,14 +185,7 @@ export function TengokuResultsList({
           <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words font-code text-xs leading-relaxed text-white/60">
             {entry.statement}
           </pre>
-          <details className="mt-1.5 group">
-            <summary className="cursor-pointer font-code text-[10px] uppercase tracking-[0.12em] text-white/30 hover:text-white/50">
-              proof
-            </summary>
-            <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-black/30 p-2 font-code text-xs leading-relaxed text-white/50">
-              {entry.proof}
-            </pre>
-          </details>
+          <ProofPanel entry={entry} />
         </div>
       ))}
     </div>

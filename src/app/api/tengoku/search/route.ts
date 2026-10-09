@@ -4,6 +4,14 @@ import { smartSearchTengokuEntries } from "@/app/lib/data/tengoku-semantic-searc
 import { indexConfigured } from "@/app/lib/tengoku-search/shards";
 import { searchIndex } from "@/app/lib/tengoku-search/search";
 import { createHash } from "node:crypto";
+import { displayUrl, parseSourceUrl } from "@/app/lib/tengoku-source/extract";
+
+// Lean's own library (Init, Std, Lean) is not in the Tengoku repository: the index links it under the tree's commit, so its link is rewritten to leanprover/lean4.
+const CORE_TAG = process.env.TENGOKU_CORE_TAG || "v4.34.0-rc2";
+function linkFor(permalink: string): string {
+  const ref = parseSourceUrl(permalink);
+  return ref && ref.root === "core" ? displayUrl(ref, CORE_TAG) : permalink;
+}
 
 function recordSearch() {
   sql`
@@ -25,7 +33,7 @@ export async function GET(request: NextRequest) {
     ? (await searchIndex(query)).results.map((r) => ({
         id: parseInt(createHash("sha1").update(r.id).digest("hex").slice(0, 8), 16),
         name: r.name, statement: r.statement, proof: "", status: r.tier === "trusted" ? ("trusted" as const) : ("tentative" as const),
-        library: r.id.split("/")[0], sourceUrl: r.permalink || "", toolchain: "", compatibleToolchains: [] as string[],
+        library: r.id.split("/")[0], sourceUrl: linkFor(r.permalink || ""), toolchain: "", compatibleToolchains: [] as string[],
       }))
     : await smartSearchTengokuEntries(query);
   console.log(`[tengoku-search] query="${query}" results=${results.length}`);
