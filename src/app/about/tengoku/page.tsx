@@ -182,17 +182,6 @@ export default function AboutTengokuPage() {
             ejects is left open with the reason.
           </li>
           <li>
-            <strong>The blind re-proof test</strong> (original theorems only):
-            name up to ten headline theorems; a fresh agent that sees only the
-            statement, with the library&rsquo;s own search, proof-state and
-            verification services, gets about five minutes each. If it re-proves
-            every one, the library already reaches all of it and the PR is
-            rejected; if at least one resists, it passes. The whole attempt is
-            recorded and the gate re-derives the verdict from the raw transcript.
-            Translations of existing libraries are exempt — a translation is
-            never new mathematics.
-          </li>
-          <li>
             <strong>Authorship stays with you.</strong> A docstring above each
             theorem names the human author, the AI system used if any, and a link
             to your identity (GitHub, LinkedIn, ORCID, or your{" "}
@@ -213,10 +202,6 @@ export default function AboutTengokuPage() {
           ,{" "}
           <a href={`${REPO}/blob/main/docs/testing.md`} target="_blank" rel="noopener noreferrer">
             how Tengoku is tested
-          </a>
-          ,{" "}
-          <a href={`${REPO}/blob/main/docs/assess.md`} target="_blank" rel="noopener noreferrer">
-            the blind re-proof test
           </a>
           ,{" "}
           <a href={`${REPO}/blob/main/docs/topups.md`} target="_blank" rel="noopener noreferrer">
