@@ -1,0 +1,72 @@
+clean-append	pass	-	queue	33	One good record in a per-PR staging file.
+two-purposes	fail	classify	gate	34	Content and tooling in one PR.
+delete-in-staging	fail	data-rules/append-only	gate	35	Deletes a staging line.
+eval-in-record	fail	data-rules/content-lint	gate	36	Record whose context runs code.
+credit-removed	fail	credits	gate	37	Removes an Authors line from a seeded module.
+fake-secret	fail	secrets	gate	38	AWS example credential pair.
+unsigned	fail	dco	gate	39	Commit without Signed-off-by.
+derived-edit	fail	classify	gate	40	Hand edit of a generated module (actor is not the bot).
+bad-source	fail	data-rules/records	gate	41	source_url not on the allowlist.
+broken-proof	pass	-	queue	42	Proof of a false statement: gate passes, queue must eject.
+tooling-change	pass	-	gate	43	A comment in a script: lint + tooling tests run.
+sorry-proof	pass	-	queue	44	sorry in a proof: advisory comment at the gate, ejection in the queue.
+allowed-option	pass	-	queue	45	set_option on the allowlist in context.
+forbidden-option	fail	data-rules/content-lint	gate	46	set_option not on the allowlist.
+native-decide	fail	data-rules/content-lint	gate	47	native_decide in a proof.
+run-cmd	fail	data-rules/content-lint	gate	48	run_cmd in context.
+extern-attr	fail	data-rules/content-lint	gate	49	@[extern] in context.
+unsafe-def	fail	data-rules/content-lint	gate	50	unsafe def in context.
+import-in-context	fail	data-rules/content-lint	gate	51	import inside a record.
+initialize-in-context	fail	data-rules/content-lint	gate	52	initialize in context.
+axiom-in-context	fail	data-rules/content-lint	gate	53	axiom in context.
+io-process	fail	data-rules/content-lint	gate	54	IO.Process in context.
+duplicate-in-pr	fail	data-rules/records	gate	55	Two records with the same name.
+duplicate-vs-trusted	fail	data-rules/records	gate	56	Name already trusted (Finite.Equation1076_implies_Equation3).
+missing-field	fail	data-rules/records	gate	57	Record without a statement.
+malformed-json	fail	data-rules/records	gate	58	A line that is not JSON.
+library-mismatch	fail	data-rules/records	gate	59	library field disagrees with the file's library.
+missing-source-path	fail	data-rules/records	gate	60	Corpus library record without source_path (would never compile).
+name-with-space	fail	data-rules/records	gate	61	Exploratory: a name containing a space.
+tentative-append	pass	-	gate	62	A tentative record (data/tentative).
+two-libraries	pass	-	queue	63	Records for two libraries; mathlib has no corpus (data only).
+bigger-append	pass	-	queue	64	300 records in one file, one source path.
+tombstone-valid	pass	-	gate	65	Tombstone for a trusted name.
+tombstone-missing-target	fail	data-rules/records	gate	66	Tombstone for a name that does not exist.
+tombstone-plus-content	fail	classify	gate	67	Tombstone and a staging record in one PR.
+edit-line-in-staging	fail	data-rules/append-only	gate	68	One byte changed inside an existing staging line.
+reorder-lines	fail	data-rules/append-only	gate	69	First two staging lines swapped.
+whitespace-change	fail	data-rules/append-only	gate	70	Trailing space added to an existing line.
+rename-data-file	fail	data-rules/append-only	gate	71	Staging file renamed.
+crlf-append	pass	-	gate	72	Exploratory: appended record line ends in CRLF.
+stats-json-edit	fail	classify	gate	73	Hand edit of data/stats.json.
+all-lean-edit	fail	classify	gate	74	Hand edit of Tengoku/All.lean.
+workflow-in-content	fail	classify	gate	75	A record and a workflow change together.
+docs-only	pass	-	gate	76	README only.
+docs-plus-content	pass	-	gate	77	README and a record: docs may ride along.
+binary-in-docs	pass	-	gate	78	Exploratory: a PNG under docs/.
+seeded-module-unsafe	pass	-	queue	79	unsafe def added to a seeded module: tooling class at the gate (no lint), the queue's lint must catch it.
+promotion-not-bot	fail	classify	gate	80	Promotion-shaped PR by a non-bot actor.
+actionlint-error	fail	tooling-tests	gate	81	Untrusted input interpolated into a run: step (actionlint).
+ruff-error	fail	lint-python	gate	82	Unused import in a gate script.
+failing-unit-test	fail	tooling-tests	gate	83	A failing unittest in the tooling suite.
+hook-removed	pass	-	gate	84	Exploratory: removing a pre-commit hook is just a tooling change (CODEOWNERS is the control).
+private-key	fail	secrets	gate	85	Exploratory: an unparseable private key block (TruffleHog verified/unknown only).
+github-token-shaped	fail	secrets	gate	86	Exploratory: a GitHub token-shaped string that does not verify.
+depends-open	fail	depends	gate	87	Depends-On an open PR (#).
+depends-merged	pass	-	gate	88	Depends-On a merged PR (#2).
+unknown-identifier	pass	-	queue	89	Proof names something that does not exist.
+type-mismatch	pass	-	queue	90	Proof of the wrong proposition.
+unsolved-goals	pass	-	queue	91	Tactic block that proves nothing.
+heartbeat-timeout	pass	-	queue	92	maxHeartbeats too small for the proof.
+decide-native	pass	-	queue	93	decide +native passes the lint but uses Lean.ofReduceBool: the axiom scan must eject it.
+clean-b	pass	-	queue	94	Second clean record, different file.
+clean-c	pass	-	queue	95	Third clean record.
+clean-d	pass	-	queue	96	Fourth clean record.
+clean-e	pass	-	queue	97	Fifth clean record.
+depends-chain-x	pass	-	queue	98	Depends on clean-b; queued after it.
+clean-f	pass	-	queue	101	Clean, queued first.
+bad-mid	pass	-	queue	102	Broken, queued second.
+clean-g	pass	-	queue	103	Clean, queued third.
+promotion-campaign	pass	-	queue	105	promotion
+derived-edit-as-promotion	pass	-	queue	106	Actor is the bot, so the gate accepts the hand edit; the queue's regeneration diff must eject it.
+r5-clean-after-tombstone	pass	-	queue	129	Clean content PR after the poisoned record was retracted.
