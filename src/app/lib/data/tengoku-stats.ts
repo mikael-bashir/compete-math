@@ -54,6 +54,8 @@ export interface FullTreeStats {
   /** the tree commit that was counted, and when */
   countedCommit: string | null;
   countedAt: string | null;
+  /** why the live count fell back to stats.json; null when it did not */
+  liveError: string | null;
 }
 
 function count(v: unknown): number | null {
@@ -85,6 +87,7 @@ export function parseFullStats(raw: unknown): FullTreeStats {
     trustedIntake: null,
     countedCommit: null,
     countedAt: null,
+    liveError: null,
   };
 }
 
@@ -107,10 +110,12 @@ export async function getTreeStatsFull(): Promise<FullTreeStats> {
       trustedIntake: live.trustedIntake,
       countedCommit: live.commit,
       countedAt: live.countedAt,
+      liveError: null,
     };
   } catch (e) {
-    console.error("[tengoku] live count failed, using stats.json:", (e as Error).message);
-    return base;
+    const why = (e as Error).message;
+    console.error("[tengoku] live count failed, using stats.json:", why);
+    return { ...base, liveError: why };
   }
 }
 
