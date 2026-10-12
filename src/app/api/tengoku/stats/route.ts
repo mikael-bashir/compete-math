@@ -8,7 +8,8 @@
 import { NextResponse } from "next/server";
 import { STATS_URL, STATS_REVALIDATE_SECONDS } from "@/app/lib/data/tengoku-stats";
 
-export const revalidate = STATS_REVALIDATE_SECONDS;
+// a literal on purpose: Next reads route segment config statically and rejects an imported constant here
+export const revalidate = 600;
 
 const HEADERS = {
   "Cache-Control": `public, s-maxage=${STATS_REVALIDATE_SECONDS}, stale-while-revalidate=86400`,
