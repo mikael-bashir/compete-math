@@ -23,16 +23,24 @@ export interface LiveCount {
   countedAt: string;
 }
 
-function headers(): Record<string, string> {
+function headers(token?: string): Record<string, string> {
   const h: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": "competemath-tengoku-count" };
-  // optional: a token with no scopes (public read) lifts the 60-requests-an-hour limit shared by Vercel's addresses
-  if (process.env.GITHUB_TOKEN) h.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  if (token) h.Authorization = `Bearer ${token}`;
   return h;
 }
 
+// A token lifts the 60-requests-an-hour limit that Vercel's shared addresses hit. The repo is public, so a token that GitHub refuses
+// (expired, restricted to other repos) must not break the count: the same call is retried without it.
+const TOKEN = process.env.TENGOKU_COUNT_TOKEN || process.env.GITHUB_TOKEN || "";
+
 async function gh<T>(path: string): Promise<T> {
-  const res = await fetch(`${API}${path}`, { headers: headers(), next: { revalidate: LISTING_REVALIDATE_SECONDS } });
-  if (!res.ok) throw new Error(`GitHub ${path} ${res.status}`);
+  const call = (token?: string) => fetch(`${API}${path}`, { headers: headers(token), next: { revalidate: LISTING_REVALIDATE_SECONDS } });
+  let res = await call(TOKEN || undefined);
+  if (TOKEN && (res.status === 401 || res.status === 403)) res = await call();
+  if (!res.ok) {
+    const why = ((await res.json().catch(() => null)) as { message?: string } | null)?.message ?? "";
+    throw new Error(`GitHub ${path} ${res.status} ${why}`.trim());
+  }
   return (await res.json()) as T;
 }
 
