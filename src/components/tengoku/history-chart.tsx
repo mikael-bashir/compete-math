@@ -14,7 +14,7 @@ interface Breakdown {
   sources: Record<string, number>;
 }
 
-const fmtPct = (v: number) => (v >= 99.95 ? `${Math.round(v)}%` : v >= 10 ? `${v.toFixed(0)}%` : v < 0.1 ? "<0.1%" : `${v.toFixed(1)}%`);
+const fmtPct = (v: number) => (v === 0 ? "0%" : v >= 99.95 ? `${Math.round(v)}%` : v >= 10 ? `${v.toFixed(0)}%` : v < 0.1 ? "<0.1%" : `${v.toFixed(1)}%`);
 
 function Spark({ values }: { values: number[] }) {
   if (values.length < 2) return <span className="inline-block h-3.5 w-12" />;
@@ -104,11 +104,11 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
     setPinned(true);
   };
 
-  // theorems held per library per day, to draw each library's yield over the days up to the one being looked at
-  const heldByDay = useMemo(() => {
+  // Leak-trusted theorems per library per day, to draw each library's yield over the days up to the one being looked at
+  const trustedByDay = useMemo(() => {
     const m = new Map<string, Map<number, number>>();
     if (!data) return m;
-    for (const [day, list] of Object.entries(data.byDay)) m.set(day, new Map(list.map(([i, t, e]) => [i, t + e])));
+    for (const [day, list] of Object.entries(data.byDay)) m.set(day, new Map(list.map(([i, t]) => [i, t])));
     return m;
   }, [data]);
   const windowDays = useMemo(() => new Set(win.points.map((p) => p.day)), [win.points]);
@@ -122,14 +122,13 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
       const name = data.libraries[i];
       const source = data.sources[name];
       const held = trusted + tentative;
-      const y = yieldOf(trusted, tentative, source);
-      const history = source ? upTo.map((d) => yieldOf(heldByDay.get(d)?.get(i) ?? 0, 0, source)?.percent ?? 0) : [];
-      return { name, trusted, tentative, held, source, yieldPct: y?.percent ?? null, mayOverlap: y?.mayOverlap ?? false, history };
+      const history = source ? upTo.map((d) => yieldOf(trustedByDay.get(d)?.get(i) ?? 0, source) ?? 0) : [];
+      return { name, trusted, tentative, held, source, yieldPct: yieldOf(trusted, source), history };
     });
     return all.sort((a, b) => (sortBy === "yield" ? (b.yieldPct ?? -1) - (a.yieldPct ?? -1) || b.held - a.held : b.held - a.held));
   })();
   const sourced = rows ? rows.filter((r) => r.source) : [];
-  const overall = sourced.length ? sourced.reduce((a, r) => a + (r.yieldPct ?? 0) * (r.source as number), 0) / sourced.reduce((a, r) => a + (r.source as number), 0) : null;
+  const overall = sourced.length ? yieldOf(sourced.reduce((a, r) => a + r.trusted, 0), sourced.reduce((a, r) => a + (r.source as number), 0)) : null;
   const shown = rows && !showAll ? rows.slice(0, TOP_ROWS) : rows;
 
   const label = last
@@ -228,7 +227,7 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
           {rows && rows.length === 0 ? <p className="text-white/35">No library breakdown was recorded for this day.</p> : null}
           {overall !== null ? (
             <p className="mb-2 text-white/45">
-              Yield: Tengoku has taken in <strong className="text-emerald-300/90">{fmtPct(overall)}</strong> of the theorems in the {sourced.length} libraries whose source is pinned.
+              Yield: <strong className="text-emerald-300/90">{fmtPct(overall)}</strong> of the theorems in the {sourced.length} libraries whose source is pinned are Leak-trusted.
             </p>
           ) : null}
           {shown && shown.length > 0 ? (
@@ -242,7 +241,7 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
                 <button
                   type="button"
                   onClick={() => setSortBy("yield")}
-                  title="The share of the library's own theorems and lemmas that Tengoku has taken in"
+                  title="The share of the library's own theorems and lemmas that are Leak-trusted in Tengoku"
                   className={`text-right uppercase ${sortBy === "yield" ? "text-emerald-300/80" : "hover:text-white/60"}`}
                 >
                   Yield
@@ -259,7 +258,7 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
                     </span>
                     <span className="text-right text-white/60">{n(r.held)}</span>
                     <span className="flex items-center justify-end gap-1.5 text-white/55">
-                      {r.yieldPct === null ? <span className="text-white/25" title="No pinned source to compare with">—</span> : <><Spark values={r.history} /><span title={r.mayOverlap ? "Both tiers hold records for this library, so some theorems may be counted twice and the real share may be lower" : undefined}>{r.mayOverlap ? "≤" : ""}{fmtPct(r.yieldPct)}</span></>}
+                      {r.yieldPct === null ? <span className="text-white/25" title="No pinned source to compare with">—</span> : <><Spark values={r.history} /><span title={`${n(r.trusted)} of about ${n(r.source as number)} theorems in its source are Leak-trusted`}>{fmtPct(r.yieldPct)}</span></>}
                     </span>
                   </li>
                 ))}
@@ -303,9 +302,9 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
             change a count, because we count theorems, not files.
           </p>
           <p>
-            Yield is, for each library, the share of its own theorems and lemmas that Tengoku has taken in. The library&apos;s total is counted from its source code at
-            the version Tengoku pins, with the same scanner Tengoku uses to read it. Libraries with no pinned source (slices of Mathlib, sets written by AI) show a dash.
-            A &ldquo;≤&rdquo; means both tiers hold records for the library, so some theorems may be counted twice and the real share may be lower. A library cannot yield more than 100%.
+            Yield is, for each library, the share of its own theorems and lemmas that are Leak-trusted in Tengoku. The library&apos;s total is counted from its source code
+            at the version Tengoku pins, with the same scanner Tengoku uses to read it. Tentative theorems do not count towards yield, because Leak has not checked them yet.
+            Libraries with no pinned source (slices of Mathlib, sets written by AI) show a dash.
           </p>
         </div>
       </details>

@@ -45,10 +45,9 @@ test("the domain never collapses", () => {
   assert.deepEqual(yDomain([]), [0, 1]);
 });
 
-test("a library's yield is what Tengoku holds over what its source has, never above 100%, and says when the tiers may overlap", () => {
-  assert.deepEqual(yieldOf(27_568, 1_022, 73_224), { percent: ((27_568 + 1_022) / 73_224) * 100, mayOverlap: true });
-  assert.deepEqual(yieldOf(0, 30_142, 40_237)?.mayOverlap, false);
-  assert.equal(yieldOf(5_119, 6_042, 6_049)?.percent, 100); // the same theorems held twice cannot exceed the library
-  assert.equal(yieldOf(10, 0, undefined), null);
-  assert.equal(yieldOf(10, 0, 0), null);
+test("a library's yield is its Leak-trusted theorems over the theorems in its own source; tentative records are not yield", () => {
+  assert.equal(yieldOf(27_568, 73_224), (27_568 / 73_224) * 100);
+  assert.equal(yieldOf(0, 40_237), 0); // all tentative: nothing verified yet
+  assert.equal(yieldOf(10, undefined), null);
+  assert.equal(yieldOf(10, 0), null);
 });
