@@ -112,6 +112,7 @@ export async function getTreeStatsFull(): Promise<FullTreeStats> {
       trusted: live.trusted,
       staging: live.staging,
       tentative: tent.total,
+      libraries: Object.keys(byLibrary).length,
       total: live.trusted + live.staging + tent.total,
       treeCommit: live.commit,
       live: true,

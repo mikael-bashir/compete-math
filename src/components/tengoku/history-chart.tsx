@@ -104,7 +104,7 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
 
   return (
     <div className="mx-auto w-full max-w-2xl">
-      <div className="mb-3 flex items-center justify-between gap-3 font-code text-xs">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 font-code text-xs">
         <div className="text-white/50">
           {current ? (
             <>
