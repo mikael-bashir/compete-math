@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, place, utcDay, windowPoints, yDomain, type DayPoint } from "../../src/app/lib/data/tengoku-history-core";
+import { addDays, place, utcDay, windowPoints, yDomain, yieldOf, type DayPoint } from "../../src/app/lib/data/tengoku-history-core";
 
 const pt = (day: string, total: number): DayPoint => ({ day, total, trusted: 0, tentative: 0 });
 
@@ -43,4 +43,12 @@ test("the domain never collapses", () => {
   const [lo, hi] = yDomain([5, 5, 5]);
   assert.ok(hi > lo);
   assert.deepEqual(yDomain([]), [0, 1]);
+});
+
+test("a library's yield is what Tengoku holds over what its source has, never above 100%, and says when the tiers may overlap", () => {
+  assert.deepEqual(yieldOf(27_568, 1_022, 73_224), { percent: ((27_568 + 1_022) / 73_224) * 100, mayOverlap: true });
+  assert.deepEqual(yieldOf(0, 30_142, 40_237)?.mayOverlap, false);
+  assert.equal(yieldOf(5_119, 6_042, 6_049)?.percent, 100); // the same theorems held twice cannot exceed the library
+  assert.equal(yieldOf(10, 0, undefined), null);
+  assert.equal(yieldOf(10, 0, 0), null);
 });

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { RANGES, place, windowPoints, type DayPoint, type RangeKey } from "@/app/lib/data/tengoku-history-core";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { RANGES, place, windowPoints, yieldOf, type DayPoint, type RangeKey } from "@/app/lib/data/tengoku-history-core";
 
 const W = 600;
 const H = 140;
@@ -11,6 +11,22 @@ const TOP_ROWS = 8;
 interface Breakdown {
   libraries: string[];
   byDay: Record<string, [number, number, number][]>;
+  sources: Record<string, number>;
+}
+
+const fmtPct = (v: number) => (v >= 99.95 ? `${Math.round(v)}%` : v >= 10 ? `${v.toFixed(0)}%` : v < 0.1 ? "<0.1%" : `${v.toFixed(1)}%`);
+
+function Spark({ values }: { values: number[] }) {
+  if (values.length < 2) return <span className="inline-block h-3.5 w-12" />;
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const span = hi - lo || 1;
+  const pts = values.map((v, i) => `${((i / (values.length - 1)) * 46 + 1).toFixed(1)},${(13 - ((v - lo) / span) * 11).toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox="0 0 48 14" className="inline-block h-3.5 w-12" aria-hidden="true">
+      <polyline points={pts} fill="none" stroke="currentColor" className="text-emerald-300/70" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function formatDay(day: string): string {
@@ -31,6 +47,7 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
   const [data, setData] = useState<Breakdown | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
   const [showAll, setShowAll] = useState(false);
+  const [sortBy, setSortBy] = useState<"held" | "yield">("held");
   const svgRef = useRef<SVGSVGElement>(null);
 
   const days = RANGES.find((r) => r.key === range)!.days;
@@ -87,15 +104,32 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
     setPinned(true);
   };
 
+  // theorems held per library per day, to draw each library's yield over the days up to the one being looked at
+  const heldByDay = useMemo(() => {
+    const m = new Map<string, Map<number, number>>();
+    if (!data) return m;
+    for (const [day, list] of Object.entries(data.byDay)) m.set(day, new Map(list.map(([i, t, e]) => [i, t + e])));
+    return m;
+  }, [data]);
+  const windowDays = useMemo(() => new Set(win.points.map((p) => p.day)), [win.points]);
+
   const rows = (() => {
     if (!data || !current) return null;
     const day = data.byDay[current.day];
     if (!day) return [];
-    const total = day.reduce((a, r) => a + r[1] + r[2], 0);
-    return day
-      .map(([i, trusted, tentative]) => ({ name: data.libraries[i], trusted, tentative, held: trusted + tentative, share: total ? ((trusted + tentative) / total) * 100 : 0 }))
-      .sort((a, b) => b.held - a.held);
+    const upTo = Object.keys(data.byDay).filter((d) => windowDays.has(d) && d <= current.day).sort();
+    const all = day.map(([i, trusted, tentative]) => {
+      const name = data.libraries[i];
+      const source = data.sources[name];
+      const held = trusted + tentative;
+      const y = yieldOf(trusted, tentative, source);
+      const history = source ? upTo.map((d) => yieldOf(heldByDay.get(d)?.get(i) ?? 0, 0, source)?.percent ?? 0) : [];
+      return { name, trusted, tentative, held, source, yieldPct: y?.percent ?? null, mayOverlap: y?.mayOverlap ?? false, history };
+    });
+    return all.sort((a, b) => (sortBy === "yield" ? (b.yieldPct ?? -1) - (a.yieldPct ?? -1) || b.held - a.held : b.held - a.held));
   })();
+  const sourced = rows ? rows.filter((r) => r.source) : [];
+  const overall = sourced.length ? sourced.reduce((a, r) => a + (r.yieldPct ?? 0) * (r.source as number), 0) / sourced.reduce((a, r) => a + (r.source as number), 0) : null;
   const shown = rows && !showAll ? rows.slice(0, TOP_ROWS) : rows;
 
   const label = last
@@ -192,25 +226,41 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
           {state === "error" ? <p className="text-amber-300/80">The library breakdown could not be loaded right now.</p> : null}
           {!rows && state !== "error" ? <p className="text-white/35">Loading the libraries…</p> : null}
           {rows && rows.length === 0 ? <p className="text-white/35">No library breakdown was recorded for this day.</p> : null}
+          {overall !== null ? (
+            <p className="mb-2 text-white/45">
+              Yield: Tengoku has taken in <strong className="text-emerald-300/90">{fmtPct(overall)}</strong> of the theorems in the {sourced.length} libraries whose source is pinned.
+            </p>
+          ) : null}
           {shown && shown.length > 0 ? (
             <>
-              <div className="mb-1 grid grid-cols-[minmax(0,1fr)_5.5rem_4rem] gap-2 text-[10px] uppercase tracking-wider text-white/30 sm:grid-cols-[minmax(0,1fr)_8rem_6rem_4rem]">
+              <div className="mb-1 grid grid-cols-[minmax(0,1fr)_4.5rem_6rem] gap-2 text-[10px] uppercase tracking-wider text-white/30 sm:grid-cols-[minmax(0,1fr)_5rem_4.5rem_7rem]">
                 <span>Library</span>
-                <span className="hidden sm:block">Leak-trusted / tentative</span>
-                <span className="text-right">Theorems</span>
-                <span className="text-right">Share</span>
+                <span className="hidden sm:block">Trusted / tentative</span>
+                <button type="button" onClick={() => setSortBy("held")} className={`text-right uppercase ${sortBy === "held" ? "text-emerald-300/80" : "hover:text-white/60"}`}>
+                  Theorems
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortBy("yield")}
+                  title="The share of the library's own theorems and lemmas that Tengoku has taken in"
+                  className={`text-right uppercase ${sortBy === "yield" ? "text-emerald-300/80" : "hover:text-white/60"}`}
+                >
+                  Yield
+                </button>
               </div>
               <ul className={`space-y-1 ${showAll ? "max-h-72 overflow-y-auto pr-1" : ""}`}>
                 {shown.map((r) => (
-                  <li key={r.name} className="grid grid-cols-[minmax(0,1fr)_5.5rem_4rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_6rem_4rem]">
-                    <span className="truncate text-white/70" title={r.name}>
+                  <li key={r.name} className="grid grid-cols-[minmax(0,1fr)_4.5rem_6rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_5rem_4.5rem_7rem]">
+                    <span className="truncate text-white/70" title={r.source ? `${r.name}: ${n(r.held)} of about ${n(r.source)} in its source` : r.name}>
                       {r.name}
                     </span>
                     <span className="hidden h-1.5 overflow-hidden rounded-full bg-amber-400/30 sm:block" title={`${n(r.trusted)} Leak-trusted, ${n(r.tentative)} tentative`}>
                       <span className="block h-full bg-emerald-400/70" style={{ width: `${(r.trusted / r.held) * 100}%` }} />
                     </span>
                     <span className="text-right text-white/60">{n(r.held)}</span>
-                    <span className="text-right text-white/40">{r.share < 0.1 ? "<0.1" : r.share.toFixed(1)}%</span>
+                    <span className="flex items-center justify-end gap-1.5 text-white/55">
+                      {r.yieldPct === null ? <span className="text-white/25" title="No pinned source to compare with">—</span> : <><Spark values={r.history} /><span title={r.mayOverlap ? "Both tiers hold records for this library, so some theorems may be counted twice and the real share may be lower" : undefined}>{r.mayOverlap ? "≤" : ""}{fmtPct(r.yieldPct)}</span></>}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -253,8 +303,9 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
             change a count, because we count theorems, not files.
           </p>
           <p>
-            The library list shows how many theorems each source library has in Tengoku and what share of Tengoku that is. How many theorems each library has
-            outside Tengoku is not recorded, so the list does not show what fraction of a whole library we hold.
+            Yield is, for each library, the share of its own theorems and lemmas that Tengoku has taken in. The library&apos;s total is counted from its source code at
+            the version Tengoku pins, with the same scanner Tengoku uses to read it. Libraries with no pinned source (slices of Mathlib, sets written by AI) show a dash.
+            A &ldquo;≤&rdquo; means both tiers hold records for the library, so some theorems may be counted twice and the real share may be lower. A library cannot yield more than 100%.
           </p>
         </div>
       </details>

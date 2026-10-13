@@ -78,3 +78,14 @@ export function place(points: DayPoint[], start: string, days: number, w: number
     };
   });
 }
+
+/**
+ * A library's yield: the share of the theorems and lemmas in its own source (the harvester's count at the pinned commit) that Tengoku
+ * holds. The tree can hold the same theorem twice, as a tentative record and again in an added-whole bundle's manifest, so a library
+ * can appear to hold more than its source; a library cannot yield more than it has, so the share stops at 100%, and `mayOverlap`
+ * says when both tiers hold records and the share may be flattering.
+ */
+export function yieldOf(trusted: number, tentative: number, source: number | undefined): { percent: number; mayOverlap: boolean } | null {
+  if (!source || source <= 0) return null;
+  return { percent: Math.min(100, ((trusted + tentative) / source) * 100), mayOverlap: trusted > 0 && tentative > 0 };
+}
