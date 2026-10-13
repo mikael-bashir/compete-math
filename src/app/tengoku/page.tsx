@@ -3,7 +3,10 @@ import { SiGithub } from "react-icons/si";
 import { InfoPage } from "../lib/components/info-page";
 import { TengokuSearchBar } from "@/components/tengoku/search-bar";
 import { StatPill } from "@/components/tengoku/stat-pill";
+import { HistoryChart } from "@/components/tengoku/history-chart";
 import { getTreeStats } from "@/app/lib/data/tengoku-stats";
+import { getDailyCounts } from "@/app/lib/data/tengoku-history";
+import { utcDay, type DayPoint } from "@/app/lib/data/tengoku-history-core";
 
 export const metadata: Metadata = {
   title: "Tengoku",
@@ -19,6 +22,13 @@ function formatCount(n: number): string {
 
 export default async function TengokuPage() {
   const stats = await getTreeStats();
+  // the logged days, with today's point being what the pills above show right now (the day's last count replaces it in the log)
+  const today = utcDay(new Date());
+  const logged = await getDailyCounts(90);
+  const history: DayPoint[] = [
+    ...logged.filter((p) => p.day !== today),
+    { day: today, total: stats.total, trusted: stats.trusted, tentative: stats.tentative },
+  ];
 
   return (
     <InfoPage kicker="tengoku" title="Tengoku" logo="/logos/Tengoku.png">
@@ -69,6 +79,12 @@ export default async function TengokuPage() {
           <SiGithub className="h-3.5 w-3.5" />
           competemath/tengoku &rarr;
         </a>
+      </section>
+
+      <section>
+        <div className="not-prose">
+          <HistoryChart points={history} today={today} />
+        </div>
       </section>
 
       <section>
