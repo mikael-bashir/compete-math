@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { RANGES, place, windowPoints, type DayPoint, type RangeKey } from "@/app/lib/data/tengoku-history-core";
 
 const W = 600;
@@ -53,6 +53,12 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
       })
       .catch(() => setState("error"));
   }, [data, state]);
+
+  // about 25 KB over the wire: fetched once the page has settled, so the panel is filled by the time anyone points at the graph
+  useEffect(() => {
+    const id = window.setTimeout(load, 1200);
+    return () => window.clearTimeout(id);
+  }, [load]);
 
   const pick = (clientX: number) => {
     const box = svgRef.current?.getBoundingClientRect();
@@ -113,7 +119,7 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
             </span>
           ) : null}
         </div>
-        <div role="group" aria-label="Time range" className="flex gap-1">
+        <div role="group" aria-label="Time range" className="flex shrink-0 gap-1">
           {RANGES.map((r) => (
             <button
               key={r.key}
@@ -124,7 +130,7 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
                 setPinned(false);
               }}
               aria-pressed={range === r.key}
-              className={`rounded-full border px-3 py-1 transition-colors ${
+              className={`whitespace-nowrap rounded-full border px-2.5 py-1 transition-colors sm:px-3 ${
                 range === r.key
                   ? "border-emerald-400/30 bg-emerald-500/[0.08] text-emerald-300"
                   : "border-white/10 bg-white/[0.03] text-white/50 hover:text-white/80"
