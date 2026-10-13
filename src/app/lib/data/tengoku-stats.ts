@@ -1,7 +1,8 @@
 // The stat pills read what the tree holds straight from GitHub. The trusted and staging counts are COUNTED live from the tree's own
-// record files (tengoku-live-count.ts), cached and revalidated every ten minutes (ISR). Tentative is 3 GB of records, so it comes from
-// the tree's data/stats.json (written by scripts/stats.py), which is also what the pills use if the live count fails. The old
-// cached-table path is only a last fallback.
+// record files (tengoku-live-count.ts), cached and revalidated every ten minutes (ISR). Tentative is 2.9 GB of records, so it is kept
+// exactly by replaying the commits that touched it on top of a counted seed (tengoku-tentative.ts). The tree's data/stats.json (written
+// by scripts/stats.py, but only when someone promotes) is what the pills use if the live count fails. The old cached-table path is only
+// a last fallback.
 import { getTengokuStats, type TengokuStats } from "./tengoku";
 
 export const STATS_URL = "https://raw.githubusercontent.com/competemath/tengoku/main/data/stats.json";
@@ -56,6 +57,8 @@ export interface FullTreeStats {
   countedAt: string | null;
   /** why the live count fell back to stats.json; null when it did not */
   liveError: string | null;
+  /** per library [trusted, tentative], counted live; null when the live count fell back. Not part of the public endpoint. */
+  byLibrary: Record<string, [number, number]> | null;
 }
 
 function count(v: unknown): number | null {
@@ -88,6 +91,7 @@ export function parseFullStats(raw: unknown): FullTreeStats {
     countedCommit: null,
     countedAt: null,
     liveError: null,
+    byLibrary: null,
   };
 }
 
@@ -98,12 +102,17 @@ export async function getTreeStatsFull(): Promise<FullTreeStats> {
   try {
     // loaded here, not at the top, so importing this module (and its tests) never pulls in next/cache
     const { countLiveTrusted } = await import("./tengoku-live-count");
-    const live = await countLiveTrusted();
+    const { countTentative } = await import("./tengoku-tentative");
+    const [live, tent] = await Promise.all([countLiveTrusted(), countTentative()]);
+    const byLibrary: Record<string, [number, number]> = {};
+    for (const [lib, n] of Object.entries(live.trustedByLibrary)) byLibrary[lib] = [n, 0];
+    for (const [lib, n] of Object.entries(tent.byLibrary)) (byLibrary[lib] ??= [0, 0])[1] = n;
     return {
       ...base,
       trusted: live.trusted,
       staging: live.staging,
-      total: live.trusted + live.staging + base.tentative,
+      tentative: tent.total,
+      total: live.trusted + live.staging + tent.total,
       treeCommit: live.commit,
       live: true,
       trustedRecords: live.trustedRecords,
@@ -111,6 +120,7 @@ export async function getTreeStatsFull(): Promise<FullTreeStats> {
       countedCommit: live.commit,
       countedAt: live.countedAt,
       liveError: null,
+      byLibrary,
     };
   } catch (e) {
     const why = (e as Error).message;

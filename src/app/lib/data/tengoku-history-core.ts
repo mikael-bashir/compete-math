@@ -33,11 +33,16 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((toMs(to) - toMs(from)) / DAY_MS);
 }
 
-/** The window that ends today and spans `days` days, with the points that fall inside it, oldest first. */
-export function windowPoints(points: DayPoint[], days: number, today: string): { start: string; points: DayPoint[] } {
-  const start = addDays(today, -(days - 1));
-  const inside = points.filter((p) => p.day >= start && p.day <= today).sort((a, b) => (a.day < b.day ? -1 : 1));
-  return { start, points: inside };
+/**
+ * The window that ends today and spans `days` days, with the points that fall inside it, oldest first. When the history is
+ * shorter than the window (the project is younger than 90 days) the window starts at the first logged day, so the line is not
+ * squeezed into the right edge. With a single point the full window is kept and that point sits at the right edge.
+ */
+export function windowPoints(points: DayPoint[], days: number, today: string): { start: string; days: number; points: DayPoint[] } {
+  const fullStart = addDays(today, -(days - 1));
+  const inside = points.filter((p) => p.day >= fullStart && p.day <= today).sort((a, b) => (a.day < b.day ? -1 : 1));
+  const start = inside.length >= 2 && inside[0].day > fullStart ? inside[0].day : fullStart;
+  return { start, days: daysBetween(start, today) + 1, points: inside };
 }
 
 /**

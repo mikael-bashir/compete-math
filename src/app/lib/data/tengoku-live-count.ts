@@ -4,12 +4,12 @@
 // by the file's git blob sha, which changes only when the file does, so a revalidation re-reads only the files that changed and a
 // cold start streams the roughly 280 MB of trusted, staging and intake files once. The result is cached by the callers (ISR).
 import { unstable_cache } from "next/cache";
-import { countNewlines, selectCounted, type TreeFile } from "./tengoku-live-count-core";
+import { countNewlines, libraryOfFile, selectCounted, type TreeFile } from "./tengoku-live-count-core";
 
 const REPO = "competemath/tengoku";
-const REF = process.env.TENGOKU_REF || "main";
+export const REF = process.env.TENGOKU_REF || "main";
 const API = `https://api.github.com/repos/${REPO}`;
-const RAW = `https://raw.githubusercontent.com/${REPO}`;
+export const RAW = `https://raw.githubusercontent.com/${REPO}`;
 const LISTING_REVALIDATE_SECONDS = 300;
 const CONCURRENCY = 8;
 const BUDGET_MS = 45_000;
@@ -21,6 +21,8 @@ export interface LiveCount {
   staging: number;
   commit: string;
   countedAt: string;
+  /** trusted per library: data/trusted/<library>.jsonl plus the library's intake manifest, as stats.py groups them */
+  trustedByLibrary: Record<string, number>;
 }
 
 function headers(token?: string): Record<string, string> {
@@ -33,7 +35,7 @@ function headers(token?: string): Record<string, string> {
 // (expired, restricted to other repos) must not break the count: the same call is retried without it.
 const TOKEN = process.env.TENGOKU_COUNT_TOKEN || process.env.GITHUB_TOKEN || "";
 
-async function gh<T>(path: string): Promise<T> {
+export async function gh<T>(path: string): Promise<T> {
   const call = (token?: string) => fetch(`${API}${path}`, { headers: headers(token), next: { revalidate: LISTING_REVALIDATE_SECONDS } });
   let res = await call(TOKEN || undefined);
   if (TOKEN && (res.status === 401 || res.status === 403)) res = await call();
@@ -55,7 +57,7 @@ async function listData(): Promise<{ commit: string; files: TreeFile[] }> {
   return { commit: head.sha, files };
 }
 
-async function streamCount(url: string): Promise<number> {
+export async function streamCount(url: string): Promise<number> {
   const res = await fetch(url, { cache: "no-store" }); // a 50 MB body does not fit Next's fetch cache; the count is what gets cached
   if (!res.ok || !res.body) throw new Error(`${url} ${res.status}`);
   const reader = res.body.getReader();
@@ -96,7 +98,12 @@ export async function countLiveTrusted(): Promise<LiveCount> {
     const sum = (part: TreeFile[]) => part.reduce((acc, f) => acc + lines[all.indexOf(f)], 0);
     const trustedRecords = sum(sel.trusted);
     const trustedIntake = sum(sel.intake);
-    return { trusted: trustedRecords + trustedIntake, trustedRecords, trustedIntake, staging: sum(sel.staging), commit, countedAt: new Date().toISOString() };
+    const trustedByLibrary: Record<string, number> = {};
+    for (const f of [...sel.trusted, ...sel.intake]) {
+      const n = lines[all.indexOf(f)];
+      if (n > 0) trustedByLibrary[libraryOfFile(f.path)] = (trustedByLibrary[libraryOfFile(f.path)] ?? 0) + n;
+    }
+    return { trusted: trustedRecords + trustedIntake, trustedRecords, trustedIntake, staging: sum(sel.staging), commit, countedAt: new Date().toISOString(), trustedByLibrary };
   })();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const budget = new Promise<never>((_, reject) => {

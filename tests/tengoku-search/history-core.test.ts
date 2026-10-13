@@ -12,6 +12,15 @@ test("a window of N days ends today and starts N-1 days earlier, across a month 
   assert.deepEqual(w.points.map((p) => p.day), ["2026-10-07", "2026-10-13"]);
 });
 
+test("a window longer than the history starts at the first logged day; a single point keeps the full window", () => {
+  const w = windowPoints([pt("2026-09-10", 1), pt("2026-10-13", 2)], 90, "2026-10-13");
+  assert.equal(w.start, "2026-09-10");
+  assert.equal(w.days, 34);
+  const one = windowPoints([pt("2026-10-13", 2)], 30, "2026-10-13");
+  assert.equal(one.start, "2026-09-14");
+  assert.equal(one.days, 30);
+});
+
 test("a single point sits in the middle of the height, at the right edge, for any range", () => {
   for (const days of [7, 30, 90]) {
     const [p] = place([pt("2026-10-13", 712_388)], addDays("2026-10-13", -(days - 1)), days, 600, 100, (x) => x.total);

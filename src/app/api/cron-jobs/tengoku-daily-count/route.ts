@@ -18,9 +18,10 @@ export async function GET(request: Request) {
   try {
     const s = await getTreeStatsFull();
     // a day's number is only worth keeping if it was counted live; a stats.json fallback would draw a false flat line
-    if (!s.live) return NextResponse.json({ logged: false, reason: s.liveError ?? "live count unavailable" }, { status: 503 });
-    const day = await recordDailyCount({ total: s.total, trusted: s.trusted, tentative: s.tentative + s.staging, live: s.live });
-    return NextResponse.json({ logged: true, day, total: s.total, trusted: s.trusted, tentative: s.tentative + s.staging });
+    if (!s.live || !s.byLibrary) return NextResponse.json({ logged: false, reason: s.liveError ?? "live count unavailable" }, { status: 503 });
+    const tentative = s.tentative + s.staging;
+    const day = await recordDailyCount({ total: s.total, trusted: s.trusted, tentative, live: s.live, libraries: s.byLibrary });
+    return NextResponse.json({ logged: true, day, total: s.total, trusted: s.trusted, tentative, libraries: Object.keys(s.byLibrary).length });
   } catch (e) {
     return NextResponse.json({ logged: false, reason: (e as Error).message }, { status: 500 });
   }
