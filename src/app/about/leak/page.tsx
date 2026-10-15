@@ -49,7 +49,7 @@ export default function AboutLeakPage() {
             badge="Agent · Leak-I, Leak-IV"
             tone="emerald"
           >
-            The best performing harness of this project. A Claude Sonnet 5 agent forced to continuously try to prove a theorem with no internet search, but granted access to Leak-I and Leak-IV, invigilated by a seperate Leak-IV gate, and allowed to use tools and think for itself. This minimalist but persistent pipeline is significant because it achieved a breakthrough score of <strong>38/98 on FATE-X</strong>.
+            The best performing harness of this project. A Claude Sonnet 5 agent forced to continuously try to prove a theorem with no internet search, but granted access to Leak-I and Leak-IV, invigilated by a separate Leak-IV gate, and allowed to use tools and think for itself. This minimalist but persistent pipeline is significant because it achieved a breakthrough score of <strong>38/98 on FATE-X</strong>.
           </FeatureCard>
 
           <FeatureCard
@@ -57,7 +57,7 @@ export default function AboutLeakPage() {
             badge="Agent · Leak-I, Leak-II, Leak-IV"
             tone="violet"
           >
-            A Claude Sonnet 5 agent forced to continuously try to prove a theorem with no internet search, but given access to Leak-I, Leak-II, and Leak-IV, invigilated by a seperate Leak-IV gate. This harness was designed specifically to test the benefit and reasoning impact of an upgraded pantograph service.
+            A Claude Sonnet 5 agent forced to continuously try to prove a theorem with no internet search, but given access to Leak-I, Leak-II, and Leak-IV, invigilated by a separate Leak-IV gate. This harness was designed specifically to test the benefit and reasoning impact of an upgraded pantograph service.
           </FeatureCard>
 
           <FeatureCard
@@ -73,7 +73,7 @@ export default function AboutLeakPage() {
             badge="Agent · Blueprint Refinement"
             tone="amber"
           >
-            A spin on the architecture from the <a href="https://arxiv.org/abs/2606.06468" target="_blank" rel="noopener noreferrer">goedel-architect prover</a>, making use of Leak-XI, Leak-XII, and Leak-XIV. While the underlying architecture is provably excellent, this harness is significant for demonstrating that the design actually performs <em>worse</em> when driven by a slower agentic loop, compared to other strategies such as Leak Control-II, in contrast to Goedel-Architect's performance when driver by a fast LLM such as Deepseek Flash V4, and compared to other LLM based pipelines.
+            A spin on the architecture from the <a href="https://arxiv.org/abs/2606.06468" target="_blank" rel="noopener noreferrer">goedel-architect prover</a>, making use of Leak-XI, Leak-XII, and Leak-XIV. While the underlying architecture shows evidence of greatly augmenting proving performance, this harness is significant for demonstrating that the design actually performs <em>worse</em> when driven by a slower agentic loop, compared to other strategies such as Leak Control-II, in contrast to Goedel-Architect's performance when driver by a fast LLM such as Deepseek Flash V4, and compared to other LLM based pipelines.
           </FeatureCard>
         </div>
       </section>
