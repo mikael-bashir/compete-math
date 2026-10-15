@@ -1,9 +1,10 @@
 import { unstable_cache } from "next/cache";
 import seed from "./tengoku-dedup-seed.json";
 import { listData, RAW } from "./tengoku-live-count";
-import { collectTrusted, countAlreadyTrusted, type Trusted } from "./tengoku-dedup-core";
+import { collectTrusted, countAlreadyTrusted, TrustedTokens } from "./tengoku-dedup-core";
 
-// Counts, per library, the tentative records of theorems the tree already trusts (tengoku-dedup-core.ts says which), so that the
+// Counts, per library, the tentative records of theorems the tree already trusts (tengoku-dedup-core.ts says which, one tentative
+// record per trusted theorem), so that the
 // page counts a theorem once, as scripts/stats.py does. A library's count depends only on its three files (tentative, trusted,
 // manifest), so it is cached by their shas for good; the seed holds the counts at one commit so a cold cache streams only the
 // libraries whose files changed since.
@@ -38,12 +39,12 @@ function countOne(lib: string, t: Triple, commit: string): Promise<number> {
   if (seeded && seeded.tentative === t.tentative && seeded.trusted === t.trusted && seeded.manifest === t.manifest) return Promise.resolve(seeded.alreadyTrusted);
   return unstable_cache(
     async () => {
-      const trusted: Trusted = { names: new Set(), keys: new Set() };
+      const trusted = new TrustedTokens();
       if (t.trusted) await collectTrusted(trusted, body(`${RAW}/${commit}/data/trusted/${lib}.jsonl`), true);
       if (t.manifest) await collectTrusted(trusted, body(`${RAW}/${commit}/data/intake/${lib}/manifest.jsonl`), false);
       return countAlreadyTrusted(trusted, body(`${RAW}/${commit}/data/tentative/${lib}.jsonl`));
     },
-    ["tengoku-already-trusted-v1", t.tentative, t.trusted ?? "-", t.manifest ?? "-"],
+    ["tengoku-already-trusted-v2", t.tentative, t.trusted ?? "-", t.manifest ?? "-"],
     { revalidate: false },
   )();
 }
