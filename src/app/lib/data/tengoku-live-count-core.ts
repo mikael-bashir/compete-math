@@ -24,6 +24,12 @@ export function selectCounted(files: TreeFile[]): { trusted: TreeFile[]; staging
   };
 }
 
+/** The library a counted file belongs to: data/trusted/<library>.jsonl, data/intake/<library>/manifest.jsonl (stats.py keys both the same way). */
+export function libraryOfFile(path: string): string {
+  const parts = path.split("/");
+  return parts[1] === "intake" ? parts[2] : parts[2].replace(/\.jsonl$/, "");
+}
+
 /** The number of newline bytes across the chunks of one file (a record is a line; stats.py counts newlines the same way). */
 export function countNewlines(chunks: Iterable<Uint8Array>): number {
   let n = 0;

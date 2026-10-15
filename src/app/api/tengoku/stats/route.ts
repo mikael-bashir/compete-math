@@ -2,8 +2,8 @@
 // function, so the two can never disagree; a README badge or a partner's page can read this URL).
 //
 // `trusted` and `staging` are COUNTED from the tree's own files (every line of data/trusted/*.jsonl and of each data/intake/*/manifest.jsonl;
-// every line of data/staging/*.jsonl), cached and revalidated every ten minutes. `tentative` is 3 GB of records, so it is the tree's
-// stats.json value, dated by `generatedAt`. `live` says which: false means the count failed and everything is stats.json's.
+// every line of data/staging/*.jsonl), cached and revalidated every ten minutes. `tentative` (2.9 GB of records) is kept exactly from a
+// counted seed plus the commits since. `live` says which: false means the count failed and everything is stats.json's.
 // If even stats.json cannot be read it answers 503 and caches nothing, rather than serving a made-up number.
 import { NextResponse } from "next/server";
 import { getTreeStatsFull } from "@/app/lib/data/tengoku-stats";
@@ -17,7 +17,7 @@ const CORS = { "Access-Control-Allow-Origin": "*" };
 
 export async function GET() {
   try {
-    const stats = await getTreeStatsFull();
+    const stats = { ...(await getTreeStatsFull()), byLibrary: undefined }; // the per-library figures have their own endpoint
     const generated = Date.parse(stats.countedAt ?? stats.generatedAt ?? "");
     const ageSeconds = Number.isFinite(generated) ? Math.max(0, Math.round((Date.now() - generated) / 1000)) : null;
     return NextResponse.json(

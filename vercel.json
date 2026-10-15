@@ -3,6 +3,10 @@
     {
       "path": "/api/cron-jobs/weekly-problems-injection",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron-jobs/tengoku-daily-count",
+      "schedule": "30 6 * * *"
     }
   ]
 }
