@@ -1,20 +1,17 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { MAX_ANSWER, MONEY_NOTE, QUESTIONS } from "@/app/lib/join/questions";
+import { EMAIL_NOTE, MAX_ANSWER, MONEY_NOTE, QUESTIONS } from "@/app/lib/join/questions";
 
-type Errors = Partial<Record<"github" | "sixMonths" | "fiveYears", string>>;
+type Errors = Partial<Record<"github" | "email" | "sixMonths" | "fiveYears", string>>;
 
 const field =
   "w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-emerald-400/40";
 
-/**
- * The application form. The owner receives it by email; `signedInAs` (set when the visitor is signed in with an email) tells them a
- * copy is on its way to them too.
- */
-export function JoinForm({ signedInAs }: { signedInAs: string | null }) {
+/** The application form. The owner receives it by email, and the applicant a copy when there is an address to send it to. */
+export function JoinForm() {
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
-  const [copySent, setCopySent] = useState(false);
+  const [copyTo, setCopyTo] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -30,14 +27,15 @@ export function JoinForm({ signedInAs }: { signedInAs: string | null }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           github: data.get("github"),
+          email: data.get("email"),
           sixMonths: data.get("sixMonths"),
           fiveYears: data.get("fiveYears"),
           company: data.get("company"),
         }),
       });
-      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; copySent?: boolean; error?: string; errors?: Errors };
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; copyTo?: string | null; error?: string; errors?: Errors };
       if (res.ok && body.ok) {
-        setCopySent(Boolean(body.copySent));
+        setCopyTo(body.copyTo ?? null);
         setState("sent");
         return;
       }
@@ -53,11 +51,7 @@ export function JoinForm({ signedInAs }: { signedInAs: string | null }) {
     return (
       <div role="status" className="rounded-xl border border-emerald-400/20 bg-emerald-500/[0.06] p-5 font-code text-sm text-emerald-200">
         <p className="font-semibold">Sent. Thank you.</p>
-        <p className="mt-2 text-emerald-100/70">
-          {copySent && signedInAs
-            ? `A copy of your answers is on its way to ${signedInAs}.`
-            : "Sign in next time and we will also email you a copy of what you sent."}
-        </p>
+        {copyTo ? <p className="mt-2 text-emerald-100/70">A copy of your answers is on its way to {copyTo}.</p> : null}
       </div>
     );
   }
@@ -79,6 +73,7 @@ export function JoinForm({ signedInAs }: { signedInAs: string | null }) {
         <label htmlFor="join-six" className="mb-2 block text-white/90">
           2. {QUESTIONS.sixMonths}
         </label>
+        <p className="mb-2 text-xs text-white/45">(Note: {MONEY_NOTE})</p>
         <textarea id="join-six" name="sixMonths" required rows={5} maxLength={MAX_ANSWER} className={field} aria-invalid={Boolean(errors.sixMonths)} />
         {errors.sixMonths ? <p className="mt-1 text-xs text-amber-300">{errors.sixMonths}</p> : null}
       </div>
@@ -90,6 +85,15 @@ export function JoinForm({ signedInAs }: { signedInAs: string | null }) {
         <p className="mb-2 text-xs text-white/45">(Note: {MONEY_NOTE})</p>
         <textarea id="join-five" name="fiveYears" required rows={5} maxLength={MAX_ANSWER} className={field} aria-invalid={Boolean(errors.fiveYears)} />
         {errors.fiveYears ? <p className="mt-1 text-xs text-amber-300">{errors.fiveYears}</p> : null}
+      </div>
+
+      <div>
+        <label htmlFor="join-email" className="mb-2 block text-white/90">
+          4. {QUESTIONS.email}
+        </label>
+        <p className="mb-2 text-xs text-white/45">{EMAIL_NOTE}</p>
+        <input id="join-email" name="email" type="email" maxLength={254} autoComplete="email" className={field} aria-invalid={Boolean(errors.email)} />
+        {errors.email ? <p className="mt-1 text-xs text-amber-300">{errors.email}</p> : null}
       </div>
 
       {/* A real person never sees or fills this: a bot that fills every field gives itself away. */}
@@ -112,9 +116,6 @@ export function JoinForm({ signedInAs }: { signedInAs: string | null }) {
         >
           {state === "sending" ? "Sending…" : "Send application"}
         </button>
-        <p className="text-xs text-white/40">
-          {signedInAs ? `You are signed in: a copy goes to ${signedInAs}.` : "Not signed in? It still works; sign in first and we also email you a copy."}
-        </p>
       </div>
     </form>
   );

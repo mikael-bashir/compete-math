@@ -26,13 +26,13 @@ export async function POST(request: Request) {
 
   try {
     const result = await applyToJoin(
-      { github: String(body.github ?? ''), sixMonths: String(body.sixMonths ?? ''), fiveYears: String(body.fiveYears ?? ''), company: String(body.company ?? '') },
+      { github: String(body.github ?? ''), email: String(body.email ?? ''), sixMonths: String(body.sixMonths ?? ''), fiveYears: String(body.fiveYears ?? ''), company: String(body.company ?? '') },
       { userId: user?.id || undefined, username: user?.username || undefined, email: user?.email || undefined },
       ip,
     );
     switch (result.status) {
       case 'ok':
-        return NextResponse.json({ ok: true, copySent: Boolean(user?.email) });
+        return NextResponse.json({ ok: true, copyTo: result.copyTo ?? null });
       case 'invalid':
         return NextResponse.json({ error: 'Please check the form.', errors: result.errors }, { status: 400 });
       case 'rate_limited':
