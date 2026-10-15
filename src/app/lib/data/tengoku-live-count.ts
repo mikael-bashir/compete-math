@@ -46,7 +46,7 @@ export async function gh<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function listData(): Promise<{ commit: string; files: TreeFile[] }> {
+export async function listData(): Promise<{ commit: string; files: TreeFile[] }> {
   const head = await gh<{ sha: string; commit: { tree: { sha: string } } }>(`/commits/${REF}`);
   const root = await gh<{ tree: { path: string; type: string; sha: string }[] }>(`/git/trees/${head.commit.tree.sha}`);
   const data = root.tree.find((e) => e.path === "data" && e.type === "tree");

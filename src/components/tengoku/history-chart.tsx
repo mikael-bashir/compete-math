@@ -294,7 +294,10 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
             <li>
               <span className="text-amber-300/80">Tentative</span>: theorems with a real proof in their original source that Leak has not checked yet.
             </li>
-            <li>The total is both added together. Today&apos;s number is recounted about every ten minutes.</li>
+            <li>
+              The total is both added together, counting each theorem once: a tentative record of a theorem that is already Leak-trusted (its library was added
+              whole after it was harvested, or the record was promoted) is not counted again. Today&apos;s number is recounted about every ten minutes.
+            </li>
           </ul>
           <p>
             The graph adds one point a day and starts on 10 Sep, the day the repository was created. Days before daily logging began were rebuilt

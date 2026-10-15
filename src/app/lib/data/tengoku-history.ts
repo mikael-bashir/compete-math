@@ -7,6 +7,12 @@ import { getTreeStatsFull } from "./tengoku-stats";
 // One row per UTC day: the counts shown on /tengoku that day. Created on first use, like the app's other small tables.
 // The days before the first logged one come from the seed, which was rebuilt from the tree's git history (see tengoku-history-seed.json:
 // the same definition as scripts/stats.py applied to each day's last commit). A logged day replaces a seeded one.
+/**
+ * Which counting rule a row was logged under. 2: a tentative record of a theorem the tree already trusts is counted once
+ * (tengoku-dedup.ts); 1: every record line counted. A row logged under an older rule is replaced by the catch-up.
+ */
+export const COUNTING_RULE = 2;
+
 let ensured = false;
 async function ensure(): Promise<void> {
   if (ensured) return;
@@ -21,6 +27,7 @@ async function ensure(): Promise<void> {
     )
   `;
   await sql`ALTER TABLE tengoku_daily_counts ADD COLUMN IF NOT EXISTS libraries jsonb`;
+  await sql`ALTER TABLE tengoku_daily_counts ADD COLUMN IF NOT EXISTS counting_rule integer NOT NULL DEFAULT 1`;
   ensured = true;
 }
 
@@ -29,7 +36,7 @@ export type LibraryCounts = Record<string, [number, number]>;
 
 /**
  * Writes today's row. By default a second call the same day replaces it, so the last count of the day wins (the cron);
- * `ifMissing` leaves an existing row alone (the page's own catch-up, see logTodayIfMissing).
+ * `ifMissing` leaves an existing row alone unless it was logged under an older counting rule (the page's own catch-up, see logTodayIfMissing).
  */
 export async function recordDailyCount(
   c: { total: number; trusted: number; tentative: number; live: boolean; libraries: LibraryCounts },
@@ -41,17 +48,20 @@ export async function recordDailyCount(
   const libs = JSON.stringify(c.libraries);
   if (mode === "ifMissing") {
     await sql`
-      INSERT INTO tengoku_daily_counts (day, total, trusted, tentative, live, libraries)
-      VALUES (${day}, ${c.total}, ${c.trusted}, ${c.tentative}, ${c.live}, ${libs}::jsonb)
-      ON CONFLICT (day) DO NOTHING
+      INSERT INTO tengoku_daily_counts (day, total, trusted, tentative, live, libraries, counting_rule)
+      VALUES (${day}, ${c.total}, ${c.trusted}, ${c.tentative}, ${c.live}, ${libs}::jsonb, ${COUNTING_RULE})
+      ON CONFLICT (day) DO UPDATE SET
+        total = EXCLUDED.total, trusted = EXCLUDED.trusted, tentative = EXCLUDED.tentative,
+        live = EXCLUDED.live, libraries = EXCLUDED.libraries, counting_rule = EXCLUDED.counting_rule, logged_at = now()
+      WHERE tengoku_daily_counts.counting_rule < EXCLUDED.counting_rule
     `;
   } else {
     await sql`
-      INSERT INTO tengoku_daily_counts (day, total, trusted, tentative, live, libraries)
-      VALUES (${day}, ${c.total}, ${c.trusted}, ${c.tentative}, ${c.live}, ${libs}::jsonb)
+      INSERT INTO tengoku_daily_counts (day, total, trusted, tentative, live, libraries, counting_rule)
+      VALUES (${day}, ${c.total}, ${c.trusted}, ${c.tentative}, ${c.live}, ${libs}::jsonb, ${COUNTING_RULE})
       ON CONFLICT (day) DO UPDATE SET
         total = EXCLUDED.total, trusted = EXCLUDED.trusted, tentative = EXCLUDED.tentative,
-        live = EXCLUDED.live, libraries = EXCLUDED.libraries, logged_at = now()
+        live = EXCLUDED.live, libraries = EXCLUDED.libraries, counting_rule = EXCLUDED.counting_rule, logged_at = now()
     `;
   }
   return day;
@@ -69,7 +79,7 @@ export async function logTodayIfMissing(now = new Date()): Promise<void> {
   if (caughtUpFor === day) return;
   try {
     await ensure();
-    const { rows } = await sql`SELECT 1 FROM tengoku_daily_counts WHERE day = ${day}`;
+    const { rows } = await sql`SELECT 1 FROM tengoku_daily_counts WHERE day = ${day} AND counting_rule >= ${COUNTING_RULE}`;
     if (rows.length === 0) {
       const s = await getTreeStatsFull();
       if (!s.live || !s.byLibrary) return; // try again on a later visit
