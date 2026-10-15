@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { SqlTag } from '../db/sql-tag';
-import { renderEmail } from '../email/layout';
+import { renderEmail } from '../email/email-layout';
 import type { EmailMessage } from '../email/mailjet';
 import { resetPasswordSchema } from '../zod';
 

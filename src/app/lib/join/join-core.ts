@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { SqlTag } from '../db/sql-tag';
-import { renderEmail } from '../email/layout';
+import { renderEmail } from '../email/email-layout';
 import type { EmailMessage } from '../email/mailjet';
 import { MAX_ANSWER, MONEY_NOTE, QUESTIONS } from './questions';
 
@@ -9,7 +9,7 @@ import { MAX_ANSWER, MONEY_NOTE, QUESTIONS } from './questions';
 //
 //  - the application is saved before anything is sent, so an email that fails never loses someone's answers;
 //  - the owner always gets the full application; the applicant gets their copy only when they are signed in and have an email;
-//  - everything typed is escaped in the HTML (layout.ts), and nothing typed ever becomes a header;
+//  - everything typed is escaped in the HTML (email-email-layout.ts), and nothing typed ever becomes a header;
 //  - a hidden field no person sees catches bots (answered as a success, nothing sent); a person may apply once every ten minutes
 //    under one GitHub name and a few times an hour from one address.
 

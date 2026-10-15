@@ -1,5 +1,5 @@
 // The one look every CompeteMath email has, in HTML and in plain text. Everything a person typed is escaped before it goes into the
-// HTML (tests/email/layout.test.ts), so an application's answers can never put markup into the owner's inbox.
+// HTML (tests/email/email-layout.test.ts), so an application's answers can never put markup into the owner's inbox.
 
 export function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');

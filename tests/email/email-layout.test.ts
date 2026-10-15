@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { escapeHtml, renderEmail } from "../../src/app/lib/email/layout";
+import { escapeHtml, renderEmail } from "../../src/app/lib/email/email-layout";
 
 test("nothing typed by a person can put markup into the HTML", () => {
   const evil = `<script>alert(1)</script> & "quotes" 'single' <img src=x onerror=y>`;

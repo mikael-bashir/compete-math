@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { SqlTag } from '../db/sql-tag';
-import { renderEmail } from './layout';
+import { renderEmail } from './email-layout';
 import type { EmailMessage } from './mailjet';
 
 // The confirm-your-email flow without Next or a database of its own: the tag and the sender are passed in, so

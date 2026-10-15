@@ -1,6 +1,8 @@
 name: ci
 
-# Typecheck and the unit tests on every pull request and every push to main. The tests need no secrets and no network: the email,
+# Typecheck, the unit tests and a production build on every pull request and every push to main. The build catches what tsc does not
+# (a file named layout.ts under src/app is a route layout to Next, and only `next build` says so).
+# The tests need no secrets and no network: the email,
 # password-reset and join-form flows run against a real Postgres inside the test process (PGlite), with the mail provider faked.
 
 on:
@@ -36,3 +38,4 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm exec next build # not `pnpm build`: that first warms the search model, which nothing here needs
