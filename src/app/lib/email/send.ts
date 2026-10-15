@@ -1,12 +1,11 @@
 import 'server-only';
 
-export interface EmailMessage {
-  to: string;
-  subject: string;
-  html: string;
-  text?: string;
-}
+import { DEFAULT_FROM, sendViaMailjet, type EmailMessage } from './mailjet';
 
+export type { EmailMessage };
+
+// Mailjet first: with MAILJET_API_KEY and MAILJET_SECRET_KEY set, every message goes out through it as info@competemath.com.
+// Without them the SMTP relay below is used, and without that the message is logged to the console (dev, previews).
 // Provider-agnostic email sender, configured entirely by env — so "our own VPS
 // SMTP" today can become a relay (Resend/SES/Postmark SMTP) tomorrow with ZERO
 // code change, just different env values:
@@ -14,7 +13,7 @@ export interface EmailMessage {
 //   SMTP_PORT         default 587 (submission w/ STARTTLS); 465 for implicit TLS
 //   SMTP_SECURE       "true" for port 465, otherwise STARTTLS on 587
 //   SMTP_USER / SMTP_PASS   SMTP AUTH credentials
-//   EMAIL_FROM        "CompeteMath <no-reply@competemath.com>"
+//   EMAIL_FROM        "CompeteMath <info@competemath.com>" (the Mailjet sender; also the SMTP From)
 //
 // Deliverability note: for a self-hosted VPS sender to reach inboxes (not spam),
 // the VPS IP needs PTR/reverse-DNS and competemath.com needs SPF + DKIM + DMARC.
@@ -60,8 +59,17 @@ async function getTransporter(): Promise<import('nodemailer').Transporter | null
 }
 
 export async function sendEmail(msg: EmailMessage): Promise<{ ok: boolean }> {
-  const from =
-    process.env.EMAIL_FROM || 'CompeteMath <no-reply@competemath.com>';
+  const from = process.env.EMAIL_FROM || DEFAULT_FROM;
+
+  const apiKey = process.env.MAILJET_API_KEY;
+  const secretKey = process.env.MAILJET_SECRET_KEY;
+  if (apiKey && secretKey) {
+    // MAILJET_FROM, not EMAIL_FROM: Mailjet only sends as a validated sender, and info@competemath.com is the one
+    const result = await sendViaMailjet(msg, { apiKey, secretKey, from: process.env.MAILJET_FROM || DEFAULT_FROM });
+    if (!result.ok) console.error('sendEmail (mailjet) failed:', result.error);
+    return { ok: result.ok };
+  }
+
   const transporter = await getTransporter();
 
   // Not configured (dev): log the message so links remain usable without a
@@ -84,6 +92,7 @@ export async function sendEmail(msg: EmailMessage): Promise<{ ok: boolean }> {
     await transporter.sendMail({
       from,
       to: msg.to,
+      replyTo: msg.replyTo,
       subject: msg.subject,
       html: msg.html,
       text: msg.text,

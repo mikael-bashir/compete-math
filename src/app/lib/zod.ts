@@ -28,3 +28,11 @@ export const signUpSchema = object({
         .min(8, "Password must be more than 8 characters")
         .max(32, "Password must be less than 32 characters"),
 })
+
+// A new password chosen through a reset link: the same rule as signUpSchema's password.
+export const resetPasswordSchema = object({
+    password: string({ required_error: "password is required" })
+        .min(1, "Password is required")
+        .min(8, "Password must be more than 8 characters")
+        .max(32, "Password must be less than 32 characters"),
+})

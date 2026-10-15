@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { ResendVerificationForm } from '@/app/lib/components/auth/resend-verification-form';
 
 // Result page the verification link redirects to after the token is consumed.
 // Server component — the actual verification happens in /api/auth/verify.
@@ -21,12 +22,12 @@ export default async function VerifyResultPage({
         ? {
             icon: <Clock className="h-10 w-10 text-amber-400" />,
             title: 'Link expired',
-            body: 'That verification link is more than 24 hours old. Sign in and request a fresh one.',
+            body: 'That verification link is more than 24 hours old. Enter your email and we will send a fresh one.',
           }
         : {
             icon: <XCircle className="h-10 w-10 text-rose-400" />,
             title: 'Invalid link',
-            body: 'This verification link is invalid or has already been used.',
+            body: 'This verification link is invalid or has already been used. If your email is still unconfirmed, enter it and we will send a new one.',
           };
 
   return (
@@ -35,6 +36,7 @@ export default async function VerifyResultPage({
         <div className="mb-4 flex justify-center">{view.icon}</div>
         <h1 className="text-xl font-semibold">{view.title}</h1>
         <p className="mt-2 text-sm leading-relaxed text-white/60">{view.body}</p>
+        {status === 'ok' ? null : <ResendVerificationForm />}
         <div className="mt-6 flex flex-col gap-2">
           <Link
             href="/home"

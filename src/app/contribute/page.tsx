@@ -40,6 +40,15 @@ export default function ContributePage() {
       </section>
 
       <section>
+        <h2>Join the organisation</h2>
+        <p className="mt-3">
+          Want to work on this with us? Applying to join the{" "}
+          <a href={ORG_URL} target="_blank" rel="noreferrer">GitHub organisation</a> takes three short questions:{" "}
+          <Link href="/contribute/join">fill in the application form</Link>.
+        </p>
+      </section>
+
+      <section>
         <h2>Spread the word</h2>
         <p className="mt-3">
           Communities thrive on people. Share a problem that stumped you, drag a
