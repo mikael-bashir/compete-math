@@ -59,6 +59,8 @@ export interface FullTreeStats {
   liveError: string | null;
   /** per library [trusted, tentative], counted live; null when the live count fell back. Not part of the public endpoint. */
   byLibrary: Record<string, [number, number]> | null;
+  /** tentative records of theorems the tree already trusts, not counted (they are the same theorems); null when not counted live */
+  tentativeAlreadyTrusted: number | null;
 }
 
 function count(v: unknown): number | null {
@@ -92,6 +94,7 @@ export function parseFullStats(raw: unknown): FullTreeStats {
     countedAt: null,
     liveError: null,
     byLibrary: null,
+    tentativeAlreadyTrusted: null,
   };
 }
 
@@ -103,17 +106,20 @@ export async function getTreeStatsFull(): Promise<FullTreeStats> {
     // loaded here, not at the top, so importing this module (and its tests) never pulls in next/cache
     const { countLiveTrusted } = await import("./tengoku-live-count");
     const { countTentative } = await import("./tengoku-tentative");
-    const [live, tent] = await Promise.all([countLiveTrusted(), countTentative()]);
+    const { countAlreadyTrustedLive } = await import("./tengoku-dedup");
+    const [live, tent, dup] = await Promise.all([countLiveTrusted(), countTentative(), countAlreadyTrustedLive()]);
     const byLibrary: Record<string, [number, number]> = {};
     for (const [lib, n] of Object.entries(live.trustedByLibrary)) byLibrary[lib] = [n, 0];
-    for (const [lib, n] of Object.entries(tent.byLibrary)) (byLibrary[lib] ??= [0, 0])[1] = n;
+    // a tentative record of a theorem the tree already trusts is that theorem, counted once (scripts/stats.py does the same)
+    for (const [lib, n] of Object.entries(tent.byLibrary)) (byLibrary[lib] ??= [0, 0])[1] = n - (dup.byLibrary[lib] ?? 0);
+    const tentative = tent.total - dup.total;
     return {
       ...base,
       trusted: live.trusted,
       staging: live.staging,
-      tentative: tent.total,
+      tentative,
       libraries: Object.keys(byLibrary).length,
-      total: live.trusted + live.staging + tent.total,
+      total: live.trusted + live.staging + tentative,
       treeCommit: live.commit,
       live: true,
       trustedRecords: live.trustedRecords,
@@ -122,6 +128,7 @@ export async function getTreeStatsFull(): Promise<FullTreeStats> {
       countedAt: live.countedAt,
       liveError: null,
       byLibrary,
+      tentativeAlreadyTrusted: dup.total,
     };
   } catch (e) {
     const why = (e as Error).message;

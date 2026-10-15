@@ -3,7 +3,8 @@
 //
 // `trusted` and `staging` are COUNTED from the tree's own files (every line of data/trusted/*.jsonl and of each data/intake/*/manifest.jsonl;
 // every line of data/staging/*.jsonl), cached and revalidated every ten minutes. `tentative` (2.9 GB of records) is kept exactly from a
-// counted seed plus the commits since. `live` says which: false means the count failed and everything is stats.json's.
+// counted seed plus the commits since, less the records of theorems the tree already trusts (`tentativeAlreadyTrusted`; the same rule as
+// scripts/stats.py). `live` says which: false means the count failed and everything is stats.json's.
 // If even stats.json cannot be read it answers 503 and caches nothing, rather than serving a made-up number.
 import { NextResponse } from "next/server";
 import { getTreeStatsFull } from "@/app/lib/data/tengoku-stats";
