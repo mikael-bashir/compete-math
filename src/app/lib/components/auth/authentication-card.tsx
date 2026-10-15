@@ -11,12 +11,12 @@ import { Eye, EyeOff, Lock, User, ArrowLeft, Check, Shield, X, Mail } from "luci
 
 import { useRouter, useSearchParams } from "next/navigation"
 // Import actions and types
-import { signInAction, signUpAction } from "@/app/lib/actions/auth"
+import { requestPasswordResetAction, signInAction, signUpAction } from "@/app/lib/actions/auth"
 import { LoginFormData } from "@/app/lib/types/form"
 // Note: Ensure this path matches where your type is defined (types/auth vs types/form)
 import { RegisterFormData } from "@/app/lib/types/auth"
 
-type AuthStep = "login" | "signup" | "forgot-password" | "reset-password" | "otp" | "success"
+type AuthStep = "login" | "signup" | "forgot-password" | "reset-sent" | "success"
 type AuthMode = "login" | "signup"
 
 interface PasswordRequirement {
@@ -113,18 +113,22 @@ export default function AuthenticationCard() {
   // HELPER FUNCTIONS
   // ----------------------------------------------------
   
-  // Simulated handler for steps that don't have backend logic yet (Forgot Pass)
-  const [isSimulatedLoading, setIsSimulatedLoading] = useState(false)
-  const handleGenericSubmit = async (e: React.FormEvent) => {
+  // "Forgot password": the answer is the same whether or not the address has an account (the server never says), so the
+  // card shows the same "check your email" step either way.
+  const [forgotEmail, setForgotEmail] = useState("")
+  const [isSendingReset, setIsSendingReset] = useState(false)
+  const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSimulatedLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    
-    if (step === "forgot-password") setStep("reset-password")
-    else if (step === "reset-password") setStep("success")
-    else if (step === "otp") setStep("success")
-    
-    setIsSimulatedLoading(false)
+    setIsSendingReset(true)
+    try {
+      await requestPasswordResetAction(forgotEmail)
+      setStep("reset-sent")
+    } catch (error) {
+      console.error(error)
+      toast.error("Could not send the reset email. Please try again later, or contact support.")
+    } finally {
+      setIsSendingReset(false)
+    }
   }
 
   const switchMode = (newMode: AuthMode) => {
@@ -146,8 +150,7 @@ export default function AuthenticationCard() {
       case "login": return "h-[470px]"
       case "signup": return signUpPasswordValue ? "h-[670px]" : "h-[530px]"
       case "forgot-password": return "h-[380px]"
-      case "reset-password": return "h-[520px]"
-      case "otp": return "h-[380px]"
+      case "reset-sent": return "h-[340px]"
       case "success": return "h-[320px]"
       default: return "h-[480px]"
     }
@@ -378,7 +381,7 @@ export default function AuthenticationCard() {
             </div>
           )}
 
-          {/* ================= FORGOT PASSWORD (UI ONLY) ================= */}
+          {/* ================= FORGOT PASSWORD ================= */}
           {step === "forgot-password" && (
             <div className="flex-1 flex flex-col justify-center space-y-6">
               <button
@@ -391,18 +394,48 @@ export default function AuthenticationCard() {
                 <h1 className="text-2xl font-semibold text-white!">Reset Password</h1>
                 <p className="text-white/70">Enter your email to receive reset instructions</p>
               </div>
-              <form onSubmit={handleGenericSubmit} className="space-y-4">
+              <form onSubmit={handleForgotSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="reset-email" className="text-white/90">Email</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
-                    <Input id="reset-email" type="email" className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50" placeholder="Enter your email" required />
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                      placeholder="Enter your email"
+                      autoComplete="email"
+                      required
+                    />
                   </div>
                 </div>
-                <Button type="submit" disabled={isSimulatedLoading} className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 h-11 rounded-xl backdrop-blur-xs">
-                  {isSimulatedLoading ? "Sending..." : "Send Reset Link"}
+                <Button type="submit" disabled={isSendingReset} className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 h-11 rounded-xl backdrop-blur-xs">
+                  {isSendingReset ? "Sending..." : "Send Reset Link"}
                 </Button>
               </form>
+            </div>
+          )}
+
+          {/* ================= RESET LINK SENT ================= */}
+          {step === "reset-sent" && (
+            <div className="flex-1 flex flex-col justify-center items-center space-y-6">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-xs border border-white/30 rounded-full flex items-center justify-center">
+                <Mail className="w-8 h-8 text-white" />
+              </div>
+              <div className="text-center space-y-2">
+                <h1 className="text-2xl font-semibold text-white!">Check your email</h1>
+                <p className="text-white/70">
+                  If an account exists for <span className="text-white">{forgotEmail}</span>, we sent a link to choose a new password. It works once and expires in an hour.
+                </p>
+              </div>
+              <Button
+                onClick={() => setStep("login")}
+                className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 hover:border-white/40 h-11 rounded-xl font-medium transition-all duration-200 backdrop-blur-xs"
+              >
+                Return to Login
+              </Button>
             </div>
           )}
 

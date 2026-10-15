@@ -7,7 +7,8 @@ import { LoginFormData } from "../types/form";
 import { signUpSchema } from '../zod';
 import { ZodError } from 'zod';
 import { RegisterFormData } from '../types/auth';
-import { issueVerification } from '../email/verification';
+import { issueVerification, requestNewVerification } from '../email/verification';
+import { finishPasswordReset, startPasswordReset } from '../auth/password-reset';
 
 export async function signUpAction(data: RegisterFormData) {
     try {
@@ -98,4 +99,21 @@ export async function signInAction(formData: LoginFormData) {
 
 export async function signOutAction() {
     return signOut();
+}
+
+// "Forgot password": always the same answer, whether or not the address has an account.
+export async function requestPasswordResetAction(email: string): Promise<{ ok: true }> {
+    await startPasswordReset(String(email ?? ''));
+    return { ok: true };
+}
+
+// The form behind the link in the reset email.
+export async function resetPasswordAction(token: string, password: string) {
+    return finishPasswordReset(String(token ?? ''), String(password ?? ''));
+}
+
+// "Send me a new verification link": always the same answer.
+export async function resendVerificationAction(email: string): Promise<{ ok: true }> {
+    await requestNewVerification(String(email ?? ''));
+    return { ok: true };
 }
