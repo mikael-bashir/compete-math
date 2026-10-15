@@ -8,10 +8,11 @@ import { getTreeStatsFull } from "./tengoku-stats";
 // The days before the first logged one come from the seed, which was rebuilt from the tree's git history (see tengoku-history-seed.json:
 // the same definition as scripts/stats.py applied to each day's last commit). A logged day replaces a seeded one.
 /**
- * Which counting rule a row was logged under. 2: a tentative record of a theorem the tree already trusts is counted once
- * (tengoku-dedup.ts); 1: every record line counted. A row logged under an older rule is replaced by the catch-up.
+ * Which counting rule a row was logged under. 3: each trusted theorem accounts for at most one tentative record, and a record is a
+ * newline-terminated line; 2: a tentative record of a theorem the tree already trusts is counted once, by any match; 1: every record
+ * line counted. A row logged under an older rule is replaced by the catch-up.
  */
-export const COUNTING_RULE = 2;
+export const COUNTING_RULE = 3;
 
 let ensured = false;
 async function ensure(): Promise<void> {
