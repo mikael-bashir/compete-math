@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "records": "probe2.jsonl",
+  "headlines": [
+    {
+      "name": "BlindProbe.nesbitt",
+      "statement_sha256": "398800e3fe78a9589893aa96cc744e92ea55ca11163e9d7625428f7843d49a47",
+      "outcome": "closed",
+      "seconds": 52.1,
+      "calls": {
+        "search": 2,
+        "states": 10,
+        "verify": 1
+      },
+      "models": [
+        "claude-sonnet-5"
+      ],
+      "working": "1-BlindProbe.nesbitt.working.md",
+      "working_sha256": "085778ebb6561c2fcaa702de03eb45489a9c935985c286b51907df21d6a0bb01",
+      "transcript": "1-BlindProbe.nesbitt.transcript.jsonl.gz",
+      "transcript_sha256": "50291c6d2fbbdd7e550f0c5e92902376d99e2066937c5789b380eca6543bac68"
+    }
+  ],
+  "others": [],
+  "budget": {
+    "soft_s": 300,
+    "hard_s": 420
+  },
+  "services": {
+    "search": "https://barkingtree-leak-i.hf.space",
+    "states": "https://barkingtree-leak-ii.hf.space",
+    "verify": "https://barkingtree-leak-iv.hf.space"
+  },
+  "pinned_start": {
+    "search": "85735b6f38660c07bcff0b13a6d1b551b820c441",
+    "states": "85735b6f38660c07bcff0b13a6d1b551b820c441",
+    "verify": "85735b6f38660c07bcff0b13a6d1b551b820c441"
+  },
+  "pinned_end": {
+    "search": "85735b6f38660c07bcff0b13a6d1b551b820c441",
+    "states": "85735b6f38660c07bcff0b13a6d1b551b820c441",
+    "verify": "85735b6f38660c07bcff0b13a6d1b551b820c441"
+  },
+  "runner_sha256": "98ca63dd0b30ac4a6918aca0e473ed19043542790c1a82b0532f7bffc4605015",
+  "common_sha256": "1e5fa435bf77ccfa20acfd2da2b0304c1760fb0fb0c72778c3282d9d088530ef",
+  "attested_by": "mikaelbashir <bashirm-y16@mgs.org>",
+  "made_at": "2026-09-20T10:32:03Z",
+  "digest": "18cfc0c2fc05fe3ada163aec5c9e9c6f38a42016ce5d5b3883cc7f2e95eef872"
+}
