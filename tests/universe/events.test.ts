@@ -71,7 +71,7 @@ test('a search call then its result: the stars come back best first and the call
   assert.equal(log.started[0].k, 'loogle');
   assert.equal(log.started[0].q, 'IsPGroup, Subgroup.centralizer');
   interp.handle(result('Found 2 results. Top matches:\n\nName: IsPGroup.center_nontrivial\nType: x\n---\nName: Subgroup.le_centralizer\nType: y\n---'));
-  assert.deepEqual(log.finished[0][1], { hits: [5, 9] });
+  assert.deepEqual(log.finished[0][1], { hits: [5, 9], hn: ['IsPGroup.center_nontrivial', 'Subgroup.le_centralizer'] });
   assert.equal(log.finished[0][0], log.started[0]);
 });
 
@@ -85,8 +85,8 @@ test('results pair with the oldest call of their own kind, even when calls overl
   interp.handle(result('Found 1 results.\nName: X.beta\n'));
   const byQuery = Object.fromEntries(log.finished.map(([ev, p]) => [ev.k === 'compile' ? 'compile' : ev.q, p]));
   assert.equal((byQuery.compile as { ok: boolean }).ok, true);
-  assert.deepEqual(byQuery.a, { hits: [1] });
-  assert.deepEqual(byQuery.b, { hits: [2] });
+  assert.deepEqual(byQuery.a, { hits: [1], hn: ['X.alpha'] });
+  assert.deepEqual(byQuery.b, { hits: [2], hn: ['X.beta'] });
 });
 
 test('a name that matches several stars resolves to the one nearest where the driver is looking; far too common names are dropped', () => {

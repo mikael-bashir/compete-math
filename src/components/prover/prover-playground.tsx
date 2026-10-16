@@ -52,11 +52,11 @@ export function ProverPlayground() {
   const [outcome, setOutcome] = useState<ProverOutcome | null>(null);
   // Decomposition mode drives the /prove-tree orchestrator: prove-or-split, so a
   // stalled goal is broken into verified sub-lemmas instead of looping forever.
-  const [decompose, setDecompose] = useState(false);
+  const [decompose, setDecompose] = useState(true);
   // Strategy mode for A/B testing proof approaches (tree path only).
-  const [strategy, setStrategy] = useState('hacker');
-  // Model the prover runs on ('' = the bridge/CLI default).
-  const [model, setModel] = useState('');
+  const [strategy, setStrategy] = useState('control-oneshot-2');
+  // Model the prover runs on ('' = the bridge/CLI default). Starts on the strongest.
+  const [model, setModel] = useState('claude-fable-5');
   // Architect strategy always drives Grok directly — force + lock the model.
   useEffect(() => {
     if (isRiverStrategy(strategy)) setModel(ARCHITECT_MODEL);
@@ -194,7 +194,8 @@ export function ProverPlayground() {
               ? 'border-violet-500/50 bg-violet-500/10 text-violet-600 dark:text-violet-400'
               : 'text-muted-foreground hover:bg-muted'
           }`}
-          title="Break the goal into verified sub-lemmas recursively (prove-or-split tree)"
+          data-plain=""
+              title="Break the goal into verified sub-lemmas recursively (prove-or-split tree)"
         >
           <GitBranch className="size-3" />
           Decompose {decompose ? 'on' : 'off'}
@@ -303,6 +304,7 @@ export function ProverPlayground() {
               type="button"
               onClick={() => run(checkpoint.skeleton)}
               className="inline-flex items-center gap-1 rounded-md border border-violet-500/50 bg-violet-500/10 px-1.5 py-0.5 text-[10px] text-violet-600 transition-colors hover:bg-violet-500/20 dark:text-violet-400"
+              data-plain=""
               title="Continue from the saved checkpoint instead of restarting"
             >
               <GitBranch className="size-3" />
@@ -312,6 +314,7 @@ export function ProverPlayground() {
           {running && (
             <button
               type="button"
+              data-plain=""
               onClick={terminate}
               className="inline-flex items-center gap-1 rounded-md border border-rose-500/50 bg-rose-500/10 px-1.5 py-0.5 text-[10px] text-rose-600 transition-colors hover:bg-rose-500/20 dark:text-rose-400"
               title="Stop this prove — kills the claude run server-side via the bridge"
@@ -322,6 +325,7 @@ export function ProverPlayground() {
           )}
           <Button
             size="sm"
+            data-sci="primary"
             onClick={() => run()}
             disabled={running || !problem.trim()}
             className="h-6 gap-1 px-2 text-[10px] [&_svg]:size-3"
@@ -380,6 +384,16 @@ export function ProverPlayground() {
             : () => setMaxIters(ARCHITECT_DEFAULT_ITERS)
         }
       />
+
+      {!outcome && events.some((e) => e.kind === 'verified') && (
+        <div className="flex items-start gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4" role="status">
+          <ShieldCheck className="mt-0.5 size-4 text-emerald-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Proof verified. This run is complete.</p>
+            <p className="mt-1 text-xs text-muted-foreground">{running ? 'Closing the run down; nothing more is being tried.' : 'The prover has stopped.'}</p>
+          </div>
+        </div>
+      )}
 
       {outcome && (
         <div

@@ -73,8 +73,12 @@ export class LiveInterpreter {
 
   /** Star indices for lemma names; an ambiguous name takes the candidate nearest the driver's attention, a far too common one is dropped. */
   resolve(names: string[], cap = 40): number[] {
+    return this.resolveNamed(names, cap).map((r) => r.id);
+  }
+
+  resolveNamed(names: string[], cap = 40): { id: number; name: string }[] {
     const ref = this.sink.attention();
-    const out: number[] = [];
+    const out: { id: number; name: string }[] = [];
     const seen = new Set<number>();
     for (const n of names) {
       const cands = this.names.find(n);
@@ -93,7 +97,7 @@ export class LiveInterpreter {
       }
       if (!seen.has(best)) {
         seen.add(best);
-        out.push(best);
+        out.push({ id: best, name: n });
         if (out.length >= cap) break;
       }
     }
@@ -115,7 +119,10 @@ export class LiveInterpreter {
       if (!ev) return;
       if (ev.k === 'compile') this.sink.finish(ev, compileOutcome(body));
       else if (/Search allowance/.test(body)) this.sink.finish(ev, { blocked: true, hits: [] });
-      else this.sink.finish(ev, { hits: this.resolve(resultNames(body), 40) });
+      else {
+        const named = this.resolveNamed(resultNames(body), 40);
+        this.sink.finish(ev, { hits: named.map((r) => r.id), hn: named.map((r) => r.name) });
+      }
     } else if (e.kind === 'verified') {
       this.sink.verified(true);
     } else if (e.kind === 'rejected') {

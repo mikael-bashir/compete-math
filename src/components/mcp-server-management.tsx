@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { MCPServerDialog } from './mcp-server-dialog';
 import { MCPServerList } from './mcp-server-list';
+import { LeakServicesPanel } from './leak-services-panel';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +39,7 @@ export function MCPServerManagement({ className }: MCPServerManagementProps) {
           <DialogTitle>MCP Server Management</DialogTitle>
         </DialogHeader>
         <div className="flex flex-1 flex-col gap-4 overflow-hidden">
+          <LeakServicesPanel refreshTrigger={refreshTrigger} onChange={handleServerAdded} />
           <div className="flex justify-end">
             <MCPServerDialog onServerAdded={handleServerAdded} />
           </div>

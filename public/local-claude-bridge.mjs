@@ -1691,7 +1691,10 @@ function resolveVerifyUrl(mcpServers) {
     })
     if (has) return s.url
   }
-  return servers[0]?.url || null
+  // No tool lists were sent. Falling back to the first server picked whichever was registered first, often Leak I (search only), and then
+  // every finished proof failed its final re-check and the run looped for ever. Go by the name or address instead.
+  const byName = servers.find((s) => /\bleak[ _-]?iv\b|verif/i.test(String(s.name || "") + " " + String(s.url || "")))
+  return (byName || servers[0])?.url || null
 }
 
 // The interactive Pantograph server (Leak II) — the one exposing init_proof /
@@ -1707,7 +1710,8 @@ function resolvePantographUrl(mcpServers) {
     })
     if (has) return s.url
   }
-  return null
+  const byName = (mcpServers || []).find((s) => s?.url && /\bleak[ _-]?ii\b|pantograph/i.test(String(s.name || "") + " " + String(s.url || "")))
+  return byName?.url || null
 }
 
 // Call ANY tool on a remote MCP-SSE server, one-shot. `toolMatch` is a string
@@ -6360,6 +6364,12 @@ async function proveControl(theorem, ctx, tier = 1) {
         ctx.emit({ type: "message-annotation", subtype: "status", thought: `✅ ${label} closed it on attempt ${attempt} — verified sorry-free against Leak IV.` })
         return { verified: true, proof: gate.verifiedScript }
       }
+      // The agent's own verify_full_script said yes but the final re-check did not: say why, instead of silently starting another attempt.
+      ctx.emit({
+        type: "message-annotation",
+        subtype: "status",
+        thought: `⚠️ A proof was verified, but its final re-check against ${ctx.verifyUrl || "the verifier"} did not pass (${v.ok ? "it still has a hole or a different statement" : String(v.error || v.text || "no answer").slice(0, 160)}). If this repeats, check that the server marked as the verifier really exposes verify_full_script.`,
+      })
     }
   }
   if (ctx.signal?.aborted) return { verified: false, proof: "" }

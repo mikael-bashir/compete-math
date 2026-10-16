@@ -34,6 +34,8 @@ export interface UniverseEvent {
   q?: string;
   /** star indices the search returned, best first */
   hits?: number[];
+  /** the lemma names of `hits`, same order, so the page can write them next to their stars */
+  hn?: string[];
   /** star indices of the lemmas a compile attempt named */
   used?: number[];
   ok?: boolean;

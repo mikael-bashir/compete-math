@@ -62,7 +62,7 @@ export function LeakUniverse() {
     <div className="not-prose">
       <div className="flex flex-wrap items-center gap-2">
         {state !== 'ready' && (
-          <Button size="sm" onClick={load} disabled={state === 'loading'} className="h-7 px-3 text-xs">
+          <Button size="sm" data-sci="primary" onClick={load} disabled={state === 'loading'} className="h-7 px-3 text-xs">
             {state === 'loading' ? `${message}…` : 'Load visualiser'}
           </Button>
         )}

@@ -10,12 +10,29 @@ export interface LeakDefaultServer {
   name: string;
   url: string;
   role: string;
+  /** what the server really exposes (read from each server's tools/list). The prover needs it to know which server verifies. */
+  tools: { name: string; args: string[] }[];
 }
 
 export const LEAK_DEFAULT_SERVERS: readonly LeakDefaultServer[] = [
-  { name: 'Leak_I', url: 'https://barkingtree-leak-i.hf.space/sse', role: 'search over Tengoku (loogle, moogle)' },
-  { name: 'Leak_II', url: 'https://barkingtree-leak-ii.hf.space/sse', role: 'proof-state daemon' },
-  { name: 'Leak_IV', url: 'https://barkingtree-leak-iv.hf.space/sse', role: 'compile gate' },
+  {
+    name: 'Leak_I',
+    url: 'https://barkingtree-leak-i.hf.space/sse',
+    role: 'search over Tengoku (loogle, moogle)',
+    tools: [{ name: 'loogle_search', args: ['query'] }, { name: 'moogle_search', args: ['concept'] }, { name: 'tengoku_sync', args: [] }],
+  },
+  {
+    name: 'Leak_II',
+    url: 'https://barkingtree-leak-ii.hf.space/sse',
+    role: 'proof-state daemon',
+    tools: ['init_proof', 'apply_tactic', 'get_current_proof_state', 'snapshot_state', 'branch_tactics', 'cleanup_memory', 'tengoku_sync'].map((name) => ({ name, args: [] })),
+  },
+  {
+    name: 'Leak_IV',
+    url: 'https://barkingtree-leak-iv.hf.space/sse',
+    role: 'compile gate',
+    tools: [{ name: 'verify_full_script', args: ['script'] }, { name: 'tengoku_sync', args: [] }],
+  },
 ];
 
 export const SEEDED_KEY = 'lca.leakDefaultsSeeded';
@@ -71,4 +88,25 @@ export function leakStatus(servers: MCPServer[]): LeakStatus {
     (hit?.isActive ? connected : missing).push(s.name);
   }
   return { connected, missing };
+}
+
+export interface ProverServerLike {
+  name: string;
+  url: string;
+  tools?: { name: string; args: string[] }[];
+}
+
+const exposesVerify = (s: ProverServerLike): boolean => !!s.tools?.some((t) => /verify.*full.*script/i.test(t.name));
+
+/**
+ * The servers as the prover should receive them. Known Leak servers carry their real tool lists, and a server that exposes
+ * verify_full_script comes first. The prover treats "the server with the verifier" (and, if it cannot tell, the first server) as the
+ * one that re-checks a finished proof; handing it Leak I (search only) there makes every proof fail that check and the run never ends.
+ */
+export function orderForProver<T extends ProverServerLike>(servers: T[]): T[] {
+  const known = servers.map((s) => {
+    const d = LEAK_DEFAULT_SERVERS.find((x) => same(x.url, s.url));
+    return d && !s.tools ? { ...s, tools: d.tools } : s;
+  });
+  return known.map((s, i) => ({ s, i })).sort((a, b) => Number(exposesVerify(b.s)) - Number(exposesVerify(a.s)) || a.i - b.i).map((x) => x.s);
 }

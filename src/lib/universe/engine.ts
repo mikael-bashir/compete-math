@@ -69,7 +69,7 @@ const FLOW_GLSL = `vec3 flow(vec3 p, float h, float h2, float t){ return 0.0042*
 const STAR_VS = `#version 300 es
 precision highp float; precision highp int;
 in vec3 a_pos; in uint a_lib;
-uniform mat4 u_vp; uniform float u_scale, u_time, u_psize, u_dim; uniform sampler2D u_pal;
+uniform mat4 u_vp; uniform float u_scale, u_time, u_psize, u_dim, u_gain; uniform sampler2D u_pal;
 out vec4 v_col;
 ${HASH_GLSL}
 ${FLOW_GLSL}
@@ -77,23 +77,42 @@ void main(){
   uint id = uint(gl_VertexID); float h = hash(id), h2 = hash(id*747796405u+2891336453u);
   vec3 p = a_pos*u_scale; p += flow(p,h,h2,u_time);
   gl_Position = u_vp*vec4(p,1.0);
-  uint lib = a_lib & 0x7FFFu; bool trusted = (a_lib & 0x8000u) != 0u;
+  uint lib = a_lib & 0x7FFFu;
   vec3 hue = texelFetch(u_pal, ivec2(int(lib)&255, int(lib)>>8), 0).rgb;
   float tw = 0.72 + 0.28*sin(u_time*(0.6+h*1.4)+h2*40.0);
-  vec3 col = trusted ? mix(vec3(1.0,0.93,0.80), hue, 0.50) : hue*0.70;
-  v_col = vec4(col*tw, (trusted ? 0.46 : 0.17)*u_dim);
+  vec3 col = mix(vec3(1.0,0.95,0.86), hue, 0.72); // mostly the galaxy's own colour: a warm white would flood the dense cores
+  v_col = vec4(col*tw, u_gain*(0.55+h2*0.9)*u_dim);
   float d = max(gl_Position.w, 0.05);
-  gl_PointSize = clamp(u_psize*(trusted?1.25:0.95)*(0.6+h*0.8)/d, 1.0, 3.6);
+  gl_PointSize = clamp(u_psize*(0.7+h*0.9)/d, 1.0, 3.4);
 }`;
 const STAR_FS = `#version 300 es
 precision mediump float; in vec4 v_col; out vec4 o;
-void main(){ vec2 d = gl_PointCoord-0.5; float a = exp(-dot(d,d)*12.0); o = vec4(v_col.rgb*v_col.a*a, 1.0); }`;
+void main(){ vec2 d = gl_PointCoord-0.5; float r2 = dot(d,d); float a = exp(-r2*14.0)*(1.0-smoothstep(0.16,0.25,r2)); o = vec4(v_col.rgb*v_col.a*a, 1.0); }`;
+// a negative size draws a precision flare (a hairline cross with a pinpoint core) that anchors a result; a size of 1000 plus a radius draws a small
+// ring that pings once as the result arrives
 const GLOW_VS = `#version 300 es
-precision highp float; in vec3 a_pos; in vec4 a_col; in float a_size; uniform mat4 u_vp; uniform float u_psize; out vec4 v_col;
-void main(){ gl_Position = u_vp*vec4(a_pos,1.0); v_col = a_col; gl_PointSize = clamp(u_psize*a_size/max(gl_Position.w,0.05), 2.0, 96.0); }`;
+precision highp float; in vec3 a_pos; in vec4 a_col; in float a_size; uniform mat4 u_vp; uniform float u_psize; out vec4 v_col; out float v_kind;
+void main(){ gl_Position = u_vp*vec4(a_pos,1.0); v_col = a_col; float a = abs(a_size); v_kind = a >= 1000.0 ? 2.0 : (a_size < 0.0 ? 1.0 : 0.0); float sz = a >= 1000.0 ? a - 1000.0 : a; gl_PointSize = clamp(u_psize*sz/max(gl_Position.w,0.05), 3.0, 110.0); }`;
 const GLOW_FS = `#version 300 es
-precision mediump float; in vec4 v_col; out vec4 o;
-void main(){ vec2 d = gl_PointCoord-0.5; float r = length(d)*2.0; float core = exp(-r*r*18.0)*0.5; float halo = exp(-r*r*2.6)*0.55; float cross = (exp(-abs(d.x)*60.0)+exp(-abs(d.y)*60.0))*0.22*(1.0-r); vec3 c = v_col.rgb*(halo+cross) + mix(v_col.rgb, vec3(1.0), 0.35)*core; o = vec4(c*v_col.a, 1.0); }`;
+precision mediump float; in vec4 v_col; in float v_kind; out vec4 o;
+void main(){
+  vec2 d = gl_PointCoord-0.5; float r = length(d)*2.0; float edge = 1.0-smoothstep(0.72,1.0,r);
+  if (v_kind > 1.5) { float ring = smoothstep(0.82,0.9,r)*(1.0-smoothstep(0.9,0.97,r)); o = vec4(v_col.rgb*v_col.a*ring, 1.0); return; }
+  if (v_kind > 0.5) {
+    float fall = pow(max(0.0,1.0-r),1.5); float arms = (exp(-abs(d.y)*48.0)+exp(-abs(d.x)*48.0))*0.5*fall; float core = exp(-r*r*140.0);
+    o = vec4(mix(v_col.rgb, vec3(1.0), 0.5)*v_col.a*(arms*0.9+core*1.1), 1.0); return; }
+  float core = exp(-r*r*18.0)*0.5; float halo = exp(-r*r*2.6)*0.55; float cross = (exp(-abs(d.x)*60.0)+exp(-abs(d.y)*60.0))*0.22*(1.0-r);
+  vec3 c = v_col.rgb*(halo+cross) + mix(v_col.rgb, vec3(1.0), 0.35)*core; o = vec4(c*v_col.a*edge, 1.0); }`;
+const TONE_VS = `#version 300 es
+out vec2 v_uv; void main(){ vec2 p = vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2)); v_uv = p; gl_Position = vec4(p*2.0-1.0, 0.0, 1.0); }`;
+// Stars are summed in linear light, then compressed: a crowd of stars is a bright patch of the galaxy's own colour, not a white block.
+const TONE_FS = `#version 300 es
+precision highp float; uniform sampler2D u_tex; uniform float u_exposure; in vec2 v_uv; out vec4 o;
+void main(){
+  vec3 c = texture(u_tex, v_uv).rgb; float L = dot(c, vec3(0.2126,0.7152,0.0722)) + 1e-5; float k = L*u_exposure; float m = 1.0 - exp(-k);
+  vec3 col = c*(m/L); col = mix(col, vec3(m), smoothstep(1.5,6.0,k)*0.35);
+  vec2 q = v_uv-0.5; float vig = 1.0 - dot(q,q)*0.55;
+  o = vec4(pow(col, vec3(0.92)) + vec3(0.016,0.02,0.04)*vig, 1.0); }`;
 const LINE_VS = `#version 300 es
 precision highp float; in vec3 a_pos; in vec4 a_col; uniform mat4 u_vp; out vec4 v_col;
 void main(){ gl_Position = u_vp*vec4(a_pos,1.0); v_col = a_col; }`;
@@ -156,6 +175,12 @@ export class Universe implements UniverseSink {
   private readonly progStar: WebGLProgram;
   private readonly progGlow: WebGLProgram;
   private readonly progLine: WebGLProgram;
+  private readonly progTone: WebGLProgram;
+  private readonly vaoTone: WebGLVertexArrayObject;
+  private hdr: { fbo: WebGLFramebuffer; tex: WebGLTexture } | null = null;
+  private canHdr = false;
+  private hudRects: [number, number, number, number][] = [];
+  private marks: { star: number; rank: number; name: string; color: Rgb; alpha: number }[] = [];
   private readonly vaoStars: WebGLVertexArrayObject;
   private readonly vaoGlow: WebGLVertexArrayObject;
   private readonly vaoLine: WebGLVertexArrayObject;
@@ -251,6 +276,9 @@ export class Universe implements UniverseSink {
     this.progStar = this.program(STAR_VS, STAR_FS);
     this.progGlow = this.program(GLOW_VS, GLOW_FS);
     this.progLine = this.program(LINE_VS, LINE_FS);
+    this.progTone = this.program(TONE_VS, TONE_FS);
+    this.vaoTone = gl.createVertexArray()!;
+    this.canHdr = !!(gl.getExtension('EXT_color_buffer_float') ?? gl.getExtension('EXT_color_buffer_half_float'));
 
     this.vaoStars = gl.createVertexArray()!;
     gl.bindVertexArray(this.vaoStars);
@@ -487,19 +515,18 @@ export class Universe implements UniverseSink {
   private buildHud(): void {
     const m = this.data.meta;
     const html = `
-      <div class="hud tku-title"><h1>Tengoku universe</h1><p><b>${m.n.toLocaleString()}</b> theorems · <b>${m.n_trusted.toLocaleString()}</b> verified by Leak · every star is a theorem, every cluster a library</p></div>
-      <div class="hud tku-legend">
-        <div><i style="background:#ffe9c4"></i>trusted (Leak-verified)</div>
-        <div><i style="background:#4f6fb8"></i>tentative (source proof, not yet re-verified)</div>
+      <div class="hud tku-title" data-k="title"><h1>Tengoku universe</h1><p><b>${m.n.toLocaleString()}</b> trusted theorems · every star is one Leak can use while proving, every cluster a library</p></div>
+      <div class="hud tku-legend" data-k="legend">
+        <div><i style="background:#ffe9c4"></i>a trusted theorem (verified by Leak)</div>
         <div><i style="background:var(--cyan)"></i>type-pattern search (Leak I loogle)</div>
         <div><i style="background:var(--violet)"></i>concept search (Leak I moogle)</div>
         <div><i style="background:var(--gold)"></i>compile (Leak IV) &nbsp;<i style="background:var(--green)"></i>✅ &nbsp;<i style="background:var(--red)"></i>❌</div>
       </div>
-      <div class="hud tku-stats"><div class="tku-live-only"><span class="tku-live">● LIVE</span></div><div>searches <b data-k="search">0</b></div><div>compiles <b data-k="ok">0</b> ✅ · <b data-k="fail">0</b> ❌</div><div>lemmas touched <b data-k="lem">0</b></div><div data-k="fps" style="opacity:.6"></div></div>
+      <div class="hud tku-stats" data-k="stats"><div class="tku-live-only"><span class="tku-live">● LIVE</span></div><div>searches <b data-k="search">0</b></div><div>compiles <b data-k="ok">0</b> ✅ · <b data-k="fail">0</b> ❌</div><div>lemmas touched <b data-k="lem">0</b></div><div data-k="fps" style="opacity:.6"></div></div>
       <div class="hud tku-ticker" data-k="ticker"></div>
       <div class="hud tku-done" data-k="done"><h2>VERIFIED</h2><p data-k="doneSub"></p></div>
       <div class="tku-tip" data-k="tip"></div>
-      <div class="tku-bar" role="group" aria-label="Universe controls">
+      <div class="tku-bar" data-k="bar" role="group" aria-label="Universe controls">
         <button data-k="live" class="tku-opt-mode">Live</button><button data-k="replay" class="tku-opt-mode">Replay</button>
         <button data-k="play" class="tku-replay-only" aria-label="Play or pause">⏸</button>
         <select data-k="run" class="tku-run tku-replay-only" aria-label="Replay run"></select>
@@ -623,6 +650,40 @@ export class Universe implements UniverseSink {
       cv.height = this.H;
     }
     this.gl.viewport(0, 0, this.W, this.H);
+    if (this.canHdr) this.allocHdr();
+    this.refreshHud();
+  }
+
+  private allocHdr(): void {
+    const gl = this.gl;
+    if (!this.hdr) {
+      const tex = gl.createTexture()!;
+      const fbo = gl.createFramebuffer()!;
+      this.hdr = { fbo, tex };
+    }
+    gl.bindTexture(gl.TEXTURE_2D, this.hdr.tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, this.W, this.H, 0, gl.RGBA, gl.HALF_FLOAT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdr.fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.hdr.tex, 0);
+    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (!ok) {
+      this.canHdr = false;
+      this.hdr = null;
+    }
+  }
+
+  /** the HUD's own boxes (CSS px, relative to the universe), so galaxy labels stay out from under it */
+  private refreshHud(): void {
+    const r0 = this.root.getBoundingClientRect();
+    this.hudRects = ['title', 'legend', 'stats', 'ticker', 'bar'].map((k) => {
+      const e = this.el[k];
+      if (!e) return [0, 0, 0, 0] as [number, number, number, number];
+      const b = e.getBoundingClientRect();
+      return [b.left - r0.left - 6, b.top - r0.top - 6, b.width + 12, b.height + 12] as [number, number, number, number];
+    });
   }
 
   // ---------- drawing primitives ----------
@@ -700,6 +761,7 @@ export class Universe implements UniverseSink {
     let fail = 0;
     let ticker = '';
     let tickAge = 1e9;
+    const marks: typeof this.marks = [];
     let dimTarget = 0.8;
     const touched = new Set<number>();
 
@@ -741,11 +803,12 @@ export class Universe implements UniverseSink {
 
       const ids = e.hits ?? e.used ?? [];
       const n = Math.max(1, ids.length);
-      const active = !resolved || age < 4.5;
+      const hold = e.k === 'compile' ? 4.5 : 7;
+      const active = !resolved || age < hold;
       if (active) {
         // a search dims the field so that what it returns can be read against the dark
         dimTarget = Math.min(dimTarget, e.k === 'compile' ? 0.34 : 0.16);
-        const fade = resolved ? Math.max(0, 1 - age / 4.5) : 1;
+        const fade = resolved ? Math.max(0, 1 - age / hold) : 1;
         const ph = resolved ? 1 : Math.min(1, flight / 1.1);
         const resColor: Rgb = e.k === 'compile' ? (resolved ? (e.ok ? COL.ok : COL.fail) : COL.pend) : COL[e.k];
         const origin: Vec3 = [pr[0], pr[1], pr[2]];
@@ -760,7 +823,16 @@ export class Universe implements UniverseSink {
             const reveal = resolved ? Math.min(1, Math.max(0, (age - k * 0.05) / 0.25)) : 0;
             const pulse = 0.62 + 0.38 * Math.sin(simT * (3.4 - 2.0 * rank) - k * 0.55);
             const bright = 0.3 + 0.7 * (1 - rank);
-            if (reveal > 0) this.G(tmp, resColor, reveal * fade * bright * pulse * 0.9, 7 + 10 * (1 - rank));
+            if (reveal > 0) {
+              this.G(tmp, resColor, reveal * fade * bright * pulse * 0.9, 7 + 10 * (1 - rank));
+              if (k < 8) {
+                // the anchor: a precision flare on each of the best results (the best largest), and one small ping as it arrives
+                this.G(tmp, resColor, reveal * fade * (0.95 - 0.55 * rank), -(k === 0 ? 34 : 24 - k * 1.5));
+                const pt = age - k * 0.05;
+                if (pt > 0 && pt < 0.7) this.G(tmp, resColor, (1 - pt / 0.7) * 0.75 * fade, 1000 + 8 + 20 * (pt / 0.7));
+              }
+              if (k < 6 && e.hn?.[k]) marks.push({ star: ids[k], rank: k, name: e.hn[k], color: resColor, alpha: reveal * Math.min(1, fade * 1.6) });
+            }
             // an arm reaches out to each result; the best results have the strongest arms
             if (k < 28) {
               const ext = resolved ? 1 : ph;
@@ -807,13 +879,14 @@ export class Universe implements UniverseSink {
         }
         for (const id of (e.used ?? []).slice(0, 18)) {
           this.starPos(id, simT, tmp);
-          this.G(tmp, COL.gold, 0.55 * settle, 5);
+          this.G(tmp, COL.gold, 0.36 * settle, 3.4);
         }
       }
       if (e.hits && resolved) for (const id of e.hits) touched.add(id);
       if (e.used && e.ok && resolved) for (const id of e.used) touched.add(id);
     }
 
+    this.marks = marks;
     this.probe = pr;
     const anyActive = dimTarget < 0.8;
     this.G(pr, COL.gold, 0.95, 16 + 3 * Math.sin(T * 5));
@@ -825,6 +898,7 @@ export class Universe implements UniverseSink {
     const set = (k: string, v: string): void => {
       if (this.el[k].textContent !== v) this.el[k].textContent = v;
     };
+    if (!this.evs.length && this.mode === 'live') ticker = 'Live: waiting for a prover run. Send a statement above and every Leak I search and Leak IV compile appears here.';
     this.el.ticker.innerHTML = ticker;
     set('search', String(search));
     set('ok', String(ok));
@@ -841,22 +915,64 @@ export class Universe implements UniverseSink {
     return anyActive;
   }
 
-  // ---------- labels: every galaxy gets one, shown when you are close enough to read it ----------
+  // ---------- labels: every galaxy gets one, shown when you are close enough to read it; the best results of a search are named and ranked ----------
+  private project(p: Vec3, out: [number, number, number]): boolean {
+    const w = this.VP[3] * p[0] + this.VP[7] * p[1] + this.VP[11] * p[2] + this.VP[15];
+    if (w <= 0.05) return false;
+    out[0] = (((this.VP[0] * p[0] + this.VP[4] * p[1] + this.VP[8] * p[2] + this.VP[12]) / w) * 0.5 + 0.5) * this.W;
+    out[1] = (1 - (((this.VP[1] * p[0] + this.VP[5] * p[1] + this.VP[9] * p[2] + this.VP[13]) / w) * 0.5 + 0.5)) * this.H;
+    out[2] = w;
+    return true;
+  }
+
   private drawLabels(): void {
     const ctx = this.lctx;
     ctx.clearRect(0, 0, this.W, this.H);
     const D = this.DPR;
     const f = this.H / (2 * Math.tan(0.45));
-    const placed: [number, number, number, number][] = [];
+    const placed: [number, number, number, number][] = this.hudRects.map(([x, y, w, h]) => [x * D, y * D, w * D, h * D]);
+    const hits = (lx: number, ly: number, tw: number, th: number): boolean =>
+      placed.some((r) => lx < r[0] + r[2] && lx + tw > r[0] && ly < r[1] + r[3] && ly + th > r[1]);
+    ctx.lineJoin = 'round';
+    ctx.textBaseline = 'top';
+    const o: [number, number, number] = [0, 0, 0];
+    const p: Vec3 = [0, 0, 0];
+
+    // the results of the latest search: rank and lemma name on a thin leader beside each anchored star
+    ctx.font = `${11.5 * D}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    for (const m of this.marks) {
+      this.starPos(m.star, this.simT, p);
+      if (!this.project(p, o)) continue;
+      const name = m.name.length > 38 ? '\u2026' + m.name.slice(-37) : m.name;
+      const text = `${m.rank + 1}  ${name}`;
+      const tw = ctx.measureText(text).width;
+      const lx = o[0] + 26 * D;
+      const ly = o[1] - 20 * D;
+      if (lx > this.W + 10 || o[1] < -10 || o[1] > this.H + 10) continue;
+      const rgb = m.color.map((v) => Math.min(255, (v * 255 + 40) | 0)).join(',');
+      ctx.globalAlpha = Math.min(1, m.alpha);
+      ctx.strokeStyle = `rgba(${rgb},.55)`;
+      ctx.lineWidth = 1 * D;
+      ctx.beginPath();
+      ctx.moveTo(o[0] + 5 * D, o[1] - 5 * D);
+      ctx.lineTo(lx - 7 * D, ly + 7 * D);
+      ctx.lineTo(lx - 3 * D, ly + 7 * D);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(4,5,10,.6)';
+      ctx.fillRect(lx - 2 * D, ly - 2 * D, tw + 8 * D, 17 * D);
+      ctx.fillStyle = `rgb(${rgb})`;
+      ctx.fillRect(lx - 2 * D, ly - 2 * D, 1.5 * D, 17 * D);
+      ctx.fillStyle = 'rgba(232,240,255,.92)';
+      ctx.fillText(text, lx + 4 * D, ly);
+      placed.push([lx - 2 * D, ly - 2 * D, tw + 8 * D, 17 * D]);
+    }
+
     let best: UniverseLib | null = null;
     let bd = 1e9;
     ctx.font = `${11 * D}px ui-sans-serif, system-ui, sans-serif`;
-    ctx.textBaseline = 'top';
     this.libsBySize.forEach((l, rank) => {
-      const w = this.VP[3] * l.c[0] + this.VP[7] * l.c[1] + this.VP[11] * l.c[2] + this.VP[15];
-      if (w <= 0.05) return;
-      const x = ((this.VP[0] * l.c[0] + this.VP[4] * l.c[1] + this.VP[8] * l.c[2] + this.VP[12]) / w * 0.5 + 0.5) * this.W;
-      const y = (1 - ((this.VP[1] * l.c[0] + this.VP[5] * l.c[1] + this.VP[9] * l.c[2] + this.VP[13]) / w * 0.5 + 0.5)) * this.H;
+      if (!this.project(l.c, o)) return;
+      const [x, y, w] = o;
       const pxR = (l.r * f) / w;
       if (x < -50 || y < -20 || x > this.W + 50 || y > this.H + 20) return;
       const d = Math.hypot(x / D - this.mouse.x, y / D - this.mouse.y);
@@ -874,11 +990,11 @@ export class Universe implements UniverseSink {
       const tw = ctx.measureText(text).width;
       const lx = x + 6 * D;
       const ly = y + 6 * D;
-      if (placed.some((r) => lx < r[0] + r[2] && lx + tw > r[0] && ly < r[1] + r[3] && ly + 13 * D > r[1])) return;
+      if (hits(lx, ly, tw, 13 * D)) return;
       placed.push([lx, ly, tw, 13 * D]);
-      ctx.globalAlpha = a * 0.92;
-      ctx.lineWidth = 3 * D;
-      ctx.strokeStyle = 'rgba(0,0,0,.85)';
+      ctx.globalAlpha = a * 0.9;
+      ctx.lineWidth = 2.5 * D;
+      ctx.strokeStyle = 'rgba(4,5,10,.8)';
       ctx.strokeText(text, lx, ly);
       ctx.fillStyle = '#d7deef';
       ctx.fillText(text, lx, ly);
@@ -890,7 +1006,7 @@ export class Universe implements UniverseSink {
       tip.style.display = 'block';
       tip.style.left = `${this.mouse.x + 14}px`;
       tip.style.top = `${this.mouse.y + 14}px`;
-      tip.innerHTML = `<b>${esc(nice(b.name))} galaxy</b><br><span>${(b.t + b.u).toLocaleString()} theorems · ${b.t.toLocaleString()} trusted</span>`;
+      tip.innerHTML = `<b>${esc(nice(b.name))} galaxy</b><br><span>${(b.t + b.u).toLocaleString()} theorems</span>`;
     } else tip.style.display = 'none';
   }
 
@@ -929,7 +1045,12 @@ export class Universe implements UniverseSink {
     this.updateCam(dt);
 
     const gl = this.gl;
-    gl.clearColor(0.016, 0.02, 0.04, 1);
+    const hdr = this.hdr;
+    if (hdr) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, hdr.fbo);
+      gl.viewport(0, 0, this.W, this.H);
+      gl.clearColor(0, 0, 0, 1);
+    } else gl.clearColor(0.016, 0.02, 0.04, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     const ps = this.DPR * (this.H / 900) * 2.1;
     gl.useProgram(this.progStar);
@@ -939,10 +1060,11 @@ export class Universe implements UniverseSink {
     gl.uniform1f(this.u(this.progStar, 'u_time'), this.simT);
     gl.uniform1f(this.u(this.progStar, 'u_psize'), ps);
     gl.uniform1f(this.u(this.progStar, 'u_dim'), this.dimNow);
+    gl.uniform1f(this.u(this.progStar, 'u_gain'), hdr ? 0.34 : 0.34);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.palTex);
     gl.uniform1i(this.u(this.progStar, 'u_pal'), 0);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR); // screen blending keeps dense cores from burning out
+    if (!hdr) gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR); // without a float target, screen blending keeps dense cores from burning out
     gl.drawArrays(gl.POINTS, 0, Math.floor(this.N * this.drawFrac));
     gl.blendFunc(gl.ONE, gl.ONE);
     if (this.nl) {
@@ -962,6 +1084,19 @@ export class Universe implements UniverseSink {
       gl.uniform1f(this.u(this.progGlow, 'u_psize'), ps * 7);
       gl.drawArrays(gl.POINTS, 0, this.ng);
     }
+    if (hdr) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.disable(gl.BLEND);
+      gl.useProgram(this.progTone);
+      gl.bindVertexArray(this.vaoTone);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, hdr.tex);
+      gl.uniform1i(this.u(this.progTone, 'u_tex'), 0);
+      gl.uniform1f(this.u(this.progTone, 'u_exposure'), 2.3);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.enable(gl.BLEND);
+    }
+    if (this.frames % 30 === 0) this.refreshHud();
     this.drawLabels();
 
     this.frames++;

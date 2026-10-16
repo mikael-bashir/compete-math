@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { LEAK_DEFAULT_SERVERS, SEEDED_KEY, leakStatus, seedLeakDefaults } from '../../src/lib/mcp/leak-defaults';
+import { LEAK_DEFAULT_SERVERS, SEEDED_KEY, leakStatus, orderForProver, seedLeakDefaults } from '../../src/lib/mcp/leak-defaults';
 import type { MCPServer } from '../../src/lib/types/mcp';
+import type { ProverServerLike } from '../../src/lib/mcp/leak-defaults';
 
 function store(initial: MCPServer[] = [], seeded = false) {
   const servers = [...initial];
@@ -67,4 +68,23 @@ test('status lists what is connected and what is missing or switched off', () =>
     { id: '2', name: 'Leak_II', url: LEAK_DEFAULT_SERVERS[1].url, isActive: false },
   ];
   assert.deepEqual(leakStatus(servers), { connected: ['Leak_I'], missing: ['Leak_II', 'Leak_IV'] });
+});
+
+test('the verifier goes to the prover first, whatever order the servers were registered in (Leak I first once made every proof fail its final check)', () => {
+  const [i, ii, iv] = LEAK_DEFAULT_SERVERS.map((d): ProverServerLike => ({ name: d.name, url: d.url }));
+  const got = orderForProver([i, ii, iv]);
+  assert.equal(got[0].name, 'Leak_IV');
+  assert.deepEqual(got.map((s) => s.name), ['Leak_IV', 'Leak_I', 'Leak_II']);
+  assert.ok(got[0].tools?.some((t) => t.name === 'verify_full_script'));
+  assert.ok(got.find((s) => s.name === 'Leak_I')?.tools?.every((t) => !/verify/.test(t.name)));
+});
+
+test('known servers get their real tools; a server the user added keeps what it has and its place', () => {
+  const mine: ProverServerLike = { name: 'my-search', url: 'https://example.org/sse' };
+  const withTools: ProverServerLike = { name: 'x', url: 'https://example.org/other', tools: [{ name: 'verify_full_script', args: [] }] };
+  const got = orderForProver([mine, withTools]);
+  assert.deepEqual(got.map((s) => s.name), ['x', 'my-search']);
+  assert.equal(got[1].tools, undefined);
+  const same: ProverServerLike = { name: 'Leak_IV', url: LEAK_DEFAULT_SERVERS[2].url + '/', tools: [{ name: 'custom', args: [] }] };
+  assert.deepEqual(orderForProver([same])[0].tools, [{ name: 'custom', args: [] }]);
 });
