@@ -37,7 +37,7 @@ export function LeakUniverse() {
       });
       if (!host.current) return;
       universe.current?.destroy();
-      universe.current = new Engine(host.current, data, { mode: 'replay' });
+      universe.current = new Engine(host.current, data, { mode: 'live' });
       setCount(data.meta.n);
       setState('ready');
     } catch (e) {
@@ -55,7 +55,9 @@ export function LeakUniverse() {
         if (m.type === 'reset') {
           u.setMode('live');
           u.resetLive();
-        } else u.pushProverEvent(m.event);
+          u.startRun();
+        } else if (m.type === 'end') u.endRun();
+        else u.pushProverEvent(m.event);
       }),
     [],
   );

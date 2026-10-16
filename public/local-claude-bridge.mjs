@@ -187,6 +187,7 @@ function localHarnessHtml() {
   <label>Model <select id="model">
     <option value="">Default</option>
     <option value="claude-opus-4-8">Opus 4.8</option>
+    <option value="claude-sonnet-5-5">Sonnet 5.5</option>
     <option value="claude-sonnet-5">Sonnet 5</option>
     <option value="claude-fable-5">Fable 5</option>
     <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>

@@ -3,7 +3,7 @@
 // The one place the Leak services' state is shown: inside the MCP Server Management dialog. Each row says whether the service is in this
 // browser's list and switched on, and whether it is answering right now.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { addMcpServer, listMcpServers } from '@/lib/mcp/local-mcp-store';
@@ -18,15 +18,31 @@ export function LeakServicesPanel({ refreshTrigger, onChange }: { refreshTrigger
   const [status, setStatus] = useState(() => leakStatus([]));
   const [reach, setReach] = useState<Record<string, Reach>>({});
 
+  // Only the newest probe may write: a slow first probe (a sleeping Space) used to land its "not answering" after a later, successful check.
+  const generation = useRef(0);
   const probe = useCallback(() => {
+    const mine = ++generation.current;
+    setStatus(leakStatus(listMcpServers()));
     setReach(Object.fromEntries(LEAK_DEFAULT_SERVERS.map((s) => [s.name, 'checking'])));
     for (const s of LEAK_DEFAULT_SERVERS) {
-      void checkReachable(s.url).then((ok) => setReach((r) => ({ ...r, [s.name]: ok ? 'online' : 'offline' })));
+      const started = Date.now();
+      void checkReachable(s.url).then((ok) => {
+        // a check that answers at once still shows "checking" for a moment, so the click is seen to do something
+        setTimeout(() => {
+          if (mine === generation.current) setReach((r) => ({ ...r, [s.name]: ok ? 'online' : 'offline' }));
+        }, Math.max(0, 450 - (Date.now() - started)));
+      });
     }
   }, []);
 
   useEffect(() => setStatus(leakStatus(listMcpServers())), [refreshTrigger]);
-  useEffect(() => probe(), [probe]);
+  useEffect(() => {
+    const g = generation;
+    probe();
+    return () => {
+      g.current++;
+    };
+  }, [probe]);
 
   const restore = () => {
     seedLeakDefaults({ signedIn: true, storage: window.localStorage, list: listMcpServers, add: addMcpServer, force: true });

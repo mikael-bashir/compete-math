@@ -46,7 +46,7 @@ const CSS = `
 .tku .tku-hud{position:absolute;inset:0;z-index:2;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:8px 10px;text-shadow:0 0 8px #000,0 0 2px #000}
 .tku .tku-top{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:3px 16px}
 .tku .tku-title{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#ffe9a8;white-space:nowrap}
-.tku .tku-live{display:none;color:#f2503a;margin-left:8px}.tku.live .tku-live{display:inline}
+.tku .tku-live{display:none;color:#f2503a;margin-left:8px;white-space:nowrap}.tku.live .tku-live{display:inline}.tku .tku-clock{color:var(--dim);font-variant-numeric:tabular-nums;margin-left:6px}.tku .tku-clock.run{color:#ffe9a8}
 .tku .tku-right{margin-left:auto;text-align:right;color:var(--dim);font-size:10px;line-height:1.5;font-variant-numeric:tabular-nums;max-width:100%;overflow-wrap:anywhere}
 .tku b{color:#fff4dc;font-weight:600}
 .tku .tku-bottom{display:flex;flex-direction:column;align-items:center;gap:6px;padding:0 14px}
@@ -233,6 +233,8 @@ export class Universe implements UniverseSink {
   private probe: Vec3 = [0, 0, 0];
   private liveFinal: boolean | null = null;
   private liveFinAt = 0;
+  private runStartMs: number | null = null;
+  private runEndMs: number | null = null;
   private interp: LiveInterpreter | null = null;
   private dimNow = 0.8;
   private dimTarget = 0.8;
@@ -355,7 +357,7 @@ export class Universe implements UniverseSink {
     const ro = new ResizeObserver(() => this.resize());
     ro.observe(this.root);
     this.cleanups.push(() => ro.disconnect());
-    if (data.replays.length) this.loadRun(0);
+    if (this.mode === 'replay' && data.replays.length) this.loadRun(0);
     this.syncMode();
 
     gl.disable(gl.DEPTH_TEST);
@@ -385,6 +387,17 @@ export class Universe implements UniverseSink {
     this.T = 0;
     this.clock = 0;
     this.interp = this.data.names ? new LiveInterpreter(this.data.names, this) : null;
+  }
+
+  /** A prover run has begun: the clock in the corner starts, so a quiet stretch reads as work in progress, not a hang. */
+  startRun(): void {
+    this.runStartMs = Date.now();
+    this.runEndMs = null;
+  }
+
+  /** The run is over (verified, stopped or failed): the clock stops and keeps its final value. */
+  endRun(): void {
+    if (this.runStartMs !== null && this.runEndMs === null) this.runEndMs = Date.now();
   }
 
   setMode(mode: 'replay' | 'live'): void {
@@ -534,7 +547,7 @@ export class Universe implements UniverseSink {
     const html = `
       <div class="tku-hud">
         <div class="tku-top">
-          <div class="tku-title" data-k="title">Tengoku universe<span class="tku-live">● live</span></div>
+          <div class="tku-title" data-k="title">Tengoku universe<span class="tku-live">● live<span class="tku-clock" data-k="clock"></span></span></div>
           <div class="tku-right">
             <div data-k="stats"><b data-k="search">0</b> searches · <b data-k="ok">0</b> ✅ <b data-k="fail">0</b> ❌ · <b data-k="lem">0</b> lemmas</div>
             <div data-k="perf" aria-label="Performance"></div>
@@ -990,8 +1003,13 @@ export class Universe implements UniverseSink {
     const set = (k: string, v: string): void => {
       if (this.el[k].textContent !== v) this.el[k].textContent = v;
     };
-    if (!this.evs.length && this.mode === 'live') ticker = 'waiting for a prover run';
+    if (!this.evs.length && this.mode === 'live') ticker = this.runStartMs !== null && this.runEndMs === null ? 'waiting for the first tool call' : 'waiting for a prover run';
     this.el.ticker.innerHTML = ticker;
+    if (this.mode === 'live') {
+      const t = this.runStartMs === null ? '' : fmt(((this.runEndMs ?? Date.now()) - this.runStartMs) / 1000);
+      set('clock', t);
+      this.el.clock.classList.toggle('run', this.runStartMs !== null && this.runEndMs === null);
+    }
     set('search', String(search));
     set('ok', String(ok));
     set('fail', String(fail));

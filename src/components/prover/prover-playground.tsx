@@ -19,7 +19,7 @@ import {
 } from '@/lib/prover/run-prover-stream';
 import { ProverConsole } from '@/components/prover/prover-console';
 import type { ProverEvent, ProverOutcome } from '@/lib/prover/types';
-import { publishProverEvent, publishRunReset } from '@/lib/universe/live-bus';
+import { publishProverEvent, publishRunEnd, publishRunReset } from '@/lib/universe/live-bus';
 
 // Wall-clock budget for a decomposition (tree) run. The tree path governs by
 // TIME when this is set and reports a runId so "+5 min" can push it out; the
@@ -44,8 +44,9 @@ const isArchitectStrategy = (s: string) =>
 // A minimal "message the prover" surface: send a statement, watch every step,
 // extend the compute budget live, or terminate.
 export function ProverPlayground() {
+  // A statement that crosses libraries: periodicity (algebra), compactness (topology), the interval integral (analysis and measure theory).
   const [problem, setProblem] = useState(
-    'theorem sample : 1 + 1 = 2 := by sorry',
+    'theorem sample (f : ℝ → ℝ) (hf : Continuous f) (hp : Function.Periodic f 1) :\n    (∃ M, ∀ x, |f x| ≤ M) ∧ ∀ x, ∫ t in x..x + 1, f t = ∫ t in (0:ℝ)..1, f t := by sorry',
   );
   const [events, setEvents] = useState<ProverEvent[]>([]);
   const [running, setRunning] = useState(false);
@@ -55,8 +56,8 @@ export function ProverPlayground() {
   const [decompose, setDecompose] = useState(true);
   // Strategy mode for A/B testing proof approaches (tree path only).
   const [strategy, setStrategy] = useState('control-oneshot-2');
-  // Model the prover runs on ('' = the bridge/CLI default). Starts on the strongest.
-  const [model, setModel] = useState('claude-fable-5');
+  // Model the prover runs on ('' = the bridge/CLI default). Starts on Sonnet 5.5: strong, and quick enough to watch.
+  const [model, setModel] = useState('claude-sonnet-5-5');
   // Architect strategy always drives Grok directly — force + lock the model.
   useEffect(() => {
     if (isRiverStrategy(strategy)) setModel(ARCHITECT_MODEL);
@@ -133,6 +134,7 @@ export function ProverPlayground() {
       } catch {
         /* the console already shows the error event (or the abort) */
       } finally {
+        publishRunEnd();
         setRunning(false);
         runIdRef.current = null;
         abortRef.current = null;
@@ -220,6 +222,7 @@ export function ProverPlayground() {
               <>
                 <option value="">Default</option>
                 <option value="claude-opus-4-8">Opus 4.8</option>
+                <option value="claude-sonnet-5-5">Sonnet 5.5</option>
                 <option value="claude-sonnet-5">Sonnet 5</option>
                 <option value="claude-fable-5">Fable 5</option>
                 <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
