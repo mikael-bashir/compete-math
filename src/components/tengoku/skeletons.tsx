@@ -7,7 +7,7 @@ const BAR = "motion-safe:animate-pulse rounded bg-white/[0.06]";
 export function PillsSkeleton() {
   return (
     <div role="status" aria-label="Counting the theorems" className="not-prose mt-8 flex flex-wrap items-center justify-center gap-3">
-      {["w-44", "w-40", "w-36", "w-28"].map((w) => (
+      {["w-44", "w-40", "w-28"].map((w) => (
         <span key={w} className={`h-[30px] ${w} rounded-full border border-white/10 bg-white/[0.03] motion-safe:animate-pulse`} />
       ))}
       <span className="sr-only">Counting the theorems…</span>

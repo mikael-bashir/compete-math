@@ -33,9 +33,6 @@ async function Pills() {
   const count = (n: number | undefined) => (n === undefined ? "—" : formatCount(n));
   return (
     <div className="not-prose mt-8 flex flex-wrap items-center justify-center gap-3 font-code text-xs">
-      <StatPill tone="neutral">
-        <strong className="text-white!">{count(stats?.total)}</strong> theorems
-      </StatPill>
       <StatPill
         tone="trusted"
         note="Anything marked Leak-trusted compiles from scratch in the self-contained Tengoku tree, on its one pinned Lean toolchain, with no sorry, only the standard axioms, and assumptions that are not contradictory."
