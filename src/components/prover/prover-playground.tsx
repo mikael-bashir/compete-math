@@ -194,8 +194,7 @@ export function ProverPlayground() {
               ? 'border-violet-500/50 bg-violet-500/10 text-violet-600 dark:text-violet-400'
               : 'text-muted-foreground hover:bg-muted'
           }`}
-          data-plain=""
-              title="Break the goal into verified sub-lemmas recursively (prove-or-split tree)"
+          title="Break the goal into verified sub-lemmas recursively (prove-or-split tree)"
         >
           <GitBranch className="size-3" />
           Decompose {decompose ? 'on' : 'off'}
@@ -304,7 +303,6 @@ export function ProverPlayground() {
               type="button"
               onClick={() => run(checkpoint.skeleton)}
               className="inline-flex items-center gap-1 rounded-md border border-violet-500/50 bg-violet-500/10 px-1.5 py-0.5 text-[10px] text-violet-600 transition-colors hover:bg-violet-500/20 dark:text-violet-400"
-              data-plain=""
               title="Continue from the saved checkpoint instead of restarting"
             >
               <GitBranch className="size-3" />
@@ -314,7 +312,6 @@ export function ProverPlayground() {
           {running && (
             <button
               type="button"
-              data-plain=""
               onClick={terminate}
               className="inline-flex items-center gap-1 rounded-md border border-rose-500/50 bg-rose-500/10 px-1.5 py-0.5 text-[10px] text-rose-600 transition-colors hover:bg-rose-500/20 dark:text-rose-400"
               title="Stop this prove — kills the claude run server-side via the bridge"
@@ -325,7 +322,6 @@ export function ProverPlayground() {
           )}
           <Button
             size="sm"
-            data-sci="primary"
             onClick={() => run()}
             disabled={running || !problem.trim()}
             className="h-6 gap-1 px-2 text-[10px] [&_svg]:size-3"

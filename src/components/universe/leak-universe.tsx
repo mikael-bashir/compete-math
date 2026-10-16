@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { UNIVERSE_LEGEND } from '@/lib/universe/legend';
 import { subscribeLive } from '@/lib/universe/live-bus';
 import type { Universe } from '@/lib/universe/engine';
 
@@ -17,6 +18,7 @@ export function LeakUniverse() {
   const [state, setState] = useState<State>('idle');
   const [message, setMessage] = useState('');
   const [fraction, setFraction] = useState(0);
+  const [count, setCount] = useState(0);
 
   const close = useCallback(() => {
     universe.current?.destroy();
@@ -36,6 +38,7 @@ export function LeakUniverse() {
       if (!host.current) return;
       universe.current?.destroy();
       universe.current = new Engine(host.current, data, { mode: 'replay' });
+      setCount(data.meta.n);
       setState('ready');
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Something went wrong');
@@ -62,7 +65,7 @@ export function LeakUniverse() {
     <div className="not-prose">
       <div className="flex flex-wrap items-center gap-2">
         {state !== 'ready' && (
-          <Button size="sm" data-sci="primary" onClick={load} disabled={state === 'loading'} className="h-7 px-3 text-xs">
+          <Button size="sm" onClick={load} disabled={state === 'loading'} className="h-7 px-3 text-xs">
             {state === 'loading' ? `${message}…` : 'Load visualiser'}
           </Button>
         )}
@@ -83,6 +86,19 @@ export function LeakUniverse() {
         ref={host}
         className={state === 'ready' ? 'mt-4 h-[72vh] min-h-[420px] overflow-hidden rounded-lg border border-white/10' : 'hidden'}
       />
+      {state === 'ready' && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] leading-relaxed text-white/50">
+          <span>
+            <b className="font-semibold text-white/80">{count.toLocaleString()}</b> trusted theorems · every star one Leak can use while proving, every cluster a library
+          </span>
+          {UNIVERSE_LEGEND.map((l) => (
+            <span key={l.label} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <i className="inline-block size-2 rounded-full" style={{ background: l.color }} aria-hidden />
+              {l.label}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -16,6 +16,8 @@ export interface UniverseData {
 
 export interface UniverseOptions {
   mode?: 'replay' | 'live';
+  /** Grips in the bottom corners that let the reader drag the universe taller (default on; off when it already fills the window). */
+  resizable?: boolean;
 }
 
 interface Ev extends UniverseEvent {
@@ -36,31 +38,34 @@ const COL: Record<string, Rgb> = {
 };
 
 const CSS = `
-.tku{position:relative;width:100%;height:100%;overflow:hidden;background:#07080a;color:#f1ecdc;font:13px/1.35 ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;
- --dim:#a39c86;--gold:#ffd98a;--cyan:#fff2cc;--violet:#ff9e4d;--green:#9dff8c;--red:#f2503a;--panel:rgba(14,16,10,.66);--line:rgba(255,217,138,.18)}
+.tku{position:relative;width:100%;height:100%;overflow:hidden;background:#07080a;color:#f1ecdc;font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;container-type:inline-size;
+ --dim:#a39c86;--gold:#ffd98a;--panel:rgba(12,13,9,.62);--line:rgba(255,217,138,.16)}
 .tku canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 .tku canvas.tku-drag{cursor:grabbing}
 .tku .tku-labels{pointer-events:none}
-.tku .hud{position:absolute;pointer-events:none;z-index:2;text-shadow:0 0 10px #000,0 0 3px #000}
-.tku .tku-title{left:16px;top:12px}.tku .tku-title h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.01em;color:#ffe9a8;text-shadow:0 0 14px rgba(255,200,80,.45),0 0 3px #000}
-.tku .tku-title p{margin:3px 0 0;color:var(--dim);font-size:12px}.tku b{color:#fff4dc;font-weight:600;font-variant-numeric:tabular-nums}
-.tku .tku-stats{right:16px;top:12px;text-align:right;font-variant-numeric:tabular-nums}.tku .tku-stats div{margin-bottom:3px;color:var(--dim)}
-.tku .tku-perf{right:12px;top:112px;padding:6px 8px;background:rgba(10,11,7,.55);border:1px solid var(--line);border-radius:8px;text-align:right;text-shadow:none;font-variant-numeric:tabular-nums;font-size:11px;color:var(--dim);line-height:1.4}
-.tku .tku-perf canvas{position:static;display:block;margin:0 0 3px auto;width:120px;height:30px;cursor:default;opacity:.92}
-.tku .tku-perf .tku-fps{font-size:15px;color:#ffe9a8;font-weight:700}.tku .tku-perf .tku-fps small{font-size:11px;font-weight:400;color:var(--dim)}
-.tku .tku-legend{left:16px;top:76px;color:var(--dim);font-size:12px}.tku .tku-legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:-1px}.tku .tku-legend div{margin:3px 0}
-.tku .tku-ticker{left:50%;transform:translateX(-50%);bottom:76px;max-width:min(760px,calc(100% - 32px));width:100%;text-align:center;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);min-height:18px}
-.tku .tku-bar{position:absolute;z-index:3;left:50%;transform:translateX(-50%);bottom:12px;width:min(900px,calc(100% - 24px));display:flex;gap:10px;align-items:center;padding:9px 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(10px)}
-.tku .tku-bar button,.tku .tku-bar select{background:rgba(255,217,138,.05);color:#ffe9b8;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer;min-height:32px}
-.tku .tku-bar button:hover,.tku .tku-bar select:hover{background:rgba(255,217,138,.14)}
-.tku .tku-bar button.on{background:rgba(255,217,138,.18);border-color:rgba(255,217,138,.5)}
-.tku .tku-bar input[type=range]{flex:1;min-width:60px;accent-color:#ffd98a}.tku .tku-bar label{color:var(--dim);display:flex;align-items:center;gap:5px;white-space:nowrap}
-.tku .tku-time{color:var(--dim);font-variant-numeric:tabular-nums;min-width:76px;text-align:right}
-.tku .tku-tip{position:absolute;z-index:4;pointer-events:none;padding:7px 10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;font-size:12px;backdrop-filter:blur(8px);display:none}.tku .tku-tip span{color:var(--dim)}
-.tku .tku-live{display:none;color:var(--red);font-weight:600;letter-spacing:.06em}
-.tku.live .tku-replay-only{display:none}.tku.live .tku-live{display:inline}.tku .tku-live-only{display:none}.tku.live .tku-live-only{display:inline}
-@media (max-width:640px){.tku .tku-legend,.tku .tku-stats{display:none}.tku .tku-perf{top:8px;right:8px}.tku .tku-perf-more{display:none}.tku .tku-title{max-width:calc(100% - 150px)}.tku .tku-title p{display:none}.tku .tku-bar{flex-wrap:wrap;gap:8px}.tku .tku-bar select.tku-run{flex:1 1 120px;min-width:0}
- .tku .tku-bar input.tku-seek{order:9;flex:1 1 100%}.tku .tku-bar .tku-time{order:8;flex:1 1 auto;text-align:left;min-width:0}.tku .tku-opt{display:none}.tku .tku-ticker{bottom:132px;font-size:11px}}
+.tku .tku-hud{position:absolute;inset:0;z-index:2;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:8px 10px;text-shadow:0 0 8px #000,0 0 2px #000}
+.tku .tku-top{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:3px 16px}
+.tku .tku-title{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#ffe9a8;white-space:nowrap}
+.tku .tku-live{display:none;color:#f2503a;margin-left:8px}.tku.live .tku-live{display:inline}
+.tku .tku-right{margin-left:auto;text-align:right;color:var(--dim);font-size:10px;line-height:1.5;font-variant-numeric:tabular-nums;max-width:100%;overflow-wrap:anywhere}
+.tku b{color:#fff4dc;font-weight:600}
+.tku .tku-bottom{display:flex;flex-direction:column;align-items:center;gap:6px;padding:0 14px}
+.tku .tku-ticker{font-size:10.5px;color:var(--dim);text-align:center;max-width:min(720px,100%);overflow-wrap:anywhere;min-height:14px}
+.tku .tku-bar{pointer-events:auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px;padding:5px 7px;max-width:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;backdrop-filter:blur(10px)}
+.tku .tku-bar button,.tku .tku-bar select{box-sizing:border-box;height:22px;padding:0 8px;margin:0;background:rgba(255,255,255,.04);color:#e9e2cc;border:1px solid var(--line);border-radius:5px;font:inherit;font-size:10.5px;line-height:20px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.tku .tku-bar select{padding-right:18px;max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'><path d='M1 1l3 3 3-3' fill='none' stroke='%23a39c86' stroke-width='1.2'/></svg>");background-repeat:no-repeat;background-position:right 6px center}
+.tku .tku-bar button:hover,.tku .tku-bar select:hover{background-color:rgba(255,217,138,.1)}
+.tku .tku-bar button.on{background-color:rgba(255,217,138,.16);border-color:rgba(255,217,138,.45);color:#fff1cc}
+.tku .tku-bar input[type=range]{flex:1 1 120px;min-width:70px;height:22px;margin:0;accent-color:#ffd98a}
+.tku .tku-bar label{color:var(--dim);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.tku .tku-time{color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tku .tku-tip{position:absolute;z-index:4;pointer-events:none;padding:5px 8px;background:var(--panel);border:1px solid var(--line);border-radius:6px;font-size:10.5px;backdrop-filter:blur(8px);display:none;max-width:240px}.tku .tku-tip span{color:var(--dim)}
+.tku .tku-grip{position:absolute;bottom:0;width:16px;height:16px;z-index:3;opacity:.45;transition:opacity .15s;touch-action:none}
+.tku .tku-grip:hover,.tku .tku-grip.tku-drag{opacity:1}
+.tku .tku-grip-r{right:0;cursor:nwse-resize;background:linear-gradient(135deg,transparent 0 50%,#ffd98a 50% 56%,transparent 56% 72%,#ffd98a 72% 78%,transparent 78%)}
+.tku .tku-grip-l{left:0;cursor:nesw-resize;background:linear-gradient(225deg,transparent 0 50%,#ffd98a 50% 56%,transparent 56% 72%,#ffd98a 72% 78%,transparent 78%)}
+.tku.live .tku-replay-only{display:none}
+@container (max-width:640px){.tku .tku-bar .tku-opt{display:none}.tku .tku-bar .tku-seek{order:9;flex:1 1 100%}.tku .tku-bar .tku-time{order:8}}
 `;
 
 const HASH_GLSL = `float hash(uint x){ x ^= x>>16; x *= 0x7feb352du; x ^= x>>15; x *= 0x846ca68bu; x ^= x>>16; return float(x)/4294967295.0; }`;
@@ -158,28 +163,6 @@ const hash32 = (x: number): number => {
   x ^= x >>> 16;
   return (x >>> 0) / 4294967295;
 };
-const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const norm = (a: Vec3): Vec3 => {
-  const l = Math.hypot(a[0], a[1], a[2]) || 1;
-  return [a[0] / l, a[1] / l, a[2] / l];
-};
-const persp = (fovy: number, asp: number, n: number, f: number): number[] => {
-  const t = 1 / Math.tan(fovy / 2);
-  return [t / asp, 0, 0, 0, 0, t, 0, 0, 0, 0, (f + n) / (n - f), -1, 0, 0, (2 * f * n) / (n - f), 0];
-};
-const lookAt = (e: Vec3, c: Vec3, u: Vec3): number[] => {
-  const z = norm(sub(e, c));
-  const x = norm(cross(u, z));
-  const y = cross(z, x);
-  return [x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -(x[0] * e[0] + x[1] * e[1] + x[2] * e[2]), -(y[0] * e[0] + y[1] * e[1] + y[2] * e[2]), -(z[0] * e[0] + z[1] * e[1] + z[2] * e[2]), 1];
-};
-const mul = (a: number[], b: number[]): number[] => {
-  const o = new Array<number>(16);
-  for (let i = 0; i < 4; i++)
-    for (let j = 0; j < 4; j++) o[j * 4 + i] = a[i] * b[j * 4] + a[4 + i] * b[j * 4 + 1] + a[8 + i] * b[j * 4 + 2] + a[12 + i] * b[j * 4 + 3];
-  return o;
-};
 const hsv = (h: number, s: number, v: number): Rgb => {
   const f = (n: number): number => {
     const k = (n + h * 6) % 6;
@@ -228,13 +211,11 @@ export class Universe implements UniverseSink {
   private raf = 0;
   private destroyed = false;
 
-  // camera
-  private yaw = 0.6;
-  private pitch = 0.5;
-  private dist = 2.3;
+  // camera: a flat map. target is the point at the centre of the view, dist the height of the view in world units
+  private dist = 2.6;
   private target: Vec3 = [0, 0, 0];
   private tgoal: Vec3 = [0, 0, 0];
-  private dgoal = 2.3;
+  private dgoal = 2.6;
   private freeUntil = 0;
   private dragging: { x: number; y: number } | null = null;
   private readonly pointers = new Map<number, [number, number]>();
@@ -279,7 +260,7 @@ export class Universe implements UniverseSink {
   constructor(
     private readonly container: HTMLElement,
     private readonly data: UniverseData,
-    opts: UniverseOptions = {},
+    private readonly opts: UniverseOptions = {},
   ) {
     this.N = data.meta.n;
     this.SC = 1 / data.meta.scale;
@@ -550,29 +531,31 @@ export class Universe implements UniverseSink {
 
   // ---------- HUD ----------
   private buildHud(): void {
-    const m = this.data.meta;
     const html = `
-      <div class="hud tku-title" data-k="title"><h1>Tengoku universe</h1><p><b>${m.n.toLocaleString()}</b> trusted theorems · every star is one Leak can use while proving, every cluster a library</p></div>
-      <div class="hud tku-legend" data-k="legend">
-        <div><i style="background:#ffe9c4"></i>a trusted theorem (verified by Leak)</div>
-        <div><i style="background:var(--cyan)"></i>type-pattern search (Leak I loogle)</div>
-        <div><i style="background:var(--violet)"></i>concept search (Leak I moogle)</div>
-        <div><i style="background:var(--gold)"></i>compile (Leak IV) &nbsp;<i style="background:var(--green)"></i>✅ &nbsp;<i style="background:var(--red)"></i>❌</div>
+      <div class="tku-hud">
+        <div class="tku-top">
+          <div class="tku-title" data-k="title">Tengoku universe<span class="tku-live">● live</span></div>
+          <div class="tku-right">
+            <div data-k="stats"><b data-k="search">0</b> searches · <b data-k="ok">0</b> ✅ <b data-k="fail">0</b> ❌ · <b data-k="lem">0</b> lemmas</div>
+            <div data-k="perf" aria-label="Performance"></div>
+          </div>
+        </div>
+        <div class="tku-bottom">
+          <div class="tku-ticker" data-k="ticker"></div>
+          <div class="tku-bar" data-k="bar" role="group" aria-label="Universe controls">
+            <button data-k="live">Live</button><button data-k="replay">Replay</button>
+            <button data-k="play" class="tku-replay-only" aria-label="Play or pause">⏸</button>
+            <select data-k="run" class="tku-run tku-replay-only" aria-label="Replay run"></select>
+            <input data-k="seek" class="tku-seek tku-replay-only" type="range" min="0" max="1000" value="0" aria-label="Timeline">
+            <span class="tku-time tku-replay-only" data-k="time">0:00</span>
+            <select data-k="speed" class="tku-replay-only" aria-label="Speed"><option value="1">1×</option><option value="2" selected>2×</option><option value="5">5×</option><option value="12">12×</option></select>
+            <label class="tku-opt"><input data-k="follow" type="checkbox" checked> follow</label>
+            <select data-k="quality" class="tku-opt" aria-label="Star density"><option value="1">all stars</option><option value="0.5">½ stars</option><option value="0.25">¼ stars</option></select>
+          </div>
+        </div>
       </div>
-      <div class="hud tku-stats" data-k="stats"><div class="tku-live-only"><span class="tku-live">● LIVE</span></div><div>searches <b data-k="search">0</b></div><div>compiles <b data-k="ok">0</b> ✅ · <b data-k="fail">0</b> ❌</div><div>lemmas touched <b data-k="lem">0</b></div></div>
-      <div class="hud tku-perf" data-k="perf" aria-label="Performance"><canvas data-k="perfGraph" width="120" height="30"></canvas><div class="tku-fps"><span data-k="fps">–</span> <small>fps</small></div><div data-k="perfA"></div><div data-k="perfB"></div><div class="tku-perf-more" data-k="perfC"></div></div>
-      <div class="hud tku-ticker" data-k="ticker"></div>
       <div class="tku-tip" data-k="tip"></div>
-      <div class="tku-bar" data-k="bar" role="group" aria-label="Universe controls">
-        <button data-k="live" class="tku-opt-mode">Live</button><button data-k="replay" class="tku-opt-mode">Replay</button>
-        <button data-k="play" class="tku-replay-only" aria-label="Play or pause">⏸</button>
-        <select data-k="run" class="tku-run tku-replay-only" aria-label="Replay run"></select>
-        <input data-k="seek" class="tku-seek tku-replay-only" type="range" min="0" max="1000" value="0" aria-label="Timeline">
-        <span class="tku-time tku-replay-only" data-k="time">0:00</span>
-        <select data-k="speed" class="tku-replay-only" aria-label="Speed"><option value="1">1×</option><option value="2" selected>2×</option><option value="5">5×</option><option value="12">12×</option></select>
-        <label class="tku-opt"><input data-k="follow" type="checkbox" checked> follow</label>
-        <select data-k="quality" class="tku-opt" aria-label="Star density"><option value="1">all stars</option><option value="0.5">½ stars</option><option value="0.25">¼ stars</option></select>
-      </div>`;
+      ${this.opts.resizable === false ? '' : '<div class="tku-grip tku-grip-l" data-k="gripL" title="Drag to resize"></div><div class="tku-grip tku-grip-r" data-k="gripR" title="Drag to resize"></div>'}`;
     const holder = document.createElement('div');
     holder.innerHTML = html;
     while (holder.firstChild) this.root.appendChild(holder.firstChild);
@@ -612,6 +595,29 @@ export class Universe implements UniverseSink {
     };
     window.addEventListener('keydown', key);
     this.cleanups.push(() => window.removeEventListener('keydown', key));
+    for (const k of ['gripL', 'gripR']) {
+      const g = this.el[k];
+      if (!g) continue;
+      g.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        g.setPointerCapture(e.pointerId);
+        const y0 = e.clientY;
+        const h0 = this.root.getBoundingClientRect().height;
+        g.classList.add('tku-drag');
+        const move = (ev: PointerEvent): void => {
+          this.container.style.height = `${Math.max(240, Math.min(window.innerHeight - 24, h0 + (ev.clientY - y0)))}px`;
+        };
+        const end = (): void => {
+          g.classList.remove('tku-drag');
+          g.removeEventListener('pointermove', move);
+          g.removeEventListener('pointerup', end);
+          g.removeEventListener('pointercancel', end);
+        };
+        g.addEventListener('pointermove', move);
+        g.addEventListener('pointerup', end);
+        g.addEventListener('pointercancel', end);
+      });
+    }
   }
   private syncMode(): void {
     this.root.classList.toggle('live', this.mode === 'live');
@@ -619,24 +625,44 @@ export class Universe implements UniverseSink {
     this.el.replay.classList.toggle('on', this.mode === 'replay');
   }
 
-  // ---------- input ----------
+  // ---------- input: drag pans, the wheel and a pinch zoom about the pointer, a double click hands the camera back to Leak ----------
   private bindInput(): void {
     const c = this.canvas;
     const rect = (): DOMRect => c.getBoundingClientRect();
     const free = (): void => {
-      this.freeUntil = performance.now() + 9000;
+      this.freeUntil = performance.now() + 20000;
+    };
+    const upp = (): number => this.dist / Math.max(1, rect().height); // world units per CSS pixel
+    const zoomAt = (sx: number, sy: number, factor: number): void => {
+      const r = rect();
+      const u0 = upp();
+      const wx = this.target[0] + (sx - r.left - r.width / 2) * u0;
+      const wy = this.target[1] - (sy - r.top - r.height / 2) * u0;
+      this.dist = Math.min(6, Math.max(0.03, this.dist * factor));
+      const u1 = upp();
+      this.target[0] = wx - (sx - r.left - r.width / 2) * u1;
+      this.target[1] = wy + (sy - r.top - r.height / 2) * u1;
+      free();
+    };
+    const pan = (dx: number, dy: number): void => {
+      const u = upp();
+      this.target[0] -= dx * u;
+      this.target[1] += dy * u;
+      free();
     };
     c.addEventListener('pointerdown', (e) => {
       c.setPointerCapture(e.pointerId);
       this.pointers.set(e.pointerId, [e.clientX, e.clientY]);
-      this.dragging = { x: e.clientX, y: e.clientY };
+      this.dragging = this.pointers.size === 1 ? { x: e.clientX, y: e.clientY } : null;
       c.classList.add('tku-drag');
       free();
     });
     const up = (e: PointerEvent): void => {
       this.pointers.delete(e.pointerId);
-      this.dragging = null;
-      c.classList.remove('tku-drag');
+      // the finger that stays after a pinch carries on panning from where it is, without a jump
+      const rest = [...this.pointers.values()];
+      this.dragging = rest.length === 1 ? { x: rest[0][0], y: rest[0][1] } : null;
+      if (!this.pointers.size) c.classList.remove('tku-drag');
     };
     c.addEventListener('pointerup', up);
     c.addEventListener('pointercancel', up);
@@ -648,27 +674,27 @@ export class Universe implements UniverseSink {
       this.mouse.x = e.clientX - r.left;
       this.mouse.y = e.clientY - r.top;
       const mine = this.pointers.get(e.pointerId);
-      if (this.pointers.size === 2 && mine) {
+      if (!mine) return;
+      if (this.pointers.size === 2) {
         const other = [...this.pointers.entries()].find(([id]) => id !== e.pointerId)![1];
         const d0 = Math.hypot(mine[0] - other[0], mine[1] - other[1]);
         const d1 = Math.hypot(e.clientX - other[0], e.clientY - other[1]);
-        this.dist = Math.min(8, Math.max(0.05, (this.dist * d0) / Math.max(d1, 1)));
-        this.dgoal = this.dist;
-      } else if (this.dragging && mine) {
-        this.yaw -= (e.clientX - this.dragging.x) * 0.006;
-        this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch + (e.clientY - this.dragging.y) * 0.006));
+        const mx = (e.clientX + other[0]) / 2;
+        const my = (e.clientY + other[1]) / 2;
+        pan(mx - (mine[0] + other[0]) / 2, my - (mine[1] + other[1]) / 2);
+        zoomAt(mx, my, d0 / Math.max(d1, 1));
+      } else if (this.dragging) {
+        pan(e.clientX - this.dragging.x, e.clientY - this.dragging.y);
         this.dragging = { x: e.clientX, y: e.clientY };
-        free();
       }
-      if (mine) this.pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      this.pointers.set(e.pointerId, [e.clientX, e.clientY]);
     });
     c.addEventListener(
       'wheel',
       (e) => {
         e.preventDefault();
-        this.dist = Math.min(8, Math.max(0.05, this.dist * Math.exp(e.deltaY * 0.0012)));
-        this.dgoal = this.dist;
-        free();
+        // a trackpad pinch arrives as a wheel with ctrlKey and small deltas
+        zoomAt(e.clientX, e.clientY, Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
       },
       { passive: false },
     );
@@ -715,7 +741,7 @@ export class Universe implements UniverseSink {
   /** the HUD's own boxes (CSS px, relative to the universe), so galaxy labels stay out from under it */
   private refreshHud(): void {
     const r0 = this.root.getBoundingClientRect();
-    this.hudRects = ['title', 'legend', 'stats', 'perf', 'ticker', 'bar'].map((k) => {
+    this.hudRects = ['title', 'stats', 'perf', 'ticker', 'bar'].map((k) => {
       const e = this.el[k];
       if (!e) return [0, 0, 0, 0] as [number, number, number, number];
       const b = e.getBoundingClientRect();
@@ -957,14 +983,14 @@ export class Universe implements UniverseSink {
     const anyActive = dimTarget < 0.8;
     this.G(pr, COL.gold, 0.95, 16 + 3 * Math.sin(T * 5));
     this.G(pr, [1, 1, 1], 0.75, 7);
-    this.tgoal = [pr[0] * 0.9, pr[1] * 0.9, pr[2] * 0.9];
-    this.dgoal = Math.min(2.2, Math.max(0.38, 0.3 + 1.7 * (fin ? Math.max(finR, 0.25) : anyActive ? this.maxR : 0.5)));
+    this.tgoal = [pr[0] * 0.9, pr[1] * 0.9, 0];
+    this.dgoal = Math.min(2.6, Math.max(0.3, 0.28 + 1.6 * (fin ? Math.max(finR, 0.25) : anyActive ? this.maxR : 0.5)));
     this.dimTarget = dimTarget;
 
     const set = (k: string, v: string): void => {
       if (this.el[k].textContent !== v) this.el[k].textContent = v;
     };
-    if (!this.evs.length && this.mode === 'live') ticker = 'Live: waiting for a prover run. Send a statement above and every Leak I search and Leak IV compile appears here.';
+    if (!this.evs.length && this.mode === 'live') ticker = 'waiting for a prover run';
     this.el.ticker.innerHTML = ticker;
     set('search', String(search));
     set('ok', String(ok));
@@ -987,7 +1013,7 @@ export class Universe implements UniverseSink {
     const ctx = this.lctx;
     ctx.clearRect(0, 0, this.W, this.H);
     const D = this.DPR;
-    const f = this.H / (2 * Math.tan(0.45));
+    const f = this.H / this.dist; // world units to device pixels
     const placed: [number, number, number, number][] = this.hudRects.map(([x, y, w, h]) => [x * D, y * D, w * D, h * D]);
     const hits = (lx: number, ly: number, tw: number, th: number): boolean =>
       placed.some((r) => lx < r[0] + r[2] && lx + tw > r[0] && ly < r[1] + r[3] && ly + th > r[1]);
@@ -997,41 +1023,55 @@ export class Universe implements UniverseSink {
     const p: Vec3 = [0, 0, 0];
 
     // the results of the latest search: rank and lemma name on a thin leader beside each anchored star
-    ctx.font = `${11.5 * D}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    ctx.font = `${10.5 * D}px ui-monospace, SFMono-Regular, Menlo, monospace`;
     for (const m of this.marks) {
       this.starPos(m.star, this.simT, p);
       if (!this.project(p, o)) continue;
+      if (o[0] < -10 || o[0] > this.W + 10 || o[1] < -10 || o[1] > this.H + 10) continue;
       const name = m.name.length > 38 ? '\u2026' + m.name.slice(-37) : m.name;
       const text = `${m.rank + 1}  ${name}`;
       const tw = ctx.measureText(text).width;
-      const lx = o[0] + 26 * D;
-      const ly = o[1] - 20 * D;
-      if (lx > this.W + 10 || o[1] < -10 || o[1] > this.H + 10) continue;
+      const bw = tw + 8 * D;
+      const bh = 15 * D;
+      // four places beside the star, first that is free and on screen: to the right and above, right and below, then the left side
+      let lx = 0;
+      let ly = 0;
+      let found = false;
+      for (const [sx, sy] of [[1, -1], [1, 1], [-1, -1], [-1, 1]] as const) {
+        lx = sx > 0 ? o[0] + 26 * D : o[0] - 26 * D - bw;
+        ly = sy < 0 ? o[1] - 20 * D : o[1] + 8 * D;
+        if (lx - 2 * D < 0 || lx - 2 * D + bw > this.W || ly - 2 * D < 0 || ly - 2 * D + bh > this.H) continue;
+        if (hits(lx - 2 * D, ly - 2 * D, bw, bh)) continue;
+        found = true;
+        break;
+      }
+      if (!found) continue;
       const rgb = m.color.map((v) => Math.min(255, (v * 255 + 40) | 0)).join(',');
+      const right = lx > o[0];
       ctx.globalAlpha = Math.min(1, m.alpha);
       ctx.strokeStyle = `rgba(${rgb},.55)`;
       ctx.lineWidth = 1 * D;
       ctx.beginPath();
-      ctx.moveTo(o[0] + 5 * D, o[1] - 5 * D);
-      ctx.lineTo(lx - 7 * D, ly + 7 * D);
-      ctx.lineTo(lx - 3 * D, ly + 7 * D);
+      ctx.moveTo(o[0] + (right ? 5 : -5) * D, o[1] + (ly < o[1] ? -5 : 5) * D);
+      ctx.lineTo(right ? lx - 7 * D : lx + bw + 5 * D, ly + 7 * D);
+      ctx.lineTo(right ? lx - 3 * D : lx + bw + 1 * D, ly + 7 * D);
       ctx.stroke();
       ctx.fillStyle = 'rgba(4,5,10,.6)';
-      ctx.fillRect(lx - 2 * D, ly - 2 * D, tw + 8 * D, 17 * D);
+      ctx.fillRect(lx - 2 * D, ly - 2 * D, bw, bh);
       ctx.fillStyle = `rgb(${rgb})`;
-      ctx.fillRect(lx - 2 * D, ly - 2 * D, 1.5 * D, 17 * D);
+      ctx.fillRect(right ? lx - 2 * D : lx - 2 * D + bw - 1.5 * D, ly - 2 * D, 1.5 * D, bh);
       ctx.fillStyle = 'rgba(232,240,255,.92)';
       ctx.fillText(text, lx + 4 * D, ly);
-      placed.push([lx - 2 * D, ly - 2 * D, tw + 8 * D, 17 * D]);
+      placed.push([lx - 2 * D, ly - 2 * D, bw, bh]);
     }
 
     let best: UniverseLib | null = null;
     let bd = 1e9;
-    ctx.font = `${11 * D}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.font = `${10 * D}px ui-sans-serif, system-ui, sans-serif`;
     this.libsBySize.forEach((l, rank) => {
       if (!this.project(l.c, o)) return;
-      const [x, y, w] = o;
-      const pxR = (l.r * f) / w;
+      const [x, y] = o;
+      const pxR = l.r * f;
       if (x < -50 || y < -20 || x > this.W + 50 || y > this.H + 20) return;
       const d = Math.hypot(x / D - this.mouse.x, y / D - this.mouse.y);
       if (this.mouse.x >= 0 && d < bd && d < Math.max(36, pxR / D)) {
@@ -1048,8 +1088,8 @@ export class Universe implements UniverseSink {
       const tw = ctx.measureText(text).width;
       const lx = x + 6 * D;
       const ly = y + 6 * D;
-      if (hits(lx, ly, tw, 13 * D)) return;
-      placed.push([lx, ly, tw, 13 * D]);
+      if (hits(lx, ly, tw, 12 * D)) return;
+      placed.push([lx, ly, tw, 12 * D]);
       ctx.globalAlpha = a * 0.9;
       ctx.lineWidth = 2.5 * D;
       ctx.strokeStyle = 'rgba(4,5,10,.8)';
@@ -1071,18 +1111,15 @@ export class Universe implements UniverseSink {
   // ---------- frame ----------
   private updateCam(dt: number): void {
     const follow = (this.el.follow as HTMLInputElement).checked && performance.now() > this.freeUntil;
-    const k = 1 - Math.exp(-dt * 1.6);
     if (follow) {
-      for (let i = 0; i < 3; i++) this.target[i] += (this.tgoal[i] - this.target[i]) * k;
+      const k = 1 - Math.exp(-dt * 1.6);
+      this.target[0] += (this.tgoal[0] - this.target[0]) * k;
+      this.target[1] += (this.tgoal[1] - this.target[1]) * k;
       this.dist += (this.dgoal - this.dist) * k;
-    } else if (!this.dragging) this.yaw += dt * 0.012;
-    const cp = Math.cos(this.pitch);
-    const eye: Vec3 = [
-      this.target[0] + this.dist * cp * Math.sin(this.yaw),
-      this.target[1] + this.dist * Math.sin(this.pitch),
-      this.target[2] + this.dist * cp * Math.cos(this.yaw),
-    ];
-    this.VP = mul(persp(0.9, this.W / this.H, 0.02, 20), lookAt(eye, this.target, [0, 1, 0]));
+    }
+    const sx = 2 / (this.dist * (this.W / this.H));
+    const sy = 2 / this.dist;
+    this.VP = [sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, -0.01, 0, -this.target[0] * sx, -this.target[1] * sy, 0, 1];
   }
 
   // ---------- performance ----------
@@ -1115,45 +1152,18 @@ export class Universe implements UniverseSink {
   private showPerf(): void {
     const n = Math.min(this.nPerf, 240);
     if (n < 8) return;
-    const win = Math.min(n, 120); // the last ~second or two
-    const last = this.nPerf;
-    const ds: number[] = [];
+    const win = Math.min(n, 120); // the last second or two
     let sum = 0;
     let cpu = 0;
-    let worst = 0;
     for (let k = 1; k <= win; k++) {
-      const i = (last - k) % 240;
-      ds.push(this.dts[i]);
+      const i = (this.nPerf - k) % 240;
       sum += this.dts[i];
       cpu += this.cpus[i];
-      worst = Math.max(worst, this.dts[i]);
     }
-    ds.sort((a, b) => a - b);
     const avg = sum / win;
-    const p99 = ds[Math.min(win - 1, Math.floor(win * 0.99))];
-    const set = (k: string, v: string): void => {
-      if (this.el[k].textContent !== v) this.el[k].textContent = v;
-    };
-    set('fps', (1000 / avg).toFixed(0));
-    set('perfA', `${avg.toFixed(1)} ms · 1% low ${(1000 / p99).toFixed(0)} fps`);
     const gpu = this.gpuMs === null ? (this.timerExt ? '…' : 'n/a') : this.gpuMs.toFixed(1);
-    set('perfB', `cpu ${(cpu / win).toFixed(1)} · gpu ${gpu} ms`);
-    set('perfC', `${Math.floor((this.N * this.drawFrac) / 1000).toLocaleString()}k stars · ${this.W}×${this.H}`);
-    // frame-time graph: one bar per frame, 0-40 ms, with the 60 fps and 30 fps budgets ruled in
-    const cv = this.el.perfGraph as HTMLCanvasElement;
-    const c = cv.getContext('2d');
-    if (!c) return;
-    c.clearRect(0, 0, cv.width, cv.height);
-    const H = cv.height;
-    const y = (ms: number): number => H - Math.min(1, ms / 40) * (H - 2);
-    c.fillStyle = 'rgba(255,217,138,.10)';
-    c.fillRect(0, y(33.4), cv.width, 1);
-    c.fillRect(0, y(16.7), cv.width, 1);
-    for (let k = 0; k < 120 && k < n; k++) {
-      const ms = this.dts[(last - 1 - k) % 240];
-      c.fillStyle = ms > 33.4 ? '#f2503a' : ms > 20 ? '#ff9e4d' : '#ffd98a';
-      c.fillRect(cv.width - 1 - k, y(ms), 1, H - y(ms));
-    }
+    const v = `${(1000 / avg).toFixed(0)} fps · ${avg.toFixed(1)} ms · cpu ${(cpu / win).toFixed(1)} · gpu ${gpu} ms`;
+    if (this.el.perf.textContent !== v) this.el.perf.textContent = v;
   }
 
   private readonly frame = (now: number): void => {
@@ -1184,7 +1194,7 @@ export class Universe implements UniverseSink {
     } else gl.clearColor(0.022, 0.024, 0.014, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     const gpuQ = this.beginGpu();
-    const ps = this.DPR * (this.H / 900) * 2.1;
+    const ps = (this.DPR * (this.H / 900) * 2.1 * 0.97) / this.dist; // what a perspective camera at this distance drew
     gl.useProgram(this.progStar);
     gl.bindVertexArray(this.vaoStars);
     gl.uniformMatrix4fv(this.u(this.progStar, 'u_vp'), false, this.VP);
@@ -1226,7 +1236,7 @@ export class Universe implements UniverseSink {
       gl.uniform1i(this.u(this.progTone, 'u_tex'), 0);
       gl.uniform1f(this.u(this.progTone, 'u_exposure'), 2.3);
       gl.uniform1f(this.u(this.progTone, 'u_aspect'), this.W / this.H);
-      gl.uniform2f(this.u(this.progTone, 'u_cam'), this.yaw, this.pitch);
+      gl.uniform2f(this.u(this.progTone, 'u_cam'), this.target[0] * 0.5, this.target[1] * 0.5);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.enable(gl.BLEND);
     }
