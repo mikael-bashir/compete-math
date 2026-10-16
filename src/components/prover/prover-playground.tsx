@@ -19,6 +19,7 @@ import {
 } from '@/lib/prover/run-prover-stream';
 import { ProverConsole } from '@/components/prover/prover-console';
 import type { ProverEvent, ProverOutcome } from '@/lib/prover/types';
+import { publishProverEvent, publishRunReset } from '@/lib/universe/live-bus';
 
 // Wall-clock budget for a decomposition (tree) run. The tree path governs by
 // TIME when this is set and reports a runId so "+5 min" can push it out; the
@@ -96,7 +97,11 @@ export function ProverPlayground() {
       runIdRef.current = null;
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-      const append = (e: ProverEvent) => setEvents((prev) => [...prev, e]);
+      publishRunReset();
+      const append = (e: ProverEvent) => {
+        publishProverEvent(e);
+        setEvents((prev) => [...prev, e]);
+      };
       try {
         const mcpServers = await fetchProverMcpServers();
         const out = await runProverStream({

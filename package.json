@@ -11,7 +11,7 @@
     "test:tengoku": "node --import tsx --test 'tests/tengoku-search/*.test.ts' 'src/app/lib/tengoku-search/*.test.ts' 'src/app/lib/tengoku-source/*.test.ts'",
     "tengoku:eval": "tsx scripts/tengoku-search-eval.ts",
     "tengoku:load": "tsx scripts/tengoku-index-load.ts",
-    "test": "node --import tsx --test 'tests/email/*.test.ts' 'tests/auth/*.test.ts' 'tests/join/*.test.ts' 'tests/tengoku-search/history-core.test.ts' 'tests/tengoku-search/dedup-core.test.ts' 'tests/tengoku-search/live-count.test.ts' 'tests/tengoku-search/tentative-core.test.ts' 'tests/tengoku-search/stats.test.ts'",
+    "test": "node --import tsx --test 'tests/email/*.test.ts' 'tests/auth/*.test.ts' 'tests/join/*.test.ts' 'tests/tengoku-search/history-core.test.ts' 'tests/tengoku-search/dedup-core.test.ts' 'tests/tengoku-search/live-count.test.ts' 'tests/tengoku-search/tentative-core.test.ts' 'tests/tengoku-search/stats.test.ts' 'tests/universe/*.test.ts'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
