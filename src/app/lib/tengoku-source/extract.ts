@@ -185,25 +185,95 @@ export function openContext(text: string, line: number): OpenContext {
   return { opens: scopes.flatMap((s) => s.opens), namespaces: scopes.filter((s) => s.kind === "namespace").map((s) => s.name) };
 }
 
-const UNIVERSE = /\b(u_\d+|u|v|w)\b(?=[^\w]|$)/g;
+const LEVEL_WORDS = new Set(["max", "imax", "succ", "Type", "Sort", "_"]);
+const levelIdents = (expr: string): string[] => (expr.match(/[\p{L}_][\p{L}\p{N}_'₀-₉]*/gu) ?? []).filter((w) => !LEVEL_WORDS.has(w));
 
-export interface ScriptInput { kind?: string | null; module: string; name: string; statement: string; library: string; tier: string; sourceUrl: string; opens: string[]; namespaces: string[] }
+/** The universe names a printed statement uses: after `Type` and `Sort` (a name, `u+1`, or a parenthesised `max u v`) and inside `.{u, v}`. */
+export function universeNames(statement: string): string[] {
+  const found = new Set<string>();
+  for (const m of statement.matchAll(/\b(?:Type|Sort)\b\s*/g)) {
+    let i = m.index! + m[0].length;
+    if (statement[i] === "(") {
+      let depth = 0;
+      const from = i;
+      for (; i < statement.length; i++) {
+        if (statement[i] === "(") depth++;
+        else if (statement[i] === ")" && --depth === 0) break;
+      }
+      for (const w of levelIdents(statement.slice(from + 1, i))) found.add(w);
+    } else {
+      const atom = /^[\p{L}_][\p{L}\p{N}_'₀-₉]*/u.exec(statement.slice(i));
+      if (atom) for (const w of levelIdents(atom[0])) found.add(w);
+    }
+  }
+  for (const m of statement.matchAll(/\.\{([^}]*)\}/g)) for (const w of levelIdents(m[1])) found.add(w);
+  return [...found].sort();
+}
+
+/** The licence and authors header at the top of a file (`/- Copyright … Authors: … -/`), as lines; empty when the file has none. */
+export function fileCredit(text: string): string[] {
+  const m = /^\s*\/-+\s*\n([\s\S]*?)-\//.exec(text);
+  if (!m || !/Copyright|Authors?:|licen[sc]e/i.test(m[1])) return [];
+  return m[1].split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 12);
+}
+
+/** The docstring a declaration starts with, without its delimiters; `null` when it has none. */
+export function docstringOf(code: string): string | null {
+  const m = /^\s*\/--([\s\S]*?)-\//.exec(code);
+  return m ? m[1].trim() : null;
+}
+
+/** Whether the file still declares a name (its last component): the index may have been built from a commit before a rename or a move. */
+export function declaresName(fileText: string, name: string): boolean {
+  const last = name.split(".").pop() ?? name;
+  const esc = last.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|\\s)(?:theorem|lemma|def|abbrev|instance|structure|class|inductive|axiom|opaque|alias)\\s+(?:[\\w.«»']*\\.)?${esc}(?![\\w'.])`, "m").test(fileText);
+}
+
+/** A comment's text made safe to sit inside `/- … -/`. */
+const inComment = (t: string): string => t.replace(/-\//g, "- /").replace(/\/-/g, "/ -");
+
+export interface ScriptInput {
+  kind?: string | null; module: string; name: string; statement: string; library: string; tier: string; sourceUrl: string; opens: string[]; namespaces: string[];
+  /** The declaration's docstring, the file's licence header, and what could not be established (each is written into the script's header, so a copy keeps the label). */
+  doc?: string | null; credit?: string[]; notes?: string[];
+}
+
+/** `Tengoku.Foo.Bar` opened as `Tengoku`, `Tengoku.Foo`, `Tengoku.Foo.Bar`: an `open` of the file that named a namespace relative to an enclosing one still resolves. */
+function openNamespaces(namespaces: string[]): string[] {
+  const out: string[] = [];
+  let prefix = "";
+  for (const ns of namespaces) {
+    for (const part of ns.split(".")) {
+      prefix = prefix ? `${prefix}.${part}` : part;
+      out.push(prefix);
+    }
+  }
+  return out;
+}
 
 /** A complete file that runs in a Tengoku checkout: `lake env lean example.lean` after `scripts/cache.sh get`. */
 export function buildScript(s: ScriptInput): string {
-  const universes = new Set<string>();
-  for (const m of s.statement.matchAll(/\b(?:Type|Sort)\s*\(?([^)]*?)(?:\)|,|\]|$)/g)) for (const u of m[1].matchAll(UNIVERSE)) universes.add(u[1]);
-  for (const m of s.statement.matchAll(/\bu_\d+\b/g)) universes.add(m[0]);
-  const opens = [...new Set([...s.namespaces.map((n) => n), ...s.opens])];
+  const universes = new Set(universeNames(s.statement));
+  const opens = [...new Set([...openNamespaces(s.namespaces), ...s.opens])];
   // A printed statement does not always elaborate again: an inaccessible name (a✝), or a lambda whose binder type was left out (`fun p => max p.1 p.2`).
   const typeable = s.statement.trim() !== "" && !s.statement.includes("✝") && !/\bfun\b|↦|λ|\.\d\b/.test(s.statement);
-  const out: string[] = [
+  const head: string[] = [
     "/-",
     `  Tengoku: ${s.name}  (library ${s.library}, ${s.tier})`,
     `  ${s.sourceUrl}`,
+  ];
+  if (s.doc) head.push("", ...inComment(s.doc).split("\n").map((l) => `  ${l.trim()}`.trimEnd()));
+  if (s.credit?.length) head.push("", "  From the source file:", ...s.credit.map((l) => `    ${inComment(l)}`));
+  if (s.notes?.length) head.push("", ...s.notes.map((n) => `  NOTE: ${inComment(n)}`));
+  head.push(
+    "",
     "  Run it in a Tengoku checkout, after `scripts/cache.sh get` has downloaded the compiled library:",
     "    lake env lean example.lean",
     "-/",
+  );
+  const out: string[] = [
+    ...head,
     `import ${s.module}`,
     "",
     "set_option linter.unusedVariables false  -- the statement below names its instance arguments",
