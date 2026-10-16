@@ -1907,6 +1907,38 @@ async function verifyViaDaemon(script, sseUrl, { timeoutMs = 180000, retries = 1
   }
 }
 
+// The proof that is shown, banked and returned names only the modules it needs. Leak IV compiles every script against the whole tree (it injects `import Tengoku.All`), so a verified proof
+// says "import everything" although it needs a few dozen modules. public/leak-min-imports.mjs finds the smaller header with three calls to verify_full_script (a probe, a check of the
+// narrowed script that its types are the same terms, and a plain verification) and returns the input unchanged unless all three pass. LEAK_MIN_IMPORTS=0 turns it off; the module is
+// loaded from the directory of this file, and a bridge run without it just keeps the full header.
+let _minImportsModule
+async function loadMinImports() {
+  if (_minImportsModule !== undefined) return _minImportsModule
+  try {
+    _minImportsModule = await import(new URL("./leak-min-imports.mjs", import.meta.url).href)
+  } catch (e) {
+    _minImportsModule = null
+    process.stderr.write(`[min-imports] leak-min-imports.mjs not loaded (${String(e?.message || e).slice(0, 120)}): proofs keep their full import header\n`)
+  }
+  return _minImportsModule
+}
+async function narrowFinalProof(proof, ctx, emit) {
+  if (process.env.LEAK_MIN_IMPORTS === "0" || !proof || !ctx?.verifyUrl) return proof
+  try {
+    const mod = await loadMinImports()
+    if (!mod) return proof
+    const r = await mod.minimizeImports(proof, (s) => verifyViaDaemon(s, ctx.verifyUrl, { timeoutMs: ctx.verifyTimeoutMs || 240000, retries: 0 }))
+    if (r.narrowed) {
+      emit({ type: "message-annotation", subtype: "status", thought: `📦 Imports narrowed: ${r.from.join(", ")} → ${r.imports.length} module(s), same statements, verified again.` })
+      return r.script
+    }
+    emit({ type: "message-annotation", subtype: "status", thought: `📦 Imports kept as they were (${r.reason}).` })
+  } catch (e) {
+    emit({ type: "message-annotation", subtype: "status", thought: `📦 Imports kept as they were (${String(e?.message || e).slice(0, 120)}).` })
+  }
+  return proof
+}
+
 // Build the "how to load your deferred MCP tools" section shared by the prover
 // and the decomposer prompts. Claude Code prefixes MCP tools as
 // mcp__<server>__<tool> (server name sanitized, e.g. "Leak II" -> "Leak_II") and
@@ -12324,6 +12356,7 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
         }
         ok = r.verified
         proof = r.proof
+        if (ok && proof) proof = await narrowFinalProof(proof, ctx, emit)
         if (ok && proof) {
           emit({ type: "message-annotation", subtype: "status", thought: "✅ System check passed — have-based proof verified sorry-free." })
           send({ type: "text-delta", content: `✅ **Verified proof** (in-context \`have\` decomposition, confirmed by verify_full_script):\n\n\`\`\`lean\n${proof}\n\`\`\`` })
@@ -12342,6 +12375,7 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
         emit({ type: "message-annotation", subtype: "status", thought: `🌲 Decomposition mode [${strategy}]: prove-or-split, ${ctx.turnBudget} turns/node, depth ≤ ${ctx.maxDepth}.` })
         ok = await proveNode(root, ctx)
         proof = ok ? root.proof : ""
+        if (ok && proof) proof = await narrowFinalProof(proof, ctx, emit)
         if (ok && proof) {
           emit({ type: "message-annotation", subtype: "status", thought: "✅ System check passed — full tree assembled and verified sorry-free." })
           send({ type: "text-delta", content: `✅ **Verified proof** (decomposition tree, confirmed by verify_full_script):\n\n\`\`\`lean\n${proof}\n\`\`\`` })
