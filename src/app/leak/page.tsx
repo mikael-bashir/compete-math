@@ -4,6 +4,8 @@ import { InfoPage } from "../lib/components/info-page";
 import { LocalClaudeAgentManagement } from "@/components/local-claude-agent-management";
 import { MCPServerManagement } from "@/components/mcp-server-management";
 import { ProverPlayground } from "@/components/prover/prover-playground";
+import { LeakAutoConnect } from "@/components/leak-auto-connect";
+import { LeakUniverse } from "@/components/universe/leak-universe";
 
 const SERVICES_REPO = "https://github.com/mikael-bashir/leak-services";
 
@@ -47,9 +49,24 @@ export default function LeakPage() {
         <div className="leak-dark-scope mt-6 mb-6 flex flex-wrap items-center gap-1.5">
           <LocalClaudeAgentManagement />
           <MCPServerManagement />
+          <LeakAutoConnect />
         </div>
         <div className="leak-dark-scope not-prose">
           <ProverPlayground />
+        </div>
+      </section>
+
+      <section>
+        <h2>Universe</h2>
+        <p className="mt-3">
+          Every theorem in Tengoku is a star, every library a galaxy. Load the
+          visualiser to watch Leak work in it: Leak I&rsquo;s searches dim the
+          field and light up what they find, and each step Leak IV verifies
+          leaves a line of light between the lemmas it used. Send a statement
+          above and the run plays out here live, or replay recorded runs.
+        </p>
+        <div className="leak-dark-scope mt-4">
+          <LeakUniverse />
         </div>
       </section>
 

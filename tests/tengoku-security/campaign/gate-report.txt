@@ -1,0 +1,69 @@
+scenario                 expect expected-job                   got    verdict  failed jobs/steps
+broken-proof             pass   -                              pass   OK       #42 -
+tooling-change           pass   -                              pass   OK       #43 -
+sorry-proof              pass   -                              pass   OK       #44 -
+allowed-option           pass   -                              pass   OK       #45 -
+tentative-append         pass   -                              pass   OK       #62 -
+two-libraries            pass   -                              pass   OK       #63 -
+bigger-append            pass   -                              pass   OK       #64 -
+tombstone-valid          pass   -                              pass   OK       #65 -
+crlf-append              pass   -                              pass   OK       #72 -
+docs-only                pass   -                              pass   OK       #76 -
+docs-plus-content        pass   -                              pass   OK       #77 -
+binary-in-docs           pass   -                              pass   OK       #78 -
+seeded-module-unsafe     pass   -                              pass   OK       #79 -
+hook-removed             pass   -                              pass   OK       #84 -
+unknown-identifier       pass   -                              pass   OK       #89 -
+type-mismatch            pass   -                              pass   OK       #90 -
+unsolved-goals           pass   -                              pass   OK       #91 -
+heartbeat-timeout        pass   -                              pass   OK       #92 -
+decide-native            pass   -                              pass   OK       #93 -
+clean-b                  pass   -                              pass   OK       #94 -
+clean-c                  pass   -                              pass   OK       #95 -
+clean-d                  pass   -                              pass   OK       #96 -
+clean-e                  pass   -                              pass   OK       #97 -
+name-with-space          fail   data-rules/records             pass   WRONG    #61 -
+failing-unit-test        fail   tooling-tests                  pass   WRONG    #83 -
+eval-in-record           fail   data-rules/content-lint        fail   OK       #36 data-rules/content-lint,pr-gate/Every job of this PR's class passed
+bad-source               fail   data-rules/records             fail   OK       #41 data-rules/records,pr-gate/Every job of this PR's class passed
+forbidden-option         fail   data-rules/content-lint        fail   OK       #46 data-rules/content-lint,pr-gate/Every job of this PR's class passed
+native-decide            fail   data-rules/content-lint        fail   OK       #47 data-rules/content-lint,pr-gate/Every job of this PR's class passed
+run-cmd                  fail   data-rules/content-lint        fail   OK       #48 data-rules/content-lint,pr-gate/Every job of this PR's class passed
+extern-attr              fail   data-rules/content-lint        fail   OK       #49 data-rules/content-lint,pr-gate/Every job of this PR's class passed
+unsafe-def               fail   data-rules/content-lint        fail   OK       #50 data-rules/content-lint,pr-gate/Every job of this PR's class passed
+import-in-context        fail   data-rules/content-lint        fail   OK       #51 data-rules/content-lint,pr-gate/Every job of this PR's class passed
+initialize-in-context    fail   data-rules/content-lint        fail   OK       #52 data-rules/content-lint,pr-gate/Every job of this PR's class passed
+axiom-in-context         fail   data-rules/content-lint        fail   OK       #53 data-rules/content-lint,pr-gate/Every job of this PR's class passed
+io-process               fail   data-rules/content-lint        fail   OK       #54 data-rules/content-lint,pr-gate/Every job of this PR's class passed
+duplicate-in-pr          fail   data-rules/records             fail   OK       #55 data-rules/records,pr-gate/Every job of this PR's class passed
+duplicate-vs-trusted     fail   data-rules/records             fail   OK       #56 data-rules/records,pr-gate/Every job of this PR's class passed
+missing-field            fail   data-rules/records             fail   OK       #57 data-rules/records,pr-gate/Every job of this PR's class passed
+malformed-json           fail   data-rules/records             fail   OK       #58 data-rules/records,pr-gate/Every job of this PR's class passed
+library-mismatch         fail   data-rules/records             fail   OK       #59 data-rules/records,pr-gate/Every job of this PR's class passed
+missing-source-path      fail   data-rules/records             fail   OK       #60 data-rules/records,pr-gate/Every job of this PR's class passed
+tombstone-missing-target fail   data-rules/records             fail   OK       #66 data-rules/records,pr-gate/Every job of this PR's class passed
+clean-append             pass   -                              fail   WRONG    #33 data-rules/records,pr-gate/Every job of this PR's class passed
+ruff-error               fail   lint-python                    fail   OK       #82 lint-python/Run pipx install pre-commit && pre-commit run --all-files --show-diff-on-failure,dco/Run python3 scripts/ci/dco.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed
+fake-secret              fail   secrets                        fail   WRONG-JOB #38 lint-python/Run pipx install pre-commit && pre-commit run --all-files --show-diff-on-failure,pr-gate/Every job of this PR's class passed
+private-key              fail   secrets                        fail   WRONG-JOB #85 lint-python/Run pipx install pre-commit && pre-commit run --all-files --show-diff-on-failure,pr-gate/Every job of this PR's class passed
+github-token-shaped      fail   secrets                        fail   WRONG-JOB #86 lint-python/Run pipx install pre-commit && pre-commit run --all-files --show-diff-on-failure,pr-gate/Every job of this PR's class passed
+depends-open             fail   depends                        fail   OK       #87 depends/Run printf '%s' "$BODY" > body.txt && python3 scripts/ci/depends.py body.txt,pr-gate/Every job of this PR's class passed
+depends-merged           pass   -                              fail   WRONG    #88 depends/Run printf '%s' "$BODY" > body.txt && python3 scripts/ci/depends.py body.txt,pr-gate/Every job of this PR's class passed
+depends-chain-x          pass   -                              fail   WRONG    #98 depends/Run printf '%s' "$BODY" > body.txt && python3 scripts/ci/depends.py body.txt,pr-gate/Every job of this PR's class passed
+two-purposes             fail   classify                       fail   OK       #34 classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed
+derived-edit             fail   classify                       fail   OK       #40 classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed
+tombstone-plus-content   fail   classify                       fail   OK       #67 classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed
+stats-json-edit          fail   classify                       fail   OK       #73 classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed
+all-lean-edit            fail   classify                       fail   OK       #74 classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed
+workflow-in-content      fail   classify                       fail   OK       #75 classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed
+promotion-not-bot        fail   classify                       fail   OK       #80 classify/Run python3 scripts/ci/classify.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed
+edit-line-in-staging     fail   data-rules/append-only         fail   OK       #68 credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,data-rules/append-only,pr-gate/Every job of this PR's class passed
+reorder-lines            fail   data-rules/append-only         fail   OK       #69 credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,data-rules/append-only,pr-gate/Every job of this PR's class passed
+delete-in-staging        fail   data-rules/append-only         fail   OK       #35 data-rules/append-only,credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,pr-gate/Every job of this PR's class passed
+credit-removed           fail   credits                        fail   OK       #37 credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,pr-gate/Every job of this PR's class passed
+whitespace-change        fail   data-rules/append-only         fail   OK       #70 data-rules/append-only,credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,pr-gate/Every job of this PR's class passed
+rename-data-file         fail   data-rules/append-only         fail   OK       #71 data-rules/append-only,credits/Run python3 scripts/ci/credits.py "$BASE" "$HEAD" ,pr-gate/Every job of this PR's class passed
+unsigned                 fail   dco                            fail   OK       #39 dco/Run python3 scripts/ci/dco.py "$BASE" "$HEAD",pr-gate/Every job of this PR's class passed
+actionlint-error         fail   tooling-tests                  fail   OK       #81 tooling-tests/Run rhysd/actionlint@03d0035246f3e81f36aed592ffb4bebf33a03106,pr-gate/Every job of this PR's class passed
+
+summary: 58 OK, 5 WRONG, 3 WRONG-JOB, 0 pending of       66

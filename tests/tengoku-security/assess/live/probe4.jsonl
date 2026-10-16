@@ -1,0 +1,1 @@
+{"name": "BlindProbe.euler41", "statement": "theorem BlindProbe.euler41 (n : ℕ) : Nat.Prime (n ^ 2 + n + 41)", "proof": ":= by sorry", "status": "staging", "library": "competemath", "source_url": "https://competemath.com/practice/problems/0", "toolchain": "leanprover/lean4:v4.34.0-rc2"}

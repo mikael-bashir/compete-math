@@ -1,0 +1,27 @@
+broken-proof	42	ejected	ejected (OK, 3s)	Generate candidates and build only them	The queue build failed at `Tengoku/EquationalTheories/ForMathlib/_candidate_Definability.lean:203:12`. ```text Tactic `decide` proved that the proposition   1 + 1 = 3 is false Some required targets logged failures: - Tengoku.EquationalTheories.ForMathlib._candidate_Definability ``` ```lean exact (by decide : (1 : Nat) + 1 = 3) ``` 
+sorry-proof	44	ejected	ejected (OK, 187s)	Generate candidates and build only them	The queue build failed at the build log. **error: a candidate uses sorry** **What to do:** Reproduce locally with the commands in CONTRIBUTING.md, fix, push, and the PR re-enters the queue. Full log: https://github.com/competemath/tengoku-sandbox/actions/runs/35025924524 Re-queue after fixing (`gh pr merge --queue`, or the *Merge when ready* button). This message is generated; an AI reviewer will 
+unknown-identifier	89	ejected	ejected (OK, 188s)		The queue build failed at `Tengoku/EquationalTheories/ForMathlib/_candidate_Definability.lean:202:3`. ```text Unknown identifier `selftest_no_such_lemma` ``` ```lean := selftest_no_such_lemma ``` Record: `Selftest.unk` **What to do:** That name does not exist in the tree at this commit. Check the spelling, or put the definition it needs into `context` (the generator supplies no imports). Full log:
+type-mismatch	90	ejected	merged (WRONG, 807s)		
+unsolved-goals	91	ejected	ejected (OK, 190s)	Generate candidates and build only them	The queue build failed at `Tengoku/EquationalTheories/ForMathlib/_candidate_Definability.lean:202:3`. ```text unsolved goals ``` ```lean := by ``` Record: `Selftest.ug` **What to do:** The proof ends before every goal is closed. Run it locally with `lake build <module>` and finish the goals listed. Full log: https://github.com/competemath/tengoku-sandbox/actions/runs/35027751639 Re-queue after fix
+heartbeat-timeout	92	ejected	ejected (OK, 189s)	Generate candidates and build only them	The queue build failed at `Tengoku/EquationalTheories/ForMathlib/_candidate_Definability.lean:21:17`. ```text (deterministic) timeout at `isDefEq`, maximum number of heartbeats (1) has been reached ``` ```lean variable {L L' : Language} {α M : Type*} ``` Record: `?` **What to do:** The proof exceeds the default heartbeat/recursion budget. Simplify it or add an allowed `set_option maxHeartbeats` i
+decide-native	93	ejected	merged (WRONG, 373s)		
+seeded-module-unsafe	79	ejected	ejected (WRONG-HINT, 95s)	Content lint (again, on the merged result)	The queue build failed at the build log. **see the log** **What to do:** Reproduce locally with the commands in CONTRIBUTING.md, fix, push, and the PR re-enters the queue. Full log: https://github.com/competemath/tengoku-sandbox/actions/runs/35028832920 Re-queue after fixing (`gh pr merge --queue`, or the *Merge when ready* button). This message is generated; an AI reviewer will add more context l
+clean-append	33	merged	merged (OK)	-	
+clean-b	94	merged	merged (OK)	-	
+clean-c	95	merged	merged (OK)	-	
+clean-d	96	merged	merged (OK)	-	
+clean-e	97	merged	merged (OK)	-	
+allowed-option	45	merged	merged (OK)	-	
+two-libraries	63	merged	merged (OK)		
+bigger-append	64	merged	merged (OK)		
+tentative-append	62	merged	merged (OK)		
+tombstone-valid	65	merged	merged (OK)		
+docs-only	76	merged	merged (OK)		
+crlf-append	72	merged	merged (OK)		
+depends-chain-x	98	merged	timeout (WRONG)	-	
+clean-f	101	merged	merged (OK)		
+bad-mid	102	ejected	ejected (OK)	Generate candidates and build only them	The queue build failed at `Tengoku/EquationalTheories/ForMathlib/_candidate_Definability.lean:203:12`. ```text Tactic `decide` proved that the proposition   1 + 1 = 3 is false ``` ```lean exact (by decide : (1 : Nat) + 1 = 3) ``` Record: `Selftest.badMid` **What to do:** Reproduce locally with the commands in CONTRIBUTING.md, fix, push, and the PR re-enters the queue. 
+clean-g	103	merged	merged (OK)		
+requeue-after-fix	89	merged	ejected (WRONG)	-	The queue build failed at `Tengoku/EquationalTheories/ForMathlib/_candidate_Definability.lean:202:3`. ```text Unknown identifier `selftest_no_such_lemma` ``` ```lean := selftest_no_such_lemma ``` Record: `Selftest.unk` **What to do:** That name does not exist in the tree at this commit. Check the spelling, or put the definition it needs into `context` (the generator supplies no imports). Full log:
+promotion-campaign	105	merged	merged (OK)		
+derived-edit-as-promotion	106	ejected	ejected (OK)	Derived files match their generator	The queue build failed at the regeneration check. **error: regenerated derived files differ from the PR (hand-edited generated file?)** Files that differ from the generator's output: - `Tengoku/EquationalTheories/Asterix.lean` **What to do:** A derived file differs from what the generator produces. Do not edit Tengoku/<Library>/** by hand; change the records instead. Full log: https://github.com/c

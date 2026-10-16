@@ -1,0 +1,13 @@
+r2-clean	pass	-	pass	-	OK	120
+r2-decide-native	pass	-	pass	-	OK	121
+r2-depends-merged	pass	-	pass	-	OK	118
+r2-failing-unit-test	fail	tooling-tests	fail	tooling-tests/Run set -o pipefail,pr-gate/Every job of this PR's class passed	OK	116
+r2-fake-secret	fail	secrets	fail	secrets/detect-secrets on the changed files (every class),lint-python/Run pipx install pre-commit && pre-commit run --all-files --show-diff-on-failure,pr-gate/Every job of this PR's class passed	OK	107
+r2-github-token	fail	secrets	fail	secrets/detect-secrets on the changed files (every class),lint-python/Run pipx install pre-commit && pre-commit run --all-files --show-diff-on-failure,pr-gate/Every job of this PR's class passed	OK	111
+r2-name-not-declared	fail	data-rules/records	fail	data-rules/records,pr-gate/Every job of this PR's class passed	OK	113
+r2-name-with-comma	fail	data-rules/records	fail	data-rules/records,pr-gate/Every job of this PR's class passed	OK	112
+r2-name-with-space	fail	data-rules/records	fail	data-rules/records,pr-gate/Every job of this PR's class passed	OK	117
+r2-namespaced-name	pass	-	pass	-	OK	115
+r2-private-key	fail	secrets	fail	secrets/detect-secrets on the changed files (every class),lint-python/Run pipx install pre-commit && pre-commit run --all-files --show-diff-on-failure,pr-gate/Every job of this PR's class passed	OK	110
+r2-secret-in-record	fail	secrets	pass	-	WRONG	108
+r2-type-mismatch	pass	-	pass	-	OK	119
