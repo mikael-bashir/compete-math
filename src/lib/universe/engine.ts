@@ -608,16 +608,30 @@ export class Universe implements UniverseSink {
     };
     window.addEventListener('keydown', key);
     this.cleanups.push(() => window.removeEventListener('keydown', key));
+    // The corner grips resize the universe in both directions: the left one holds the right edge still, the right one holds the left edge.
     for (const k of ['gripL', 'gripR']) {
       const g = this.el[k];
       if (!g) continue;
+      const left = k === 'gripL';
       g.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         g.setPointerCapture(e.pointerId);
+        const box = this.container.getBoundingClientRect(); // the host, border included: its width is what is set below
+        const x0 = e.clientX;
         const y0 = e.clientY;
-        const h0 = this.root.getBoundingClientRect().height;
+        const w0 = box.width;
+        const h0 = box.height;
+        const ml0 = parseFloat(this.container.style.marginLeft || '0') || 0;
+        const edge = box.left;
         g.classList.add('tku-drag');
         const move = (ev: PointerEvent): void => {
+          const dx = ev.clientX - x0;
+          // the opposite edge stays where it is; the dragged one stays inside the window and leaves room for the controls
+          const most = left ? box.right - 8 : window.innerWidth - 8 - box.left;
+          const w = Math.max(280, Math.min(most, left ? w0 - dx : w0 + dx));
+          this.container.style.width = `${w}px`;
+          this.container.style.maxWidth = 'none';
+          if (left) this.container.style.marginLeft = `${ml0 + (box.right - w - edge)}px`;
           this.container.style.height = `${Math.max(240, Math.min(window.innerHeight - 24, h0 + (ev.clientY - y0)))}px`;
         };
         const end = (): void => {
