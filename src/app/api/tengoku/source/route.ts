@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildScript, displayUrl, extractDeclaration, openContext, parseSourceUrl, rawUrl, resolveModule, toolchainTag } from "@/app/lib/tengoku-source/extract";
+import { buildScript, declaresName, displayUrl, docstringOf, extractDeclaration, fileCredit, openContext, parseSourceUrl, rawUrl, resolveModule, toolchainTag } from "@/app/lib/tengoku-source/extract";
 
 // The proof and a runnable script for one search result. The index stores no proofs: this reads the file the result came from, at the commit it came
 // from (a commit never changes, so the answer is cached for good). Only links to the Tengoku tree are fetched.
@@ -37,12 +37,20 @@ export async function GET(request: NextRequest) {
   // The index links the commit it was built from; the module is called what the tree's main branch calls it today.
   const exists = (p: string) => fetch(`https://raw.githubusercontent.com/competemath/tengoku/main/${p}`, { method: "HEAD", next: { revalidate: 3600 } }).then((r) => r.ok, () => false);
   const importModule = await resolveModule(ref.path, exists);
+  // What cannot be promised is said, in the script as well as beside it, so a copy keeps the label.
+  const notes: string[] = [];
+  if (ref.root === "tree" && importModule === "Tengoku.All") {
+    notes.push("The module this result came from is no longer in the tree under that name, so the script imports the whole tree (slow to load). The declaration may have moved or been renamed.");
+  } else if (ref.root === "tree" && decl.declared && !generated) {
+    const mainText = await fetch(`https://raw.githubusercontent.com/competemath/tengoku/main/${importModule.split(".").join("/")}.lean`, { next: { revalidate: 3600 } }).then((r) => (r.ok ? r.text() : null), () => null);
+    if (mainText !== null && !declaresName(mainText, decl.declared)) notes.push("The tree's current file no longer declares this name (it was moved or renamed after the index was built), so the script may not compile as shown.");
+  }
   const script = buildScript({
     module: importModule, kind: decl.kind, name, statement: sp.get("statement") ?? "", library: sp.get("library") ?? "", tier: sp.get("tier") ?? "",
-    sourceUrl: displayUrl(ref, tag), opens: ctx.opens, namespaces: ctx.namespaces,
+    sourceUrl: displayUrl(ref, tag), opens: ctx.opens, namespaces: ctx.namespaces, doc: docstringOf(decl.code), credit: fileCredit(text), notes,
   });
   return NextResponse.json(
-    { proof: decl.proof, declaration: decl.code, sourceUrl: displayUrl(ref, tag), startLine: decl.startLine, endLine: decl.endLine, module: importModule, generatedFrom: generated, script },
+    { proof: decl.proof, declaration: decl.code, sourceUrl: displayUrl(ref, tag), startLine: decl.startLine, endLine: decl.endLine, module: importModule, generatedFrom: generated, notes, script },
     { headers: IMMUTABLE },
   );
 }

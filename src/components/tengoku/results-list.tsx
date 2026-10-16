@@ -28,6 +28,7 @@ interface SourceInfo {
   script: string;
   declaration: string;
   generatedFrom: string | null;
+  notes?: string[];
 }
 
 // The index keeps no proofs: the dropdown reads the declaration from the tree, at the commit the result came from, the first time it is opened.
@@ -105,6 +106,14 @@ function ProofPanel({ entry }: { entry: TengokuEntry }) {
                   {copied ? 'copied' : 'copy script'}
                 </button>
               </div>
+              {info.notes?.map((n) => (
+                <p key={n} className="mt-1.5 font-code text-[11px] leading-relaxed text-amber-300/80">
+                  Not guaranteed to compile: {n}
+                </p>
+              ))}
+              <p className="mt-1.5 font-code text-[11px] leading-relaxed text-white/35">
+                The written-out statement is skipped without an error when Lean cannot read the printed form back; the <code>#check</code> line is always the statement.
+              </p>
               <pre className="mt-1.5 max-h-64 overflow-auto whitespace-pre rounded bg-black/30 p-2 font-code text-xs leading-relaxed text-white/50">
                 {info.script}
               </pre>

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildScript, declaredKeyword, moduleCandidates, resolveModule, declaredName, displayUrl, extractDeclaration, moduleOf, openContext, parseSourceUrl, rawUrl, splitHeaderAndProof, toolchainTag } from "./extract";
+import { buildScript, declaresName, docstringOf, fileCredit, universeNames, declaredKeyword, moduleCandidates, resolveModule, declaredName, displayUrl, extractDeclaration, moduleOf, openContext, parseSourceUrl, rawUrl, splitHeaderAndProof, toolchainTag } from "./extract";
 
 const SHA = "8cfa337c09cfc7ade3b3f024cfa82a436f700349";
 const URL = `https://github.com/competemath/tengoku/blob/${SHA}/Tengoku/Algebra/Group/Semigroup.lean#L227`;
@@ -207,4 +207,53 @@ test("the keyword of a declaration, past a docstring, attributes and modifiers",
   assert.equal(declaredKeyword("noncomputable def Real.exp (x : ℝ) : ℝ := x"), "def");
   assert.equal(declaredKeyword("instance : Foo := ⟨⟩"), "instance");
   assert.equal(extractDeclaration("lemma bar : True := trivial\n", 1)!.kind, "lemma");
+});
+
+test("universe names: subscripts, level expressions and explicit `.{}` levels are all declared", () => {
+  assert.deepEqual(universeNames("∀ (V : Type u₁) [inst : CategoryTheory.Category.{v₁, u₁} V], True"), ["u₁", "v₁"]);
+  assert.deepEqual(universeNames("∀ {α : Type (u+1)} {β : Sort (max u_1 (imax v w))}, True"), ["u", "u_1", "v", "w"]);
+  assert.deepEqual(universeNames("∀ {C : Type u} [CategoryTheory.Category.{v, u} C], True"), ["u", "v"]);
+  assert.deepEqual(universeNames("∀ {α : Type} (s : Set α) {x : Sort 0} {y : Type 1} {u : ℕ}, u = u"), []);
+  assert.ok(buildScript({ ...base, statement: "∀ (V : Type u₁), True" }).includes("\nuniverse u₁\n"));
+});
+
+test("a namespace of the file is opened with every prefix, so an open that named a name relative to an enclosing namespace still resolves", () => {
+  const s = buildScript({ ...base, statement: "True", namespaces: ["Topology.Sets", "Cover"], opens: ["Foo"] });
+  assert.ok(s.includes("open Topology\nopen Topology.Sets\nopen Topology.Sets.Cover\nopen Foo\n"), s);
+});
+
+test("the docstring and the file's licence header are written into the script's comment, safely", () => {
+  const code = "/-- A cover by opens.\n  See `a /- b`. -/\ntheorem t : True := trivial";
+  assert.equal(docstringOf(code), "A cover by opens.\n  See `a /- b`.");
+  assert.equal(docstringOf("theorem t : True := trivial"), null);
+  const file = "/-\nCopyright (c) 2021 Jane Doe. All rights reserved.\nReleased under Apache 2.0 license as described in the file LICENSE.\nAuthors: Jane Doe\n-/\nimport X\n";
+  const credit = fileCredit(file);
+  assert.deepEqual(credit, ["Copyright (c) 2021 Jane Doe. All rights reserved.", "Released under Apache 2.0 license as described in the file LICENSE.", "Authors: Jane Doe"]);
+  assert.deepEqual(fileCredit("import X\n/- Copyright -/"), []);
+  assert.deepEqual(fileCredit("/-\nA module doc.\n-/\n"), []);
+  const s = buildScript({ ...base, statement: "True", doc: "A cover by opens.\nSee `a /- b`.", credit });
+  const header = s.slice(0, s.indexOf("import "));
+  assert.ok(header.includes("A cover by opens."));
+  assert.ok(header.includes("Authors: Jane Doe"));
+  // the comment is still one comment: nothing in it closes it early
+  assert.equal((header.match(/-\//g) ?? []).length, 1);
+  assert.ok(header.trimEnd().endsWith("-/"));
+  const hostile = buildScript({ ...base, statement: "True", doc: "x -/ import Evil\n/- y", credit: ["a -/ b"] });
+  const hh = hostile.slice(0, hostile.indexOf("\nimport Tengoku."));
+  assert.equal((hh.match(/-\//g) ?? []).length, 1);
+});
+
+test("what cannot be promised is labelled inside the script", () => {
+  const s = buildScript({ ...base, statement: "True", notes: ["The module moved."] });
+  assert.ok(s.includes("NOTE: The module moved."));
+  assert.ok(!buildScript({ ...base, statement: "True" }).includes("NOTE:"));
+});
+
+test("a name is still declared in the current file, past modifiers and namespaces", () => {
+  const f = "namespace Nat\n@[simp] protected theorem Prime.divisors {p : ℕ} : True := trivial\ninstance instFoo : Foo := ⟨⟩\ndef Nat.bar := 1\n";
+  assert.ok(declaresName(f, "Nat.Prime.divisors"));
+  assert.ok(declaresName(f, "instFoo"));
+  assert.ok(declaresName(f, "Nat.bar"));
+  assert.ok(!declaresName(f, "Nat.Prime.divisor"));
+  assert.ok(!declaresName(f, "Nat.baz"));
 });
