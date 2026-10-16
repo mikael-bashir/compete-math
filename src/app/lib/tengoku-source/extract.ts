@@ -288,7 +288,7 @@ export function buildScript(s: ScriptInput): string {
     out.push("-- what it is", `#print ${s.name}`, "");
   } else if (typeable) {
     // A printed statement does not always elaborate again (an elaboration order, a numeral): the example stays silent then, and the checks above are the script.
-    out.push("-- the statement, written out, closed by the theorem from the tree (silent if the printed form does not elaborate again on its own)", "#guard_msgs (drop all) in", `example : ${s.statement} :=`, `  @${s.name}`, "");
+    out.push("-- the statement as printed, closed by the theorem from the tree. Lean does not always read a printed statement back (a hidden coercion, an elaboration order),", "-- and then this example is skipped without an error: `#check` above is always the statement.", "#guard_msgs (drop all) in", `example : ${s.statement} :=`, `  @${s.name}`, "");
   } else {
     out.push("-- (the statement is not repeated as an example: as printed it does not elaborate again on its own; `#check` above shows it)", "");
   }
