@@ -27,40 +27,40 @@ interface Ev extends UniverseEvent {
 
 type Rgb = [number, number, number];
 const COL: Record<string, Rgb> = {
-  loogle: [0.45, 0.85, 1.0],
-  moogle: [0.75, 0.55, 1.0],
-  pend: [1.0, 0.8, 0.4],
-  ok: [0.45, 1.0, 0.65],
-  fail: [1.0, 0.35, 0.35],
+  loogle: [1.0, 0.95, 0.8], // cream: the landing page's hottest tint
+  moogle: [1.0, 0.62, 0.3], // orange
+  pend: [1.0, 0.8, 0.55], // amber
+  ok: [0.62, 1.0, 0.55],
+  fail: [0.95, 0.3, 0.22], // ember red
   gold: [1.0, 0.86, 0.5],
 };
 
 const CSS = `
-.tku{position:relative;width:100%;height:100%;overflow:hidden;background:#04050a;color:#e8ecf6;font:13px/1.35 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;
- --dim:#8a93ab;--gold:#ffd98a;--cyan:#7fd8ff;--violet:#c08cff;--green:#74ffa6;--red:#ff6b6b;--panel:rgba(10,12,22,.62);--line:rgba(255,255,255,.10)}
+.tku{position:relative;width:100%;height:100%;overflow:hidden;background:#07080a;color:#f1ecdc;font:13px/1.35 ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;
+ --dim:#a39c86;--gold:#ffd98a;--cyan:#fff2cc;--violet:#ff9e4d;--green:#9dff8c;--red:#f2503a;--panel:rgba(14,16,10,.66);--line:rgba(255,217,138,.18)}
 .tku canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 .tku canvas.tku-drag{cursor:grabbing}
 .tku .tku-labels{pointer-events:none}
 .tku .hud{position:absolute;pointer-events:none;z-index:2;text-shadow:0 0 10px #000,0 0 3px #000}
-.tku .tku-title{left:16px;top:12px}.tku .tku-title h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.02em}
-.tku .tku-title p{margin:3px 0 0;color:var(--dim);font-size:12px}.tku b{color:#e8ecf6;font-weight:600;font-variant-numeric:tabular-nums}
+.tku .tku-title{left:16px;top:12px}.tku .tku-title h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.01em;color:#ffe9a8;text-shadow:0 0 14px rgba(255,200,80,.45),0 0 3px #000}
+.tku .tku-title p{margin:3px 0 0;color:var(--dim);font-size:12px}.tku b{color:#fff4dc;font-weight:600;font-variant-numeric:tabular-nums}
 .tku .tku-stats{right:16px;top:12px;text-align:right;font-variant-numeric:tabular-nums}.tku .tku-stats div{margin-bottom:3px;color:var(--dim)}
+.tku .tku-perf{right:12px;top:112px;padding:6px 8px;background:rgba(10,11,7,.55);border:1px solid var(--line);border-radius:8px;text-align:right;text-shadow:none;font-variant-numeric:tabular-nums;font-size:11px;color:var(--dim);line-height:1.4}
+.tku .tku-perf canvas{position:static;display:block;margin:0 0 3px auto;width:120px;height:30px;cursor:default;opacity:.92}
+.tku .tku-perf .tku-fps{font-size:15px;color:#ffe9a8;font-weight:700}.tku .tku-perf .tku-fps small{font-size:11px;font-weight:400;color:var(--dim)}
 .tku .tku-legend{left:16px;top:76px;color:var(--dim);font-size:12px}.tku .tku-legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:-1px}.tku .tku-legend div{margin:3px 0}
 .tku .tku-ticker{left:50%;transform:translateX(-50%);bottom:76px;max-width:min(760px,calc(100% - 32px));width:100%;text-align:center;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);min-height:18px}
 .tku .tku-bar{position:absolute;z-index:3;left:50%;transform:translateX(-50%);bottom:12px;width:min(900px,calc(100% - 24px));display:flex;gap:10px;align-items:center;padding:9px 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(10px)}
-.tku .tku-bar button,.tku .tku-bar select{background:rgba(255,255,255,.06);color:#e8ecf6;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer;min-height:32px}
-.tku .tku-bar button:hover,.tku .tku-bar select:hover{background:rgba(255,255,255,.12)}
+.tku .tku-bar button,.tku .tku-bar select{background:rgba(255,217,138,.05);color:#ffe9b8;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer;min-height:32px}
+.tku .tku-bar button:hover,.tku .tku-bar select:hover{background:rgba(255,217,138,.14)}
 .tku .tku-bar button.on{background:rgba(255,217,138,.18);border-color:rgba(255,217,138,.5)}
 .tku .tku-bar input[type=range]{flex:1;min-width:60px;accent-color:#ffd98a}.tku .tku-bar label{color:var(--dim);display:flex;align-items:center;gap:5px;white-space:nowrap}
 .tku .tku-time{color:var(--dim);font-variant-numeric:tabular-nums;min-width:76px;text-align:right}
 .tku .tku-tip{position:absolute;z-index:4;pointer-events:none;padding:7px 10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;font-size:12px;backdrop-filter:blur(8px);display:none}.tku .tku-tip span{color:var(--dim)}
-.tku .tku-done{left:50%;top:44%;transform:translate(-50%,-50%);text-align:center;opacity:0;transition:opacity .8s;text-shadow:0 0 24px rgba(116,255,166,.5)}
-.tku .tku-done.show{opacity:1}.tku .tku-done h2{margin:0;font-size:26px;font-weight:600;color:var(--green);letter-spacing:.04em}.tku .tku-done p{margin:6px 0 0;color:var(--dim)}
 .tku .tku-live{display:none;color:var(--red);font-weight:600;letter-spacing:.06em}
 .tku.live .tku-replay-only{display:none}.tku.live .tku-live{display:inline}.tku .tku-live-only{display:none}.tku.live .tku-live-only{display:inline}
-@media (max-width:640px){.tku .tku-legend,.tku .tku-stats{display:none}.tku .tku-bar{flex-wrap:wrap;gap:8px}.tku .tku-bar select.tku-run{flex:1 1 120px;min-width:0}
+@media (max-width:640px){.tku .tku-legend,.tku .tku-stats{display:none}.tku .tku-perf{top:8px;right:8px}.tku .tku-perf-more{display:none}.tku .tku-title{max-width:calc(100% - 150px)}.tku .tku-title p{display:none}.tku .tku-bar{flex-wrap:wrap;gap:8px}.tku .tku-bar select.tku-run{flex:1 1 120px;min-width:0}
  .tku .tku-bar input.tku-seek{order:9;flex:1 1 100%}.tku .tku-bar .tku-time{order:8;flex:1 1 auto;text-align:left;min-width:0}.tku .tku-opt{display:none}.tku .tku-ticker{bottom:132px;font-size:11px}}
-@media (prefers-reduced-motion:reduce){.tku .tku-done{transition:none}}
 `;
 
 const HASH_GLSL = `float hash(uint x){ x ^= x>>16; x *= 0x7feb352du; x ^= x>>15; x *= 0x846ca68bu; x ^= x>>16; return float(x)/4294967295.0; }`;
@@ -70,49 +70,76 @@ const STAR_VS = `#version 300 es
 precision highp float; precision highp int;
 in vec3 a_pos; in uint a_lib;
 uniform mat4 u_vp; uniform float u_scale, u_time, u_psize, u_dim, u_gain; uniform sampler2D u_pal;
-out vec4 v_col;
+out vec4 v_col; out float v_big;
 ${HASH_GLSL}
 ${FLOW_GLSL}
 void main(){
-  uint id = uint(gl_VertexID); float h = hash(id), h2 = hash(id*747796405u+2891336453u);
+  uint id = uint(gl_VertexID); float h = hash(id), h2 = hash(id*747796405u+2891336453u), h3 = hash(id*2246822519u+3266489917u);
   vec3 p = a_pos*u_scale; p += flow(p,h,h2,u_time);
   gl_Position = u_vp*vec4(p,1.0);
   uint lib = a_lib & 0x7FFFu;
   vec3 hue = texelFetch(u_pal, ivec2(int(lib)&255, int(lib)>>8), 0).rgb;
   float tw = 0.72 + 0.28*sin(u_time*(0.6+h*1.4)+h2*40.0);
-  vec3 col = mix(vec3(1.0,0.95,0.86), hue, 0.72); // mostly the galaxy's own colour: a warm white would flood the dense cores
-  v_col = vec4(col*tw, u_gain*(0.55+h2*0.9)*u_dim);
+  // the landing page's warm spectrum - cream, amber, orange, ember - hashed per star, then tinted by its galaxy
+  vec3 warm = mix(mix(vec3(1.0,0.95,0.80), vec3(1.0,0.80,0.55), smoothstep(0.25,0.55,h3)), mix(vec3(1.0,0.62,0.30), vec3(0.95,0.42,0.22), smoothstep(0.9,1.0,h3)), smoothstep(0.62,0.9,h3));
+  vec3 col = mix(warm, hue, 0.45);
+  // one star in sixty-odd is a bright one: a hot cream core, a halo and a diffraction cross
+  float big = step(0.985, h);
+  v_big = big;
+  v_col = vec4(col*tw, u_gain*(0.55+h2*0.9)*u_dim*(1.0+big*1.5));
   float d = max(gl_Position.w, 0.05);
-  gl_PointSize = clamp(u_psize*(0.7+h*0.9)/d, 1.0, 3.4);
+  gl_PointSize = big > 0.5 ? clamp(u_psize*(2.4+h2*1.8)/d, 4.0, 11.0) : clamp(u_psize*(0.7+h*0.9)/d, 1.0, 3.4);
 }`;
 const STAR_FS = `#version 300 es
-precision mediump float; in vec4 v_col; out vec4 o;
-void main(){ vec2 d = gl_PointCoord-0.5; float r2 = dot(d,d); float a = exp(-r2*14.0)*(1.0-smoothstep(0.16,0.25,r2)); o = vec4(v_col.rgb*v_col.a*a, 1.0); }`;
+precision mediump float; in vec4 v_col; in float v_big; out vec4 o;
+void main(){
+  vec2 d = gl_PointCoord-0.5; float r2 = dot(d,d);
+  if (v_big < 0.5) { float a = exp(-r2*14.0)*(1.0-smoothstep(0.16,0.25,r2)); o = vec4(v_col.rgb*v_col.a*a, 1.0); return; }
+  float w = 1.0-smoothstep(0.26,0.5,sqrt(r2));
+  float core = exp(-r2*150.0), halo = exp(-r2*16.0);
+  float cross = (exp(-abs(d.x)*90.0)+exp(-abs(d.y)*90.0))*(1.0-2.0*sqrt(r2));
+  vec3 c = v_col.rgb*(halo*0.55+cross*0.5) + mix(v_col.rgb, vec3(1.0,0.96,0.86), 0.7)*core*1.4;
+  o = vec4(c*v_col.a*w, 1.0);
+}`;
 // a negative size draws a precision flare (a hairline cross with a pinpoint core) that anchors a result; a size of 1000 plus a radius draws a small
-// ring that pings once as the result arrives
+// ring that pings once as the result arrives; anything else is a blaze: a cream-white core, a halo cooling through the colour toward ember, and
+// diffraction spikes (the landing page's "hot knots" in the nebula)
 const GLOW_VS = `#version 300 es
 precision highp float; in vec3 a_pos; in vec4 a_col; in float a_size; uniform mat4 u_vp; uniform float u_psize; out vec4 v_col; out float v_kind;
-void main(){ gl_Position = u_vp*vec4(a_pos,1.0); v_col = a_col; float a = abs(a_size); v_kind = a >= 1000.0 ? 2.0 : (a_size < 0.0 ? 1.0 : 0.0); float sz = a >= 1000.0 ? a - 1000.0 : a; gl_PointSize = clamp(u_psize*sz/max(gl_Position.w,0.05), 3.0, 110.0); }`;
+void main(){ gl_Position = u_vp*vec4(a_pos,1.0); v_col = a_col; float a = abs(a_size); v_kind = a >= 1000.0 ? 2.0 : (a_size < 0.0 ? 1.0 : 0.0); float sz = a >= 1000.0 ? a - 1000.0 : a; gl_PointSize = clamp(u_psize*sz/max(gl_Position.w,0.05), 3.0, 84.0); }`;
 const GLOW_FS = `#version 300 es
 precision mediump float; in vec4 v_col; in float v_kind; out vec4 o;
 void main(){
   vec2 d = gl_PointCoord-0.5; float r = length(d)*2.0; float edge = 1.0-smoothstep(0.72,1.0,r);
+  vec2 e = vec2(d.x+d.y, d.x-d.y)*0.7071;
   if (v_kind > 1.5) { float ring = smoothstep(0.82,0.9,r)*(1.0-smoothstep(0.9,0.97,r)); o = vec4(v_col.rgb*v_col.a*ring, 1.0); return; }
+  vec3 cream = vec3(1.0,0.95,0.82);
   if (v_kind > 0.5) {
-    float fall = pow(max(0.0,1.0-r),1.5); float arms = (exp(-abs(d.y)*48.0)+exp(-abs(d.x)*48.0))*0.5*fall; float core = exp(-r*r*140.0);
-    o = vec4(mix(v_col.rgb, vec3(1.0), 0.5)*v_col.a*(arms*0.9+core*1.1), 1.0); return; }
-  float core = exp(-r*r*18.0)*0.5; float halo = exp(-r*r*2.6)*0.55; float cross = (exp(-abs(d.x)*60.0)+exp(-abs(d.y)*60.0))*0.22*(1.0-r);
-  vec3 c = v_col.rgb*(halo+cross) + mix(v_col.rgb, vec3(1.0), 0.35)*core; o = vec4(c*v_col.a*edge, 1.0); }`;
+    float fall = pow(max(0.0,1.0-r),1.5); float arms = (exp(-abs(d.y)*48.0)+exp(-abs(d.x)*48.0))*0.5*fall; float diag = (exp(-abs(e.y)*70.0)+exp(-abs(e.x)*70.0))*0.14*fall*fall; float core = exp(-r*r*140.0);
+    o = vec4(mix(v_col.rgb, cream, 0.55)*v_col.a*(arms*0.9+diag+core*1.1), 1.0); return; }
+  float core = exp(-r*r*70.0), body = exp(-r*r*16.0), halo = exp(-r*r*3.2);
+  float cross = (exp(-abs(d.x)*44.0)+exp(-abs(d.y)*44.0))*0.5*(1.0-r)*(1.0-r);
+  float diag = (exp(-abs(e.x)*70.0)+exp(-abs(e.y)*70.0))*0.14*(1.0-r)*(1.0-r);
+  vec3 ember = v_col.rgb*vec3(1.0,0.62,0.42);
+  vec3 c = mix(ember, v_col.rgb, body)*(halo*0.15+body*0.32+cross+diag) + mix(v_col.rgb, cream, 0.85)*core*1.2;
+  o = vec4(c*v_col.a*edge, 1.0); }`;
 const TONE_VS = `#version 300 es
 out vec2 v_uv; void main(){ vec2 p = vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2)); v_uv = p; gl_Position = vec4(p*2.0-1.0, 0.0, 1.0); }`;
 // Stars are summed in linear light, then compressed: a crowd of stars is a bright patch of the galaxy's own colour, not a white block.
+// Under them sits a faint ember/tan haze that drifts as the camera turns - the landing page's nebula floor on an olive-black sky.
 const TONE_FS = `#version 300 es
-precision highp float; uniform sampler2D u_tex; uniform float u_exposure; in vec2 v_uv; out vec4 o;
+precision highp float; uniform sampler2D u_tex; uniform float u_exposure, u_aspect; uniform vec2 u_cam; in vec2 v_uv; out vec4 o;
+float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h21(i),h21(i+vec2(1.0,0.0)),f.x), mix(h21(i+vec2(0.0,1.0)),h21(i+vec2(1.0,1.0)),f.x), f.y); }
 void main(){
   vec3 c = texture(u_tex, v_uv).rgb; float L = dot(c, vec3(0.2126,0.7152,0.0722)) + 1e-5; float k = L*u_exposure; float m = 1.0 - exp(-k);
   vec3 col = c*(m/L); col = mix(col, vec3(m), smoothstep(1.5,6.0,k)*0.35);
   vec2 q = v_uv-0.5; float vig = 1.0 - dot(q,q)*0.55;
-  o = vec4(pow(col, vec3(0.92)) + vec3(0.016,0.02,0.04)*vig, 1.0); }`;
+  vec2 p = q*vec2(u_aspect,1.0)*1.7 + u_cam*0.75;
+  float n = vn(p*1.3)*0.6 + vn(p*2.9+17.0)*0.4;
+  float gate = smoothstep(0.42,0.78, vn(p*0.45+3.0));
+  vec3 haze = mix(vec3(0.30,0.09,0.045), vec3(0.85,0.55,0.28), n)*gate*(0.012+0.05*n*n);
+  o = vec4(pow(col, vec3(0.92)) + (vec3(0.022,0.024,0.014)+haze)*vig, 1.0); }`;
 const LINE_VS = `#version 300 es
 precision highp float; in vec3 a_pos; in vec4 a_col; uniform mat4 u_vp; out vec4 v_col;
 void main(){ gl_Position = u_vp*vec4(a_pos,1.0); v_col = a_col; }`;
@@ -224,6 +251,7 @@ export class Universe implements UniverseSink {
   private dur = 1;
   private probe: Vec3 = [0, 0, 0];
   private liveFinal: boolean | null = null;
+  private liveFinAt = 0;
   private interp: LiveInterpreter | null = null;
   private dimNow = 0.8;
   private dimTarget = 0.8;
@@ -233,6 +261,14 @@ export class Universe implements UniverseSink {
   private fpsT = 0;
   private slow = 0;
   private last = 0;
+  // performance: real frame intervals, JS time per frame, and GPU time where the browser exposes a timer query
+  private readonly dts = new Float32Array(240);
+  private readonly cpus = new Float32Array(240);
+  private nPerf = 0;
+  private perfAt = 0;
+  private gpuMs: number | null = null;
+  private timerExt: { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null = null;
+  private readonly gpuPending: WebGLQuery[] = [];
   private simT = 0;
   private libLabelAlpha = new Map<string, number>();
 
@@ -279,6 +315,7 @@ export class Universe implements UniverseSink {
     this.progTone = this.program(TONE_VS, TONE_FS);
     this.vaoTone = gl.createVertexArray()!;
     this.canHdr = !!(gl.getExtension('EXT_color_buffer_float') ?? gl.getExtension('EXT_color_buffer_half_float'));
+    this.timerExt = gl.getExtension('EXT_disjoint_timer_query_webgl2');
 
     this.vaoStars = gl.createVertexArray()!;
     gl.bindVertexArray(this.vaoStars);
@@ -409,6 +446,7 @@ export class Universe implements UniverseSink {
   }
   verified(ok: boolean): void {
     this.liveFinal = ok;
+    this.liveFinAt = this.T;
   }
 
   // ---------- helpers ----------
@@ -508,7 +546,6 @@ export class Universe implements UniverseSink {
     this.T = 0;
     this.probe = [0, 0, 0];
     (this.el.seek as HTMLInputElement).value = '0';
-    this.el.done.classList.remove('show');
   }
 
   // ---------- HUD ----------
@@ -522,9 +559,9 @@ export class Universe implements UniverseSink {
         <div><i style="background:var(--violet)"></i>concept search (Leak I moogle)</div>
         <div><i style="background:var(--gold)"></i>compile (Leak IV) &nbsp;<i style="background:var(--green)"></i>✅ &nbsp;<i style="background:var(--red)"></i>❌</div>
       </div>
-      <div class="hud tku-stats" data-k="stats"><div class="tku-live-only"><span class="tku-live">● LIVE</span></div><div>searches <b data-k="search">0</b></div><div>compiles <b data-k="ok">0</b> ✅ · <b data-k="fail">0</b> ❌</div><div>lemmas touched <b data-k="lem">0</b></div><div data-k="fps" style="opacity:.6"></div></div>
+      <div class="hud tku-stats" data-k="stats"><div class="tku-live-only"><span class="tku-live">● LIVE</span></div><div>searches <b data-k="search">0</b></div><div>compiles <b data-k="ok">0</b> ✅ · <b data-k="fail">0</b> ❌</div><div>lemmas touched <b data-k="lem">0</b></div></div>
+      <div class="hud tku-perf" data-k="perf" aria-label="Performance"><canvas data-k="perfGraph" width="120" height="30"></canvas><div class="tku-fps"><span data-k="fps">–</span> <small>fps</small></div><div data-k="perfA"></div><div data-k="perfB"></div><div class="tku-perf-more" data-k="perfC"></div></div>
       <div class="hud tku-ticker" data-k="ticker"></div>
-      <div class="hud tku-done" data-k="done"><h2>VERIFIED</h2><p data-k="doneSub"></p></div>
       <div class="tku-tip" data-k="tip"></div>
       <div class="tku-bar" data-k="bar" role="group" aria-label="Universe controls">
         <button data-k="live" class="tku-opt-mode">Live</button><button data-k="replay" class="tku-opt-mode">Replay</button>
@@ -678,7 +715,7 @@ export class Universe implements UniverseSink {
   /** the HUD's own boxes (CSS px, relative to the universe), so galaxy labels stay out from under it */
   private refreshHud(): void {
     const r0 = this.root.getBoundingClientRect();
-    this.hudRects = ['title', 'legend', 'stats', 'ticker', 'bar'].map((k) => {
+    this.hudRects = ['title', 'legend', 'stats', 'perf', 'ticker', 'bar'].map((k) => {
       const e = this.el[k];
       if (!e) return [0, 0, 0, 0] as [number, number, number, number];
       const b = e.getBoundingClientRect();
@@ -764,6 +801,15 @@ export class Universe implements UniverseSink {
     const marks: typeof this.marks = [];
     let dimTarget = 0.8;
     const touched = new Set<number>();
+    // the end of a proof is shown, not announced: the constellation Leak used ignites outward from where the proof closed, the sky lights up and the
+    // view draws back to take in the whole of it. fa is seconds since the proof closed (negative while it is still open).
+    let fa = -1;
+    if (this.mode === 'live') {
+      if (this.liveFinal === true) fa = T - this.liveFinAt;
+    } else if (this.evs.length && this.run?.ok) fa = T - (this.evs[this.evs.length - 1].ds + 2.5);
+    const fin = fa >= 0;
+    const finGlow = fin ? Math.min(1, fa / 1.5) : 0;
+    const okIds = new Set<number>();
 
     for (let i = 0; i < this.evs.length; i++) {
       const e = this.evs[i];
@@ -875,24 +921,44 @@ export class Universe implements UniverseSink {
         for (const [a1, b1] of e.chain ?? []) {
           this.starPos(a1, simT, tmp);
           this.starPos(b1, simT, tmp2);
-          this.curve(tmp, tmp2, hash32(a1 ^ b1), simT, COL.gold, 0.34 * settle, 1.4, 10);
+          this.curve(tmp, tmp2, hash32(a1 ^ b1), simT, COL.gold, 0.34 * settle * (1 + 1.6 * finGlow), 1.4 + 2 * finGlow, 10);
         }
         for (const id of (e.used ?? []).slice(0, 18)) {
           this.starPos(id, simT, tmp);
           this.G(tmp, COL.gold, 0.36 * settle, 3.4);
+          okIds.add(id);
         }
       }
       if (e.hits && resolved) for (const id of e.hits) touched.add(id);
       if (e.used && e.ok && resolved) for (const id of e.used) touched.add(id);
     }
 
+    let finR = 0;
+    if (fin) {
+      const wave = fa * 0.55; // the front of light, in universe units per second
+      let n = 0;
+      for (const id of okIds) {
+        if (n++ >= 400) break;
+        this.starPos(id, simT, tmp);
+        const dist = Math.hypot(tmp[0] - pr[0], tmp[1] - pr[1], tmp[2] - pr[2]);
+        finR = Math.max(finR, dist);
+        const behind = Math.min(1, Math.max(0, (wave - dist) / 0.08 + 0.5)); // 1 once the front has passed
+        const flash = Math.exp(-(((dist - wave) / 0.07) ** 2));
+        const breathe = 0.8 + 0.2 * Math.sin(simT * 2.2 + dist * 14);
+        this.G(tmp, COL.gold, behind * 0.55 * breathe + flash * 0.9, 7 + 12 * flash + 3 * behind);
+      }
+      // a sunrise at the closing step: one big soft bloom that opens and fades, and a steady white-gold heart
+      this.G(pr, COL.gold, 0.85 * Math.exp(-fa * 0.7) * Math.min(1, fa * 3), 40 + 30 * Math.min(1, fa / 2));
+      this.G(pr, [1, 0.97, 0.85], 0.7 * finGlow, 14 + 2 * Math.sin(simT * 2));
+    }
     this.marks = marks;
     this.probe = pr;
+    if (fin) dimTarget = 1; // the whole universe comes up to full light
     const anyActive = dimTarget < 0.8;
     this.G(pr, COL.gold, 0.95, 16 + 3 * Math.sin(T * 5));
     this.G(pr, [1, 1, 1], 0.75, 7);
     this.tgoal = [pr[0] * 0.9, pr[1] * 0.9, pr[2] * 0.9];
-    this.dgoal = Math.min(2.2, Math.max(0.38, 0.3 + 1.7 * (anyActive ? this.maxR : 0.5)));
+    this.dgoal = Math.min(2.2, Math.max(0.38, 0.3 + 1.7 * (fin ? Math.max(finR, 0.25) : anyActive ? this.maxR : 0.5)));
     this.dimTarget = dimTarget;
 
     const set = (k: string, v: string): void => {
@@ -904,14 +970,6 @@ export class Universe implements UniverseSink {
     set('ok', String(ok));
     set('fail', String(fail));
     set('lem', touched.size.toLocaleString());
-    let fin = false;
-    if (this.mode === 'live') fin = this.liveFinal === true;
-    else if (this.evs.length && this.run) fin = T > this.evs[this.evs.length - 1].ds + 2.5 && this.run.ok;
-    this.el.done.classList.toggle('show', fin);
-    if (fin) {
-      this.el.doneSub.textContent =
-        this.mode === 'live' ? `${ok} verified steps` : `${this.run!.theorem.replace(/_/g, '_​')} · closed in ${fmt(this.run!.seconds)} · ${ok} verified steps`;
-    }
     return anyActive;
   }
 
@@ -1027,9 +1085,82 @@ export class Universe implements UniverseSink {
     this.VP = mul(persp(0.9, this.W / this.H, 0.02, 20), lookAt(eye, this.target, [0, 1, 0]));
   }
 
+  // ---------- performance ----------
+  // GPU time is the real headroom number: rAF is capped at the display's refresh rate, so "60 fps" alone cannot tell a GPU at 10% from one at 99%.
+  private beginGpu(): boolean {
+    const x = this.timerExt;
+    if (!x || this.gpuPending.length >= 3) return false;
+    const q = this.gl.createQuery();
+    if (!q) return false;
+    this.gl.beginQuery(x.TIME_ELAPSED_EXT, q);
+    this.gpuPending.push(q);
+    return true;
+  }
+  private endGpu(): void {
+    if (this.timerExt) this.gl.endQuery(this.timerExt.TIME_ELAPSED_EXT);
+  }
+  private pollGpu(): void {
+    const x = this.timerExt;
+    const gl = this.gl;
+    const q = this.gpuPending[0];
+    if (!x || !q) return;
+    if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) return;
+    this.gpuPending.shift();
+    if (!gl.getParameter(x.GPU_DISJOINT_EXT)) {
+      const ms = (gl.getQueryParameter(q, gl.QUERY_RESULT) as number) / 1e6;
+      this.gpuMs = this.gpuMs === null ? ms : this.gpuMs * 0.85 + ms * 0.15;
+    }
+    gl.deleteQuery(q);
+  }
+  private showPerf(): void {
+    const n = Math.min(this.nPerf, 240);
+    if (n < 8) return;
+    const win = Math.min(n, 120); // the last ~second or two
+    const last = this.nPerf;
+    const ds: number[] = [];
+    let sum = 0;
+    let cpu = 0;
+    let worst = 0;
+    for (let k = 1; k <= win; k++) {
+      const i = (last - k) % 240;
+      ds.push(this.dts[i]);
+      sum += this.dts[i];
+      cpu += this.cpus[i];
+      worst = Math.max(worst, this.dts[i]);
+    }
+    ds.sort((a, b) => a - b);
+    const avg = sum / win;
+    const p99 = ds[Math.min(win - 1, Math.floor(win * 0.99))];
+    const set = (k: string, v: string): void => {
+      if (this.el[k].textContent !== v) this.el[k].textContent = v;
+    };
+    set('fps', (1000 / avg).toFixed(0));
+    set('perfA', `${avg.toFixed(1)} ms · 1% low ${(1000 / p99).toFixed(0)} fps`);
+    const gpu = this.gpuMs === null ? (this.timerExt ? '…' : 'n/a') : this.gpuMs.toFixed(1);
+    set('perfB', `cpu ${(cpu / win).toFixed(1)} · gpu ${gpu} ms`);
+    set('perfC', `${Math.floor((this.N * this.drawFrac) / 1000).toLocaleString()}k stars · ${this.W}×${this.H}`);
+    // frame-time graph: one bar per frame, 0-40 ms, with the 60 fps and 30 fps budgets ruled in
+    const cv = this.el.perfGraph as HTMLCanvasElement;
+    const c = cv.getContext('2d');
+    if (!c) return;
+    c.clearRect(0, 0, cv.width, cv.height);
+    const H = cv.height;
+    const y = (ms: number): number => H - Math.min(1, ms / 40) * (H - 2);
+    c.fillStyle = 'rgba(255,217,138,.10)';
+    c.fillRect(0, y(33.4), cv.width, 1);
+    c.fillRect(0, y(16.7), cv.width, 1);
+    for (let k = 0; k < 120 && k < n; k++) {
+      const ms = this.dts[(last - 1 - k) % 240];
+      c.fillStyle = ms > 33.4 ? '#f2503a' : ms > 20 ? '#ff9e4d' : '#ffd98a';
+      c.fillRect(cv.width - 1 - k, y(ms), 1, H - y(ms));
+    }
+  }
+
   private readonly frame = (now: number): void => {
     if (this.destroyed) return;
-    const dt = Math.min(0.1, (now - this.last) / 1000);
+    const t0 = performance.now();
+    const raw = now - this.last;
+    const dt = Math.min(0.1, raw / 1000);
     this.last = now;
     this.simT += dt;
     this.clock += dt;
@@ -1050,8 +1181,9 @@ export class Universe implements UniverseSink {
       gl.bindFramebuffer(gl.FRAMEBUFFER, hdr.fbo);
       gl.viewport(0, 0, this.W, this.H);
       gl.clearColor(0, 0, 0, 1);
-    } else gl.clearColor(0.016, 0.02, 0.04, 1);
+    } else gl.clearColor(0.022, 0.024, 0.014, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
+    const gpuQ = this.beginGpu();
     const ps = this.DPR * (this.H / 900) * 2.1;
     gl.useProgram(this.progStar);
     gl.bindVertexArray(this.vaoStars);
@@ -1093,16 +1225,29 @@ export class Universe implements UniverseSink {
       gl.bindTexture(gl.TEXTURE_2D, hdr.tex);
       gl.uniform1i(this.u(this.progTone, 'u_tex'), 0);
       gl.uniform1f(this.u(this.progTone, 'u_exposure'), 2.3);
+      gl.uniform1f(this.u(this.progTone, 'u_aspect'), this.W / this.H);
+      gl.uniform2f(this.u(this.progTone, 'u_cam'), this.yaw, this.pitch);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.enable(gl.BLEND);
     }
+    if (gpuQ) this.endGpu();
     if (this.frames % 30 === 0) this.refreshHud();
     this.drawLabels();
 
     this.frames++;
+    if (raw < 1000) {
+      // a hidden tab's long gap is not a frame
+      const i = this.nPerf++ % 240;
+      this.dts[i] = raw;
+      this.cpus[i] = performance.now() - t0;
+    }
+    this.pollGpu();
+    if (now - this.perfAt > 400) {
+      this.perfAt = now;
+      this.showPerf();
+    }
     if (now - this.fpsT > 1000) {
       const fps = (this.frames * 1000) / (now - this.fpsT);
-      this.el.fps.textContent = `${fps.toFixed(0)} fps · ${Math.floor((this.N * this.drawFrac) / 1000).toLocaleString()}k stars`;
       this.frames = 0;
       this.fpsT = now;
       if (!this.userQuality && fps < 24 && this.drawFrac > 0.25 && ++this.slow >= 2) {
