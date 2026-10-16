@@ -5,6 +5,7 @@
 // always had when the tool-discovery backend was unreachable.
 
 import { listMcpServers } from './local-mcp-store';
+import { orderForProver } from './leak-defaults';
 
 export interface ProverMcpTool {
   name: string;
@@ -18,7 +19,11 @@ export interface ProverMcpServer {
 }
 
 export async function fetchProverMcpServers(): Promise<ProverMcpServer[]> {
-  return listMcpServers()
-    .filter((s) => s.isActive && s.name && s.url)
-    .map((s) => ({ name: s.name, url: s.url }));
+  // Known Leak servers get their real tool lists and the verifier is put first (see orderForProver): without that the prover
+  // took the first registered server, Leak I, as the one that verifies, and no proof ever passed its final check.
+  return orderForProver(
+    listMcpServers()
+      .filter((s) => s.isActive && s.name && s.url)
+      .map((s): ProverMcpServer => ({ name: s.name, url: s.url })),
+  );
 }

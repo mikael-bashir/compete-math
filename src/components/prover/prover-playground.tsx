@@ -19,6 +19,7 @@ import {
 } from '@/lib/prover/run-prover-stream';
 import { ProverConsole } from '@/components/prover/prover-console';
 import type { ProverEvent, ProverOutcome } from '@/lib/prover/types';
+import { publishProverEvent, publishRunEnd, publishRunReset } from '@/lib/universe/live-bus';
 
 // Wall-clock budget for a decomposition (tree) run. The tree path governs by
 // TIME when this is set and reports a runId so "+5 min" can push it out; the
@@ -43,19 +44,20 @@ const isArchitectStrategy = (s: string) =>
 // A minimal "message the prover" surface: send a statement, watch every step,
 // extend the compute budget live, or terminate.
 export function ProverPlayground() {
+  // A statement that crosses libraries: periodicity (algebra), compactness (topology), the interval integral (analysis and measure theory).
   const [problem, setProblem] = useState(
-    'theorem sample : 1 + 1 = 2 := by sorry',
+    'theorem sample (f : ℝ → ℝ) (hf : Continuous f) (hp : Function.Periodic f 1) :\n    (∃ M, ∀ x, |f x| ≤ M) ∧ ∀ x, ∫ t in x..x + 1, f t = ∫ t in (0:ℝ)..1, f t := by sorry',
   );
   const [events, setEvents] = useState<ProverEvent[]>([]);
   const [running, setRunning] = useState(false);
   const [outcome, setOutcome] = useState<ProverOutcome | null>(null);
   // Decomposition mode drives the /prove-tree orchestrator: prove-or-split, so a
   // stalled goal is broken into verified sub-lemmas instead of looping forever.
-  const [decompose, setDecompose] = useState(false);
+  const [decompose, setDecompose] = useState(true);
   // Strategy mode for A/B testing proof approaches (tree path only).
-  const [strategy, setStrategy] = useState('hacker');
-  // Model the prover runs on ('' = the bridge/CLI default).
-  const [model, setModel] = useState('');
+  const [strategy, setStrategy] = useState('control-oneshot-2');
+  // Model the prover runs on ('' = the bridge/CLI default). Starts on Sonnet 5.5: strong, and quick enough to watch.
+  const [model, setModel] = useState('claude-sonnet-5-5');
   // Architect strategy always drives Grok directly — force + lock the model.
   useEffect(() => {
     if (isRiverStrategy(strategy)) setModel(ARCHITECT_MODEL);
@@ -96,7 +98,11 @@ export function ProverPlayground() {
       runIdRef.current = null;
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-      const append = (e: ProverEvent) => setEvents((prev) => [...prev, e]);
+      publishRunReset();
+      const append = (e: ProverEvent) => {
+        publishProverEvent(e);
+        setEvents((prev) => [...prev, e]);
+      };
       try {
         const mcpServers = await fetchProverMcpServers();
         const out = await runProverStream({
@@ -128,6 +134,7 @@ export function ProverPlayground() {
       } catch {
         /* the console already shows the error event (or the abort) */
       } finally {
+        publishRunEnd();
         setRunning(false);
         runIdRef.current = null;
         abortRef.current = null;
@@ -215,6 +222,7 @@ export function ProverPlayground() {
               <>
                 <option value="">Default</option>
                 <option value="claude-opus-4-8">Opus 4.8</option>
+                <option value="claude-sonnet-5-5">Sonnet 5.5</option>
                 <option value="claude-sonnet-5">Sonnet 5</option>
                 <option value="claude-fable-5">Fable 5</option>
                 <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
@@ -375,6 +383,16 @@ export function ProverPlayground() {
             : () => setMaxIters(ARCHITECT_DEFAULT_ITERS)
         }
       />
+
+      {!outcome && events.some((e) => e.kind === 'verified') && (
+        <div className="flex items-start gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4" role="status">
+          <ShieldCheck className="mt-0.5 size-4 text-emerald-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Proof verified. This run is complete.</p>
+            <p className="mt-1 text-xs text-muted-foreground">{running ? 'Closing the run down; nothing more is being tried.' : 'The prover has stopped.'}</p>
+          </div>
+        </div>
+      )}
 
       {outcome && (
         <div
