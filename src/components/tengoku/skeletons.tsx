@@ -2,14 +2,21 @@
 // page does not jump when the data arrives.
 
 const BAR = "motion-safe:animate-pulse rounded bg-white/[0.06]";
+const PILL = "block h-[30px] rounded-full border border-white/10 bg-white/[0.03] motion-safe:animate-pulse";
 
 /** The four stat pills, as the pills themselves are laid out (same row, same height). */
 export function PillsSkeleton() {
   return (
-    <div role="status" aria-label="Counting the theorems" className="not-prose mt-8 flex flex-wrap items-center justify-center gap-3">
-      {["w-44", "w-40", "w-28"].map((w) => (
-        <span key={w} className={`h-[30px] ${w} rounded-full border border-white/10 bg-white/[0.03] motion-safe:animate-pulse`} />
-      ))}
+    <div role="status" aria-label="Counting the theorems" className="not-prose mt-8 flex flex-wrap items-center justify-center gap-3 sm:grid sm:grid-cols-[1fr_auto_1fr]">
+      <span className="flex w-full justify-center sm:col-start-2 sm:row-start-1 sm:w-auto">
+        <span className={`${PILL} w-44`} />
+      </span>
+      <span className="sm:col-start-1 sm:row-start-1 sm:justify-self-end">
+        <span className={`${PILL} w-40`} />
+      </span>
+      <span className="sm:col-start-3 sm:row-start-1 sm:justify-self-start">
+        <span className={`${PILL} w-28`} />
+      </span>
       <span className="sr-only">Counting the theorems…</span>
     </div>
   );

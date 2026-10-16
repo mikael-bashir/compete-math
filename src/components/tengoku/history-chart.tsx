@@ -204,7 +204,7 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
           {rows && rows.length === 0 ? <p className="text-white/35">No library breakdown was recorded for this day.</p> : null}
           {overall !== null ? (
             <p className="mb-2 text-white/45">
-              <YieldHint>Yield</YieldHint>: <strong className="text-emerald-300/90">{fmtPct(overall)}</strong> of the theorems in the {sourced.length} libraries whose source is pinned are Leak-trusted.
+              <strong className="text-emerald-300/90">{fmtPct(overall)}</strong> of the theorems in the {sourced.length} libraries whose source is pinned are Leak-trusted.
             </p>
           ) : null}
           {shown && shown.length > 0 ? (

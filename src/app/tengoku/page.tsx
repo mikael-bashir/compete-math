@@ -32,33 +32,41 @@ async function Pills() {
   const stats = await treeStats();
   const count = (n: number | undefined) => (n === undefined ? "—" : formatCount(n));
   return (
-    <div className="not-prose mt-8 flex flex-wrap items-center justify-center gap-3 font-code text-xs">
-      <StatPill
-        tone="trusted"
-        note="Anything marked Leak-trusted compiles from scratch in the self-contained Tengoku tree, on its one pinned Lean toolchain, with no sorry, only the standard axioms, and assumptions that are not contradictory."
-      >
-        <strong className="text-emerald-300">{count(stats?.trusted)}</strong> Leak-trusted
-      </StatPill>
-      <StatPill
-        tone="tentative"
-        note="Anything marked tentative has a real proof at its source, but Leak has not verified it yet."
-      >
-        <strong className="text-amber-300">{count(stats?.tentative)}</strong> tentative
-      </StatPill>
-      <StatPill
-        tone="muted"
-        note={
-          <>
-            Visit the{" "}
-            <a href={TENGOKU_REPO} target="_blank" rel="noopener noreferrer">
-              Tengoku repository
-            </a>{" "}
-            to see the full list of sources.
-          </>
-        }
-      >
-        {stats ? stats.libraryCount : "—"} sources
-      </StatPill>
+    // Leak-trusted is the number that matters, so it sits at the middle of the page and the other two flank it (a plain centred row would centre
+    // the group, not the pill). On a phone it takes the first row and the other two are centred together on the second.
+    <div className="not-prose mt-8 flex flex-wrap items-center justify-center gap-3 font-code text-xs sm:grid sm:grid-cols-[1fr_auto_1fr]">
+      <span className="flex w-full justify-center sm:col-start-2 sm:row-start-1 sm:w-auto">
+        <StatPill
+          tone="trusted"
+          note="Anything marked Leak-trusted compiles from scratch in the self-contained Tengoku tree, on its one pinned Lean toolchain, with no sorry, only the standard axioms, and assumptions that are not contradictory."
+        >
+          <strong className="text-emerald-300">{count(stats?.trusted)}</strong> Leak-trusted
+        </StatPill>
+      </span>
+      <span className="sm:col-start-1 sm:row-start-1 sm:justify-self-end">
+        <StatPill
+          tone="tentative"
+          note="Anything marked tentative has a real proof at its source, but Leak has not verified it yet."
+        >
+          <strong className="text-amber-300">{count(stats?.tentative)}</strong> tentative
+        </StatPill>
+      </span>
+      <span className="sm:col-start-3 sm:row-start-1 sm:justify-self-start">
+        <StatPill
+          tone="muted"
+          note={
+            <>
+              Visit the{" "}
+              <a href={TENGOKU_REPO} target="_blank" rel="noopener noreferrer">
+                Tengoku repository
+              </a>{" "}
+              to see the full list of sources.
+            </>
+          }
+        >
+          {stats ? stats.libraryCount : "—"} sources
+        </StatPill>
+      </span>
     </div>
   );
 }
