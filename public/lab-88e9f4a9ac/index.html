@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Proof-carrying shaders</title>
+<style>
+:root{--bg:#07080a;--fg:#f1ecdc;--dim:#a39c86;--gold:#ffd98a;--line:rgba(255,217,138,.18)}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+main{max-width:46rem;margin:0 auto;padding:max(28px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left))}
+h1{font-size:1.15rem;font-weight:600;margin:0 0 .3rem;color:#ffe9a8}
+.lead{color:var(--dim);margin:0 0 1.6rem;max-width:60ch}
+ul{list-style:none;margin:0;padding:0;display:grid;gap:.9rem}
+li{border:1px solid var(--line);border-radius:8px;padding:.7rem .9rem;background:rgba(255,255,255,.02)}
+li a{display:flex;justify-content:space-between;gap:1rem;color:var(--fg);text-decoration:none}
+li a:hover b,li a:focus-visible b{color:var(--gold)}li a:focus-visible{outline:1px solid var(--gold);outline-offset:4px}
+li b{font-weight:600}li span{color:var(--dim)}li p{margin:.3rem 0 0;color:var(--dim);max-width:62ch}
+</style></head><body><main>
+<h1>Proof-carrying shaders</h1>
+<p class="lead">Water and cloud renderers whose step sizes, error bounds and culling radii come from theorems checked in Lean. Each page has a benchmark button; the numbers in the top right are live frames per second.</p>
+<ul><li><a href="./certified.html"><b>Certified Ocean</b><span>48 cosines</span></a><p>48 cosine waves, marched with step sizes proved safe in Lean (cos_lip, safe_step, safe_step_back, H_rise).</p></li><li><a href="./horizon-table.html"><b>Certified Ocean, horizon table</b><span>48 cosines</span></a><p>The same sea with a per-azimuth horizon table that skips most of the marching. Exact: no missed surface, same image.</p></li><li><a href="./poisson.html"><b>Poisson Ocean</b><span>12 waves</span></a><p>Twelve Poisson-kernel waves. Each is one cosine and one division and holds infinitely many harmonics. Lipschitz constant proved in Lean.</p></li><li><a href="./cosine-series.html"><b>Cosine Series Ocean</b><span>12 waves</span></a><p>The same twelve waves written as a 16-harmonic cosine series. The baseline the Poisson version is timed against.</p></li><li><a href="./skewed.html"><b>Skewed Poisson Ocean</b><span>12 waves</span></a><p>Poisson waves with a skew term: steep front, gentle back. Range and Lipschitz constant proved in Lean.</p></li><li><a href="./proved-cos.html"><b>Proved Cosine Ocean</b><span>12 waves</span></a><p>The Poisson sea with the hardware cos replaced by a polynomial whose error is proved in Lean. Same picture, slower on this GPU.</p></li><li><a href="./cloud.html"><b>Gaussian Cloud</b><span>48 blobs</span></a><p>48 Gaussian blobs with closed-form optical depth, no ray marching. Cheap erf with a Lean-proved error bound and a proved culling radius.</p></li></ul>
+</main></body></html>

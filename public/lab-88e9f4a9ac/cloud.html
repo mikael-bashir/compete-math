@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Gaussian Cloud</title>
+<style>
+:root{color-scheme:dark;--fg:#e8edf2;--dim:rgba(232,237,242,.55);--glass:rgba(14,20,26,.62);--line:rgba(255,255,255,.16)}
+html,body{margin:0;height:100%;background:#0b1118;color:var(--fg);font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#hud{position:fixed;left:14px;top:12px;right:14px;display:flex;justify-content:space-between;pointer-events:none;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+#hud b{font-weight:600}#hud span{color:var(--dim)}
+#bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px;padding:6px;background:var(--glass);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(10px)}
+button{font:inherit;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:8px;padding:5px 9px;cursor:pointer}
+button:hover{background:rgba(255,255,255,.08)}button.on{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.4)}
+#res{position:fixed;left:50%;top:44px;transform:translateX(-50%);max-width:min(96vw,760px);max-height:62vh;overflow:auto;background:var(--glass);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(10px);padding:10px 12px;display:none;white-space:pre}
+
+.resx { position:sticky; top:0; float:right; width:20px; height:20px; margin:-3px -6px 2px 8px; padding:0; line-height:18px; text-align:center; background:transparent; color:var(--dim,#a39c86); border:0; border-radius:4px; font:inherit; font-size:16px; cursor:pointer; }
+.resx:hover, .resx:focus-visible { color:var(--fg,#f1ecdc); background:rgba(255,255,255,.1); outline:none; }
+</style>
+</head><body>
+<canvas id="c"></canvas>
+<div id="hud"><b id="mode"></b><span id="fps"></span></div>
+<div id="res"></div>
+<div id="bar"><button data-m="0">closed form + cull</button><button data-m="1">closed form</button><button data-m="2">ray march (reference)</button><button id="bench">benchmark</button></div>
+<script>
+const K = 48;
+// ---------- the cloud: 48 Gaussian blobs, deterministic ----------
+let seed = 12345; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+const blobs = [];
+for (let i = 0; i < K; i++) {
+  // a flat-bottomed heap: wide low blobs near the base, a few tall narrow ones piled on top
+  const u = rnd() * 6.283, rr = Math.pow(rnd(), 0.7), top = 1 - rr * rr;
+  const sg = 1.7 + 2.6 * rnd() * (0.5 + 0.5 * top);
+  const x = 24 * rr * Math.cos(u), z = 9 * rr * Math.sin(u);
+  const y = 9 + sg * 0.5 + 9 * top * Math.pow(rnd(), 0.8) + 2.2 * rnd();
+  blobs.push({ c: [x, y, z], sg, a: 0.07 + 0.13 * rnd() });
+}
+const SUN = (() => { const v = [0.35, 0.6, -0.6], n = Math.hypot(...v); return v.map(x => x / n); })();
+// ---------- numerics on the CPU: an accurate erf, used only for lighting and the reference statistics ----------
+function erf(x) { const s = x < 0 ? -1 : 1; x = Math.abs(x); const t = 1 / (1 + 0.5 * x);
+  const y = 1 - t * Math.exp(-x * x - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277))))))))); return s * y; }
+const G = x => 0.886226925452758 * erf(x);
+function depthAlong(o, d, smax) { let tau = 0; for (const b of blobs) { const oc = [b.c[0] - o[0], b.c[1] - o[1], b.c[2] - o[2]];
+  const ss = oc[0] * d[0] + oc[1] * d[1] + oc[2] * d[2], b2 = oc[0] * oc[0] + oc[1] * oc[1] + oc[2] * oc[2] - ss * ss, k = 1.41421356 * b.sg;
+  tau += b.a * Math.exp(-b2 / (2 * b.sg * b.sg)) * k * (G((smax - ss) / k) - G(-ss / k)); } return tau; }
+blobs.forEach(b => { const tauSun = depthAlong(b.c, SUN, 400); const lit = Math.exp(-0.5 * tauSun);
+  b.col = [0.22 + 0.98 * lit, 0.27 + 0.9 * lit, 0.40 + 0.7 * lit]; });
+// Culling radius: dropping a blob whose ray misses its sphere of radius r loses at most a*sigma*sqrt(2 pi)*exp(-r^2/(2 sigma^2)).
+// (The first design note had sqrt(pi/2): off by a factor 2, caught numerically and now proved in Lean, mission m6: culling_bound and culling_bound_attained.)
+let TOL = 0.004;   // total opacity tolerance, split equally over the blobs
+blobs.forEach(b => { const t = TOL / K, q = b.a * b.sg * Math.sqrt(2 * Math.PI) / t; b.r = q <= 1 ? 0 : b.sg * Math.sqrt(2 * Math.log(q)); });
+const BOUND_A = blobs.reduce((s, b) => s + b.a * 1.41421356 * b.sg / 40, 0);   // sum_i a_i sqrt2 sigma_i / 40: the proved error of the closed form (mission m2)
+// ---------- GL ----------
+const cv = document.getElementById('c'), gl = cv.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
+gl.getExtension('EXT_color_buffer_float');
+const VS = `#version 300 es
+in vec2 p; out vec2 uv; void main(){ uv = p; gl_Position = vec4(p, 0., 1.); }`;
+const FS = `#version 300 es
+precision highp float;
+#define K ${K}
+in vec2 uv; out vec4 o;
+uniform vec4 uB[K];       // centre, sigma
+uniform vec4 uC[K];       // colour, peak extinction a
+uniform float uR[K];      // culling radius
+uniform vec3 uCam, uRt, uUp, uFw, uSun; uniform vec2 uAsp; uniform int uMode, uOut; uniform float uSmax;
+const float SQ2 = 1.41421356;
+float gA(float x){ float v = 0.8875 * sqrt(1.0 - exp(-1.275 * x * x)); return x < 0.0 ? -v : v; }   // (71/80) sqrt(1 - exp(-(51/40) x^2)), |gA - G| <= 1/80
+vec3 sky(vec3 d){ float h = clamp(d.y, 0.0, 1.0); vec3 c = mix(vec3(0.72, 0.82, 0.93), vec3(0.22, 0.42, 0.78), pow(h, 0.55));
+  float s = max(dot(d, uSun), 0.0); return c + vec3(1.0, 0.85, 0.6) * (pow(s, 600.0) * 1.5 + pow(s, 12.0) * 0.18); }
+void main(){
+  vec3 d = normalize(uFw + uRt * uv.x * uAsp.x + uUp * uv.y * uAsp.y); vec3 org = uCam;
+  float tau = 0.0; vec3 num = vec3(0.0); float cnt = 0.0, wsum = 0.0;
+  float tt[K], sv[K];
+  if (uMode < 2) {
+    for (int i = 0; i < K; i++) {
+      tt[i] = 0.0; sv[i] = 0.0;
+      vec3 oc = uB[i].xyz - org; float ss = dot(oc, d), b2 = dot(oc, oc) - ss * ss, sg = uB[i].w;
+      if (uMode == 0 && b2 > uR[i] * uR[i]) continue;
+      cnt += 1.0;
+      float k = SQ2 * sg, ti = uC[i].w * exp(-b2 / (2.0 * sg * sg)) * k * (gA((uSmax - ss) / k) - gA(-ss / k));
+      tau += ti; tt[i] = ti; sv[i] = ss;
+    }
+    // colour: each blob's share is its own depth, attenuated by the depth of the blobs whose centres are nearer (front-to-back, resolved by centre distance)
+    for (int i = 0; i < K; i++) { if (tt[i] <= 0.0) continue; float before = 0.0;
+      for (int j = 0; j < K; j++) if (sv[j] < sv[i]) before += tt[j];
+      float w = tt[i] * exp(-before); num += w * uC[i].rgb; wsum += w; }
+  } else {
+    // reference: dense midpoint quadrature of the summed density along the ray, 256 steps over [0, smax], colour composited front to back
+    float ds = uSmax / 256.0, Tr = 1.0;
+    for (int j = 0; j < 256; j++) { vec3 p = org + d * ((float(j) + 0.5) * ds); float de = 0.0; vec3 cc = vec3(0.0);
+      for (int i = 0; i < K; i++) { vec3 q = p - uB[i].xyz; float di = uC[i].w * exp(-dot(q, q) / (2.0 * uB[i].w * uB[i].w)) * ds; de += di; cc += di * uC[i].rgb; }
+      if (de > 0.0) { float w = Tr * (1.0 - exp(-de)); num += w * cc / de; wsum += w; }
+      Tr *= exp(-de); tau += de; }
+    cnt = float(K);
+  }
+  if (uOut == 1) { o = vec4(tau, cnt, 0.0, 1.0); return; }
+  float T = exp(-tau); vec3 cl = wsum > 1e-9 ? num / wsum : vec3(0.0);
+  cl *= mix(1.4, 0.82, 1.0 - exp(-0.5 * tau));   // thin edges scatter forward and glow, thick cores are grey
+  o = vec4(pow(sky(d) * T + cl * (1.0 - T), vec3(1.0 / 2.2)), 1.0);
+}`;
+function sh(t, s) { const x = gl.createShader(t); gl.shaderSource(x, s); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x)); return x; }
+const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(pr);
+if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+gl.useProgram(pr);
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+const U = n => gl.getUniformLocation(pr, n);
+gl.uniform4fv(U('uB'), new Float32Array(blobs.flatMap(b => [...b.c, b.sg])));
+gl.uniform4fv(U('uC'), new Float32Array(blobs.flatMap(b => [...b.col, b.a])));
+gl.uniform1fv(U('uR'), new Float32Array(blobs.map(b => b.r)));
+gl.uniform3fv(U('uSun'), SUN);
+let mode = 0, yaw = 0.35, pitch = 0.04, dist = 58, auto = true;
+function cam() { const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const fw = [-sy * cp, -sp * 0.0 - sp, cy * cp].map(Number); const f = [sy * cp * -1, -sp, -cy * cp]; // camera looks at the cloud centre from distance dist
+  const tgt = [0, 14, 0], pos = [tgt[0] + dist * sy * cp, tgt[1] + dist * sp + 0.0, tgt[2] - dist * cy * cp];
+  let w = [tgt[0] - pos[0], tgt[1] - pos[1], tgt[2] - pos[2]]; const n = Math.hypot(...w); w = w.map(x => x / n);
+  let r = [w[2], 0, -w[0]]; const rn = Math.hypot(...r); r = r.map(x => x / rn); const u = [r[1] * w[2] - r[2] * w[1], r[2] * w[0] - r[0] * w[2], r[0] * w[1] - r[1] * w[0]];
+  return { pos, w, r, u }; }
+function draw(w, h, md, out) { gl.viewport(0, 0, w, h); const c = cam(); const t = Math.tan(0.5 * 0.9);
+  gl.uniform3fv(U('uCam'), c.pos); gl.uniform3fv(U('uFw'), c.w); gl.uniform3fv(U('uRt'), c.r); gl.uniform3fv(U('uUp'), c.u);
+  gl.uniform2f(U('uAsp'), t * w / h, t); gl.uniform1i(U('uMode'), md); gl.uniform1i(U('uOut'), out); gl.uniform1f(U('uSmax'), dist + 60.0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3); }
+const names = ['closed form + cull', 'closed form', 'ray march (reference)'];
+function setMode(m) { mode = m; document.getElementById('mode').textContent = names[m]; document.querySelectorAll('#bar button[data-m]').forEach(b => b.classList.toggle('on', +b.dataset.m === m)); }
+document.querySelectorAll('#bar button[data-m]').forEach(b => b.onclick = () => setMode(+b.dataset.m)); setMode(0);
+let last = performance.now(), fr = 0, ft = 0, busy = false;
+function frame(now) { requestAnimationFrame(frame); if (busy) return; const dt = (now - last) / 1000; last = now; if (auto) yaw += dt * 0.05;
+  const dpr = Math.min(devicePixelRatio || 1, 1.5), W = Math.floor(cv.clientWidth * dpr), H = Math.floor(cv.clientHeight * dpr);
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const sc = mode === 2 ? 0.25 : 1; gl.bindFramebuffer(gl.FRAMEBUFFER, null); draw(W, H, mode, 0);
+  fr++; ft += dt; if (ft > 0.5) { document.getElementById('fps').textContent = Math.round(fr / ft) + ' fps · ' + K + ' Gaussian blobs'; fr = 0; ft = 0; } }
+let dragging = null; cv.onpointerdown = e => { dragging = [e.clientX, e.clientY]; auto = false; cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing'; };
+cv.onpointerup = () => { dragging = null; cv.style.cursor = 'grab'; };
+cv.onpointermove = e => { if (!dragging) return; yaw -= (e.clientX - dragging[0]) * 0.006; pitch = Math.max(-0.2, Math.min(0.9, pitch + (e.clientY - dragging[1]) * 0.004)); dragging = [e.clientX, e.clientY]; };
+cv.onwheel = e => { e.preventDefault(); dist = Math.max(40, Math.min(160, dist * (1 + e.deltaY * 0.001))); }; 
+requestAnimationFrame(frame);
+// ---------- benchmark: the closed form against the dense quadrature, same frame ----------
+function target(w, h) { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, null);
+  const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); return { f, t }; }
+function tauField(w, h, md) { const tg = target(w, h); gl.bindFramebuffer(gl.FRAMEBUFFER, tg.f); draw(w, h, md, 1); const a = new Float32Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.FLOAT, a); return a; }
+function ms(w, h, md, reps) { const tg = target(w, h), px = new Uint8Array(4 * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, tg.f); draw(w, h, md, 0); const f = new Float32Array(4); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, f);
+  const t0 = performance.now(); for (let k = 0; k < reps; k++) draw(w, h, md, 0); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, f); return (performance.now() - t0) / reps; }
+document.getElementById('bench').onclick = async () => { busy = true; const res = document.getElementById('res'); res.style.display = 'block'; res.textContent = 'measuring…'; await new Promise(r => setTimeout(r, 40));
+  const keepYaw = yaw, keepPitch = pitch, keepDist = dist; let out = '';
+  for (const [nm, yw, pt] of [['side view', 0.35, 0.04], ['from below', 1.1, -0.1], ['from above', 2.4, 0.7]]) {
+    yaw = yw; pitch = pt; dist = 58; const w = 320, h = 180, n = w * h;
+    const ref = tauField(w, h, 2), cf = tauField(w, h, 1), cc = tauField(w, h, 0);
+    const st = (a) => { let mx = 0, sum = 0, cntp = 0, mxT = 0, blobsPer = 0; for (let p = 0; p < n; p++) { const e = Math.abs(a[p * 4] - ref[p * 4]); mx = Math.max(mx, e); sum += e; cntp += ref[p * 4] > 1e-3; mxT = Math.max(mxT, Math.abs(Math.exp(-a[p * 4]) - Math.exp(-ref[p * 4]))); blobsPer += a[p * 4 + 1]; } return { mx, mean: sum / n, mxT, blobs: blobsPer / n, covered: cntp / n }; };
+    const s1 = st(cf), s0 = st(cc);
+    const tw = 640, th = 360, mcc = ms(tw, th, 0, 8), mcf = ms(tw, th, 1, 8), mref = ms(tw, th, 2, 1);
+    let maxTau = 0; for (let p = 0; p < n; p++) maxTau = Math.max(maxTau, ref[p * 4]);
+    out += nm + '   (pixels with cloud: ' + (100 * s1.covered).toFixed(0) + '%, max optical depth ' + maxTau.toFixed(2) + ')\n' +
+      '  method               ms@640x360   blobs/px   max |d tau|   mean |d tau|   max |d T|\n' +
+      '  closed form + cull   ' + mcc.toFixed(2).padStart(10) + s0.blobs.toFixed(1).padStart(11) + s0.mx.toFixed(4).padStart(14) + s0.mean.toFixed(5).padStart(15) + s0.mxT.toFixed(4).padStart(11) + '\n' +
+      '  closed form          ' + mcf.toFixed(2).padStart(10) + s1.blobs.toFixed(1).padStart(11) + s1.mx.toFixed(4).padStart(14) + s1.mean.toFixed(5).padStart(15) + s1.mxT.toFixed(4).padStart(11) + '\n' +
+      '  ray march 256 steps  ' + mref.toFixed(2).padStart(10) + '         ' + K + '   (reference)\n\n'; }
+  out += 'proved bound on the transmittance error (Lean, mission m6: sum a sqrt2 sigma/40 + sum a sigma sqrt(2 pi) exp(-r^2/(2 sigma^2))): ' + (BOUND_A + TOL).toFixed(3) + '\nculling tolerance ' + TOL + ' total opacity, radii ' + Math.min(...blobs.map(b => b.r)).toFixed(1) + ' to ' + Math.max(...blobs.map(b => b.r)).toFixed(1) + '\nreference = 256-step midpoint quadrature (its own error is not zero); timings are in-pane and noisy.';
+  res.textContent = out; yaw = keepYaw; pitch = keepPitch; dist = keepDist; busy = false; };
+</script>
+<script>
+// the benchmark panel: a close button (re-added whenever the page rewrites the panel) and Escape
+(function () {
+  var r = document.getElementById('res'); if (!r) return;
+  function add() {
+    if (r.querySelector('.resx')) return;
+    var b = document.createElement('button'); b.className = 'resx'; b.type = 'button'; b.textContent = '\u00d7'; b.setAttribute('aria-label', 'Close results');
+    b.onclick = function () { r.style.display = 'none'; }; r.insertBefore(b, r.firstChild);
+  }
+  new MutationObserver(add).observe(r, { childList: true });
+  addEventListener('keydown', function (e) { if (e.key === 'Escape') r.style.display = 'none'; });
+  add();
+})();
+</script>
+</body></html>
