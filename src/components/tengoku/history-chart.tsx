@@ -46,7 +46,9 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
   const last = placed[placed.length - 1];
   const first = placed[0];
   const current = placed.find((p) => p.day === picked) ?? last;
-  const change = placed.length > 1 ? last.value - first.value : null;
+  // the change shown in the header follows the day being looked at: from the window's first day to that day (the whole window when nothing is picked)
+  const change = placed.length > 1 && current.day !== first.day ? current.value - first.value : null;
+  const windowChange = placed.length > 1 ? last.value - first.value : null;
 
   const load = useCallback(() => {
     if (data || state === "loading") return;
@@ -109,7 +111,7 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
   const shown = rows && !showAll ? rows.slice(0, TOP_ROWS) : rows;
 
   const label = last
-    ? `Leak-trusted theorems per day from ${formatDay(win.start)} to today: ${n(last.value)} today${change !== null ? `, ${change >= 0 ? "up" : "down"} ${n(Math.abs(change))} since ${formatDay(first.day)}` : ""}. Point at a day to see its libraries.`
+    ? `Leak-trusted theorems per day from ${formatDay(win.start)} to today: ${n(last.value)} today${windowChange !== null ? `, ${windowChange >= 0 ? "up" : "down"} ${n(Math.abs(windowChange))} since ${formatDay(first.day)}` : ""}. Point at a day to see its libraries.`
     : "No theorem counts logged yet";
 
   return (
@@ -126,6 +128,7 @@ export function HistoryChart({ points, today }: { points: DayPoint[]; today: str
             <span className={change >= 0 ? "ml-2 text-emerald-300/80" : "ml-2 text-amber-300/80"}>
               {change >= 0 ? "+" : "−"}
               {n(Math.abs(change))}
+              <span className="ml-1 text-white/30">since {formatDay(first.day)}</span>
             </span>
           ) : null}
         </div>
