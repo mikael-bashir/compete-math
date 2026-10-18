@@ -123,3 +123,49 @@ test('verified and rejected events reach the sink; unrelated tools and stray res
   assert.equal(log.finished.length, 0);
   assert.deepEqual(log.verified, [true, false]);
 });
+
+test('memory tools are recalls, and their replies are recognised before anything else', () => {
+  assert.equal(classifyTool('mcp__memory__memory_recall'), 'recall');
+  assert.equal(classifyTool('memory_list'), 'recall');
+  assert.equal(classifyTool('mcp__memory__memory_nominate'), null);
+  const none = { loogle: [], moogle: [], compile: [] };
+  assert.equal(classifyResult("2 verified theorem(s) from this target's memory, best match first.\n\ntheorem x : 1 = 1 := rfl -- Compilation", none), 'recall');
+  assert.equal(classifyResult('No saved theorem matches that query. Memory holds 3 verified theorem(s)', none), 'recall');
+  assert.equal(classifyResult('Memory is empty for this target so far.', none), 'recall');
+});
+
+test('a recall resolves with how many theorems came back', () => {
+  const { log, interp } = harness([]);
+  interp.handle(call('mcp__memory__memory_recall', { query: 'dvd' }));
+  interp.handle(result("3 verified theorem(s) from this target's memory, best match first."));
+  assert.equal(log.started[0].k, 'recall');
+  assert.equal(log.finished[0][1].n, 3);
+  interp.handle(call('memory_recall', { query: 'zzz' }));
+  interp.handle(result('No saved theorem matches that query. Memory holds 0 verified theorem(s)'));
+  assert.equal(log.finished[1][1].n, 0);
+  // the count is read wherever it sits in the reply, and "Memory holds 3 …" in a miss is not a hit
+  interp.handle(call('memory_recall', { query: 'x' }));
+  interp.handle(result("[some prefix] 2 verified theorem(s) from this target's memory, best match first."));
+  assert.equal(log.finished[2][1].n, 2);
+  interp.handle(call('memory_recall', { query: 'y' }));
+  interp.handle(result('No saved theorem matches that query. Memory holds 3 verified theorem(s); memory_list shows the most recent.'));
+  assert.equal(log.finished[3][1].n, 0);
+});
+
+test("Paragon's MEMORY heading inside a search result is a recall as well", () => {
+  const { log, interp } = harness([]);
+  interp.handle(call('mcp__Leak_I__moogle_search', { concept: 'dvd' }));
+  interp.handle(result("1 semantically related declaration(s) for 'dvd'\n\n— MEMORY: verified theorems saved earlier —\n\ntheorem a : True := trivial\n\ntheorem b : True := trivial"));
+  assert.deepEqual(log.started.map((e) => e.k), ['moogle', 'recall']);
+  assert.equal(log.finished.find(([e]) => e.k === 'recall')![1].n, 2);
+});
+
+test('a save is a spark and the orb is sized from the library', () => {
+  const sizes: number[] = [];
+  const { log, interp } = harness([]);
+  (interp as unknown as { sink: UniverseSink }).sink.memorySize = (n) => sizes.push(n);
+  interp.memory('save');
+  interp.memory('stats', 7);
+  assert.equal(log.started[0].k, 'save');
+  assert.deepEqual(sizes, [7]);
+});

@@ -6490,9 +6490,12 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       ctx.emit({ type: "message-annotation", subtype: "status", thought: `🧠 Attempt ${attempt} — fresh context, ${memory.size} verified theorem(s) in memory${lastAttempt ? ", last submission carried forward" : ""}.` })
     const gate = makeProofGate(theorem)
     const pendingVerify = new Map()
+    const attemptPrompt = controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt)
+    // what the agent is really told, for the console and the admin log (the frame sent when the run opens cannot know the memory yet)
+    ctx.emit({ type: "prompt", prompt: `[CONTROL II MEMORY — ${cfg.name} · attempt ${attempt}]\n\n${attemptPrompt}`, model: ctx.model || null, mcpServers: allowedServers.map((s) => ({ name: s.name, url: s.url })) })
     await spawnProverStream(
       {
-        prompt: controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt),
+        prompt: attemptPrompt,
         mcpServers: allowedServers,
         model: ctx.model,
         maxTurns: 0,
@@ -12424,6 +12427,8 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
             haveTreePlannerPrompt(theorem, mcpServers, "<the vanguard's last compiled script and the compiler's verdict on it>") +
             "\n\n=== PHASE 2 HOLE-FILL (SURROUND MINION) PROMPT ===\n" +
             surroundHoleFillPrompt("<the verified skeleton>", "hN", mcpServers)
+          : style === "memory"
+          ? `[CONTROL II MEMORY — ${strategy}]\n\nThe prompt depends on what the memory holds, so it is built at the start of every attempt and shown then as its own "prompt" entry.`
           : style === "control"
           ? `[FLAT BASELINE — Leak Control I (one continuous agent, one-shot, Leak IV only, no decomposition) · strategy: ${strategy}]\n\n=== AGENT PROMPT ===\n` +
             controlPrompt(theorem, (mcpServers || []).filter((s) => s?.url === resolveVerifyUrl(mcpServers)))

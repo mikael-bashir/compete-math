@@ -57,6 +57,7 @@ export function LeakUniverse() {
           u.resetLive();
           u.startRun();
         } else if (m.type === 'end') u.endRun();
+        else if (m.type === 'memory') u.pushMemory(m.op, m.size);
         else u.pushProverEvent(m.event);
       }),
     [],

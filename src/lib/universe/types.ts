@@ -22,7 +22,10 @@ export interface UniverseMeta {
   libs: UniverseLib[];
 }
 
-export type UniverseEventKind = 'loogle' | 'moogle' | 'compile';
+export type UniverseEventKind = 'loogle' | 'moogle' | 'compile' | 'recall' | 'save';
+
+/** The kinds of event that go to Leak's tools; recall and save are the memory's. */
+export type ToolEventKind = 'loogle' | 'moogle' | 'compile';
 
 /** One tool call by the driver. Times are seconds on the run's own clock. */
 export interface UniverseEvent {
@@ -43,6 +46,8 @@ export interface UniverseEvent {
   unk?: string[];
   /** the search allowance was at zero */
   blocked?: boolean;
+  /** recall: how many saved theorems came back. */
+  n?: number;
 }
 
 export interface ReplayRun {

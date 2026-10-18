@@ -490,6 +490,8 @@ export function memoryRules(variantKey) {
   const lines = [
     "- You MAY prove helper theorems/lemmas as separate top-level declarations and verify them with verify_full_script (a helper must compile with no sorry). Every verified, non-trivial theorem is saved automatically to this target's memory, for you and for later attempts: a verified lemma is progress even if the target is still open. The target itself stays exactly as given.",
   ]
+  lines.push("- Verify early and often. Python or other numeric probing is fine for finding a candidate, but a number or a pattern is only a fact once Leak IV has checked it (`decide +kernel`, `rfl`, `norm_num`), and a plan is not progress. Within your first few minutes submit something to verify_full_script, even a small lemma or a concrete instance; a submission that fails teaches more than another stretch of thinking.")
+  lines.push("- Look up what the library already has (loogle_search for a type pattern, moogle_search for a concept) before you prove a helper that may exist; use what you find in a real script.")
   if (tools) lines.push("- Before you re-derive something, call memory_recall: you may already have proved it. Save effort for what is genuinely new.")
   if (cfg.augmentSearch) lines.push("- Your library searches also return matching theorems from this memory under a MEMORY heading; they are compile-ready.")
   if (tools) lines.push(`- When a saved theorem is general, minimally assumed and well named, nominate it with memory_nominate (at most ${MAX_NOMINATED}). Nominated theorems are the ones that can later be submitted to the Tengoku library, so nominate only what you would be proud to have others reuse.`)

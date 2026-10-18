@@ -59,6 +59,8 @@ async function mcp(url, method, params, session) {
 }
 
 let n = 0
+// FAKE_PACE_MS slows the stand-in down so the visualiser can be watched by hand
+const pace = () => new Promise((r) => setTimeout(r, Number(process.env.FAKE_PACE_MS) || 0))
 const toolUse = (name, input) => {
   const id = `tu${++n}`
   out({ type: "assistant", message: { content: [{ type: "tool_use", id, name, input }] } })
@@ -68,21 +70,25 @@ const toolResult = (id, text) => out({ type: "user", message: { content: [{ type
 
 const mem = cfg.mcpServers.memory?.url
 if (mem) {
-  const id = toolUse("mcp__memory__memory_recall", { query: "odd sum even" })
-  const r = await mcp(mem, "tools/call", { name: "memory_recall", arguments: { query: "odd sum even" } })
+  await pace()
+  const id = toolUse("mcp__memory__memory_recall", { query: process.env.FAKE_QUERY || "odd sum even" })
+  const r = await mcp(mem, "tools/call", { name: "memory_recall", arguments: { query: process.env.FAKE_QUERY || "odd sum even" } })
   toolResult(id, `[tools: ${r.tools.join(",")}] ${r.result?.content?.[0]?.text || ""}`)
 }
 const searchUrl = cfg.mcpServers.Leak_I?.url
 if (searchUrl && process.env.FAKE_SEARCH) {
+  await pace()
   const id = toolUse("mcp__Leak_I__moogle_search", { concept: "odd sum even" })
   const r = await mcp(searchUrl, "tools/call", { name: "moogle_search", arguments: { concept: "odd sum even" } })
   toolResult(id, r.result?.content?.[0]?.text || "")
 }
 if (process.env.FAKE_LEMMA !== "0") {
+  await pace()
   const id = toolUse("mcp__Leak_IV__verify_full_script", { script: LEMMA })
   toolResult(id, "✅ Compilation Successful! The proof is 100% verified.")
 }
 if (process.env.FAKE_TARGET !== "0") {
+  await pace()
   const id = toolUse("mcp__Leak_IV__verify_full_script", { script: TARGET })
   toolResult(id, "✅ Compilation Successful! The proof is 100% verified.")
 }

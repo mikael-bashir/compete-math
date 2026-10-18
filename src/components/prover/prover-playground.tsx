@@ -34,7 +34,7 @@ import {
   setMemoryNominated,
   type MemoryEntry,
 } from '@/lib/prover/memory-client';
-import { publishProverEvent, publishRunEnd, publishRunReset } from '@/lib/universe/live-bus';
+import { publishMemory, publishProverEvent, publishRunEnd, publishRunReset } from '@/lib/universe/live-bus';
 
 // Wall-clock budget for a decomposition (tree) run. The tree path governs by
 // TIME when this is set and reports a runId so "+5 min" can push it out; the
@@ -146,9 +146,12 @@ export function ProverPlayground() {
     (frame: import('@/lib/prover/run-prover-stream').MemoryFrame) => {
       if (frame.op === 'stats') {
         setMemoryStats(frame.stats);
+        publishMemory('stats', frame.stats.size);
         return;
       }
       setMemory((prev) => applyMemoryFrame(prev, frame));
+      // the visualiser's orb: a save is a spark and one more theorem in the orb
+      if (frame.op === 'save' || frame.op === 'update') publishMemory(frame.op);
       if (frame.op === 'save' || frame.op === 'update') {
         const e = frame.entry as unknown as MemoryEntry;
         if (e?.id) pendingSave.current.set(e.id, e);
@@ -219,6 +222,7 @@ export function ProverPlayground() {
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       publishRunReset();
+      if (asTree && isMemoryStrategy(strategy)) publishMemory('load', memoryRef.current.length);
       const append = (e: ProverEvent) => {
         publishProverEvent(e);
         setEvents((prev) => [...prev, e]);

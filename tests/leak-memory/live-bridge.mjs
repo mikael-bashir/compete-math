@@ -77,6 +77,12 @@ await check("honoured: solves, recalls, saves", async () => {
   assert.ok(mem.some((f) => f.op === "save"), "no save op")
   assert.ok(JSON.stringify(honoured).includes("memory_recall"), "recall tool never used")
 })
+await check("honoured: the logged prompt is the memory prompt, not Control II's", async () => {
+  const prompts = honoured.filter((f) => f.type === "prompt").map((f) => f.prompt)
+  const last = prompts[prompts.length - 1] || ""
+  assert.ok(/Verify early and often/.test(last), "no verify-early rule in the prompt")
+  assert.ok(/CONTROL II MEMORY/.test(last) && !/you do not write top-level helper lemmas/.test(last), "wrong prompt shown")
+})
 await check("honoured: final result verified", async () => {
   const last = honoured.filter((f) => f.type === "result" || f.type === "done" || f.type === "final").pop()
   assert.ok(last, "no terminal frame: " + [...new Set(honoured.map((f) => f.type))].join(","))
