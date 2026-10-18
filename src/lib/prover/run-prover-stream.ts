@@ -27,6 +27,11 @@ function looksLikeToolError(output: string): boolean {
   );
 }
 
+export type MemoryFrame =
+  | { type: 'memory'; op: 'save' | 'update'; entry: Record<string, unknown> }
+  | { type: 'memory'; op: 'nominate'; id: string; nominated: boolean }
+  | { type: 'memory'; op: 'stats'; stats: Record<string, number> };
+
 interface RunOpts {
   problem: string;
   mcpServers: ProverMcpServer[];
@@ -73,6 +78,15 @@ interface RunOpts {
   // 1..32 on the bridge; ignored elsewhere. Raise it mid-flight with
   // extendProverRun({ addIters }) — the bridge reads the budget live.
   maxIters?: number;
+  // Leak memory (the Control II variants Honoured / Flint / Paragon / Lucid). `targetId` names the roadmap target the run
+  // is for; `memoryEntries` are the signed-in account's saved theorems for it, which the bridge loads for this run only
+  // (it keeps nothing between runs). `maxCostUsd` and `attemptMs` are optional limits the memory variants honour.
+  targetId?: string;
+  memoryEntries?: unknown[];
+  maxCostUsd?: number;
+  attemptMs?: number;
+  // Fires for every `memory` frame the bridge emits (save / update / nominate / stats). The caller persists them.
+  onMemory?: (frame: MemoryFrame) => void;
   // Fires whenever the tree run banks progress — the latest resumable checkpoint
   // (skeleton with proven holes filled, rest still `sorry`). Persist the newest
   // one so any stop (limit / terminate / crash) can resume from it.
@@ -245,6 +259,16 @@ export async function runProverStream(opts: RunOpts): Promise<ProverOutcome> {
           ...(opts.maxIters && opts.maxIters > 0
             ? { maxIters: opts.maxIters }
             : {}),
+          ...(opts.targetId ? { targetId: opts.targetId } : {}),
+          ...(opts.maxCostUsd && opts.maxCostUsd > 0
+            ? { maxCostUsd: opts.maxCostUsd }
+            : {}),
+          ...(opts.attemptMs && opts.attemptMs > 0
+            ? { attemptMs: opts.attemptMs }
+            : {}),
+          ...(opts.memoryEntries
+            ? { memory: { entries: opts.memoryEntries } }
+            : {}),
         },
       }),
       signal,
@@ -320,6 +344,17 @@ export async function runProverStream(opts: RunOpts): Promise<ProverOutcome> {
               budgetMs: Number(d.budgetMs) || 0,
               maxIters: Number(d.maxIters) || 0,
             });
+          break;
+        case 'memory':
+          // A memory variant saved, updated or nominated a theorem, or reported its counters. The caller owns persistence
+          // (per account); the console shows what was kept.
+          opts.onMemory?.(d as MemoryFrame);
+          if ((d.op === 'save' || d.op === 'update') && d.entry?.name)
+            emit(
+              'system',
+              `${d.op === 'save' ? 'Saved to memory' : 'Memory entry improved'}: ${String(d.entry.name).slice(0, 80)}`,
+              { detail: d.entry.closure, metrics },
+            );
           break;
         case 'checkpoint':
           // The tree run banked progress — a resumable partially-filled skeleton.

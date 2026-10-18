@@ -793,6 +793,10 @@ function createGovernor({ initial } = {}) {
     // the bridge — same executors, same gates as the Grok loop — instead of the CLI
     // talking to Leak XII/XIV directly, where the bridge could not see the results.
     handlers: new Map(),
+    // The name the bridge-served tools appear under (mcp__<serverName>__<tool>); "architect" unless a strategy says otherwise.
+    serverName: "architect",
+    // Optional (toolName, args, text) -> text applied to every search answer (Control II Paragon adds memory hits here).
+    augment: null,
   }
   governors.set(id, g)
   return g
@@ -845,7 +849,7 @@ function buildGovernedMcpConfig(mcpServers, governor) {
   // Bridge-served tools get their own entry so the CLI can reach the architect
   // executors. Named "architect" so tools surface as mcp__architect__lean_compile.
   if (governor?.handlers?.size)
-    servers.architect = { type: "sse", url: `http://127.0.0.1:${PORT}/gov/${governor.id}/sse` }
+    servers[governor.serverName || "architect"] = { type: "sse", url: `http://127.0.0.1:${PORT}/gov/${governor.id}/sse` }
   return { mcpServers: servers }
 }
 
@@ -975,7 +979,14 @@ async function governorMessage(req, res, govId, sid) {
       }
       reply({ content: [{ type: "text", text: String(text ?? "") }] })
     } else {
-      const text = await governedSearchCall(g, name, msg.params?.arguments || {})
+      let text = await governedSearchCall(g, name, msg.params?.arguments || {})
+      if (typeof g.augment === "function") {
+        try {
+          text = String(g.augment(name, msg.params?.arguments || {}, text) ?? text)
+        } catch {
+          /* an augmentation must never break a search */
+        }
+      }
       reply({ content: [{ type: "text", text }] })
     }
   } else if (msg.id != null) {
@@ -1946,7 +1957,7 @@ async function narrowFinalProof(proof, ctx, emit) {
 // We build the exact id list from the LIVE inventory so the agent can't invent
 // an id. Verified against the live CLI: telling it to "call directly" fails with
 // "No such tool available".
-function mcpToolSection(mcpServers = []) {
+function mcpToolSection(mcpServers = [], extraTools = []) {
   const sanitize = (n) => String(n || "").replace(/[^a-zA-Z0-9_]/g, "_")
   const servers = (mcpServers || []).filter((s) => s && s.name)
   const toolIds = []
@@ -1962,6 +1973,12 @@ function mcpToolSection(mcpServers = []) {
         t && Array.isArray(t.args) && t.args.length ? ` — args: { ${t.args.join(", ")} }` : ""
       toolLines.push(`- ${id}${args}`)
     }
+  }
+  // tools served by the bridge itself (the memory tools of the Control II memory variants): same deferred loading
+  for (const x of Array.isArray(extraTools) ? extraTools : []) {
+    if (!x?.id) continue
+    toolIds.push(x.id)
+    toolLines.push(`- ${x.id}${x.args?.length ? ` — args: { ${x.args.join(", ")} }` : ""}`)
   }
   if (toolIds.length) {
     return `Your Lean tools are provided over MCP but are DEFERRED — you MUST load a tool before you can call it. As your VERY FIRST action, make ONE ToolSearch call to load them all:
@@ -2349,6 +2366,38 @@ const STRATEGIES = {
     decompose: (t, m, x) => controlPrompt(t, m, 1, null, true, true), // unused; keeps the registry shape
     search: GOV_INITIAL,
     style: "control4",
+  },
+  // Control II with a memory of verified theorems (experimental). Same surface as Control II (Leak IV + Leak I search, one
+  // continuous agent, fresh attempts until the clock ends), plus a library of every non-trivial theorem Leak IV has verified on
+  // this target. Four designs, one per memory mechanism of the agentic-prover literature; see public/leak-memory.mjs and
+  // proveControlMemory. Control II itself is untouched and is the no-memory baseline.
+  "control-honoured": {
+    label: "Control II Honoured — Control II + append-only library of verified theorems, with a recall tool (experimental)",
+    node: (t, m, x) => controlPrompt(t, m, 1, null, true),
+    decompose: (t, m, x) => controlPrompt(t, m, 1, null, true),
+    search: GOV_INITIAL,
+    style: "memory",
+  },
+  "control-flint": {
+    label: "Control II Flint — Control II + episodic replay: each fresh attempt opens with the theorems proved so far (experimental)",
+    node: (t, m, x) => controlPrompt(t, m, 1, null, true),
+    decompose: (t, m, x) => controlPrompt(t, m, 1, null, true),
+    search: GOV_INITIAL,
+    style: "memory",
+  },
+  "control-paragon": {
+    label: "Control II Paragon — Control II + the library built into search: Leak I results also return matching verified theorems (experimental)",
+    node: (t, m, x) => controlPrompt(t, m, 1, null, true),
+    decompose: (t, m, x) => controlPrompt(t, m, 1, null, true),
+    search: GOV_INITIAL,
+    style: "memory",
+  },
+  "control-lucid": {
+    label: "Control II Lucid — Control II + library with an hourly sleep stage that generalises clusters of lemmas (experimental)",
+    node: (t, m, x) => controlPrompt(t, m, 1, null, true),
+    decompose: (t, m, x) => controlPrompt(t, m, 1, null, true),
+    search: GOV_INITIAL,
+    style: "memory",
   },
   // Phase-1 linear context: planner writes a `have`-skeleton, isolated minions
   // fill each hole, an assembler stitches + re-verifies. Bounded context per
@@ -3108,6 +3157,8 @@ function clearUsageBlock() {
 // expired clock.
 function deadlinePassed(ctx) {
   if (usageBlocked()) return true
+  // Optional estimated-cost cap (the CLI's own total_cost_usd, summed as each session ends): checked between sessions.
+  if (ctx?.costCapUsd > 0 && (ctx.metrics?.cost_usd || 0) >= ctx.costCapUsd) return true
   if (typeof ctx?.getDeadline !== "function") return false
   const dl = ctx.getDeadline()
   return Number.isFinite(dl) && Date.now() >= dl
@@ -3170,7 +3221,7 @@ function mapObjectToEvents(o, emit, stage, metrics) {
 // `onObject` (which returns true to stop the run early — e.g. goal closed), and
 // mirror activity into the console via `emit`. Shared by the node-prover and the
 // decomposer. Resolves when the process exits.
-function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId }, { onObject, emit }) {
+function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, bridgeServerName, searchAugment, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId }, { onObject, emit }) {
   return new Promise((resolve) => {
     // Each subagent run gets its OWN search governor (budget resets per node /
     // per decomposition — a fresh sub-goal earns a fresh allowance). The initial
@@ -3181,6 +3232,8 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     // local MCP server as the governed search, so the CLI reaches them without
     // ever talking to Leak XII/XIV directly.
     if (bridgeHandlers) for (const [n, h] of bridgeHandlers) governor.handlers.set(n, h)
+    if (bridgeServerName) governor.serverName = bridgeServerName
+    if (typeof searchAugment === "function") governor.augment = searchAugment
     let cfgPath
     try {
       const dir = mkdtempSync(join(tmpdir(), "claude-tree-"))
@@ -6310,6 +6363,196 @@ ${theorem}`
 }
 
 const CONTROL_LABELS = { 1: "Leak Control I", 2: "Leak Control II", 4: "Leak Control IV" }
+
+// ---- Control II with memory (experimental) ----------------------------------------------------------------
+// public/leak-memory.mjs holds the memory itself (pure, tested without Leak). It sits next to this file, like
+// leak-min-imports.mjs; the setup command on the Leak page downloads both.
+let _memoryModule = null
+async function memoryModule() {
+  if (_memoryModule) return _memoryModule
+  try {
+    _memoryModule = await import(new URL("./leak-memory.mjs", import.meta.url).href)
+  } catch (e) {
+    throw new Error(`leak-memory.mjs is missing next to the bridge (${String(e?.message || e).slice(0, 120)}). Run the setup command on the Leak page again: it downloads both files.`)
+  }
+  return _memoryModule
+}
+
+const queryOfArgs = (args) => Object.values(args || {}).filter((v) => typeof v === "string").join(" ")
+
+// The prompt of a memory variant. Same skeleton as controlPrompt (Control II: Leak IV + Leak I search, one continuous agent,
+// fresh attempts until the clock ends), with the rule about top-level lemmas turned around: here a verified helper lemma is
+// the unit of progress that the memory keeps.
+function controlMemoryPrompt(M, variantKey, memory, theorem, mcpServers, attempt, lastAttempt) {
+  const cfg = M.VARIANTS[variantKey]
+  const extra = cfg.tools.map((t) => ({ id: `mcp__memory__${t}`, args: t === "memory_recall" ? ["query", "limit"] : t === "memory_nominate" ? ["names", "on"] : ["limit", "nominatedOnly"] }))
+  const toolSection = mcpToolSection(mcpServers, extra)
+  const lastBlock = lastAttempt
+    ? `\nYOUR MOST RECENT SUBMISSION (a previous session — different context, so this is carried forward as established fact about what was already tried):\n\`\`\`lean\n${String(lastAttempt.script || "").slice(0, 4000)}\n\`\`\`\nLeak IV's response to it:\n${String(lastAttempt.result || "").slice(0, 2500)}\n\nDo not just resubmit it unchanged. Fix precisely what that error points at, or switch to a genuinely different approach.\n`
+    : ""
+  const episodic = cfg.episodic ? M.episodicBlock(memory, cfg.episodic) : ""
+  const memLine = memory.size
+    ? `This target's memory already holds ${memory.size} verified theorem(s).`
+    : "This target's memory is empty so far."
+  return `You are working on ONE Lean 4 + Mathlib theorem in a long, single continuous session, and you keep a library of verified theorems as you go. Your tools are Leak IV's verify_full_script — it IS the compiler: every call returns either "✅ Compilation Successful! The proof is 100% verified." or the exact Lean diagnostic text (line number, error/warning message) — and Leak I's loogle_search/moogle_search for library lookups. verify_full_script is the ONLY thing that counts as progress; search only supports a submission, it does not replace one. ${memLine}
+
+${toolSection}
+
+THE LOOP:
+1. Decide the next claim that moves you toward the theorem: the theorem itself, or a lemma it will need.
+2. Write the complete Lean script and call verify_full_script with it.
+3. If it fails, read the compiler's error CAREFULLY — the line and message tell you exactly what broke. Fix precisely that, or try a genuinely different approach to the same claim. Resubmit.
+4. A script only counts when verify_full_script reports success with ZERO 'sorry'. A verified, non-trivial theorem is saved to the memory automatically.
+${SEARCH_USAGE_NOTE}
+
+RULES:
+${M.memoryRules(variantKey)}
+- Never conclude the target is "too hard", "open" or beyond reach, and never ask to split it: there is no one to hand it to. A failing approach means a DIFFERENT strategy, or a different lemma that gets you closer.
+- Never stop on your own. This is attempt ${attempt} of an unbounded series the system keeps making until you succeed or the run's own wall clock ends it.
+- The target is only proved when verify_full_script succeeds on a script that contains the target's exact statement with no sorry.
+${episodic}${lastBlock}
+Theorem (its signature is immutable):
+${theorem}`
+}
+
+// The sleep stage of Control II Lucid: a short separate session whose only tool is Leak IV, asked to generalise clusters of
+// saved lemmas. Nothing it says is trusted: every candidate is re-verified here before it is added to the memory.
+async function runSleepStage(M, memory, ctx, theorem, cfg, state) {
+  state.lastSleepAt = Date.now()
+  state.lastSleepIso = new Date().toISOString()
+  memory.stats.sleeps++
+  const verifyOnly = (ctx.mcpServers || []).filter((s) => s?.url === ctx.verifyUrl)
+  ctx.emit({ type: "message-annotation", subtype: "status", thought: `🌙 Sleep: consolidating ${memory.size} saved theorem(s) into more general lemmas (at most ${Math.round(cfg.sleep.timeboxMs / 60000)} min).` })
+  const r = await spawnProverStream(
+    {
+      prompt: M.sleepPrompt(memory, theorem),
+      mcpServers: verifyOnly,
+      model: ctx.model,
+      maxTurns: 0,
+      timeoutMs: cfg.sleep.timeboxMs,
+      getDeadline: ctx.getDeadline,
+      stage: "🌙",
+      metrics: ctx.metrics,
+      signal: ctx.signal,
+      searchBudget: 0,
+    },
+    { onObject: () => false, emit: ctx.emit },
+  )
+  let kept = 0
+  for (const c of M.parseSleep(r?.finalText)) {
+    if (ctx.signal?.aborted || deadlinePassed(ctx)) break
+    const v = await verifyViaDaemon(c.script, ctx.verifyUrl, { timeoutMs: ctx.verifyTimeoutMs })
+    if (!(v.ok && isHoleFreeProof(parseVerifyOutput(v.text)))) continue
+    kept += memory.addAbstract(c.script, M.resolveSubsumes(memory, c.subsumes), { attempt: state.attempt }).length
+  }
+  ctx.emit({ type: "message-annotation", subtype: "status", thought: `🌙 Sleep done: ${kept} abstract lemma(s) added (each re-verified).` })
+}
+
+async function proveControlMemory(theorem, ctx, opts = {}) {
+  if (ctx.signal?.aborted) return { verified: false, proof: "" }
+  const M = await memoryModule()
+  const variantKey = ctx.strategy
+  const cfg = M.VARIANTS[variantKey]
+  if (!cfg) {
+    ctx.emit({ type: "message-annotation", subtype: "error", thought: `Unknown memory variant ${variantKey}.` })
+    return { verified: false, proof: "" }
+  }
+  ctx.stage = "🧠"
+  const memory = new M.Memory({ targetId: ctx.targetId, variant: variantKey, emit: ctx.emit })
+  const loaded = memory.load(Array.isArray(opts?.memory?.entries) ? opts.memory.entries.slice(0, M.MAX_ENTRIES) : [])
+  const sig = theoremSignature(theorem)
+  const pantographUrl = resolvePantographUrl(ctx.mcpServers)
+  const allowedServers = (ctx.mcpServers || []).filter((s) => s?.url && s.url !== pantographUrl)
+  const handlers = M.makeHandlers(memory, variantKey)
+  const augment = cfg.augmentSearch ? (toolName, args, text) => M.augmentSearchText(memory, queryOfArgs(args), text) : null
+  const attemptMs = ctx.attemptMsOverride || cfg.attemptMs
+  const sleepState = { lastSleepAt: 0, lastSleepIso: "", attempt: 0 }
+  const statsFrame = () => ctx.emit({ type: "memory", op: "stats", stats: { ...memory.stats, size: memory.size, nominated: memory.nominated().length } })
+  ctx.emit({
+    type: "message-annotation",
+    subtype: "status",
+    thought: `🧠 ${cfg.name}: one continuous agent against Leak IV + Leak I search, a library of verified theorems (${loaded} loaded for this target), fresh attempts of at most ${Math.round(attemptMs / 60000)} min until the clock ends.`,
+  })
+  let attempt = 0
+  let lastAttempt = null
+  while (!ctx.signal?.aborted && !deadlinePassed(ctx)) {
+    attempt++
+    sleepState.attempt = attempt
+    if (cfg.sleep && M.sleepDue(memory, sleepState, cfg.sleep)) {
+      try {
+        await runSleepStage(M, memory, ctx, theorem, cfg, sleepState)
+      } catch (e) {
+        ctx.emit({ type: "message-annotation", subtype: "error", thought: `🌙 Sleep stage failed (${String(e?.message || e).slice(0, 160)}); carrying on.` })
+      }
+      if (ctx.signal?.aborted || deadlinePassed(ctx)) break
+    }
+    if (attempt > 1)
+      ctx.emit({ type: "message-annotation", subtype: "status", thought: `🧠 Attempt ${attempt} — fresh context, ${memory.size} verified theorem(s) in memory${lastAttempt ? ", last submission carried forward" : ""}.` })
+    const gate = makeProofGate(theorem)
+    const pendingVerify = new Map()
+    await spawnProverStream(
+      {
+        prompt: controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt),
+        mcpServers: allowedServers,
+        model: ctx.model,
+        maxTurns: 0,
+        timeoutMs: ctx.nodeTimeoutMs > 0 ? Math.min(ctx.nodeTimeoutMs, attemptMs) : attemptMs,
+        getDeadline: ctx.getDeadline,
+        stage: "🧠",
+        metrics: ctx.metrics,
+        signal: ctx.signal,
+        searchBudget: ctx.searchBudget,
+        bridgeHandlers: handlers.size ? handlers : undefined,
+        bridgeServerName: handlers.size ? "memory" : undefined,
+        searchAugment: augment,
+      },
+      {
+        onObject: (o) => {
+          const ev = gate.observe(o)
+          try {
+            if (o?.type === "assistant" && Array.isArray(o.message?.content)) {
+              for (const c of o.message.content)
+                if (c?.type === "tool_use" && c.id && String(c.name || "").endsWith("verify_full_script") && typeof c.input?.script === "string") pendingVerify.set(c.id, c.input.script)
+            } else if (o?.type === "user" && Array.isArray(o.message?.content)) {
+              for (const c of o.message.content) {
+                if (c?.type !== "tool_result" || !c.tool_use_id || !pendingVerify.has(c.tool_use_id)) continue
+                const t = Array.isArray(c.content) ? c.content.map((x) => x?.text || "").join("\n") : String(c.content ?? "")
+                const script = pendingVerify.get(c.tool_use_id)
+                lastAttempt = { script, result: t }
+                // Leak IV accepted this script with no error, no warning and no sorry: its theorems go to the memory.
+                if (verifyResultSucceeded(t)) memory.addScript(script, { attempt, isTarget: scriptProvesTarget(script, sig) })
+              }
+            }
+          } catch {
+            /* memory must never break the run */
+          }
+          return !!ev?.verified
+        },
+        emit: ctx.emit,
+      },
+    )
+    statsFrame()
+    if (gate.verifiedScript) {
+      const v = await verifyViaDaemon(gate.verifiedScript, ctx.verifyUrl, { timeoutMs: ctx.verifyTimeoutMs })
+      if (v.ok && isHoleFreeProof(parseVerifyOutput(v.text)) && scriptProvesTarget(gate.verifiedScript, sig)) {
+        memory.addScript(gate.verifiedScript, { attempt, isTarget: true })
+        statsFrame()
+        ctx.emit({ type: "message-annotation", subtype: "status", thought: `✅ ${cfg.name} closed it on attempt ${attempt} — verified sorry-free against Leak IV.` })
+        return { verified: true, proof: gate.verifiedScript }
+      }
+      ctx.emit({
+        type: "message-annotation",
+        subtype: "status",
+        thought: `⚠️ A proof was verified, but its final re-check did not pass (${v.ok ? "it still has a hole or a different statement" : String(v.error || v.text || "no answer").slice(0, 160)}); trying again.`,
+      })
+    }
+  }
+  statsFrame()
+  if (ctx.signal?.aborted) return { verified: false, proof: "" }
+  const why = ctx.costCapUsd > 0 && (ctx.metrics?.cost_usd || 0) >= ctx.costCapUsd ? "reached the estimated-cost cap" : "ran out of clock"
+  ctx.emit({ type: "message-annotation", subtype: "error", thought: `🧠 ${cfg.name} ${why} after ${attempt} attempt(s) without a verified proof of the target; ${memory.size} verified theorem(s) are saved for this target.` })
+  return { verified: false, proof: "" }
+}
 
 // Loop-until-deadline across FRESH attempts (same shape as the architect
 // stages' own attempt loop): a single spawnProverStream call is one
@@ -12224,7 +12467,7 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
   const rawBudget = Number(opts.computeBudgetMs)
   const budgetMs =
     Number.isFinite(rawBudget) && rawBudget > 0
-      ? Math.min(Math.max(rawBudget, 60000), 21600000)
+      ? Math.min(Math.max(rawBudget, 60000), style === "memory" ? 172800000 : 21600000) // memory variants are for 12-24 h runs: up to 48 h
       : 0
   // Leak River's refinement budget lives on the run state too, so the UI's
   // "+1 iter" button can raise it mid-flight (see /extend). Meaningless for the
@@ -12262,6 +12505,11 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
     // getDeadline, so "+1 iter" reaches a run already on its last iteration.
     getMaxIters: () => runState.maxIters,
     computeGoverned: budgetMs > 0,
+    // estimated-cost cap in USD (0 = none); see deadlinePassed
+    costCapUsd: Number(opts.maxCostUsd) > 0 ? Math.min(Number(opts.maxCostUsd), 5000) : 0,
+    // memory variants: which target the saved theorems belong to, and a per-attempt length override for experiments
+    targetId: typeof opts.targetId === "string" ? opts.targetId.slice(0, 80) : "",
+    attemptMsOverride: Number(opts.attemptMs) > 0 ? clampNum(opts.attemptMs, 60000, 21600000, 0) : 0,
     // The mechanic's window: run-scoped ring of rendered stream frames.
     streamLog,
     // Turn budgets below are used ONLY by the lemma-style prove-or-split tree
@@ -12315,7 +12563,7 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
           emit({ type: "message-annotation", subtype: "error", thought: "❌ System check failed — the architect pipeline did not produce a certified proof." })
           send({ type: "text-delta", content: "⚠️ Not accepted — the architect run did not produce a certified, sorry-free proof of the target." })
         }
-      } else if (style === "have" || style === "have-tree" || style === "have-surround" || style === "finality" || style === "force" || style === "forte" || style === "keep" || style === "impenetrable" || style === "control" || style === "control2" || style === "control3" || style === "control4") {
+      } else if (style === "memory" || style === "have" || style === "have-tree" || style === "have-surround" || style === "finality" || style === "force" || style === "forte" || style === "keep" || style === "impenetrable" || style === "control" || style === "control2" || style === "control3" || style === "control4") {
         // `have`: one agent, whole proof in one context. `have-tree`: planner +
         // isolated per-hole minions (linear context), falling back to `have`.
         // `have-surround`: have-tree with the minion phase parallelized over
@@ -12344,6 +12592,8 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
                         ? await proveStrongholdKeep(theorem, ctx)
                         : style === "impenetrable"
                           ? await proveStrongholdImpenetrable(theorem, ctx)
+                          : style === "memory"
+                            ? await proveControlMemory(theorem, ctx, opts)
                           : style === "control"
                             ? await proveControl(theorem, ctx, 1)
                             : style === "control2"

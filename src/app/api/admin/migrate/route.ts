@@ -182,6 +182,21 @@ export async function POST() {
       );
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_leak_submissions_submitted_at ON leak_submissions(submitted_at DESC);`;
+    // The memory of Leak's Control II variants: verified theorems a run proved on the way to a target, per account and
+    // per target (every query filters by username). See src/app/lib/data/leak-memory.ts.
+    await sql`
+      CREATE TABLE IF NOT EXISTS leak_memory (
+        username TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        entry_id TEXT NOT NULL,
+        entry JSONB NOT NULL,
+        nominated BOOLEAN NOT NULL DEFAULT FALSE,
+        saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (username, target_id, entry_id)
+      );
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_leak_memory_user_target ON leak_memory(username, target_id);`;
     // Tengoku's actual theorem rows (statement + full proof) live across 10
     // sharded Neon databases (ANGEL0..ANGEL9 — see tengoku-shard-config.ts),
     // each a separate free-tier project since Prove2Me's proofs alone

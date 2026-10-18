@@ -266,7 +266,7 @@ export function LocalClaudeAgentManagement({
     bridgePort && bridgePort !== '4123' ? `PORT='${bridgePort}' ` : '';
   const setupCommand =
     origin && connection.token
-      ? `curl -fsSL '${origin}/local-claude-bridge.mjs' -o claude-bridge.mjs && ${portEnv}BRIDGE_TOKEN='${connection.token}' ALLOWED_ORIGINS='${origin}' node claude-bridge.mjs`
+      ? `curl -fsSL '${origin}/local-claude-bridge.mjs' -o claude-bridge.mjs && curl -fsSL '${origin}/leak-min-imports.mjs' -o leak-min-imports.mjs && curl -fsSL '${origin}/leak-memory.mjs' -o leak-memory.mjs && ${portEnv}BRIDGE_TOKEN='${connection.token}' ALLOWED_ORIGINS='${origin}' node claude-bridge.mjs`
       : '';
 
   const copyLeakIvCommand = async () => {
