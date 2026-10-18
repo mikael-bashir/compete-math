@@ -1,0 +1,34 @@
+{
+  "id": "erdos-396",
+  "title": "Erdős 396 · central binomial and descending factorials",
+  "short": "Erdős 396",
+  "kind": "open-problem",
+  "status": "open",
+  "statement": "open Nat in\ntheorem erdos_396 : ∀ k : ℕ, ∃ n : ℕ, descFactorial n (k + 1) ∣ centralBinom n := by\n  sorry",
+  "informal": "For every k, is there an n such that n(n−1)⋯(n−k) divides the central binomial coefficient C(2n, n)?",
+  "direction": "yes (heuristically true, no proof known)",
+  "provenance": {
+    "formalConjectures": {
+      "repo": "google-deepmind/formal-conjectures",
+      "pinnedCommit": "71a0744",
+      "pinnedForm": "answer(sorry) ↔ ∀ k, ∃ n, descFactorial n (k + 1) ∣ centralBinom n",
+      "upstreamCommit": "d9ce556",
+      "upstreamForm": "∀ k, ∃ n, descFactorial n (k + 1) ∣ centralBinom n",
+      "tag": "research open"
+    },
+    "erdosproblems": { "url": "https://www.erdosproblems.com/396", "marking": "open, no solution listed" },
+    "oeis": { "id": "A375077", "note": "smallest n for each k: 2, 2480, 8178, …" },
+    "alphaproof": "not attempted there: the comparison is against formal-conjectures and OEIS, not against an AlphaProof output"
+  },
+  "checks": {
+    "compiledOn": "Leak IV, only the expected sorry warning",
+    "comparisonLemmas": [
+      "descFactorial n (k+1) = ∏ i ∈ range (k+1), (n − i)  (Nat.descFactorial_eq_prod_range)",
+      "centralBinom n = (2n).descFactorial n / n!",
+      "n = 2, 2480, 8178 satisfy the statement for k = 1, 2, 3 (kernel-checked)",
+      "k = 2: 2479 does not satisfy it, so 2480 is the least witness, as A375077 says"
+    ],
+    "checkedAt": "2026-10-17"
+  },
+  "seeds": []
+}

@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { toast } from 'sonner';
 import {
   Loader2,
   Send,
@@ -19,12 +21,27 @@ import {
 } from '@/lib/prover/run-prover-stream';
 import { ProverConsole } from '@/components/prover/prover-console';
 import type { ProverEvent, ProverOutcome } from '@/lib/prover/types';
+import { LEAK_TARGETS, findLeakTarget } from '@/data/leak-targets';
+import { LeakMemoryModal } from '@/components/prover/leak-memory-modal';
+import {
+  MEMORY_VARIANTS,
+  applyMemoryFrame,
+  deleteMemoryEntry,
+  isMemoryStrategy,
+  loadMemory,
+  packMemory,
+  saveMemoryEntries,
+  setMemoryNominated,
+  type MemoryEntry,
+} from '@/lib/prover/memory-client';
 import { publishProverEvent, publishRunEnd, publishRunReset } from '@/lib/universe/live-bus';
 
 // Wall-clock budget for a decomposition (tree) run. The tree path governs by
 // TIME when this is set and reports a runId so "+5 min" can push it out; the
 // single-agent path ignores it. Never a cap on the prover otherwise.
 const PLAYGROUND_COMPUTE_BUDGET_MS = 30 * 60_000;
+// Longest wall-clock limit the bridge honours: 48 h for the memory variants (built for 12-24 h runs), 6 h for the rest.
+const limitCapHours = (strategy: string) => (isMemoryStrategy(strategy) ? 48 : 6);
 // The architect strategy is governed much tighter — fail fast/cheap while
 // it's under test — and extends one minute at a time instead of five.
 const ARCHITECT_COMPUTE_BUDGET_MS = 5 * 60_000;
@@ -63,6 +80,109 @@ export function ProverPlayground() {
     if (isRiverStrategy(strategy)) setModel(ARCHITECT_MODEL);
     else setModel((m) => (m === ARCHITECT_MODEL ? '' : m));
   }, [strategy]);
+  // Roadmap target ('' = free text). Selecting one fills the statement, which is then fixed to what was vetted.
+  const [targetId, setTargetId] = useState('');
+  const target = findLeakTarget(targetId);
+  const customProblem = useRef('');
+  // Optional limits for the run: wall-clock (hours) and a dollar cap on the CLI's list-price estimate. Blank = default / none.
+  const [limitHours, setLimitHours] = useState('');
+  const [costCap, setCostCap] = useState('');
+  // Memory of the signed-in account for the selected target (the bridge keeps nothing between runs).
+  const { data: session } = useSession();
+  const signedIn = !!session?.user;
+  const [memory, setMemory] = useState<MemoryEntry[]>([]);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryStats, setMemoryStats] = useState<Record<string, number> | null>(null);
+  const [memoryLimits, setMemoryLimits] = useState({ maxNominated: 10, minNominatedForAudit: 3 });
+  const pendingSave = useRef<Map<string, MemoryEntry>>(new Map());
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warnedSave = useRef(false);
+  const memoryRef = useRef<MemoryEntry[]>([]);
+  memoryRef.current = memory;
+
+  const pickTarget = (id: string) => {
+    const t = findLeakTarget(id);
+    if (t && !targetId) customProblem.current = problem;
+    setTargetId(id);
+    if (t) setProblem(t.statement);
+    else if (customProblem.current) setProblem(customProblem.current);
+  };
+
+  // Load this account's saved theorems whenever the target (or the account) changes.
+  useEffect(() => {
+    setMemoryStats(null);
+    setMemory([]);
+    if (!targetId || !signedIn) return;
+    let live = true;
+    setMemoryLoading(true);
+    loadMemory(targetId).then((r) => {
+      if (!live) return;
+      setMemoryLoading(false);
+      if (r.ok) {
+        setMemory(r.data.entries);
+        setMemoryLimits({ maxNominated: r.data.limits.maxNominated, minNominatedForAudit: r.data.limits.minNominatedForAudit });
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [targetId, signedIn]);
+
+  const flushSaves = useCallback(async () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    if (!targetId || !signedIn || pendingSave.current.size === 0) return;
+    const batch = [...pendingSave.current.values()].slice(0, 100);
+    for (const e of batch) pendingSave.current.delete(e.id);
+    const r = await saveMemoryEntries(targetId, batch);
+    if (!r.ok && !warnedSave.current) {
+      warnedSave.current = true;
+      toast.error(`Could not save to your memory (${r.error}). Entries stay in this tab until you reload.`);
+    }
+    if (pendingSave.current.size) saveTimer.current = setTimeout(() => void flushSaves(), 1500);
+  }, [targetId, signedIn]);
+
+  const onMemoryFrame = useCallback(
+    (frame: import('@/lib/prover/run-prover-stream').MemoryFrame) => {
+      if (frame.op === 'stats') {
+        setMemoryStats(frame.stats);
+        return;
+      }
+      setMemory((prev) => applyMemoryFrame(prev, frame));
+      if (frame.op === 'save' || frame.op === 'update') {
+        const e = frame.entry as unknown as MemoryEntry;
+        if (e?.id) pendingSave.current.set(e.id, e);
+        if (!saveTimer.current) saveTimer.current = setTimeout(() => void flushSaves(), 2000);
+      } else if (frame.op === 'nominate' && targetId && signedIn) {
+        void setMemoryNominated(targetId, frame.id, frame.nominated);
+      }
+    },
+    [flushSaves, targetId, signedIn],
+  );
+
+  const nominate = useCallback(
+    async (id: string, on: boolean) => {
+      if (!targetId) return;
+      setMemory((m) => m.map((e) => (e.id === id ? { ...e, nominated: on } : e)));
+      if (!signedIn) return;
+      const r = await setMemoryNominated(targetId, id, on);
+      if (!r.ok || !r.data.ok) {
+        setMemory((m) => m.map((e) => (e.id === id ? { ...e, nominated: !on } : e)));
+        toast.error(r.ok ? (r.data.reason ?? 'Could not nominate') : r.error);
+      }
+    },
+    [targetId, signedIn],
+  );
+
+  const removeEntry = useCallback(
+    async (id: string) => {
+      if (!targetId) return;
+      setMemory((m) => m.filter((e) => e.id !== id));
+      if (signedIn) await deleteMemoryEntry(targetId, id);
+    },
+    [targetId, signedIn],
+  );
+
   // Refinement-iteration budget for Leak River runs (+1 per click).
   const [maxIters, setMaxIters] = useState(ARCHITECT_DEFAULT_ITERS);
 
@@ -103,6 +223,13 @@ export function ProverPlayground() {
         publishProverEvent(e);
         setEvents((prev) => [...prev, e]);
       };
+      // The account's limits for this run, validated: hours within (0, 48], dollars within (0, 5000].
+      const hours = Number(limitHours);
+      const customBudgetMs = Number.isFinite(hours) && hours > 0 ? Math.min(hours, limitCapHours(strategy)) * 3_600_000 : 0;
+      const cap = Number(costCap);
+      const maxCostUsd = Number.isFinite(cap) && cap > 0 ? Math.min(cap, 5000) : undefined;
+      const usesMemory = asTree && isMemoryStrategy(strategy);
+      pendingSave.current.clear();
       try {
         const mcpServers = await fetchProverMcpServers();
         const out = await runProverStream({
@@ -120,8 +247,12 @@ export function ProverPlayground() {
           computeBudgetMs: asTree
             ? isArchitectStrategy(strategy)
               ? ARCHITECT_COMPUTE_BUDGET_MS
-              : PLAYGROUND_COMPUTE_BUDGET_MS
+              : customBudgetMs || PLAYGROUND_COMPUTE_BUDGET_MS
             : undefined,
+          maxCostUsd: asTree ? maxCostUsd : undefined,
+          targetId: usesMemory && target ? target.id : undefined,
+          memoryEntries: usesMemory && target ? packMemory(memoryRef.current) : undefined,
+          onMemory: usesMemory ? onMemoryFrame : undefined,
           maxIters: isArchitectStrategy(strategy) ? maxIters : undefined,
           onRunId: ({ runId, deadlineMs, budgetMs }) => {
             runIdRef.current = runId;
@@ -134,13 +265,14 @@ export function ProverPlayground() {
       } catch {
         /* the console already shows the error event (or the abort) */
       } finally {
+        await flushSaves();
         publishRunEnd();
         setRunning(false);
         runIdRef.current = null;
         abortRef.current = null;
       }
     },
-    [problem, decompose, strategy, model, maxIters],
+    [problem, decompose, strategy, model, maxIters, limitHours, costCap, target, onMemoryFrame, flushSaves],
   );
 
   // Push the running prove's wall-clock budget out. Best-effort.
@@ -182,6 +314,7 @@ export function ProverPlayground() {
       <Textarea
         value={problem}
         onChange={(e) => setProblem(e.target.value)}
+        readOnly={!!target}
         rows={4}
         className="font-mono text-sm"
         placeholder="Enter a statement (Lean theorem, or a problem to prove)…"
@@ -282,6 +415,13 @@ export function ProverPlayground() {
                 Leak Stronghold Impenetrable (apply?-driven recon sweep, then
                 Surround)
               </option>
+              <optgroup label="Control II memory (experimental · pick a target to use them)">
+                {MEMORY_VARIANTS.map((v) => (
+                  <option key={v.key} value={v.key}>
+                    {v.label} ({v.blurb})
+                  </option>
+                ))}
+              </optgroup>
               <optgroup label="Leak Ultra (Goedel blueprint · claude driver)">
                 <option value="ultra-fleeting">
                   Leak Ultra Fleeting (model from the selector)
@@ -297,6 +437,69 @@ export function ProverPlayground() {
               </optgroup>
             </select>
           </label>
+        )}
+        <label className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+          Target
+          <select
+            value={targetId}
+            onChange={(e) => pickTarget(e.target.value)}
+            disabled={running}
+            className="w-auto! max-w-[200px] truncate rounded-md border bg-background px-1.5 py-0.5 text-[10px]"
+            title="A vetted open problem, stated once, to point the run at. Free text keeps the box above editable."
+          >
+            <option value="">Free text</option>
+            {LEAK_TARGETS.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        {decompose && !isArchitectStrategy(strategy) && (
+          <>
+            <label className="inline-flex items-center gap-1 text-[10px] text-muted-foreground" title={`Wall-clock limit for the run, up to ${limitCapHours(strategy)} h for this strategy. Blank = ${PLAYGROUND_COMPUTE_BUDGET_MS / 60_000} min.`}>
+              Time limit
+              <input
+                type="number"
+                min={0.1}
+                max={limitCapHours(strategy)}
+                step={0.5}
+                value={limitHours}
+                onChange={(e) => setLimitHours(e.target.value)}
+                disabled={running}
+                placeholder={`${PLAYGROUND_COMPUTE_BUDGET_MS / 60_000} min`}
+                className="w-16 rounded-md border bg-background px-1.5 py-0.5 text-[10px]"
+              />
+              h
+            </label>
+            <label className="inline-flex items-center gap-1 text-[10px] text-muted-foreground" title="Stop when the CLI's list-price cost estimate reaches this. Blank = no cap.">
+              Cost cap $
+              <input
+                type="number"
+                min={1}
+                max={5000}
+                step={5}
+                value={costCap}
+                onChange={(e) => setCostCap(e.target.value)}
+                disabled={running}
+                placeholder="none"
+                className="w-16 rounded-md border bg-background px-1.5 py-0.5 text-[10px]"
+              />
+            </label>
+          </>
+        )}
+        {target && (
+          <LeakMemoryModal
+            targetTitle={target.short}
+            entries={memory}
+            signedIn={signedIn}
+            loading={memoryLoading}
+            stats={memoryStats}
+            maxNominated={memoryLimits.maxNominated}
+            minNominated={memoryLimits.minNominatedForAudit}
+            onNominate={nominate}
+            onDelete={removeEntry}
+          />
         )}
         {/* The refinement-budget control lives on the console below, alongside the
             clock control, so it can be raised MID-FLIGHT and not just per run. */}
@@ -338,6 +541,16 @@ export function ProverPlayground() {
           </Button>
         </div>
       </div>
+      {decompose && isMemoryStrategy(strategy) && (
+        <p className="text-xs text-muted-foreground">
+          {MEMORY_VARIANTS.find((v) => v.key === strategy)?.label}: {MEMORY_VARIANTS.find((v) => v.key === strategy)?.blurb}.{' '}
+          {target
+            ? signedIn
+              ? 'Every non-trivial theorem it verifies on Leak IV is saved to your account for this target.'
+              : 'Sign in to keep what it saves between sessions.'
+            : 'Pick a target to give it a memory; without one it runs with an empty library.'}
+        </p>
+      )}
       {decompose && (
         <p className="text-xs text-muted-foreground">
           Prove-or-split: each goal gets a bounded direct attempt, then is broken
@@ -346,13 +559,15 @@ export function ProverPlayground() {
           {strategy === 'pantograph'
             ? 'Pantograph mode builds proofs interactively in Leak II; Leak IV is used only as the final guardrail.'
             : 'Hacker mode leads with the compiler (verify_full_script) and strong automation.'}{' '}
-          Needs a verify_full_script MCP server connected. Runs under a{' '}
-          {Math.round(
-            (isArchitectStrategy(strategy)
-              ? ARCHITECT_COMPUTE_BUDGET_MS
-              : PLAYGROUND_COMPUTE_BUDGET_MS) / 60_000,
-          )}
-          -minute compute budget you can extend live (+
+          Needs a verify_full_script MCP server connected. Runs under a compute budget of{' '}
+          {Number(limitHours) > 0 && !isArchitectStrategy(strategy)
+            ? `${Math.min(Number(limitHours), limitCapHours(strategy))} h`
+            : `${Math.round(
+                (isArchitectStrategy(strategy)
+                  ? ARCHITECT_COMPUTE_BUDGET_MS
+                  : PLAYGROUND_COMPUTE_BUDGET_MS) / 60_000,
+              )} min`}{' '}
+          that you can extend live (+
           {Math.round(
             (isArchitectStrategy(strategy) ? ARCHITECT_EXTEND_MS : 5 * 60_000) /
               60_000,
