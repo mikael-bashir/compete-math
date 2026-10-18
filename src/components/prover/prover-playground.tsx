@@ -490,6 +490,7 @@ export function ProverPlayground() {
         )}
         {target && (
           <LeakMemoryModal
+            targetId={target.id}
             targetTitle={target.short}
             entries={memory}
             signedIn={signedIn}

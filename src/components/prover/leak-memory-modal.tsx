@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { BookMarked, ChevronRight, Copy, Trash2 } from 'lucide-react';
+import { BookMarked, ChevronRight, Copy, Download, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -15,6 +15,7 @@ import {
 import type { MemoryEntry } from '@/lib/prover/memory-client';
 
 interface Props {
+  targetId: string;
   targetTitle: string;
   entries: MemoryEntry[];
   signedIn: boolean;
@@ -33,7 +34,7 @@ const when = (iso: string) => {
 
 // Every theorem the signed-in account's runs saved for the selected target, with the nomination that decides what the
 // Tengoku audit will look at. The list is the account's own: the API filters by username.
-export function LeakMemoryModal({ targetTitle, entries, signedIn, loading, stats, maxNominated, minNominated, onNominate, onDelete }: Props) {
+export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, loading, stats, maxNominated, minNominated, onNominate, onDelete }: Props) {
   const [open, setOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const nominated = entries.filter((e) => e.nominated).length;
@@ -70,6 +71,19 @@ export function LeakMemoryModal({ targetTitle, entries, signedIn, loading, stats
             {stats.sleeps ? `, ${stats.sleeps} sleep pass(es) merged ${stats.abstracted ?? 0}` : ''}.
           </p>
         )}
+
+        <div className="flex items-center justify-end gap-2">
+          {signedIn && nominated >= minNominated && (
+            <a
+              href={`/api/leak/memory/bundle?target=${encodeURIComponent(targetId)}`}
+              download
+              className="inline-flex h-6 items-center gap-1 rounded-md border px-2 text-[10px] transition-colors hover:bg-muted [&_svg]:size-3"
+              title="Download the nominated theorems as the bundle the Tengoku intake takes. Nothing is sent anywhere."
+            >
+              <Download /> Export nominated ({nominated})
+            </a>
+          )}
+        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {!signedIn && (
