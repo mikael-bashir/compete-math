@@ -31,7 +31,6 @@ export const VARIANTS = {
     episodic: 0,
     augmentSearch: false,
     sleep: null,
-    attemptMs: 45 * 60_000,
   },
   "control-flint": {
     name: "Control II Flint",
@@ -40,7 +39,6 @@ export const VARIANTS = {
     episodic: 10,
     augmentSearch: false,
     sleep: null,
-    attemptMs: 30 * 60_000,
   },
   "control-paragon": {
     name: "Control II Paragon",
@@ -49,7 +47,6 @@ export const VARIANTS = {
     episodic: 0,
     augmentSearch: true,
     sleep: null,
-    attemptMs: 45 * 60_000,
   },
   "control-lucid": {
     name: "Control II Lucid",
@@ -58,7 +55,6 @@ export const VARIANTS = {
     episodic: 0,
     augmentSearch: false,
     sleep: { everyMs: 60 * 60_000, minNew: 6, timeboxMs: 10 * 60_000 },
-    attemptMs: 45 * 60_000,
   },
 }
 export const isMemoryVariant = (name) => Object.prototype.hasOwnProperty.call(VARIANTS, String(name))

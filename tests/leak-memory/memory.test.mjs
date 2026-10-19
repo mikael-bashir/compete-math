@@ -47,6 +47,8 @@ theorem still_open (n : ℕ) : n = n + 0 := by
 test("variants: four of them, each with a name, and only the memory ones are memory variants", () => {
   assert.deepEqual(Object.keys(VARIANTS).sort(), ["control-flint", "control-honoured", "control-lucid", "control-paragon"])
   for (const v of Object.values(VARIANTS)) assert.ok(v.name.startsWith("Control II "))
+  // the agent manages its own context: no variant ends a session on a timer of its own
+  for (const v of Object.values(VARIANTS)) assert.ok(!("attemptMs" in v), `${v.name} has a timer of its own on a session`)
   assert.ok(isMemoryVariant("control-lucid"))
   assert.ok(!isMemoryVariant("control-oneshot-2"))
   assert.ok(!isMemoryVariant("toString")) // not inherited keys

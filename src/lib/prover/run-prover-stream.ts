@@ -80,13 +80,12 @@ interface RunOpts {
   maxIters?: number;
   // Leak memory (the Control II variants Honoured / Flint / Paragon / Lucid). `targetId` names the roadmap target the run
   // is for; `memoryEntries` are the signed-in account's saved theorems for it, which the bridge loads for this run only
-  // (it keeps nothing between runs). `maxCostUsd` and `attemptMs` are optional limits the memory variants honour.
+  // (it keeps nothing between runs). `maxCostUsd` is an optional limit the memory variants honour. (There is no per-session time cap: the agent manages its own context.)
   targetId?: string;
   memoryEntries?: unknown[];
   // The target's own vetted lemmas (scripts). They are in the run's library but are never saved to the account.
   seeds?: string[];
   maxCostUsd?: number;
-  attemptMs?: number;
   // Fires for every `memory` frame the bridge emits (save / update / nominate / stats). The caller persists them.
   onMemory?: (frame: MemoryFrame) => void;
   // Fires whenever the tree run banks progress — the latest resumable checkpoint
@@ -264,9 +263,6 @@ export async function runProverStream(opts: RunOpts): Promise<ProverOutcome> {
           ...(opts.targetId ? { targetId: opts.targetId } : {}),
           ...(opts.maxCostUsd && opts.maxCostUsd > 0
             ? { maxCostUsd: opts.maxCostUsd }
-            : {}),
-          ...(opts.attemptMs && opts.attemptMs > 0
-            ? { attemptMs: opts.attemptMs }
             : {}),
           ...(opts.memoryEntries
             ? { memory: { entries: opts.memoryEntries } }

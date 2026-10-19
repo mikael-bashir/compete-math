@@ -118,8 +118,8 @@ const check = async (name, fn) => {
     const f = await b.frames("control-paragon", { memory: { entries: seed } })
     assert.ok(JSON.stringify(f).includes("odd_pair_even_seed"))
   })
-  await check("cost cap and attemptMs accepted", async () => {
-    assert.ok((await b.frames("control-honoured", { maxCostUsd: 0.001, attemptMs: 60000, memory: { entries: [] } })).length > 0)
+  await check("cost cap accepted", async () => {
+    assert.ok((await b.frames("control-honoured", { maxCostUsd: 0.001, memory: { entries: [] } })).length > 0)
   })
   await check("plain Control II: no memory frames, and it is isolated the same way", async () => {
     const before = b.calls().length
@@ -383,6 +383,35 @@ for (const sig of ["SIGTERM", "SIGINT"]) {
       b.stop()
     }
   })
+}
+
+// ---- no cap on a session: the agent manages its own context ----
+{
+  const ctl = { a: new AbortController(), b: new AbortController() }
+  const a = await startBridge({ FAKE_MODE: "hang" })
+  const b = await startBridge({ FAKE_MODE: "hang" })
+  await check("a session is never cut by a timer of the bridge's own, even if a client still sends attemptMs", async () => {
+    const collect = (bridge, extra, signal) => {
+      const got = { text: "", done: null }
+      got.done = bridge.post("control-honoured", extra, { signal }).then(async (r) => { const dec = new TextDecoder(); for await (const c of r.body) got.text += dec.decode(c, { stream: true }) }).catch(() => {})
+      return got
+    }
+    const pa = collect(a, { memory: { entries: [] } }, ctl.a.signal)
+    const pb = collect(b, { memory: { entries: [] }, attemptMs: 60000 }, ctl.b.signal) // the old 1-minute floor of the cap that used to exist
+    for (let i = 0; i < 100 && (a.calls().length < 1 || b.calls().length < 1); i++) await new Promise((r) => setTimeout(r, 100))
+    await new Promise((r) => setTimeout(r, 68_000))
+    for (const [name, x] of [["default", a], ["with attemptMs", b]]) {
+      assert.equal(x.calls().length, 1, `${name}: the session was cut and a fresh one started`)
+      assert.ok(alive(x.calls()[0].pid), `${name}: the session's CLI is gone`)
+    }
+    ctl.a.abort()
+    ctl.b.abort()
+    await Promise.all([pa.done, pb.done])
+    assert.match(pa.text, /no cap on it/)
+    assert.ok(!/at most \d+ min/.test(pa.text), "the status line still names a cap")
+  })
+  a.stop()
+  b.stop()
 }
 
 leak.close()
