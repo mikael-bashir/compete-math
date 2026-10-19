@@ -612,7 +612,11 @@ export function environmentHint(env = {}) {
 // What the harness says when the agent stops and the run goes on: the same conversation, resumed, so everything it learned is still
 // there (the CLI compacts it when it grows). Says what changed outside the conversation: lemmas the sleep stage added.
 // `episodic` is Flint's replay of the theorems proved so far, which a compacted conversation may no longer hold verbatim.
-export function continuePrompt({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "" } = {}) {
+// One time in five, a new attempt also gets a quiet reminder to look at what is still running. The session persists and so do its
+// background jobs, and a search nobody needs any more is a cost the agent can end itself. Said lightly, so it is not a rule to obey.
+export const HOUSEKEEPING_CHANCE = 0.2
+export const HOUSEKEEPING_LINE = "As you pick this back up, a quick look at what is still running from earlier (`ps aux | grep -v grep | head -20`) takes seconds; anything that no longer serves your next claim is better ended than left to run."
+export function continuePrompt({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", rng = Math.random } = {}) {
   const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
   const lines = [
     `You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified proof of the target. The run's clock has not ended, so this is attempt ${attempt} of the SAME session: this conversation continues, and everything you tried and learned is still yours. That the target is open is the reason this run exists; it is not a reason to stop.`,
@@ -621,6 +625,7 @@ export function continuePrompt({ attempt = 2, elapsedMs = 0, libraryCount = 0, a
   if (abstracted.length)
     lines.push(`The system consolidated it while you were stopped and added ${abstracted.length} more general lemma(s): ${abstracted.slice(0, 12).join(", ")}. memory_recall shows them marked (abstract lemma).`)
   if (toolIds.length) lines.push(`If a tool you used before is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}`)
+  if (rng() < HOUSEKEEPING_CHANCE) lines.push(HOUSEKEEPING_LINE)
   lines.push("Review what this session has already established, choose ONE concrete next claim (a lemma the target needs, a special case, or a generalisation of a verified theorem), and verify it with verify_full_script within your next few steps. A verified lemma is progress; an unverified conclusion is not.")
   return `${lines.join("\n\n")}\n${episodic || ""}`
 }

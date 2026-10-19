@@ -226,7 +226,7 @@ test("tokens split names, keep symbols and numbers", () => {
 
 // ---- what the 2026-10-18 overnight run showed (tests/leak-memory/overnight-fixture.mjs) -------------------------------------------------
 import { OLD, SLEEP_SCRIPT } from "./overnight-fixture.mjs"
-import { continuePrompt, environmentHint, nudgePrompt, renderList } from "../../public/leak-memory.mjs"
+import { HOUSEKEEPING_CHANCE, HOUSEKEEPING_LINE, continuePrompt, environmentHint, nudgePrompt, renderList } from "../../public/leak-memory.mjs"
 
 const loaded = () => {
   const frames = []
@@ -319,4 +319,15 @@ test("the continue prompt resumes the same session: what changed, how to reload 
   assert.doesNotMatch(t, /THE LOOP/)
   assert.doesNotMatch(continuePrompt({ attempt: 2 }), /consolidated|ToolSearch/, "nothing to say about lemmas or tools when there is none")
   assert.match(continuePrompt({ attempt: 2, episodic: "\nEPISODE\n" }), /EPISODE/)
+})
+
+test("one new attempt in five is quietly reminded to check for runaway processes", () => {
+  assert.equal(HOUSEKEEPING_CHANCE, 0.2)
+  assert.ok(continuePrompt({ attempt: 2, rng: () => 0.19 }).includes(HOUSEKEEPING_LINE))
+  assert.ok(!continuePrompt({ attempt: 2, rng: () => 0.2 }).includes(HOUSEKEEPING_LINE))
+  assert.ok(!continuePrompt({ attempt: 2, rng: () => 0.9 }).includes(HOUSEKEEPING_LINE))
+  assert.ok(!/must|never|always/i.test(HOUSEKEEPING_LINE), "it is a suggestion, not a rule")
+  let hits = 0
+  for (let i = 0; i < 2000; i++) if (continuePrompt({ attempt: 2 }).includes(HOUSEKEEPING_LINE)) hits++
+  assert.ok(hits > 300 && hits < 500, `about 20% of 2000, got ${hits}`)
 })
