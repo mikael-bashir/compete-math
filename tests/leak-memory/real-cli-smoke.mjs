@@ -1,4 +1,4 @@
-// By hand, never in CI: the real `claude` CLI (your login) through the real bridge, against the fake Leak servers, with the cheapest model.
+// By hand, never in CI: the real `claude` CLI (your login) through the real bridge, against the fake Leak servers, with Sonnet 5 (SMOKE_MODEL overrides), bounded by time only.
 //   node tests/leak-memory/real-cli-smoke.mjs
 // It checks what the fake CLI cannot: that the real CLI starts under the isolation (own process group, scratch directory, auto-memory
 // off), reaches the bridge's MCP servers, and that a background job the real CLI's Bash tool starts dies with the run, both when the run
@@ -34,7 +34,7 @@ const post = (n, signal) =>
   fetch(`http://127.0.0.1:${PORT}/prove-tree`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-bridge-token": "smoke", origin: "http://localhost:3000" },
-    body: JSON.stringify({ theorem: theorem(n), mcpServers, model: "claude-haiku-4-5-20251001", options: { strategy: "control-honoured", computeBudgetMs: 120000, targetId: "smoke", memory: { entries: [] }, minAttemptMs: 0 } }),
+    body: JSON.stringify({ theorem: theorem(n), mcpServers, model: process.env.SMOKE_MODEL || "claude-sonnet-5", options: { strategy: "control-honoured", computeBudgetMs: 120000, targetId: "smoke", memory: { entries: [] }, minAttemptMs: 0 } }),
     signal,
   })
 
