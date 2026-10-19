@@ -2,7 +2,8 @@
 // A stand-in for the `claude` CLI, for tests/leak-memory/live-bridge.mjs. It speaks the stream-json the bridge reads and, like the real CLI,
 // reaches the bridge's MCP servers over SSE from the --mcp-config file: it recalls from the memory tool and searches, so the whole
 // path (server name, tools, augmentation, saving) is exercised without a model.
-import { readFileSync, appendFileSync } from "node:fs"
+import { readFileSync, appendFileSync, existsSync } from "node:fs"
+import { spawn as spawnChild, spawnSync } from "node:child_process"
 const out = (o) => process.stdout.write(JSON.stringify(o) + "\n")
 const args = process.argv.slice(2)
 const cfgPath = args[args.indexOf("--mcp-config") + 1]
@@ -11,11 +12,40 @@ const SESSION = `fake-session-${process.pid}`
 const after = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : null)
 const prompt = after("-p") || ""
 const resumed = after("--resume")
+// FAKE_BG: like an agent that runs `nohup python3 search.py &`: start a background process in this CLI's own process group, and say
+// whether the ones earlier invocations started are still alive. FAKE_MODE=hang then never exits, like a CLI in a long think.
+const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
+const prevBg = process.env.FAKE_BG && existsSync(process.env.FAKE_BG) ? readFileSync(process.env.FAKE_BG, "utf8").trim().split("\n").filter(Boolean).map(Number) : []
+const prevBgAlive = prevBg.map(alive)
+if (process.env.FAKE_BG) {
+  if (process.env.FAKE_BG_PLAIN) {
+    // a plain child in this CLI's own process group
+    const bg = spawnChild(process.execPath, ["-e", "setInterval(()=>{},1000)"], { stdio: "ignore" })
+    appendFileSync(process.env.FAKE_BG, bg.pid + "\n")
+  } else {
+    // what the real CLI's Bash tool does with `nohup job &`: it passes the command through the PreToolUse hooks of --settings (which may
+    // rewrite it), then runs it in a shell that leads a process group and session of its own. That shell starts the job and exits, so the
+    // job is an orphan (parent 1) that neither the CLI's process group nor its process tree reaches.
+    let command = `"${process.execPath}" -e "setInterval(()=>{},1000)" >/dev/null 2>&1 & echo $! >> "${process.env.FAKE_BG}"`
+    const settingsArg = after("--settings")
+    const hooks = settingsArg ? JSON.parse(existsSync(settingsArg) ? readFileSync(settingsArg, "utf8") : settingsArg).hooks?.PreToolUse || [] : []
+    for (const h of hooks.filter((x) => x.matcher === "Bash").flatMap((x) => x.hooks || [])) {
+      const r = spawnSync("sh", ["-c", h.command], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command } }), encoding: "utf8" })
+      if (r.status === 2) { command = "" ; break } // blocked
+      const upd = r.stdout.trim() ? JSON.parse(r.stdout).hookSpecificOutput?.updatedInput?.command : null
+      if (upd) command = upd
+    }
+    if (command) spawnChild("bash", ["-c", command], { stdio: "ignore", detached: true }).unref()
+    await new Promise((r) => setTimeout(r, 300))
+  }
+}
 // FAKE_REPORT: one line per invocation, so a test can see how the bridge called the CLI (cwd, env, resume, settings)
 if (process.env.FAKE_REPORT)
-  appendFileSync(process.env.FAKE_REPORT, JSON.stringify({ cwd: process.cwd(), autoMemory: process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY ?? null, claudeMds: process.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS ?? null, resume: resumed, settings: after("--settings"), prompt: prompt.slice(0, 6000), session: SESSION }) + "\n")
+  appendFileSync(process.env.FAKE_REPORT, JSON.stringify({ cwd: process.cwd(), autoMemory: process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY ?? null, claudeMds: process.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS ?? null, resume: resumed, settings: after("--settings"), prompt: prompt.slice(0, 6000), session: SESSION, pid: process.pid, prevBgAlive }) + "\n")
 // FAKE_MODE: giveup = stop at once unless resumed; stubborn = always stop at once; sleep = answer the consolidation prompt with FAKE_SLEEP_JSON
 const mode = process.env.FAKE_MODE || "ok"
+if (mode === "hang") setInterval(() => {}, 1000)
+if (mode === "hang") await new Promise(() => {})
 if (/consolidation \("sleep"\) stage/.test(prompt)) {
   out({ type: "result", subtype: "success", is_error: false, result: "```json\n" + (process.env.FAKE_SLEEP_JSON || "[]") + "\n```", total_cost_usd: 0.01, session_id: SESSION })
   process.exit(0)

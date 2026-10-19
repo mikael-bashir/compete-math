@@ -18,7 +18,7 @@
 // ---------------------------------------------------------------------------
 
 import { createServer } from "node:http"
-import { spawn, execFile } from "node:child_process"
+import { spawn, execFile, execFileSync } from "node:child_process"
 import { randomBytes, timingSafeEqual, randomUUID, createHash } from "node:crypto"
 import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, appendFileSync, rmSync } from "node:fs"
 import { tmpdir, homedir } from "node:os"
@@ -280,16 +280,26 @@ const ARCHITECT_DISALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Gr
 // `Bash(lake:*)` prefix pattern would miss. Verified live: the hook fires under
 // `-p --dangerously-skip-permissions`, blocks `lake --version`, and lets a
 // scratchpad write through untouched.
-const NO_LOCAL_LEAN_HOOK = join(mkdtempSync(join(tmpdir(), "leak-hook-")), "no-local-lean.mjs")
+const AGENT_SHELLS_ENV = "LEAK_AGENT_SHELLS"
+const HOOK_DIR = mkdtempSync(join(tmpdir(), "leak-hook-"))
+const NO_LOCAL_LEAN_HOOK = join(HOOK_DIR, "no-local-lean.mjs")
 writeFileSync(
   NO_LOCAL_LEAN_HOOK,
   `let s = ""
 process.stdin.on("data", (d) => (s += d)).on("end", () => {
-  let cmd = ""
-  try { cmd = (JSON.parse(s).tool_input || {}).command || "" } catch {}
-  if (/(^|[;&|(\\\`]|\\s)(lean|lake|elan|leanc|lean4)(\\s|$)/.test(String(cmd))) {
-    process.stderr.write("BLOCKED: this run may not invoke a local Lean toolchain. Compile ONLY through verify_full_script — the local checkout is a DIFFERENT Mathlib from the verifier's, so anything it tells you about which lemmas exist is unsound here. Everything else (scratchpad files, numeric probing, notes) is fine.")
+  let inp = {}
+  try { inp = JSON.parse(s).tool_input || {} } catch {}
+  const cmd = String(inp.command || "")
+  if (/(^|[;&|(\\\`]|\\s)(lean|lake|elan|leanc|lean4)(\\s|$)/.test(cmd)) {
+    process.stderr.write("BLOCKED: this run may not invoke a local Lean toolchain. Compile ONLY through verify_full_script — the local checkout is a DIFFERENT Mathlib from the one your verifier compiles against, so anything it tells you about which lemmas exist is unsound here. Everything else (scratchpad files, numeric probing, notes) is fine.")
     process.exit(2)
+  }
+  // An isolated run names a file; the shell that runs each command writes its own pid there first. That pid is the process group
+  // of everything the command starts, including a \`nohup … &\` job that outlives the shell (see sweepAgent).
+  const shells = process.env.${AGENT_SHELLS_ENV}
+  if (shells && cmd) {
+    const updated = { ...inp, command: "echo $$ >> '" + shells.replace(/'/g, "'\\\\''") + "' 2>/dev/null; " + cmd }
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", updatedInput: updated } }))
   }
   process.exit(0)
 })
@@ -315,7 +325,74 @@ const NO_LOCAL_LEAN_SETTINGS = JSON.stringify({
 // a scratch directory of its own (removed when the run ends), auto memory off, and no CLAUDE.md files loaded. The local-Lean block
 // stays in its settings.
 const isolatedSettings = () => JSON.stringify({ ...JSON.parse(NO_LOCAL_LEAN_SETTINGS), autoMemoryEnabled: false })
-const isolatedEnv = () => ({ ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" })
+const shellsFile = (token) => join(HOOK_DIR, `shells-${token}.txt`)
+const isolatedEnv = (token) => ({ ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", [AGENT_SHELLS_ENV]: shellsFile(token) })
+// Everything an isolated agent starts ends with it. Killing the CLI does not do that: its Bash tool runs each command in a shell that
+// leads a process group of its own, and a `nohup … &` job (or a run_in_background one) is reparented to init when that shell exits, so
+// neither the CLI's process group nor its process tree reaches it — the real CLI showed exactly this: sleeps with parent 1 survived
+// the run, and macOS has no environment, session or subreaper handle to find them by. What an orphan does keep is its process group,
+// which is the pid of the shell that started it. The hook above has each command's shell write that pid to a per-run file first, and
+// ending the run kills every group listed there. A token is held between two sessions of one attempt (the agent may be waiting for
+// its own job across a reminder) and swept when the attempt, the run, or the bridge ends. A job that deliberately leaves its group
+// (python's os.setsid) is out of reach; an agent has no reason to do that.
+const newAgentToken = () => randomUUID()
+const liveTokens = new Set()
+const liveClis = new Set() // isolated CLIs still running, so stopping the bridge takes them too
+function sweepAgent(token) {
+  if (!token || process.platform === "win32") return 0
+  const file = shellsFile(token)
+  let text = ""
+  try {
+    text = readFileSync(file, "utf8")
+  } catch {
+    return 0 // no command ran, so nothing was recorded
+  }
+  try {
+    writeFileSync(file, "") // each group is killed once; a later sweep of this token sees only what ran after
+  } catch {
+    /* the file is the hook's to recreate */
+  }
+  let killed = 0
+  for (const pid of new Set(text.split("\n").map((l) => Number(l.trim())))) {
+    if (!Number.isInteger(pid) || pid <= 1 || pid === process.pid) continue
+    try {
+      process.kill(-pid, "SIGKILL")
+      killed++
+    } catch {
+      /* the group has no members left */
+    }
+  }
+  return killed
+}
+function reapAgent(token) {
+  if (!token) return
+  sweepAgent(token)
+  liveTokens.delete(token)
+  try {
+    rmSync(shellsFile(token), { force: true })
+  } catch {
+    /* gone */
+  }
+}
+function reapAllAgents() {
+  for (const c of liveClis) {
+    try {
+      c.kill("SIGKILL")
+    } catch {
+      /* gone */
+    }
+  }
+  for (const t of [...liveTokens]) reapAgent(t)
+}
+process.on("exit", reapAllAgents)
+process.on("SIGINT", () => {
+  reapAllAgents()
+  process.exit(130)
+})
+process.on("SIGTERM", () => {
+  reapAllAgents()
+  process.exit(143)
+})
 const makeAgentScratch = () => mkdtempSync(join(tmpdir(), "leak-agent-"))
 const removeAgentScratch = (dir) => {
   try {
@@ -3250,7 +3327,7 @@ function mapObjectToEvents(o, emit, stage, metrics) {
 // `onObject` (which returns true to stop the run early — e.g. goal closed), and
 // mirror activity into the console via `emit`. Shared by the node-prover and the
 // decomposer. Resolves when the process exits.
-function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, bridgeServerName, searchAugment, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId, cwd, isolate }, { onObject, emit }) {
+function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, bridgeServerName, searchAugment, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId, cwd, isolate, agentToken, holdGroup }, { onObject, emit }) {
   return new Promise((resolve) => {
     // Each subagent run gets its OWN search governor (budget resets per node /
     // per decomposition — a fresh sub-goal earns a fresh allowance). The initial
@@ -3311,9 +3388,16 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
       .join("\n\n")
     args.push("--append-system-prompt", sysAppend)
 
+    // the token that marks this agent's processes (see sweepAgent); a caller that holds sessions together passes its own
+    const token = isolate ? agentToken || newAgentToken() : ""
+    if (token) liveTokens.add(token)
     let child
     try {
-      child = spawn(CLAUDE_BIN, args, { cwd: cwd || process.cwd(), env: isolate ? isolatedEnv() : process.env, shell: false, stdio: ["ignore", "pipe", "pipe"] })
+      child = spawn(CLAUDE_BIN, args, { cwd: cwd || process.cwd(), env: isolate ? isolatedEnv(token) : process.env, shell: false, stdio: ["ignore", "pipe", "pipe"] })
+      if (token) {
+        liveClis.add(child)
+        child.once("close", () => liveClis.delete(child))
+      }
     } catch (e) {
       resolve({ ok: false, finalText: "", exitCode: null, timedOut: false, stderr: `Failed to launch "${CLAUDE_BIN}": ${e.message}` })
       return
@@ -3330,6 +3414,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
       } catch {
         /* gone */
       }
+      if (token) sweepAgent(token) // after the CLI, so a command it was about to run cannot start behind the sweep
     }
     // Deadline / cap expiry uses SIGINT (not a hard kill) so the CLI flushes its
     // final `result` frame — the SOLE carrier of total_cost_usd. Without this a
@@ -3581,6 +3666,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
         }
       }
       destroyGovernor(governor)
+      if (token && !holdGroup) reapAgent(token)
       resolve({ ok: false, finalText, exitCode: null, timedOut, stopped, stderr: e.message, costUsd, sessionId })
     })
     child.on("close", (code) => {
@@ -3603,6 +3689,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
           thought: `${stage ? stage + " " : ""}🔎 Search used ${governor.searchCount}× (${governor.blockedCount} blocked, ${governor.grantCount} refills).`,
         })
       destroyGovernor(governor)
+      if (token && !holdGroup) reapAgent(token)
       resolve({ ok: code === 0 && !timedOut, finalText, exitCode: code, timedOut, stopped, stderr, costUsd, sessionId })
     })
   })
@@ -6509,6 +6596,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   const sleepCfg = cfg.sleep ? { ...cfg.sleep, everyMs: knob(opts?.sleepEveryMs, 0, 86_400_000, cfg.sleep.everyMs), minNew: knob(opts?.sleepMinNew, 1, 1000, cfg.sleep.minNew) } : null
   const envHint = M.environmentHint(await probeEnvironment())
   const scratch = makeAgentScratch()
+  const agentToken = newAgentToken() // marks every process this run's agents start; swept when an attempt, the run, or the bridge ends
   sleepState.scratch = scratch
   const statsFrame = () => ctx.emit({ type: "memory", op: "stats", stats: { ...memory.stats, size: memory.size, nominated: memory.nominated().length } })
   ctx.emit({
@@ -6544,6 +6632,8 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         resumeSessionId,
         cwd: scratch,
         isolate: true,
+        agentToken,
+        holdGroup: true,
         mcpServers: allowedServers,
         model: ctx.model,
         maxTurns: 0,
@@ -6594,6 +6684,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       ctx.emit({ type: "message-annotation", subtype: "status", thought: `↩️ The agent stopped after ${Math.max(1, Math.round(elapsed / 60000))} minute(s) with no verified proof: reminding it in the same conversation (${nudges} of ${maxNudges}).` })
       r = await session(M.nudgePrompt({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges }), r.sessionId)
     }
+    reapAgent(agentToken) // this attempt is over: whatever it left running ends with it (jobs lived through the reminders)
     statsFrame()
     if (gate.verifiedScript) {
       const v = await verifyViaDaemon(gate.verifiedScript, ctx.verifyUrl, { timeoutMs: ctx.verifyTimeoutMs })
@@ -6611,6 +6702,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     }
   }
   } finally {
+    reapAgent(agentToken)
     removeAgentScratch(scratch)
   }
   statsFrame()
