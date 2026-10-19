@@ -2,12 +2,29 @@
 // A stand-in for the `claude` CLI, for tests/leak-memory/live-bridge.mjs. It speaks the stream-json the bridge reads and, like the real CLI,
 // reaches the bridge's MCP servers over SSE from the --mcp-config file: it recalls from the memory tool and searches, so the whole
 // path (server name, tools, augmentation, saving) is exercised without a model.
-import { readFileSync } from "node:fs"
+import { readFileSync, appendFileSync } from "node:fs"
+const out = (o) => process.stdout.write(JSON.stringify(o) + "\n")
 const args = process.argv.slice(2)
 const cfgPath = args[args.indexOf("--mcp-config") + 1]
 const cfg = JSON.parse(readFileSync(cfgPath, "utf8"))
-const out = (o) => process.stdout.write(JSON.stringify(o) + "\n")
-const SESSION = "fake-session"
+const SESSION = `fake-session-${process.pid}`
+const after = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : null)
+const prompt = after("-p") || ""
+const resumed = after("--resume")
+// FAKE_REPORT: one line per invocation, so a test can see how the bridge called the CLI (cwd, env, resume, settings)
+if (process.env.FAKE_REPORT)
+  appendFileSync(process.env.FAKE_REPORT, JSON.stringify({ cwd: process.cwd(), autoMemory: process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY ?? null, claudeMds: process.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS ?? null, resume: resumed, settings: after("--settings"), prompt: prompt.slice(0, 6000), session: SESSION }) + "\n")
+// FAKE_MODE: giveup = stop at once unless resumed; stubborn = always stop at once; sleep = answer the consolidation prompt with FAKE_SLEEP_JSON
+const mode = process.env.FAKE_MODE || "ok"
+if (/consolidation \("sleep"\) stage/.test(prompt)) {
+  out({ type: "result", subtype: "success", is_error: false, result: "```json\n" + (process.env.FAKE_SLEEP_JSON || "[]") + "\n```", total_cost_usd: 0.01, session_id: SESSION })
+  process.exit(0)
+}
+if (mode === "stubborn" || (mode === "giveup" && !resumed)) {
+  out({ type: "assistant", message: { content: [{ type: "text", text: "Not done: this is an open problem." }] } })
+  out({ type: "result", subtype: "success", is_error: false, result: "Not done: this is an open problem.", total_cost_usd: 0.01, session_id: SESSION })
+  process.exit(0)
+}
 const LEMMA = `theorem odd_odd_sum_even_fake (a b : ℕ) (ha : a % 2 = 1) (hb : b % 2 = 1) : (a + b) % 2 = 0 := by
   have h := ha
   omega`
@@ -59,6 +76,8 @@ async function mcp(url, method, params, session) {
 }
 
 let n = 0
+// FAKE_PACE_MS slows the stand-in down so the visualiser can be watched by hand
+const pace = () => new Promise((r) => setTimeout(r, Number(process.env.FAKE_PACE_MS) || 0))
 const toolUse = (name, input) => {
   const id = `tu${++n}`
   out({ type: "assistant", message: { content: [{ type: "tool_use", id, name, input }] } })
@@ -68,21 +87,30 @@ const toolResult = (id, text) => out({ type: "user", message: { content: [{ type
 
 const mem = cfg.mcpServers.memory?.url
 if (mem) {
-  const id = toolUse("mcp__memory__memory_recall", { query: "odd sum even" })
-  const r = await mcp(mem, "tools/call", { name: "memory_recall", arguments: { query: "odd sum even" } })
+  await pace()
+  const id = toolUse("mcp__memory__memory_recall", { query: process.env.FAKE_QUERY || "odd sum even" })
+  const r = await mcp(mem, "tools/call", { name: "memory_recall", arguments: { query: process.env.FAKE_QUERY || "odd sum even" } })
   toolResult(id, `[tools: ${r.tools.join(",")}] ${r.result?.content?.[0]?.text || ""}`)
+}
+if (mem && process.env.FAKE_LIST) {
+  const id = toolUse("mcp__memory__memory_list", { limit: 50 })
+  const r = await mcp(mem, "tools/call", { name: "memory_list", arguments: { limit: 50 } })
+  toolResult(id, r.result?.content?.[0]?.text || "")
 }
 const searchUrl = cfg.mcpServers.Leak_I?.url
 if (searchUrl && process.env.FAKE_SEARCH) {
+  await pace()
   const id = toolUse("mcp__Leak_I__moogle_search", { concept: "odd sum even" })
   const r = await mcp(searchUrl, "tools/call", { name: "moogle_search", arguments: { concept: "odd sum even" } })
   toolResult(id, r.result?.content?.[0]?.text || "")
 }
 if (process.env.FAKE_LEMMA !== "0") {
+  await pace()
   const id = toolUse("mcp__Leak_IV__verify_full_script", { script: LEMMA })
   toolResult(id, "✅ Compilation Successful! The proof is 100% verified.")
 }
 if (process.env.FAKE_TARGET !== "0") {
+  await pace()
   const id = toolUse("mcp__Leak_IV__verify_full_script", { script: TARGET })
   toolResult(id, "✅ Compilation Successful! The proof is 100% verified.")
 }

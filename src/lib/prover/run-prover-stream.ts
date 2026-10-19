@@ -83,6 +83,8 @@ interface RunOpts {
   // (it keeps nothing between runs). `maxCostUsd` and `attemptMs` are optional limits the memory variants honour.
   targetId?: string;
   memoryEntries?: unknown[];
+  // The target's own vetted lemmas (scripts). They are in the run's library but are never saved to the account.
+  seeds?: string[];
   maxCostUsd?: number;
   attemptMs?: number;
   // Fires for every `memory` frame the bridge emits (save / update / nominate / stats). The caller persists them.
@@ -269,6 +271,7 @@ export async function runProverStream(opts: RunOpts): Promise<ProverOutcome> {
           ...(opts.memoryEntries
             ? { memory: { entries: opts.memoryEntries } }
             : {}),
+          ...(opts.seeds?.length ? { seeds: opts.seeds } : {}),
         },
       }),
       signal,

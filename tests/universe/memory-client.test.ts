@@ -42,3 +42,8 @@ test('memory strategies are recognised', () => {
   for (const k of ['control-honoured', 'control-flint', 'control-paragon', 'control-lucid']) assert.ok(isMemoryStrategy(k));
   assert.ok(!isMemoryStrategy('control-oneshot-2'));
 });
+
+test('a merged entry is not sent to a run, unless the account nominated it', () => {
+  const list = [e('00000001'), e('00000002', { subsumedBy: '00000001' }), e('00000003', { subsumedBy: '00000001', nominated: true })];
+  assert.deepEqual(packMemory(list).map((x) => x.id).sort(), ['00000001', '00000003']);
+});

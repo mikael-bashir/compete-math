@@ -34,7 +34,7 @@ import {
   setMemoryNominated,
   type MemoryEntry,
 } from '@/lib/prover/memory-client';
-import { publishProverEvent, publishRunEnd, publishRunReset } from '@/lib/universe/live-bus';
+import { publishMemory, publishProverEvent, publishRunEnd, publishRunReset } from '@/lib/universe/live-bus';
 
 // Wall-clock budget for a decomposition (tree) run. The tree path governs by
 // TIME when this is set and reports a runId so "+5 min" can push it out; the
@@ -87,6 +87,8 @@ export function ProverPlayground() {
   // Optional limits for the run: wall-clock (hours) and a dollar cap on the CLI's list-price estimate. Blank = default / none.
   const [limitHours, setLimitHours] = useState('');
   const [costCap, setCostCap] = useState('');
+  // Start the run from the target's vetted lemmas (checked on Leak IV; never saved to the account).
+  const [useSeeds, setUseSeeds] = useState(true);
   // Memory of the signed-in account for the selected target (the bridge keeps nothing between runs).
   const { data: session } = useSession();
   const signedIn = !!session?.user;
@@ -146,9 +148,12 @@ export function ProverPlayground() {
     (frame: import('@/lib/prover/run-prover-stream').MemoryFrame) => {
       if (frame.op === 'stats') {
         setMemoryStats(frame.stats);
+        publishMemory('stats', frame.stats.size);
         return;
       }
       setMemory((prev) => applyMemoryFrame(prev, frame));
+      // the visualiser's orb: a save is a spark and one more theorem in the orb
+      if (frame.op === 'save' || frame.op === 'update') publishMemory(frame.op);
       if (frame.op === 'save' || frame.op === 'update') {
         const e = frame.entry as unknown as MemoryEntry;
         if (e?.id) pendingSave.current.set(e.id, e);
@@ -219,6 +224,7 @@ export function ProverPlayground() {
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       publishRunReset();
+      if (asTree && isMemoryStrategy(strategy)) publishMemory('load', memoryRef.current.length);
       const append = (e: ProverEvent) => {
         publishProverEvent(e);
         setEvents((prev) => [...prev, e]);
@@ -252,6 +258,7 @@ export function ProverPlayground() {
           maxCostUsd: asTree ? maxCostUsd : undefined,
           targetId: usesMemory && target ? target.id : undefined,
           memoryEntries: usesMemory && target ? packMemory(memoryRef.current) : undefined,
+          seeds: usesMemory && target && useSeeds ? target.seeds : undefined,
           onMemory: usesMemory ? onMemoryFrame : undefined,
           maxIters: isArchitectStrategy(strategy) ? maxIters : undefined,
           onRunId: ({ runId, deadlineMs, budgetMs }) => {
@@ -272,7 +279,7 @@ export function ProverPlayground() {
         abortRef.current = null;
       }
     },
-    [problem, decompose, strategy, model, maxIters, limitHours, costCap, target, onMemoryFrame, flushSaves],
+    [problem, decompose, strategy, model, maxIters, limitHours, costCap, useSeeds, target, onMemoryFrame, flushSaves],
   );
 
   // Push the running prove's wall-clock budget out. Best-effort.
@@ -487,6 +494,12 @@ export function ProverPlayground() {
               />
             </label>
           </>
+        )}
+        {target && target.seeds.length > 0 && isMemoryStrategy(strategy) && (
+          <label className="inline-flex items-center gap-1 text-[10px] text-muted-foreground" title="Comparison facts and small witnesses checked on Leak IV. They are in the run's library but are never saved to your account and cannot be nominated. Turn off for a run that starts empty.">
+            <input type="checkbox" checked={useSeeds} onChange={(e) => setUseSeeds(e.target.checked)} disabled={running} className="size-3" />
+            Start from vetted lemmas
+          </label>
         )}
         {target && (
           <LeakMemoryModal

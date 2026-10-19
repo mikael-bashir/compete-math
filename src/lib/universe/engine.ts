@@ -35,6 +35,8 @@ const COL: Record<string, Rgb> = {
   ok: [0.62, 1.0, 0.55],
   fail: [0.95, 0.3, 0.22], // ember red
   gold: [1.0, 0.86, 0.5],
+  memory: [0.72, 0.55, 1.0], // violet: the memory's own colour, nothing else in the sky is this
+  memhot: [0.95, 0.9, 1.0],
 };
 
 const CSS = `
@@ -231,6 +233,9 @@ export class Universe implements UniverseSink {
   private evs: Ev[] = [];
   private dur = 1;
   private probe: Vec3 = [0, 0, 0];
+  /** how many theorems the memory holds; the orb grows with it. 0 and unused until a memory variant reports. */
+  private memSize = 0;
+  private memUsed = false;
   private liveFinal: boolean | null = null;
   private liveFinAt = 0;
   private runStartMs: number | null = null;
@@ -374,6 +379,14 @@ export class Universe implements UniverseSink {
     this.interp?.handle(e);
   }
 
+  /** The memory of a Control II variant changed or was loaded (live runs only). */
+  pushMemory(op: 'save' | 'update' | 'load' | 'stats', size?: number): void {
+    this.memUsed = true;
+    if (op === 'save' && size === undefined) this.memSize++;
+    this.interp?.memory(op, size);
+    if (size !== undefined) this.memSize = size;
+  }
+
   /** Jump a replay to a fraction (0..1) of its length. */
   seekFraction(f: number): void {
     if (this.mode === 'replay') this.T = Math.max(0, Math.min(1, f)) * this.dur;
@@ -383,6 +396,8 @@ export class Universe implements UniverseSink {
   resetLive(): void {
     this.evs = [];
     this.liveFinal = null;
+    this.memSize = 0;
+    this.memUsed = false;
     this.probe = [0, 0, 0];
     this.T = 0;
     this.clock = 0;
@@ -437,6 +452,10 @@ export class Universe implements UniverseSink {
   }
   attention(): Vec3 {
     return this.probe;
+  }
+  memorySize(n: number): void {
+    this.memSize = n;
+    this.memUsed = true;
   }
   verified(ok: boolean): void {
     this.liveFinal = ok;
@@ -549,7 +568,7 @@ export class Universe implements UniverseSink {
         <div class="tku-top">
           <div class="tku-title" data-k="title">Tengoku universe<span class="tku-live">● live<span class="tku-clock" data-k="clock"></span></span></div>
           <div class="tku-right">
-            <div data-k="stats"><b data-k="search">0</b> searches · <b data-k="ok">0</b> ✅ <b data-k="fail">0</b> ❌ · <b data-k="lem">0</b> lemmas</div>
+            <div data-k="stats"><b data-k="search">0</b> searches · <b data-k="ok">0</b> ✅ <b data-k="fail">0</b> ❌ · <b data-k="lem">0</b> lemmas<span data-k="memwrap" style="display:none"> · <b data-k="mem" style="color:#cdb4ff">0</b> remembered</span></div>
             <div data-k="perf" aria-label="Performance"></div>
           </div>
         </div>
@@ -877,13 +896,21 @@ export class Universe implements UniverseSink {
         lastT = res;
       }
       if (resolved) {
-        if (e.k !== 'compile') search++;
-        else if (e.ok) ok++;
-        else fail++;
+        if (e.k === 'loogle' || e.k === 'moogle') search++;
+        else if (e.k === 'compile' && e.ok) ok++;
+        else if (e.k === 'compile') fail++;
       }
-      const base = e.k === 'compile' ? COL.pend : COL[e.k];
+      const base = e.k === 'compile' ? COL.pend : e.k === 'recall' || e.k === 'save' ? COL.memory : COL[e.k];
       const label =
-        e.k === 'compile'
+        e.k === 'recall'
+          ? !resolved
+            ? 'opening the library…'
+            : e.n
+              ? `${e.n} saved theorem${e.n === 1 ? '' : 's'} recalled`
+              : 'nothing saved matches'
+          : e.k === 'save'
+            ? 'a verified theorem saved to memory'
+            : e.k === 'compile'
           ? !resolved
             ? 'compiling…'
             : e.ok
@@ -900,6 +927,38 @@ export class Universe implements UniverseSink {
         ticker = `<b style="color:rgb(${rgb})">${e.k}</b>${e.q ? ' ▸ “' + esc(e.q) + '”' : ''} → ${esc(label)}`;
       }
 
+      if (e.k === 'recall' || e.k === 'save') {
+        // the memory, in violet: a recall sends rings out from the orb and circles the best matches round it; a save opens a bright knot
+        const hold = e.k === 'recall' ? 5.5 : 3;
+        if (!resolved || age < hold) {
+          const fade = resolved ? Math.max(0, 1 - age / hold) : 1;
+          const o: Vec3 = [pr[0], pr[1], pr[2]];
+          if (e.k === 'recall') {
+            if (!resolved) this.G(o, COL.memory, 0.5 + 0.4 * Math.sin(flight * 7), 18);
+            else {
+              // a miss is one faint ring; a hit is three bright ones, a flaring core, and the matches circling it
+              const hit = (e.n ?? 0) > 0;
+              const gain = hit ? 1 : 0.3;
+              for (let r = 0; r < (hit ? 3 : 1); r++) {
+                const pt = age - r * 0.32;
+                if (pt > 0 && pt < 1.7) this.G(o, COL.memory, (1 - pt / 1.7) * 0.85 * fade * gain, 1000 + 12 + 62 * (pt / 1.7));
+              }
+              this.G(o, COL.memory, fade * 0.9 * gain * (0.8 + 0.2 * Math.sin(simT * 6)), 26 + 10 * Math.exp(-age * 1.4));
+              this.G(o, COL.memhot, fade * 0.8 * gain, 9);
+              const sat = Math.min(e.n ?? 0, 8);
+              for (let k = 0; k < sat; k++) {
+                const th = simT * (1.1 + 0.12 * k) + k * 2.4;
+                const rad = 0.034 + 0.007 * k;
+                this.G([o[0] + Math.cos(th) * rad, o[1] + Math.sin(th) * rad * 0.8, o[2]], COL.memory, fade * 0.9, 6);
+              }
+            }
+          } else {
+            this.G(o, COL.memhot, Math.exp(-age * 1.6) * 0.9, 12 + 20 * Math.exp(-age * 2));
+            if (age < 1.4) this.G(o, COL.memory, (1 - age / 1.4) * 0.8, 1000 + 10 + 40 * (age / 1.4));
+          }
+        }
+        continue;
+      }
       const ids = e.hits ?? e.used ?? [];
       const n = Math.max(1, ids.length);
       const hold = e.k === 'compile' ? 4.5 : 7;
@@ -1008,6 +1067,13 @@ export class Universe implements UniverseSink {
     this.probe = pr;
     if (fin) dimTarget = 1; // the whole universe comes up to full light
     const anyActive = dimTarget < 0.8;
+    if (this.memUsed && this.mode === 'live') {
+      // the orb: the memory, breathing behind the driver's attention; it grows with what it holds, and a recall flares it
+      const breath = 0.5 + 0.5 * Math.sin(T * 2.1);
+      const grow = 1 + Math.log2(1 + this.memSize);
+      this.G(pr, COL.memory, 0.14 + 0.12 * breath, 9 + 4 * grow + 3 * breath);
+      this.G(pr, COL.memory, 0.3 + 0.2 * breath, 5 + grow);
+    }
     this.G(pr, COL.gold, 0.95, 16 + 3 * Math.sin(T * 5));
     this.G(pr, [1, 1, 1], 0.75, 7);
     this.tgoal = [pr[0] * 0.9, pr[1] * 0.9, 0];
@@ -1028,6 +1094,8 @@ export class Universe implements UniverseSink {
     set('ok', String(ok));
     set('fail', String(fail));
     set('lem', touched.size.toLocaleString());
+    (this.el.memwrap as HTMLElement).style.display = this.memUsed && this.mode === 'live' ? '' : 'none';
+    set('mem', String(this.memSize));
     return anyActive;
   }
 

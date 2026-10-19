@@ -221,3 +221,88 @@ test("tokens split names, keep symbols and numbers", () => {
   const t = tokens("theorem centralBinom_dvd (n : ℕ) : n ∣ 2480")
   for (const w of ["central", "binom", "centralbinom", "dvd", "∣", "ℕ", "#2480"]) assert.ok(t.includes(w), w)
 })
+
+// ---- what the 2026-10-18 overnight run showed (tests/leak-memory/overnight-fixture.mjs) -------------------------------------------------
+import { OLD, SLEEP_SCRIPT } from "./overnight-fixture.mjs"
+import { environmentHint, nudgePrompt, renderList } from "../../public/leak-memory.mjs"
+
+const loaded = () => {
+  const frames = []
+  const m = new Memory({ targetId: "erdos-396", variant: "control-lucid", emit: (f) => frames.push(f) })
+  for (const s of OLD) m.addScript(s, { attempt: 1 })
+  return { m, frames }
+}
+
+test("a sleep script of four theorems updates each merged entry once, not once per theorem", () => {
+  const { m, frames } = loaded()
+  assert.equal(m.size, 4)
+  const oldIds = [...m.entries.keys()]
+  frames.length = 0
+  const added = m.addAbstract(SLEEP_SCRIPT, oldIds)
+  assert.equal(added.length, 4)
+  const updates = frames.filter((f) => f.op === "update" && oldIds.includes(f.entry.id))
+  assert.equal(updates.length, 4, `expected one update per merged entry, got ${updates.length}`)
+  for (const id of oldIds) {
+    assert.ok(m.entries.get(id).subsumedBy, "a merged entry points at what replaced it")
+    assert.ok(added.some((a) => a.id === m.entries.get(id).subsumedBy), "and it points at one of the new lemmas")
+  }
+})
+
+test("merged entries are hidden from memory_list and recall, unless the account nominated them", () => {
+  const { m } = loaded()
+  const ids = [...m.entries.keys()]
+  m.nominate(ids[0])
+  m.addAbstract(SLEEP_SCRIPT, ids)
+  const listed = m.list({ limit: 50 }).map((e) => e.id)
+  for (const id of ids.slice(1)) assert.ok(!listed.includes(id), "a merged, un-nominated entry is not listed")
+  assert.ok(listed.includes(ids[0]), "a merged but nominated entry stays visible")
+  const recalled = m.recall("centralBinom factorization sq", { limit: 8, markHit: false }).map((e) => e.id)
+  for (const id of ids.slice(1)) assert.ok(!recalled.includes(id), "nor is it recalled")
+  assert.match(renderList(m.list({ limit: 50 }), m), /3 more merged into the general lemmas above are hidden/)
+})
+
+test("recall shows a declaration that several results share once", () => {
+  const { m } = loaded()
+  m.addAbstract(SLEEP_SCRIPT, [...m.entries.keys()])
+  const hits = m.recall("one_le_factorization_centralBinom_of_pow_le le_factorization forall_pow_le", { limit: 4, markHit: false })
+  assert.ok(hits.length >= 2)
+  const text = renderRecall(hits, m)
+  const masters = text.match(/theorem factorization_centralBinom_eq_card \(p n : ℕ\)/g) || []
+  assert.equal(masters.length, 1, "the master identity is printed once")
+  assert.match(text, /needs `factorization_centralBinom_eq_card`/)
+})
+
+test("seed entries stay out of the account's memory: silent, never trivial-filtered, never nominated", () => {
+  const frames = []
+  const m = new Memory({ targetId: "t", emit: (f) => frames.push(f) })
+  const added = m.addScript("theorem E_k1 : (2 : ℕ).descFactorial 2 ∣ (2 : ℕ).centralBinom := by\n  decide +kernel", { origin: "seed", silent: true })
+  assert.equal(added.length, 1)
+  assert.equal(added[0].origin, "seed")
+  assert.equal(frames.length, 0, "no save frame, so nothing reaches the account's table")
+  assert.equal(m.stats.saves, 0)
+  assert.equal(m.nominate("E_k1").ok, false)
+  assert.equal(m.nominated().length, 0)
+})
+
+test("the environment hint names only what is missing", () => {
+  const none = environmentHint({ platform: "darwin", timeout: false, python3: true, modules: { sympy: false, numpy: false }, gcc: true })
+  assert.match(none, /`timeout` is not installed/)
+  assert.match(none, /sympy/)
+  assert.match(none, /numpy/)
+  assert.match(none, /background/)
+  const full = environmentHint({ platform: "linux", timeout: true, python3: true, modules: { sympy: true, numpy: true }, gcc: true })
+  assert.doesNotMatch(full, /not installed/)
+  assert.match(environmentHint({ platform: "linux", timeout: true, python3: false, modules: {}, gcc: false }), /python3 is not installed/)
+})
+
+test("the nudge says how long the agent ran, what to do next, and never offers 'open' as a reason to stop", () => {
+  const t = nudgePrompt({ elapsedMs: 130000, libraryCount: 5, nudge: 1, of: 2 })
+  assert.match(t, /2 minutes/)
+  assert.match(t, /verify_full_script/)
+  assert.match(t, /5 verified theorem/)
+  assert.doesNotMatch(t, /you may stop/i)
+})
+
+test("memoryRules carries the verify-early rule for every variant", () => {
+  for (const k of Object.keys(VARIANTS)) assert.match(memoryRules(k), /Verify early and often/)
+})

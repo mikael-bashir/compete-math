@@ -38,7 +38,7 @@ export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, load
   const [open, setOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const nominated = entries.filter((e) => e.nominated).length;
-  const shown = entries.filter((e) => !e.subsumedBy);
+  const shown = entries.filter((e) => !e.subsumedBy || e.nominated);
   const merged = entries.length - shown.length;
 
   return (
@@ -68,7 +68,8 @@ export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, load
           <p className="text-[11px] text-muted-foreground">
             This session: {stats.saves ?? 0} saved, {stats.updates ?? 0} improved, {stats.recalls ?? 0} recalls ({stats.recallHits ?? 0} with a hit)
             {stats.injected ? `, ${stats.injected} injected into search` : ''}
-            {stats.sleeps ? `, ${stats.sleeps} sleep pass(es) merged ${stats.abstracted ?? 0}` : ''}.
+            {stats.sleeps ? `, ${stats.sleeps} sleep pass(es) merged ${stats.abstracted ?? 0}` : ''}
+            {stats.nudges ? `, ${stats.nudges} reminder(s) after the agent stopped early` : ''}.
           </p>
         )}
 
