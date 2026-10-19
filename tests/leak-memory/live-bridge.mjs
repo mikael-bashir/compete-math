@@ -64,7 +64,7 @@ async function startBridge(env = {}) {
     }
     return out
   }
-  return { frames, post, calls, log: () => log, stop: () => child.kill() }
+  return { frames, post, calls, log: () => log, stop: () => child.kill(), signal: (sig) => child.kill(sig), exited: () => child.exitCode !== null || child.signalCode !== null }
 }
 
 const seed = [{ id: "seed1", name: "odd_pair_even_seed", statement: "theorem odd_pair_even_seed (a b : ℕ) (ha : a % 2 = 1) (hb : b % 2 = 1) : (a + b) % 2 = 0", closure: "theorem odd_pair_even_seed (a b : ℕ) (ha : a % 2 = 1) (hb : b % 2 = 1) : (a + b) % 2 = 0 := by\n  omega", origin: "seed", saved_at: 1 }]
@@ -234,6 +234,96 @@ const check = async (name, fn) => {
     assert.match(listing, /\(abstract lemma\)/)
     assert.doesNotMatch(listing, /le_factorization_centralBinom_of_dvd_succ/, "a merged entry is still listed")
     assert.match(listing, /4 more merged into the general lemmas above are hidden/)
+  })
+  b.stop()
+}
+
+// ---- processes the agent starts ----
+// An overnight agent ran `nohup python3 … &` and a compiled C sieve over 400 million numbers. Killing the CLI does not kill what it
+// started, so the bridge starts the CLI as its own process group and kills the group: when the run ends, when it is aborted, and when
+// the bridge itself is stopped. Between two reminders in one attempt the group is kept (the agent may be waiting for its own job).
+const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
+const waitDead = async (pids, ms = 5000) => { for (let t = 0; t < ms / 100 && pids.some(alive); t++) await new Promise((r) => setTimeout(r, 100)); return pids.filter(alive) }
+const readPids = (file) => (fs.existsSync(file) ? fs.readFileSync(file, "utf8").trim().split("\n").filter(Boolean).map(Number) : [])
+const bgFile = (name) => path.join(tmp, `bg-${name}.txt`)
+{
+  const bg = bgFile("finish")
+  const b = await startBridge({ FAKE_BG: bg })
+  await check("a background job the agent started is gone when the run ends, and nothing else is touched", async () => {
+    // a bystander in the test's own group, and the bridge itself, must come through every group kill
+    const bystander = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { stdio: "ignore" })
+    await b.frames("control-honoured", { memory: { entries: [] } })
+    assert.ok(alive(bystander.pid), "a process outside the agent's group was killed")
+    assert.equal(b.exited(), false, "the bridge itself died")
+    bystander.kill()
+    const pids = readPids(bg)
+    assert.ok(pids.length >= 1)
+    assert.deepEqual(await waitDead(pids), [], "a background job outlived the run")
+  })
+  await check("plain Control II does the same", async () => {
+    const before = readPids(bg).length
+    await b.frames("control-oneshot-2")
+    const pids = readPids(bg).slice(before)
+    assert.ok(pids.length >= 1)
+    assert.deepEqual(await waitDead(pids), [], "a background job outlived plain Control II")
+  })
+  b.stop()
+}
+{
+  const bg = bgFile("nudge")
+  const b = await startBridge({ FAKE_MODE: "giveup", FAKE_BG: bg })
+  await check("a job survives a reminder in the same conversation, and is gone when the run ends", async () => {
+    await b.frames("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 2 })
+    const calls = b.calls()
+    assert.equal(calls[1].resume, calls[0].session)
+    assert.deepEqual(calls[1].prevBgAlive, [true], "the first session's job should still be running when the reminder arrives")
+    assert.deepEqual(await waitDead(readPids(bg)), [])
+  })
+  b.stop()
+}
+{
+  const bg = bgFile("fresh")
+  const b = await startBridge({ FAKE_MODE: "stubborn", FAKE_BG: bg })
+  await check("a fresh attempt does not inherit the previous attempt's jobs", async () => {
+    const ctl = new AbortController()
+    const p = b.post("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 1 }, { signal: ctl.signal }).then((r) => r.text()).catch(() => "")
+    for (let i = 0; i < 100 && b.calls().length < 3; i++) await new Promise((r) => setTimeout(r, 100))
+    ctl.abort()
+    await p
+    const calls = b.calls()
+    assert.deepEqual(calls.slice(0, 3).map((c) => c.resume !== null), [false, true, false])
+    assert.deepEqual(calls[1].prevBgAlive, [true])
+    assert.ok(calls[2].prevBgAlive.every((x) => x === false), `the new attempt found jobs alive: ${calls[2].prevBgAlive}`)
+    assert.deepEqual(await waitDead(readPids(bg)), [])
+  })
+  b.stop()
+}
+{
+  const bg = bgFile("abort")
+  const b = await startBridge({ FAKE_MODE: "hang", FAKE_BG: bg })
+  await check("terminating a run kills the CLI and what it started", async () => {
+    const ctl = new AbortController()
+    const p = b.post("control-honoured", { memory: { entries: [] } }, { signal: ctl.signal }).then((r) => r.text()).catch(() => "")
+    for (let i = 0; i < 100 && b.calls().length < 1; i++) await new Promise((r) => setTimeout(r, 100))
+    assert.equal(b.calls().length, 1)
+    const pids = [...readPids(bg), b.calls()[0].pid]
+    assert.ok(pids.every(alive), "the CLI and its job are running before the abort")
+    ctl.abort()
+    await p
+    assert.deepEqual(await waitDead(pids), [], "something survived the abort")
+  })
+  b.stop()
+}
+for (const sig of ["SIGTERM", "SIGINT"]) {
+  const bg = bgFile(sig)
+  const b = await startBridge({ FAKE_MODE: "hang", FAKE_BG: bg })
+  await check(`stopping the bridge with ${sig} takes the CLI and its jobs with it`, async () => {
+    b.post("control-honoured", { memory: { entries: [] } }).catch(() => {})
+    for (let i = 0; i < 100 && b.calls().length < 1; i++) await new Promise((r) => setTimeout(r, 100))
+    const pids = [...readPids(bg), b.calls()[0].pid]
+    assert.ok(pids.every(alive))
+    b.signal(sig)
+    assert.deepEqual(await waitDead(pids), [], `something survived the bridge's ${sig}`)
   })
   b.stop()
 }
