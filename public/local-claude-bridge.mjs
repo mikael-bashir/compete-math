@@ -6559,7 +6559,7 @@ ${SEARCH_USAGE_NOTE}
 RULES:
 ${M.memoryRules(variantKey, { envHint })}
 - Never conclude the target is "too hard", "open" or beyond reach, and never ask to split it: there is no one to hand it to. A failing approach means a DIFFERENT strategy, or a different lemma that gets you closer.
-- Never stop on your own. This is attempt ${attempt} of an unbounded series the system keeps making until you succeed or the run's own wall clock ends it.
+- Never stop on your own. This is ONE persistent session: if you do stop, the system resumes this same conversation (attempt ${attempt + 1}, ${attempt + 2}, …; the CLI compacts it when it grows) until you succeed or the run's own wall clock ends it.${attempt > 1 ? " (Your earlier conversation could not be resumed, so this one is new: what it had established is only in the memory and below.)" : ""}
 - The target is only proved when verify_full_script succeeds on a script that contains the target's exact statement with no sorry.
 ${episodic}${lastBlock}
 ${answerSlotNote(theorem)}Theorem (its signature is immutable${hasAnswerSlot(theoremSignature(theorem)) ? ", except for the answer slot" : ""}):
@@ -6636,10 +6636,14 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   ctx.emit({
     type: "message-annotation",
     subtype: "status",
-    thought: `🧠 ${cfg.name}: one continuous agent against Leak IV + Leak I search, a library of verified theorems (${loaded} loaded for this target), one session, no cap on it (the agent manages its own context): a new one starts only if the agent stops on its own, until the clock ends.`,
+    thought: `🧠 ${cfg.name}: one continuous agent against Leak IV + Leak I search, a library of verified theorems (${loaded} loaded for this target), ONE persistent session across attempts (when the agent stops it is resumed in the same conversation, which the CLI compacts as it grows; a new conversation only if the old one cannot be resumed), no cap on it, until the clock ends.`,
   })
   let attempt = 0
   let lastAttempt = null
+  let sessionId = "" // the one persistent conversation; "" until attempt 1 opens it, and again if it cannot be resumed
+  let lastStopIso = ""
+  let lastAttemptMs = 0
+  const toolIds = [...allowedServers.flatMap((s) => (Array.isArray(s.tools) ? s.tools : []).map((t) => `mcp__${String(s.name).replace(/[^a-zA-Z0-9_]/g, "_")}__${typeof t === "string" ? t : t?.name}`)), ...cfg.tools.map((t) => `mcp__memory__${t}`)].filter((x) => !x.endsWith("__undefined"))
   try {
   while (!ctx.signal?.aborted && !deadlinePassed(ctx)) {
     attempt++
@@ -6652,13 +6656,29 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       }
       if (ctx.signal?.aborted || deadlinePassed(ctx)) break
     }
+    const resuming = !!sessionId
     if (attempt > 1)
-      ctx.emit({ type: "message-annotation", subtype: "status", thought: `🧠 Attempt ${attempt} — fresh context, ${memory.size} verified theorem(s) in memory${lastAttempt ? ", last submission carried forward" : ""}.` })
+      ctx.emit({
+        type: "message-annotation",
+        subtype: "status",
+        thought: resuming
+          ? `🧠 Attempt ${attempt} — resuming the SAME session (everything it has learned is still in it), ${memory.size} verified theorem(s) in memory.`
+          : `🧠 Attempt ${attempt} — the previous session could not be resumed; opening a new conversation, ${memory.size} verified theorem(s) in memory${lastAttempt ? ", last submission carried forward" : ""}.`,
+      })
     const gate = makeProofGate(theorem)
     const pendingVerify = new Map()
-    const attemptPrompt = controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint)
+    const attemptPrompt = resuming
+      ? M.continuePrompt({
+          attempt,
+          elapsedMs: lastAttemptMs,
+          libraryCount: memory.size,
+          abstracted: memory.list({ limit: 1000 }).filter((e) => e.origin === "abstracted" && String(e.savedAt || "") > lastStopIso).map((e) => e.name),
+          toolIds,
+          episodic: cfg.episodic ? M.episodicBlock(memory, cfg.episodic) : "",
+        })
+      : controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint)
     // what the agent is really told, for the console and the admin log (the frame sent when the run opens cannot know the memory yet)
-    ctx.emit({ type: "prompt", prompt: `[CONTROL II MEMORY — ${cfg.name} · attempt ${attempt}]\n\n${attemptPrompt}`, model: ctx.model || null, mcpServers: allowedServers.map((s) => ({ name: s.name, url: s.url })) })
+    ctx.emit({ type: "prompt", prompt: `[CONTROL II MEMORY — ${cfg.name} · attempt ${attempt}${resuming ? " · same session" : ""}]\n\n${attemptPrompt}`, model: ctx.model || null, mcpServers: allowedServers.map((s) => ({ name: s.name, url: s.url })) })
     const session = (prompt, resumeSessionId) =>
       spawnProverStream(
       {
@@ -6709,7 +6729,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     // An agent that stops within minutes, with no verified proof, while the clock is running is spoken to in the same conversation (so
     // it keeps what it learned) instead of being started afresh: an overnight run had about seventy attempts of one to five minutes each.
     const t0 = Date.now()
-    let r = await session(attemptPrompt, undefined)
+    let r = await session(attemptPrompt, sessionId || undefined)
     let nudges = 0
     while (!gate.verifiedScript && !ctx.signal?.aborted && !deadlinePassed(ctx) && nudges < maxNudges && r?.sessionId && !r.timedOut && !r.stopped && Date.now() - t0 < minAttemptMs) {
       nudges++
@@ -6718,7 +6738,14 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       ctx.emit({ type: "message-annotation", subtype: "status", thought: `↩️ The agent stopped after ${Math.max(1, Math.round(elapsed / 60000))} minute(s) with no verified proof: reminding it in the same conversation (${nudges} of ${maxNudges}).` })
       r = await session(M.nudgePrompt({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges }), r.sessionId)
     }
-    reapAgent(agentToken) // this attempt is over: whatever it left running ends with it (jobs lived through the reminders)
+    // The session goes on only if it can be resumed. A resume the CLI refused (no conversation under that id: no session id comes back and
+    // nothing was said) ends it: the next attempt opens a new conversation. Only then are the jobs it started ended; while the session
+    // continues they are the agent's own, as across a reminder.
+    const lost = !r?.sessionId || (resuming && !r.ok && !r.timedOut && !r.stopped && !String(r.finalText || "").trim())
+    sessionId = lost ? "" : r.sessionId
+    lastAttemptMs = Date.now() - t0
+    lastStopIso = new Date().toISOString()
+    if (!sessionId) reapAgent(agentToken)
     statsFrame()
     if (gate.verifiedScript) {
       const v = await verifyViaDaemon(gate.verifiedScript, ctx.verifyUrl, { timeoutMs: ctx.verifyTimeoutMs })

@@ -41,8 +41,8 @@ if (process.env.FAKE_BG) {
 }
 // FAKE_REPORT: one line per invocation, so a test can see how the bridge called the CLI (cwd, env, resume, settings)
 if (process.env.FAKE_REPORT)
-  appendFileSync(process.env.FAKE_REPORT, JSON.stringify({ cwd: process.cwd(), autoMemory: process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY ?? null, claudeMds: process.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS ?? null, resume: resumed, settings: after("--settings"), prompt: prompt.slice(0, 6000), promptTail: prompt.slice(-2500), session: SESSION, pid: process.pid, prevBgAlive }) + "\n")
-// FAKE_MODE: giveup = stop at once unless resumed; stubborn = always stop at once; sleep = answer the consolidation prompt with FAKE_SLEEP_JSON
+  appendFileSync(process.env.FAKE_REPORT, JSON.stringify({ cwd: process.cwd(), autoMemory: process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY ?? null, claudeMds: process.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS ?? null, resume: resumed, settings: after("--settings"), prompt: prompt.slice(0, 6000), promptTail: prompt.slice(-2500), promptFull: prompt, session: SESSION, pid: process.pid, prevBgAlive }) + "\n")
+// FAKE_MODE: giveup = stop at once unless resumed; stubborn = always stop at once; lose = stop at once, a resume fails; sleep = answer the consolidation prompt with FAKE_SLEEP_JSON
 const mode = process.env.FAKE_MODE || "ok"
 if (mode === "hang") setInterval(() => {}, 1000)
 if (mode === "hang") await new Promise(() => {})
@@ -50,7 +50,12 @@ if (/consolidation \("sleep"\) stage/.test(prompt)) {
   out({ type: "result", subtype: "success", is_error: false, result: "```json\n" + (process.env.FAKE_SLEEP_JSON || "[]") + "\n```", total_cost_usd: 0.01, session_id: SESSION })
   process.exit(0)
 }
-if (mode === "stubborn" || (mode === "giveup" && !resumed)) {
+// lose = stop at once, and a resume finds no conversation: the CLI says so on stderr, prints nothing and exits 1
+if (mode === "lose" && resumed) {
+  process.stderr.write(`No conversation found with session ID: ${resumed}\n`)
+  process.exit(1)
+}
+if (mode === "stubborn" || mode === "lose" || (mode === "giveup" && !resumed)) {
   out({ type: "assistant", message: { content: [{ type: "text", text: "Not done: this is an open problem." }] } })
   out({ type: "result", subtype: "success", is_error: false, result: "Not done: this is an open problem.", total_cost_usd: 0.01, session_id: SESSION })
   process.exit(0)

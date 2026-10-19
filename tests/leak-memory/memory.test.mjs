@@ -226,7 +226,7 @@ test("tokens split names, keep symbols and numbers", () => {
 
 // ---- what the 2026-10-18 overnight run showed (tests/leak-memory/overnight-fixture.mjs) -------------------------------------------------
 import { OLD, SLEEP_SCRIPT } from "./overnight-fixture.mjs"
-import { environmentHint, nudgePrompt, renderList } from "../../public/leak-memory.mjs"
+import { continuePrompt, environmentHint, nudgePrompt, renderList } from "../../public/leak-memory.mjs"
 
 const loaded = () => {
   const frames = []
@@ -307,4 +307,16 @@ test("the nudge says how long the agent ran, what to do next, and never offers '
 
 test("memoryRules carries the verify-early rule for every variant", () => {
   for (const k of Object.keys(VARIANTS)) assert.match(memoryRules(k), /Verify early and often/)
+})
+
+test("the continue prompt resumes the same session: what changed, how to reload a tool, no rules repeated", () => {
+  const t = continuePrompt({ attempt: 3, elapsedMs: 5 * 60000, libraryCount: 12, abstracted: ["gen_lemma"], toolIds: ["mcp__Leak_IV__verify_full_script"] })
+  assert.match(t, /attempt 3 of the SAME session/)
+  assert.match(t, /after 5 minutes/)
+  assert.match(t, /12 verified theorem/)
+  assert.match(t, /gen_lemma/)
+  assert.match(t, /select:mcp__Leak_IV__verify_full_script/)
+  assert.doesNotMatch(t, /THE LOOP/)
+  assert.doesNotMatch(continuePrompt({ attempt: 2 }), /consolidated|ToolSearch/, "nothing to say about lemmas or tools when there is none")
+  assert.match(continuePrompt({ attempt: 2, episodic: "\nEPISODE\n" }), /EPISODE/)
 })

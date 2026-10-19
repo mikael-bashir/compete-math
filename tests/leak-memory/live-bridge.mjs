@@ -151,7 +151,7 @@ const check = async (name, fn) => {
 }
 {
   const b = await startBridge({ FAKE_MODE: "stubborn" })
-  await check("an agent that never works gets at most maxNudges reminders per attempt, then a fresh attempt", async () => {
+  await check("an agent that never works gets at most maxNudges reminders per attempt, then the next attempt resumes the SAME session", async () => {
     const ctl = new AbortController()
     const p = b.post("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 2 }, { signal: ctl.signal }).then((r) => r.text()).catch(() => "")
     for (let i = 0; i < 100 && b.calls().length < 4; i++) await new Promise((r) => setTimeout(r, 100))
@@ -159,21 +159,29 @@ const check = async (name, fn) => {
     await p
     const calls = b.calls()
     assert.ok(calls.length >= 4, `only ${calls.length} CLI calls`)
-    assert.deepEqual(calls.slice(0, 4).map((c) => c.resume !== null), [false, true, true, false])
+    assert.deepEqual(calls.slice(0, 4).map((c) => c.resume !== null), [false, true, true, true])
     assert.equal(calls[2].resume, calls[1].session, "each reminder resumes the latest session")
-    assert.match(calls[3].prompt, /attempt 2 of an unbounded series/)
+    assert.equal(calls[3].resume, calls[2].session, "the next attempt resumes it too, instead of opening a fresh conversation")
+    assert.match(calls[3].prompt, /attempt 2 of the SAME session/)
+    assert.doesNotMatch(calls[3].prompt, /THE LOOP/, "the rules are not repeated: they are already in the conversation")
+    assert.match(calls[3].prompt, /select:mcp__Leak_IV__verify_full_script/, "it says how to reload a tool, in case the resume lost it")
   })
   b.stop()
 }
 {
   const b = await startBridge({ FAKE_MODE: "stubborn" })
-  await check("maxNudges 0 turns reminders off", async () => {
+  await check("maxNudges 0 turns reminders off: every stop is the next attempt, in the same session", async () => {
     const ctl = new AbortController()
     const p = b.post("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 0 }, { signal: ctl.signal }).then((r) => r.text()).catch(() => "")
     for (let i = 0; i < 100 && b.calls().length < 3; i++) await new Promise((r) => setTimeout(r, 100))
     ctl.abort()
     await p
-    assert.ok(b.calls().slice(0, 3).every((c) => c.resume === null))
+    const calls = b.calls()
+    assert.equal(calls[0].resume, null)
+    assert.equal(calls[1].resume, calls[0].session)
+    assert.equal(calls[2].resume, calls[1].session)
+    assert.match(calls[1].prompt, /attempt 2 of the SAME session/)
+    assert.match(calls[2].prompt, /attempt 3 of the SAME session/)
   })
   b.stop()
 }
@@ -284,7 +292,24 @@ const bgFile = (name) => path.join(tmp, `bg-${name}.txt`)
 {
   const bg = bgFile("fresh")
   const b = await startBridge({ FAKE_MODE: "stubborn", FAKE_BG: bg })
-  await check("a fresh attempt does not inherit the previous attempt's jobs", async () => {
+  await check("while the session goes on across attempts the agent's jobs are its own; they end with the run", async () => {
+    const ctl = new AbortController()
+    const p = b.post("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 1 }, { signal: ctl.signal }).then((r) => r.text()).catch(() => "")
+    for (let i = 0; i < 100 && b.calls().length < 3; i++) await new Promise((r) => setTimeout(r, 100))
+    ctl.abort()
+    await p
+    const calls = b.calls()
+    assert.deepEqual(calls.slice(0, 3).map((c) => c.resume !== null), [false, true, true])
+    assert.deepEqual(calls[1].prevBgAlive, [true])
+    assert.deepEqual(calls[2].prevBgAlive, [true, true], `the next attempt of the same session lost its jobs: ${calls[2].prevBgAlive}`)
+    assert.deepEqual(await waitDead(readPids(bg)), [])
+  })
+  b.stop()
+}
+{
+  const bg = bgFile("lost")
+  const b = await startBridge({ FAKE_MODE: "lose", FAKE_BG: bg })
+  await check("a session that cannot be resumed is replaced by a new conversation with the full prompt, and its jobs end", async () => {
     const ctl = new AbortController()
     const p = b.post("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 1 }, { signal: ctl.signal }).then((r) => r.text()).catch(() => "")
     for (let i = 0; i < 100 && b.calls().length < 3; i++) await new Promise((r) => setTimeout(r, 100))
@@ -292,8 +317,9 @@ const bgFile = (name) => path.join(tmp, `bg-${name}.txt`)
     await p
     const calls = b.calls()
     assert.deepEqual(calls.slice(0, 3).map((c) => c.resume !== null), [false, true, false])
-    assert.deepEqual(calls[1].prevBgAlive, [true])
-    assert.ok(calls[2].prevBgAlive.every((x) => x === false), `the new attempt found jobs alive: ${calls[2].prevBgAlive}`)
+    assert.match(calls[2].prompt, /THE LOOP/)
+    assert.match(calls[2].promptFull, /could not be resumed/)
+    assert.ok(calls[2].prevBgAlive.every((x) => x === false), `the new conversation found jobs alive: ${calls[2].prevBgAlive}`)
     assert.deepEqual(await waitDead(readPids(bg)), [])
   })
   b.stop()

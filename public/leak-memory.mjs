@@ -34,7 +34,7 @@ export const VARIANTS = {
   },
   "control-flint": {
     name: "Control II Flint",
-    blurb: "Episodic replay. No tool: each fresh attempt opens with the theorems proved so far, put there by the harness.",
+    blurb: "Episodic replay. No tool: the theorems proved so far are put in front of the agent by the harness each time the session starts or is resumed.",
     tools: [],
     episodic: 10,
     augmentSearch: false,
@@ -451,7 +451,7 @@ export function renderList(entries, memory) {
   )
 }
 
-// Flint: what the harness puts at the top of every fresh attempt.
+// Flint: what the harness puts in front of the agent each time its session starts or is resumed.
 export function episodicBlock(memory, n, { maxChars = 7000 } = {}) {
   const items = memory.recent(n)
   if (!items.length) return ""
@@ -607,6 +607,22 @@ export function environmentHint(env = {}) {
   if (env.gcc === false) bits.push("there is no C compiler")
   const base = "A shell command that runs longer than two minutes is moved to the background by the tool: start long jobs with `nohup … > out.txt &` and read `out.txt` later, instead of waiting."
   return `- Your shell (${env.platform || "unknown"}): ${bits.length ? `${bits.join("; ")}. ` : ""}${base}`
+}
+
+// What the harness says when the agent stops and the run goes on: the same conversation, resumed, so everything it learned is still
+// there (the CLI compacts it when it grows). Says what changed outside the conversation: lemmas the sleep stage added.
+// `episodic` is Flint's replay of the theorems proved so far, which a compacted conversation may no longer hold verbatim.
+export function continuePrompt({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "" } = {}) {
+  const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
+  const lines = [
+    `You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified proof of the target. The run's clock has not ended, so this is attempt ${attempt} of the SAME session: this conversation continues, and everything you tried and learned is still yours. That the target is open is the reason this run exists; it is not a reason to stop.`,
+    `The memory now holds ${libraryCount} verified theorem(s).`,
+  ]
+  if (abstracted.length)
+    lines.push(`The system consolidated it while you were stopped and added ${abstracted.length} more general lemma(s): ${abstracted.slice(0, 12).join(", ")}. memory_recall shows them marked (abstract lemma).`)
+  if (toolIds.length) lines.push(`If a tool you used before is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}`)
+  lines.push("Review what this session has already established, choose ONE concrete next claim (a lemma the target needs, a special case, or a generalisation of a verified theorem), and verify it with verify_full_script within your next few steps. A verified lemma is progress; an unverified conclusion is not.")
+  return `${lines.join("\n\n")}\n${episodic || ""}`
 }
 
 // What the harness says to an agent that stopped early, in the same conversation, so that it keeps what it learned. Not a reason to
