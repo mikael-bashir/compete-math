@@ -18,9 +18,9 @@
 // ---------------------------------------------------------------------------
 
 import { createServer } from "node:http"
-import { spawn } from "node:child_process"
+import { spawn, execFile } from "node:child_process"
 import { randomBytes, timingSafeEqual, randomUUID, createHash } from "node:crypto"
-import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, appendFileSync } from "node:fs"
+import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, appendFileSync, rmSync } from "node:fs"
 import { tmpdir, homedir } from "node:os"
 import { join, basename } from "node:path"
 
@@ -308,6 +308,35 @@ Everything else on the machine is yours and unrestricted — shell commands, scr
 const NO_LOCAL_LEAN_SETTINGS = JSON.stringify({
   hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: `node ${NO_LOCAL_LEAN_HOOK}` }] }] },
 })
+
+// An agent that runs alone for hours must not read or write the operator's own Claude Code state. The CLI keeps an "auto memory" per
+// project, keyed by the directory it starts in; an overnight run started from ~/tengoku-osint wrote seven notes into that project's
+// memory, read them back as "my earlier notes" in later attempts, and learned to stop at once from them. So an isolated agent gets
+// a scratch directory of its own (removed when the run ends), auto memory off, and no CLAUDE.md files loaded. The local-Lean block
+// stays in its settings.
+const isolatedSettings = () => JSON.stringify({ ...JSON.parse(NO_LOCAL_LEAN_SETTINGS), autoMemoryEnabled: false })
+const isolatedEnv = () => ({ ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" })
+const makeAgentScratch = () => mkdtempSync(join(tmpdir(), "leak-agent-"))
+const removeAgentScratch = (dir) => {
+  try {
+    if (dir) rmSync(dir, { recursive: true, force: true })
+  } catch {
+    /* a leftover temp directory is harmless */
+  }
+}
+
+// What the agent's shell can do, found once per bridge process by trying it (the PATH is the bridge's own, which is the agent's).
+let _envProbe = null
+function probeEnvironment() {
+  _envProbe ??= (async () => {
+    const ok = (cmd) => new Promise((res) => execFile("/bin/sh", ["-c", cmd], { timeout: 8000, env: process.env }, (err) => res(!err)))
+    const [timeout, python3, gcc] = await Promise.all([ok("command -v timeout"), ok("command -v python3"), ok("command -v gcc || command -v cc")])
+    const modules = {}
+    if (python3) for (const m of ["sympy", "numpy"]) modules[m] = await ok(`python3 -c "import ${m}"`)
+    return { platform: process.platform === "darwin" ? "macOS" : process.platform === "linux" ? "Linux" : process.platform, timeout, python3, gcc, modules }
+  })()
+  return _envProbe
+}
 
 function buildArgs(prompt, options = {}) {
   const args = ["-p", String(prompt), "--output-format", "json"]
@@ -3221,7 +3250,7 @@ function mapObjectToEvents(o, emit, stage, metrics) {
 // `onObject` (which returns true to stop the run early — e.g. goal closed), and
 // mirror activity into the console via `emit`. Shared by the node-prover and the
 // decomposer. Resolves when the process exits.
-function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, bridgeServerName, searchAugment, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId }, { onObject, emit }) {
+function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, bridgeServerName, searchAugment, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId, cwd, isolate }, { onObject, emit }) {
   return new Promise((resolve) => {
     // Each subagent run gets its OWN search governor (budget resets per node /
     // per decomposition — a fresh sub-goal earns a fresh allowance). The initial
@@ -3261,7 +3290,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
       // Applies to EVERY strategy, not just the controls: a local Lean is a
       // different Mathlib from the gate, so its answers are misleading for all
       // of them. Unlike removing Bash, this takes away nothing legitimate.
-      "--settings", NO_LOCAL_LEAN_SETTINGS,
+      "--settings", isolate ? isolatedSettings() : NO_LOCAL_LEAN_SETTINGS,
     ]
     if (model) args.push("--model", model)
     // Continue an existing CLI conversation instead of opening a fresh one
@@ -3284,7 +3313,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
 
     let child
     try {
-      child = spawn(CLAUDE_BIN, args, { cwd: process.cwd(), shell: false, stdio: ["ignore", "pipe", "pipe"] })
+      child = spawn(CLAUDE_BIN, args, { cwd: cwd || process.cwd(), env: isolate ? isolatedEnv() : process.env, shell: false, stdio: ["ignore", "pipe", "pipe"] })
     } catch (e) {
       resolve({ ok: false, finalText: "", exitCode: null, timedOut: false, stderr: `Failed to launch "${CLAUDE_BIN}": ${e.message}` })
       return
@@ -6383,7 +6412,7 @@ const queryOfArgs = (args) => Object.values(args || {}).filter((v) => typeof v =
 // The prompt of a memory variant. Same skeleton as controlPrompt (Control II: Leak IV + Leak I search, one continuous agent,
 // fresh attempts until the clock ends), with the rule about top-level lemmas turned around: here a verified helper lemma is
 // the unit of progress that the memory keeps.
-function controlMemoryPrompt(M, variantKey, memory, theorem, mcpServers, attempt, lastAttempt) {
+function controlMemoryPrompt(M, variantKey, memory, theorem, mcpServers, attempt, lastAttempt, envHint = "") {
   const cfg = M.VARIANTS[variantKey]
   const extra = cfg.tools.map((t) => ({ id: `mcp__memory__${t}`, args: t === "memory_recall" ? ["query", "limit"] : t === "memory_nominate" ? ["names", "on"] : ["limit", "nominatedOnly"] }))
   const toolSection = mcpToolSection(mcpServers, extra)
@@ -6406,7 +6435,7 @@ THE LOOP:
 ${SEARCH_USAGE_NOTE}
 
 RULES:
-${M.memoryRules(variantKey)}
+${M.memoryRules(variantKey, { envHint })}
 - Never conclude the target is "too hard", "open" or beyond reach, and never ask to split it: there is no one to hand it to. A failing approach means a DIFFERENT strategy, or a different lemma that gets you closer.
 - Never stop on your own. This is attempt ${attempt} of an unbounded series the system keeps making until you succeed or the run's own wall clock ends it.
 - The target is only proved when verify_full_script succeeds on a script that contains the target's exact statement with no sorry.
@@ -6435,6 +6464,8 @@ async function runSleepStage(M, memory, ctx, theorem, cfg, state) {
       metrics: ctx.metrics,
       signal: ctx.signal,
       searchBudget: 0,
+      cwd: state.scratch || undefined,
+      isolate: true,
     },
     { onObject: () => false, emit: ctx.emit },
   )
@@ -6459,14 +6490,26 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   }
   ctx.stage = "🧠"
   const memory = new M.Memory({ targetId: ctx.targetId, variant: variantKey, emit: ctx.emit })
-  const loaded = memory.load(Array.isArray(opts?.memory?.entries) ? opts.memory.entries.slice(0, M.MAX_ENTRIES) : [])
+  memory.load(Array.isArray(opts?.memory?.entries) ? opts.memory.entries.slice(0, M.MAX_ENTRIES) : [])
+  // The target's own vetted lemmas: in this run's library, never saved to an account and never nominated (origin "seed", silent).
+  const seeds = (Array.isArray(opts?.seeds) ? opts.seeds : []).filter((x) => typeof x === "string" && x.length < 20000).slice(0, 20)
+  for (const seedScript of seeds) memory.addScript(seedScript, { origin: "seed", silent: true, keepTrivial: true })
+  const loaded = memory.size
   const sig = theoremSignature(theorem)
   const pantographUrl = resolvePantographUrl(ctx.mcpServers)
   const allowedServers = (ctx.mcpServers || []).filter((s) => s?.url && s.url !== pantographUrl)
   const handlers = M.makeHandlers(memory, variantKey)
   const augment = cfg.augmentSearch ? (toolName, args, text) => M.augmentSearchText(memory, queryOfArgs(args), text) : null
   const attemptMs = ctx.attemptMsOverride || cfg.attemptMs
-  const sleepState = { lastSleepAt: 0, lastSleepIso: "", attempt: 0 }
+  const sleepState = { lastSleepAt: 0, lastSleepIso: "", attempt: 0, scratch: null }
+  // Knobs that exist so the behaviour can be tested in seconds; the defaults are the real ones.
+  const knob = (v, lo, hi, dflt) => (Number.isFinite(Number(v)) && v !== null && v !== "" ? Math.min(hi, Math.max(lo, Number(v))) : dflt)
+  const minAttemptMs = knob(opts?.minAttemptMs, 0, 3_600_000, 8 * 60_000)
+  const maxNudges = Math.floor(knob(opts?.maxNudges, 0, 5, 2))
+  const sleepCfg = cfg.sleep ? { ...cfg.sleep, everyMs: knob(opts?.sleepEveryMs, 0, 86_400_000, cfg.sleep.everyMs), minNew: knob(opts?.sleepMinNew, 1, 1000, cfg.sleep.minNew) } : null
+  const envHint = M.environmentHint(await probeEnvironment())
+  const scratch = makeAgentScratch()
+  sleepState.scratch = scratch
   const statsFrame = () => ctx.emit({ type: "memory", op: "stats", stats: { ...memory.stats, size: memory.size, nominated: memory.nominated().length } })
   ctx.emit({
     type: "message-annotation",
@@ -6475,12 +6518,13 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   })
   let attempt = 0
   let lastAttempt = null
+  try {
   while (!ctx.signal?.aborted && !deadlinePassed(ctx)) {
     attempt++
     sleepState.attempt = attempt
-    if (cfg.sleep && M.sleepDue(memory, sleepState, cfg.sleep)) {
+    if (sleepCfg && M.sleepDue(memory, sleepState, sleepCfg)) {
       try {
-        await runSleepStage(M, memory, ctx, theorem, cfg, sleepState)
+        await runSleepStage(M, memory, ctx, theorem, { ...cfg, sleep: sleepCfg }, sleepState)
       } catch (e) {
         ctx.emit({ type: "message-annotation", subtype: "error", thought: `🌙 Sleep stage failed (${String(e?.message || e).slice(0, 160)}); carrying on.` })
       }
@@ -6490,12 +6534,16 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       ctx.emit({ type: "message-annotation", subtype: "status", thought: `🧠 Attempt ${attempt} — fresh context, ${memory.size} verified theorem(s) in memory${lastAttempt ? ", last submission carried forward" : ""}.` })
     const gate = makeProofGate(theorem)
     const pendingVerify = new Map()
-    const attemptPrompt = controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt)
+    const attemptPrompt = controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint)
     // what the agent is really told, for the console and the admin log (the frame sent when the run opens cannot know the memory yet)
     ctx.emit({ type: "prompt", prompt: `[CONTROL II MEMORY — ${cfg.name} · attempt ${attempt}]\n\n${attemptPrompt}`, model: ctx.model || null, mcpServers: allowedServers.map((s) => ({ name: s.name, url: s.url })) })
-    await spawnProverStream(
+    const session = (prompt, resumeSessionId) =>
+      spawnProverStream(
       {
-        prompt: attemptPrompt,
+        prompt,
+        resumeSessionId,
+        cwd: scratch,
+        isolate: true,
         mcpServers: allowedServers,
         model: ctx.model,
         maxTurns: 0,
@@ -6534,6 +6582,18 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         emit: ctx.emit,
       },
     )
+    // An agent that stops within minutes, with no verified proof, while the clock is running is spoken to in the same conversation (so
+    // it keeps what it learned) instead of being started afresh: an overnight run had about seventy attempts of one to five minutes each.
+    const t0 = Date.now()
+    let r = await session(attemptPrompt, undefined)
+    let nudges = 0
+    while (!gate.verifiedScript && !ctx.signal?.aborted && !deadlinePassed(ctx) && nudges < maxNudges && r?.sessionId && !r.timedOut && !r.stopped && Date.now() - t0 < minAttemptMs) {
+      nudges++
+      memory.stats.nudges++
+      const elapsed = Date.now() - t0
+      ctx.emit({ type: "message-annotation", subtype: "status", thought: `↩️ The agent stopped after ${Math.max(1, Math.round(elapsed / 60000))} minute(s) with no verified proof: reminding it in the same conversation (${nudges} of ${maxNudges}).` })
+      r = await session(M.nudgePrompt({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges }), r.sessionId)
+    }
     statsFrame()
     if (gate.verifiedScript) {
       const v = await verifyViaDaemon(gate.verifiedScript, ctx.verifyUrl, { timeoutMs: ctx.verifyTimeoutMs })
@@ -6549,6 +6609,9 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         thought: `⚠️ A proof was verified, but its final re-check did not pass (${v.ok ? "it still has a hole or a different statement" : String(v.error || v.text || "no answer").slice(0, 160)}); trying again.`,
       })
     }
+  }
+  } finally {
+    removeAgentScratch(scratch)
   }
   statsFrame()
   if (ctx.signal?.aborted) return { verified: false, proof: "" }
@@ -6590,6 +6653,8 @@ async function proveControl(theorem, ctx, tier = 1) {
   })
   let attempt = 0
   let lastAttempt = null // { script, result } from the previous session's LAST verify_full_script call
+  const scratch = makeAgentScratch() // this run's own working directory: see isolatedSettings
+  try {
   while (!ctx.signal?.aborted && !deadlinePassed(ctx)) {
     attempt++
     if (attempt > 1)
@@ -6612,6 +6677,8 @@ async function proveControl(theorem, ctx, tier = 1) {
         metrics: ctx.metrics,
         signal: ctx.signal,
         searchBudget: ctx.searchBudget,
+        cwd: scratch,
+        isolate: true,
       },
       {
         onObject: (o) => {
@@ -6650,6 +6717,9 @@ async function proveControl(theorem, ctx, tier = 1) {
         thought: `⚠️ A proof was verified, but its final re-check against ${ctx.verifyUrl || "the verifier"} did not pass (${v.ok ? "it still has a hole or a different statement" : String(v.error || v.text || "no answer").slice(0, 160)}). If this repeats, check that the server marked as the verifier really exposes verify_full_script.`,
       })
     }
+  }
+  } finally {
+    removeAgentScratch(scratch)
   }
   if (ctx.signal?.aborted) return { verified: false, proof: "" }
   ctx.emit({ type: "message-annotation", subtype: "error", thought: `🎯 ${label} ran out of clock after ${attempt} attempt(s) without a verified proof.` })

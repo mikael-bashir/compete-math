@@ -42,7 +42,7 @@ export const MEMORY_BYTES_PER_RUN = 1_200_000;
 
 export function packMemory(entries: MemoryEntry[], maxBytes = MEMORY_BYTES_PER_RUN): MemoryEntry[] {
   const ranked = [...entries]
-    .filter((e) => !e.subsumedBy)
+    .filter((e) => !e.subsumedBy || e.nominated) // merged into a more general lemma: hidden, unless the account nominated it
     .sort((a, b) => Number(b.nominated) - Number(a.nominated) || b.hits - a.hits || Date.parse(b.savedAt) - Date.parse(a.savedAt));
   const out: MemoryEntry[] = [];
   let used = 0;

@@ -190,11 +190,20 @@ export class Memory {
     this.emit = emit
     this.now = now
     this.entries = new Map() // id -> entry
-    this.stats = { saves: 0, updates: 0, recalls: 0, recallHits: 0, injected: 0, sleeps: 0, abstracted: 0 }
+    this.stats = { saves: 0, updates: 0, recalls: 0, recallHits: 0, injected: 0, sleeps: 0, abstracted: 0, nudges: 0 }
   }
 
   get size() {
     return this.entries.size
+  }
+
+  // What the driver is shown. An entry that a more general lemma replaced is hidden, unless the account nominated it.
+  visible(e) {
+    return !e.subsumedBy || !!e.nominated
+  }
+
+  hiddenCount() {
+    return [...this.entries.values()].filter((e) => !this.visible(e)).length
   }
 
   // Entries from the browser: what this account has already saved for this target (and, if asked, the target's public seeds).
@@ -262,7 +271,7 @@ export class Memory {
       const statement = statementOf(b.text)
       if (!statement) continue
       const proof = proofOf(b.text)
-      if (isTrivial(statement, proof, meta)) continue
+      if (!meta.keepTrivial && isTrivial(statement, proof, meta)) continue
       // everything earlier that this declaration needs, closed under "mentions"
       const need = new Set([b.idx])
       let grew = true
@@ -306,9 +315,10 @@ export class Memory {
       if (prior && prior.closure.length <= closure.length) continue // keep the shorter proof
       if (!prior && this.entries.size >= MAX_ENTRIES) continue
       this.entries.set(id, entry)
+      out.push(entry)
+      if (meta.silent) continue // the project's own seeds: in this run's library, but not saved to anyone's account
       if (prior) this.stats.updates++
       else this.stats.saves++
-      out.push(entry)
       this.emit({ type: "memory", op: prior ? "update" : "save", entry: this.publicEntry(entry) })
     }
     return out
@@ -317,15 +327,23 @@ export class Memory {
   // Generalised lemmas from the sleep stage. The bridge has already re-verified `script` with Leak IV.
   addAbstract(script, subsumes = [], meta = {}) {
     const added = this.addScript(script, { ...meta, origin: "abstracted", subsumes, minStatement: 12 })
-    for (const e of added) {
-      this.stats.abstracted++
-      for (const id of subsumes) {
-        const old = this.entries.get(id)
-        if (old && old.id !== e.id) {
-          old.subsumedBy = e.id
-          this.emit({ type: "memory", op: "update", entry: this.publicEntry(old) })
-        }
-      }
+    this.stats.abstracted += added.length
+    if (!added.length) return added
+    // A script can hold several lemmas. Each merged entry is pointed at the new lemma that says the most like it, and told about it once.
+    const overlap = (a, b) => {
+      const x = new Set(tokens(a))
+      const y = new Set(tokens(b))
+      let n = 0
+      for (const t of x) if (y.has(t)) n++
+      return n / (x.size + y.size - n || 1)
+    }
+    for (const id of new Set(subsumes)) {
+      const old = this.entries.get(id)
+      if (!old || added.some((e) => e.id === old.id)) continue
+      const best = added.reduce((b, e) => (overlap(old.statement, e.statement) > overlap(old.statement, b.statement) ? e : b), added[0])
+      if (old.subsumedBy === best.id) continue
+      old.subsumedBy = best.id
+      this.emit({ type: "memory", op: "update", entry: this.publicEntry(old) })
     }
     return added
   }
@@ -333,6 +351,7 @@ export class Memory {
   nominate(idOrName, on = true) {
     const e = this.find(idOrName)
     if (!e) return { ok: false, why: `no saved theorem matches "${idOrName}"` }
+    if (e.origin === "seed") return { ok: false, why: `${e.name} is one of this target's own seed lemmas, not something this run proved, so it cannot be nominated` }
     if (on && !e.nominated && this.nominated().length >= MAX_NOMINATED)
       return { ok: false, why: `${MAX_NOMINATED} theorems are already nominated (the most Jinshi takes); un-nominate one first` }
     e.nominated = !!on
@@ -352,19 +371,19 @@ export class Memory {
   }
 
   list({ limit = 30, nominatedOnly = false } = {}) {
-    const all = [...this.entries.values()].filter((e) => !nominatedOnly || e.nominated)
+    const all = [...this.entries.values()].filter((e) => this.visible(e) && (!nominatedOnly || e.nominated))
     return all.sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || ""))).slice(0, limit)
   }
 
   recent(n) {
-    return this.list({ limit: n }).filter((e) => !e.subsumedBy)
+    return this.list({ limit: n })
   }
 
   // BM25 over name + statement tokens, with a bonus for symbols the query shares and a small one for entries that were
   // useful before. Subsumed entries rank below the abstract lemma that replaced them.
   recall(query, { limit = 5, markHit = true } = {}) {
     const qt = [...new Set(tokens(query).filter((t) => !STOP.has(t)))]
-    const docs = [...this.entries.values()].map((e) => ({ e, t: tokens(`${e.name} ${e.statement}`).filter((x) => !STOP.has(x)) }))
+    const docs = [...this.entries.values()].filter((e) => this.visible(e)).map((e) => ({ e, t: tokens(`${e.name} ${e.statement}`).filter((x) => !STOP.has(x)) }))
     const N = docs.length || 1
     const avg = docs.reduce((a, d) => a + d.t.length, 0) / N || 1
     const df = new Map()
@@ -400,19 +419,39 @@ export function renderEntry(e, { withProof = true } = {}) {
   return withProof ? `${head}\n${e.closure}` : `${head}\n${e.statement}`
 }
 
+// Results that share a helper (an abstract lemma and its corollaries all carry the same master identity) show it once: a block
+// whose helper an earlier block already printed says what it needs instead of repeating it. 
+function dedupeShared(entries) {
+  const seen = new Set()
+  return entries.map((e) => {
+    const blocks = splitDeclarations(e.closure)
+    const out = blocks.map((b, i) => {
+      const key = canon(b)
+      const head = blockHead(b)
+      const isDecl = head === "theorem" || head === "lemma" || head === "def"
+      if (isDecl && seen.has(key)) return i < blocks.length - 1 ? `-- needs \`${blockName(b)}\` (shown above)` : `-- this is \`${blockName(b)}\`, shown above`
+      seen.add(key)
+      return b
+    })
+    return { ...e, closure: out.join("\n\n") }
+  })
+}
+
 export function renderRecall(entries, memory) {
   if (!entries.length) return `No saved theorem matches that query. Memory holds ${memory?.size ?? 0} verified theorem(s); memory_list shows the most recent.`
   return (
-    `${entries.length} verified theorem(s) from this target's memory, best match first. Each block is compile-ready (it includes the definitions and lemmas it needs) and was accepted by Leak IV when saved; paste it into a script and verify_full_script it before you rely on it.\n\n` +
-    entries.map((e) => renderEntry(e)).join("\n\n")
+    `${entries.length} verified theorem(s) from this target's memory, best match first. Each block is compile-ready (it includes the definitions and lemmas it needs) and was accepted by Leak IV when saved; paste it into a script and verify_full_script it before you rely on it. Where a block says "needs X (shown above)", copy X from the block above it.\n\n` +
+    dedupeShared(entries).map((e) => renderEntry(e)).join("\n\n")
   )
 }
 
 export function renderList(entries, memory) {
   if (!entries.length) return "Memory is empty for this target so far."
+  const hidden = memory?.hiddenCount?.() ?? 0
   return (
-    `${memory?.size ?? entries.length} verified theorem(s) saved (showing ${entries.length}, newest first):\n` +
-    entries.map((e) => `- [${e.id.slice(0, 8)}] ${e.name}${e.nominated ? " *nominated*" : ""}: ${e.statement.slice(0, 220)}`).join("\n")
+    `${memory ? memory.size - hidden : entries.length} verified theorem(s) saved (showing ${entries.length}, newest first):\n` +
+    entries.map((e) => `- [${e.id.slice(0, 8)}] ${e.name}${e.origin === "abstracted" ? " (abstract lemma)" : ""}${e.nominated ? " *nominated*" : ""}: ${e.statement.slice(0, 220)}`).join("\n") +
+    (hidden ? `\n${hidden} more merged into the general lemmas above are hidden.` : "")
   )
 }
 
@@ -484,7 +523,7 @@ export function makeHandlers(memory, variantKey) {
 
 // The sentences added to Control II's prompt for a variant. The baseline forbids top-level helper lemmas; a memory
 // variant allows them, because a lemma that verifies on its own is the unit of progress that memory keeps.
-export function memoryRules(variantKey) {
+export function memoryRules(variantKey, { envHint = "" } = {}) {
   const cfg = VARIANTS[variantKey]
   const tools = cfg.tools.length
   const lines = [
@@ -492,6 +531,7 @@ export function memoryRules(variantKey) {
   ]
   lines.push("- Verify early and often. Python or other numeric probing is fine for finding a candidate, but a number or a pattern is only a fact once Leak IV has checked it (`decide +kernel`, `rfl`, `norm_num`), and a plan is not progress. Within your first few minutes submit something to verify_full_script, even a small lemma or a concrete instance; a submission that fails teaches more than another stretch of thinking.")
   lines.push("- Look up what the library already has (loogle_search for a type pattern, moogle_search for a concept) before you prove a helper that may exist; use what you find in a real script.")
+  if (envHint) lines.push(envHint)
   if (tools) lines.push("- Before you re-derive something, call memory_recall: you may already have proved it. Save effort for what is genuinely new.")
   if (cfg.augmentSearch) lines.push("- Your library searches also return matching theorems from this memory under a MEMORY heading; they are compile-ready.")
   if (tools) lines.push(`- When a saved theorem is general, minimally assumed and well named, nominate it with memory_nominate (at most ${MAX_NOMINATED}). Nominated theorems are the ones that can later be submitted to the Tengoku library, so nominate only what you would be proud to have others reuse.`)
@@ -555,3 +595,34 @@ export function parseSleep(text) {
 
 export const resolveSubsumes = (memory, shortIds) =>
   (shortIds || []).map((s) => memory.find(s)?.id).filter(Boolean)
+
+
+// What the agent's shell can and cannot do, found by the bridge once per run (probeEnvironment in the bridge) and stated plainly:
+// an overnight run lost about fifteen tool calls to `timeout: command not found` and a missing sympy, every attempt again.
+// Only what is missing is said; a machine that has everything gets no line.
+export function environmentHint(env = {}) {
+  const bits = []
+  if (env.timeout === false) bits.push("`timeout` is not installed here, so `timeout 100 cmd` fails; bound a job with `perl -e 'alarm 100; exec @ARGV' cmd`, or run it in the background")
+  if (env.python3 === false) bits.push("python3 is not installed")
+  else {
+    const missing = Object.entries(env.modules || {}).filter(([, ok]) => ok === false).map(([m]) => m)
+    if (missing.length) bits.push(`python3 has no ${missing.join(" or ")} (write the factorisation or sieve yourself, with the standard library)`)
+  }
+  if (env.gcc === false) bits.push("there is no C compiler")
+  const base = "A shell command that runs longer than two minutes is moved to the background by the tool: start long jobs with `nohup … > out.txt &` and read `out.txt` later, instead of waiting."
+  return `- Your shell (${env.platform || "unknown"}): ${bits.length ? `${bits.join("; ")}. ` : ""}${base}`
+}
+
+// What the harness says to an agent that stopped early, in the same conversation, so that it keeps what it learned. Not a reason to
+// stop is offered: that the target is open is the reason the run exists.
+export function nudgePrompt({ elapsedMs, libraryCount = 0, nudge = 1, of = 2 } = {}) {
+  const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
+  return `You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified theorem. The run's clock has not ended, so that is not accepted (reminder ${nudge} of ${of}). That the target is open is the reason this run exists; it is not a reason to stop.
+
+Do this now, in this order:
+1. Choose ONE concrete claim that is true and checkable: a lemma the target would need, a special case (a small k with its witness), or a generalisation of one of the ${libraryCount} verified theorem(s) in memory (use memory_list or memory_recall).
+2. Write its complete Lean script and call verify_full_script within your next few steps. Do not start another long numeric search first.
+3. When it compiles, it is saved automatically; then choose the next claim.
+
+An unverified conclusion is not a result. A verified lemma is.`
+}

@@ -16,8 +16,14 @@
       "upstreamForm": "∀ k, ∃ n, descFactorial n (k + 1) ∣ centralBinom n",
       "tag": "research open"
     },
-    "erdosproblems": { "url": "https://www.erdosproblems.com/396", "marking": "open, no solution listed" },
-    "oeis": { "id": "A375077", "note": "smallest n for each k: 2, 2480, 8178, …" },
+    "erdosproblems": {
+      "url": "https://www.erdosproblems.com/396",
+      "marking": "open, no solution listed"
+    },
+    "oeis": {
+      "id": "A375077",
+      "note": "smallest n for each k: 2, 2480, 8178, …"
+    },
     "alphaproof": "not attempted there: the comparison is against formal-conjectures and OEIS, not against an AlphaProof output"
   },
   "checks": {
@@ -30,5 +36,8 @@
     ],
     "checkedAt": "2026-10-17"
   },
-  "seeds": []
+  "seeds": [
+    "open Finset Nat\n\n/-- The formal statement's `descFactorial n (k+1)` is the product `n (n-1) ... (n-k)` of the informal problem and of OEIS A375077. -/\ntheorem descFactorial_is_the_product (n k : ℕ) :\n    n.descFactorial (k + 1) = ∏ i ∈ Finset.range (k + 1), (n - i) :=\n  Nat.descFactorial_eq_prod_range n (k + 1)\n\nlemma cb_eq (n : ℕ) : n.centralBinom = (2 * n).descFactorial n / n ! := by\n  rw [Nat.centralBinom_eq_two_mul_choose, Nat.choose_eq_descFactorial_div_factorial]\n\n/-- The first three values of OEIS A375077 (smallest n for k = 1, 2, 3) satisfy the statement. -/\ntheorem E396_k1 : (2 : ℕ).descFactorial 2 ∣ (2 : ℕ).centralBinom := by\n  rw [cb_eq]; decide +kernel\n\ntheorem E396_k2 : (2480 : ℕ).descFactorial 3 ∣ (2480 : ℕ).centralBinom := by\n  rw [cb_eq]; decide +kernel\n\ntheorem E396_k3 : (8178 : ℕ).descFactorial 4 ∣ (8178 : ℕ).centralBinom := by\n  rw [cb_eq]; decide +kernel\n\n/-- Minimality for k = 2: the entry before 2480 does not work (A375077 says 2480 is the smallest). -/\ntheorem E396_k2_not_2479 : ¬ (2479 : ℕ).descFactorial 3 ∣ (2479 : ℕ).centralBinom := by\n  rw [cb_eq]; decide +kernel\n"
+  ],
+  "seedsNote": "Comparison facts checked on Leak IV on 2026-10-17: the statement's descFactorial is the informal product, centralBinom as a quotient (`cb_eq`), and the witnesses n = 2, 2480, 8178 for k = 1, 2, 3 by `decide +kernel` in seconds, which is far cheaper than unfolding the binomial. They are in a run's library for the memory variants but are never saved to an account and cannot be nominated. scripts/verify-target-seeds.mjs re-checks them."
 }

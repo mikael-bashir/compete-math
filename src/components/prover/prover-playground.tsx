@@ -87,6 +87,8 @@ export function ProverPlayground() {
   // Optional limits for the run: wall-clock (hours) and a dollar cap on the CLI's list-price estimate. Blank = default / none.
   const [limitHours, setLimitHours] = useState('');
   const [costCap, setCostCap] = useState('');
+  // Start the run from the target's vetted lemmas (checked on Leak IV; never saved to the account).
+  const [useSeeds, setUseSeeds] = useState(true);
   // Memory of the signed-in account for the selected target (the bridge keeps nothing between runs).
   const { data: session } = useSession();
   const signedIn = !!session?.user;
@@ -256,6 +258,7 @@ export function ProverPlayground() {
           maxCostUsd: asTree ? maxCostUsd : undefined,
           targetId: usesMemory && target ? target.id : undefined,
           memoryEntries: usesMemory && target ? packMemory(memoryRef.current) : undefined,
+          seeds: usesMemory && target && useSeeds ? target.seeds : undefined,
           onMemory: usesMemory ? onMemoryFrame : undefined,
           maxIters: isArchitectStrategy(strategy) ? maxIters : undefined,
           onRunId: ({ runId, deadlineMs, budgetMs }) => {
@@ -276,7 +279,7 @@ export function ProverPlayground() {
         abortRef.current = null;
       }
     },
-    [problem, decompose, strategy, model, maxIters, limitHours, costCap, target, onMemoryFrame, flushSaves],
+    [problem, decompose, strategy, model, maxIters, limitHours, costCap, useSeeds, target, onMemoryFrame, flushSaves],
   );
 
   // Push the running prove's wall-clock budget out. Best-effort.
@@ -491,6 +494,12 @@ export function ProverPlayground() {
               />
             </label>
           </>
+        )}
+        {target && target.seeds.length > 0 && isMemoryStrategy(strategy) && (
+          <label className="inline-flex items-center gap-1 text-[10px] text-muted-foreground" title="Comparison facts and small witnesses checked on Leak IV. They are in the run's library but are never saved to your account and cannot be nominated. Turn off for a run that starts empty.">
+            <input type="checkbox" checked={useSeeds} onChange={(e) => setUseSeeds(e.target.checked)} disabled={running} className="size-3" />
+            Start from vetted lemmas
+          </label>
         )}
         {target && (
           <LeakMemoryModal
