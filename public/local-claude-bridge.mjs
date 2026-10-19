@@ -6622,7 +6622,6 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   const allowedServers = (ctx.mcpServers || []).filter((s) => s?.url && s.url !== pantographUrl)
   const handlers = M.makeHandlers(memory, variantKey)
   const augment = cfg.augmentSearch ? (toolName, args, text) => M.augmentSearchText(memory, queryOfArgs(args), text) : null
-  const attemptMs = ctx.attemptMsOverride || cfg.attemptMs
   const sleepState = { lastSleepAt: 0, lastSleepIso: "", attempt: 0, scratch: null }
   // Knobs that exist so the behaviour can be tested in seconds; the defaults are the real ones.
   const knob = (v, lo, hi, dflt) => (Number.isFinite(Number(v)) && v !== null && v !== "" ? Math.min(hi, Math.max(lo, Number(v))) : dflt)
@@ -6637,7 +6636,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   ctx.emit({
     type: "message-annotation",
     subtype: "status",
-    thought: `🧠 ${cfg.name}: one continuous agent against Leak IV + Leak I search, a library of verified theorems (${loaded} loaded for this target), fresh attempts of at most ${Math.round(attemptMs / 60000)} min until the clock ends.`,
+    thought: `🧠 ${cfg.name}: one continuous agent against Leak IV + Leak I search, a library of verified theorems (${loaded} loaded for this target), one session, no cap on it (the agent manages its own context): a new one starts only if the agent stops on its own, until the clock ends.`,
   })
   let attempt = 0
   let lastAttempt = null
@@ -6672,7 +6671,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         mcpServers: allowedServers,
         model: ctx.model,
         maxTurns: 0,
-        timeoutMs: ctx.nodeTimeoutMs > 0 ? Math.min(ctx.nodeTimeoutMs, attemptMs) : attemptMs,
+        timeoutMs: ctx.nodeTimeoutMs,
         getDeadline: ctx.getDeadline,
         stage: "🧠",
         metrics: ctx.metrics,
@@ -12711,7 +12710,6 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
     costCapUsd: Number(opts.maxCostUsd) > 0 ? Math.min(Number(opts.maxCostUsd), 5000) : 0,
     // memory variants: which target the saved theorems belong to, and a per-attempt length override for experiments
     targetId: typeof opts.targetId === "string" ? opts.targetId.slice(0, 80) : "",
-    attemptMsOverride: Number(opts.attemptMs) > 0 ? clampNum(opts.attemptMs, 60000, 21600000, 0) : 0,
     // The mechanic's window: run-scoped ring of rendered stream frames.
     streamLog,
     // Turn budgets below are used ONLY by the lemma-style prove-or-split tree
