@@ -2,6 +2,7 @@
 // servers. It shows what the agent actually does: which Leak tools it calls, whether it recalls from the library, what it saves, and whether the
 // run leaves anything behind (processes, scratch directories, notes in ~/.claude/projects).
 //   node tests/leak-memory/real-cli-lucid.mjs      (LUCID_MS = time budget in ms, default 240000)
+//   TARGET=erdos-396 node tests/leak-memory/real-cli-lucid.mjs   the real target (its statement, its seeds) against the REAL Leak IV
 import { spawn, execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
@@ -11,6 +12,7 @@ import { startFakeLeak } from "./fake-leak.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const leak = await startFakeLeak()
+const target = process.env.TARGET ? JSON.parse(fs.readFileSync(path.join(here, "../../src/data/leak-targets", process.env.TARGET + ".json"), "utf8")) : null
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "leak-real-lucid-"))
 const PORT = 4900 + Math.floor(Math.random() * 90)
 const projects = path.join(os.homedir(), ".claude", "projects")
@@ -22,12 +24,12 @@ const bridge = spawn(process.execPath, [path.join(here, "../../public/local-clau
 })
 await new Promise((r) => setTimeout(r, 1500))
 const mcpServers = [
-  { name: "Leak_IV", url: `http://127.0.0.1:${leak.port}/iv/sse`, tools: ["verify_full_script"] },
+  { name: "Leak_IV", url: target ? "https://barkingtree-leak-iv.hf.space/sse" : `http://127.0.0.1:${leak.port}/iv/sse`, tools: ["verify_full_script"] },
   { name: "Leak_I", url: `http://127.0.0.1:${leak.port}/i/sse`, tools: [{ name: "moogle_search", args: ["concept"] }] },
 ]
-const theorem = `theorem lucid_smoke (a b : ℕ) : a + b + 0 = b + a := by
+const theorem = target ? target.statement : `theorem lucid_smoke (a b : ℕ) : a + b + 0 = b + a := by
   sorry`
-const seed = "theorem seed_add_zero_fake (a : ℕ) : a + 0 = a := by\n  simp"
+const seed = target ? target.seeds[0] : "theorem seed_add_zero_fake (a : ℕ) : a + 0 = a := by\n  simp"
 const ms = Number(process.env.LUCID_MS || 240000)
 const r = await fetch(`http://127.0.0.1:${PORT}/prove-tree`, {
   method: "POST",
@@ -47,7 +49,10 @@ for (const f of frames.filter((f) => f.type === "message-annotation" && /🧠|�
 let bad = 0
 const say = (ok, msg) => { console.log(ok ? "ok  " : "FAIL", msg); if (!ok) bad++ }
 await new Promise((r) => setTimeout(r, 2500))
-say(leak.calls.some((c) => c.tool === "verify_full_script"), "the agent called verify_full_script")
+if (target) {
+  const slotTexts = (re) => [...new Set([...text.matchAll(re)].map((m) => m[0]))].slice(0, 4)
+  console.log("slot in what the agent sent:", { sorrySlot: slotTexts(/\(sorry : Prop\) ↔[^\\"]{0,40}/g), trueSlot: slotTexts(/\b(?:\(True : Prop\)|True) ↔ ∀[^\\"]{0,30}/g), falseSlot: slotTexts(/\b(?:\(False : Prop\)|False) ↔ ∀[^\\"]{0,30}/g) })
+} else say(leak.calls.some((c) => c.tool === "verify_full_script"), "the agent called verify_full_script")
 say(listing().every((f) => notesBefore.has(f)), "no new notes in ~/.claude/projects/*/memory: " + listing().filter((f) => !notesBefore.has(f)).join(", "))
 say(fs.readdirSync(tmp).every((f) => !f.startsWith("leak-agent-")), "no scratch directory left")
 try { execFileSync("pgrep", ["-f", "leak-agent-"]); say(false, "a process is still in a scratch directory") } catch { say(true, "no process left in a scratch directory") }

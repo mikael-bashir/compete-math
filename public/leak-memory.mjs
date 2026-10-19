@@ -415,7 +415,7 @@ export class Memory {
 
 // ---- text for the driver --------------------------------------------------------------------------------------
 export function renderEntry(e, { withProof = true } = {}) {
-  const head = `-- [${e.id.slice(0, 8)}] ${e.name}${e.origin === "abstracted" ? " (abstract lemma)" : ""}${e.nominated ? " (nominated)" : ""}${e.isTarget ? " (this proves the target)" : ""}`
+  const head = `-- [${e.id.slice(0, 8)}] ${e.name}${e.origin === "abstracted" ? " (abstract lemma)" : ""}${e.nominated ? " (nominated)" : ""}${e.isTarget ? " (this settles the target)" : ""}`
   return withProof ? `${head}\n${e.closure}` : `${head}\n${e.statement}`
 }
 
