@@ -41,7 +41,7 @@ async function startBridge(env = {}) {
     const res = await fetch(`http://127.0.0.1:${PORT}/prove-tree`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-bridge-token": "test-token", origin: "http://localhost:3000" },
-      body: JSON.stringify({ theorem: THEOREM, mcpServers, model: "sonnet", options: { strategy, computeBudgetMs: 120000, targetId: "fake-1", ...extra } }),
+      body: JSON.stringify({ theorem: extra.theorem || THEOREM, mcpServers, model: "sonnet", options: { strategy, computeBudgetMs: 120000, targetId: "fake-1", ...Object.fromEntries(Object.entries(extra).filter(([k]) => k !== "theorem")) } }),
       signal,
     })
     if (!res.ok) throw new Error("HTTP " + res.status + " " + (await res.text()))
@@ -326,6 +326,63 @@ for (const sig of ["SIGTERM", "SIGINT"]) {
     assert.deepEqual(await waitDead(pids), [], `something survived the bridge's ${sig}`)
   })
   b.stop()
+}
+
+// ---- the answer slot: True proves the statement, False proves its negation, nothing else counts ----
+{
+  const SLOT = "theorem slot_fake : (sorry : Prop) ↔ (∀ a : ℕ, a + 0 = a) := by\n  sorry"
+  const proofs = {
+    yes: "theorem slot_fake : True ↔ (∀ a : ℕ, a + 0 = a) := by\n  simp",
+    yesParen: "theorem slot_fake : (True : Prop) ↔ (∀ a : ℕ, a + 0 = a) := by\n  simp",
+    no: "theorem slot_fake :  False  ↔ (∀ a : ℕ, a + 0 = a) := by\n  simp",
+    same: "theorem slot_fake : (∀ a : ℕ, a + 0 = a) ↔ (∀ a : ℕ, a + 0 = a) := by\n  exact Iff.rfl",
+    other: "theorem slot_fake : (1 = 1) ↔ (∀ a : ℕ, a + 0 = a) := by\n  simp",
+    changed: "theorem slot_fake : True ↔ (∀ a : ℕ, a + 1 = a + 1) := by\n  simp",
+  }
+  const run = async (key, strategy = "control-honoured") => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_TARGET_PROOF: proofs[key], FAKE_LEMMA: "0" })
+    try {
+      const f = await b.frames(strategy, { theorem: SLOT, memory: { entries: [] }, computeBudgetMs: /yes|no/.test(key) ? 120000 : 4000 })
+      return { f, calls: b.calls(), t: texts(f), done: f.find((x) => x.type === "done") }
+    } finally {
+      b.stop()
+    }
+  }
+  await check("slot True: the statement counts as proved, and the run says so", async () => {
+    const r = await run("yes")
+    assert.ok(r.t.some((x) => /closed it on attempt 1.*Answer True: the statement is PROVED/.test(x)), r.t.join(" | "))
+    assert.equal(r.done.verified, true)
+  })
+  await check("slot written (True : Prop) also counts", async () => {
+    assert.equal((await run("yesParen")).done.verified, true)
+  })
+  await check("slot False: the negation counts as proved, and the run says DISPROVED", async () => {
+    const r = await run("no")
+    assert.ok(r.t.some((x) => /Answer False: the statement is DISPROVED/.test(x)), r.t.join(" | "))
+    assert.equal(r.done.verified, true)
+  })
+  await check("plain Control II takes either answer too", async () => {
+    const r = await run("no", "control-oneshot-2")
+    assert.equal(r.done.verified, true, r.t.join(" | "))
+  })
+  for (const key of ["same", "other", "changed"]) {
+    await check(`slot filled with something else (${key}) does not count`, async () => {
+      const r = await run(key)
+      assert.notEqual(r.done?.verified, true, "the gate accepted it")
+      assert.ok(!r.t.some((x) => /closed it on attempt/.test(x)), r.t.join(" | "))
+    })
+  }
+  await check("the prompt explains the slot for a slot target, and says nothing of it otherwise", async () => {
+    const withSlot = await run("yes")
+    assert.match(withSlot.calls[0].promptTail, /ANSWER SLOT[\s\S]*True[\s\S]*False[\s\S]*except for the answer slot/)
+    const b = await startBridge({ FAKE_MODE: "ok" })
+    try {
+      await b.frames("control-honoured", { memory: { entries: [] } })
+      assert.ok(!/ANSWER SLOT/.test(b.calls()[0].promptTail), "a plain target got the slot note")
+    } finally {
+      b.stop()
+    }
+  })
 }
 
 leak.close()

@@ -1146,17 +1146,51 @@ function theoremSignature(src) {
   return m ? canonicalSig(m[0]) : ""
 }
 
-// True if `script` contains a theorem/lemma whose signature equals targetSig.
-// Scans every declaration in the script (a proof may define helper lemmas too).
-function scriptProvesTarget(script, targetSig) {
-  if (!targetSig) return false
+// The ANSWER SLOT. Some targets ask a question whose answer is not known (an open problem: is it true, or false?). Their statement is
+// written `(sorry : Prop) ↔ P`, and the slot is the one thing in the signature the agent may fill: the literal `True` (it proves P)
+// or the literal `False` (it proves ¬P). Both compile, so either counts; no fixed statement can say that by itself (`P ∨ ¬P` is
+// trivial). The slot takes only those two literals — any other proposition would let `P ↔ P` pass with a one-line proof — and the
+// template itself, slot left as `sorry`, is never a proof (the daemon refuses a sorry anyway, and this does not rely on that).
+const ANSWER_SLOT = canonicalSig("(sorry : Prop)")
+const ANSWER_FORMS = { yes: ["True", "(True)", "(True : Prop)"].map(canonicalSig), no: ["False", "(False)", "(False : Prop)"].map(canonicalSig) }
+const hasAnswerSlot = (targetSig) => typeof targetSig === "string" && targetSig.includes(ANSWER_SLOT)
+const withAnswer = (targetSig, form) => targetSig.split(ANSWER_SLOT).join(form)
+
+// Which answer does `script` give for the target? "plain" (a target without a slot, proved as stated), "yes" (slot True: P proved),
+// "no" (slot False: ¬P proved), or null. Scans every declaration in the script (a proof may define helper lemmas too).
+function scriptAnswer(script, targetSig) {
+  if (!targetSig) return null
+  const slot = hasAnswerSlot(targetSig)
+  const yes = slot ? new Set(ANSWER_FORMS.yes.map((f) => withAnswer(targetSig, f))) : null
+  const no = slot ? new Set(ANSWER_FORMS.no.map((f) => withAnswer(targetSig, f))) : null
   const re = /\b(?:theorem|lemma)\b[\s\S]*?(?=:=)/g
   let m
   while ((m = re.exec(script)) !== null) {
-    if (canonicalSig(m[0]) === targetSig) return true
+    const sig = canonicalSig(m[0])
+    if (!slot) {
+      if (sig === targetSig) return "plain"
+    } else if (yes.has(sig)) return "yes"
+    else if (no.has(sig)) return "no"
   }
-  return false
+  return null
 }
+
+// True if `script` contains a theorem/lemma that settles targetSig: the signature itself, or, for a target with an answer slot, the
+// signature with the slot filled by True or False.
+function scriptProvesTarget(script, targetSig) {
+  return scriptAnswer(script, targetSig) !== null
+}
+
+// What to tell the agent about the slot, and what to say when a run ends on one.
+const answerSlotNote = (theorem) =>
+  hasAnswerSlot(theoremSignature(theorem))
+    ? `ANSWER SLOT. The statement below is written \`(sorry : Prop) ↔ P\`. The slot is yours to fill, and it is the ONLY thing in the signature you may change: write the literal \`True\` to prove P, or the literal \`False\` to prove that P is false (¬P) — whichever you become convinced is right, and you may switch whenever the evidence changes. Either one, once verify_full_script accepts it with no sorry, ends the run. Nothing else counts: a slot left as \`sorry\`, or filled with any other proposition, is not accepted.\n\n`
+    : ""
+const answerOutcome = (script, targetSig) => {
+  const a = scriptAnswer(script, targetSig)
+  return a === "yes" ? " Answer True: the statement is PROVED." : a === "no" ? " Answer False: the statement is DISPROVED (its negation is proved)." : ""
+}
+
 
 // True iff a verify_full_script tool result reports a genuine success. Verified
 // LIVE against the Leak II daemon (barkingtree-leak-ii.hf.space): a real proof
@@ -3557,8 +3591,9 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
         let stop = false
         try {
           stop = onObject ? onObject(o) : false
-        } catch {
-          /* observer must never crash the run */
+        } catch (e) {
+          // never crashes the run, but never silent either: a throw here (a gate bug) otherwise looks like an agent that simply never finishes
+          console.error(`[bridge] observer error: ${e?.stack || e}`)
         }
         // Refill the search budget when verify_full_script reports a syntax /
         // unknown-name error — the one case where a lookup is warranted.
@@ -6474,7 +6509,7 @@ RULES:
 - Never stop before verify_full_script has reported success with zero 'sorry'. An unfinished attempt is not a report-worthy result — keep going.
 - This is attempt ${attempt} of an unbounded series the system keeps making until either you succeed or the run's own wall clock — not you — ends it. If you get stuck, that's expected; just keep iterating on what the compiler actually told you.
 ${lastBlock}
-Theorem (its signature is immutable):
+${answerSlotNote(theorem)}Theorem (its signature is immutable${hasAnswerSlot(theoremSignature(theorem)) ? ", except for the answer slot" : ""}):
 ${theorem}`
 }
 
@@ -6527,7 +6562,7 @@ ${M.memoryRules(variantKey, { envHint })}
 - Never stop on your own. This is attempt ${attempt} of an unbounded series the system keeps making until you succeed or the run's own wall clock ends it.
 - The target is only proved when verify_full_script succeeds on a script that contains the target's exact statement with no sorry.
 ${episodic}${lastBlock}
-Theorem (its signature is immutable):
+${answerSlotNote(theorem)}Theorem (its signature is immutable${hasAnswerSlot(theoremSignature(theorem)) ? ", except for the answer slot" : ""}):
 ${theorem}`
 }
 
@@ -6691,7 +6726,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       if (v.ok && isHoleFreeProof(parseVerifyOutput(v.text)) && scriptProvesTarget(gate.verifiedScript, sig)) {
         memory.addScript(gate.verifiedScript, { attempt, isTarget: true })
         statsFrame()
-        ctx.emit({ type: "message-annotation", subtype: "status", thought: `✅ ${cfg.name} closed it on attempt ${attempt} — verified sorry-free against Leak IV.` })
+        ctx.emit({ type: "message-annotation", subtype: "status", thought: `✅ ${cfg.name} closed it on attempt ${attempt} — verified sorry-free against Leak IV.${answerOutcome(gate.verifiedScript, sig)}` })
         return { verified: true, proof: gate.verifiedScript }
       }
       ctx.emit({
@@ -6799,7 +6834,7 @@ async function proveControl(theorem, ctx, tier = 1) {
     if (gate.verifiedScript) {
       const v = await verifyViaDaemon(gate.verifiedScript, ctx.verifyUrl, { timeoutMs: ctx.verifyTimeoutMs })
       if (v.ok && isHoleFreeProof(parseVerifyOutput(v.text)) && scriptProvesTarget(gate.verifiedScript, sig)) {
-        ctx.emit({ type: "message-annotation", subtype: "status", thought: `✅ ${label} closed it on attempt ${attempt} — verified sorry-free against Leak IV.` })
+        ctx.emit({ type: "message-annotation", subtype: "status", thought: `✅ ${label} closed it on attempt ${attempt} — verified sorry-free against Leak IV.${answerOutcome(gate.verifiedScript, sig)}` })
         return { verified: true, proof: gate.verifiedScript }
       }
       // The agent's own verify_full_script said yes but the final re-check did not: say why, instead of silently starting another attempt.

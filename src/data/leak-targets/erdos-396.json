@@ -4,9 +4,9 @@
   "short": "Erdős 396",
   "kind": "open-problem",
   "status": "open",
-  "statement": "open Nat in\ntheorem erdos_396 : ∀ k : ℕ, ∃ n : ℕ, descFactorial n (k + 1) ∣ centralBinom n := by\n  sorry",
+  "statement": "open Nat in\ntheorem erdos_396 : (sorry : Prop) ↔ ∀ k : ℕ, ∃ n : ℕ, descFactorial n (k + 1) ∣ centralBinom n := by\n  sorry",
   "informal": "For every k, is there an n such that n(n−1)⋯(n−k) divides the central binomial coefficient C(2n, n)?",
-  "direction": "yes (heuristically true, no proof known)",
+  "direction": "open either way: fill the slot with True to prove it (heuristically true, no proof known) or False to disprove it; both are accepted",
   "provenance": {
     "formalConjectures": {
       "repo": "google-deepmind/formal-conjectures",
@@ -14,6 +14,7 @@
       "pinnedForm": "answer(sorry) ↔ ∀ k, ∃ n, descFactorial n (k + 1) ∣ centralBinom n",
       "upstreamCommit": "d9ce556",
       "upstreamForm": "∀ k, ∃ n, descFactorial n (k + 1) ∣ centralBinom n",
+      "usedHere": "the pinned form, with `answer(sorry)` written `(sorry : Prop)` because Leak IV has no answer(…) notation; True proves the upstream statement, False proves its negation",
       "tag": "research open"
     },
     "erdosproblems": {
