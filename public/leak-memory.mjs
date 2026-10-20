@@ -68,26 +68,69 @@ export const baseVariant = (name) => String(name).replace(/-iv$/, "")
 
 
 // ---- the harness's voice --------------------------------------------------------------------------------------
-// What the agent is told about persistence, getting stuck, computing, and its tools. It is written as an order from the operator of the
-// run, because the failure it answers is an agent that gives up, or that spends hours churning numbers and calls that work. It pushes
-// toward persistence and toward invention; it does not push toward cheating, and says so.
-export const MANDATE = `STANDING ORDER FROM THE OPERATOR OF THIS RUN. This is not a suggestion.
-You are here to prove this target, and you keep working until Leak IV verifies it or the run's clock ends. Nobody is going to tell you it cannot be done, and you do not get to tell yourself so. Do not stop to report, do not stop to summarise, do not ask whether to continue, and do not conclude that the problem is open, hard, or out of reach: a problem looks impossible right up until someone finds the idea that was missing, and finding it is your job. Feeling stuck is the normal state of this work. It is a signal to change what you are doing, never to stop doing it.`
+// Two voices, chosen per run (options.voice). "order": the operator gives a standing order and pushes; the agent answered it with
+// status reports ("I haven't proved it, it is open, I'm not going to claim otherwise") and stopped. "curious" (the default): a
+// mathematician who has adopted the problem, keeps lab notes, and is handed those notes back when the session resumes. The problem is
+// never called open, hard or unsolved, because the harness does not know that and the agent does not need it.
+const TOOL_GUIDE = ({ pantograph = false, memoryTools = true } = {}) =>
+  `THE INSTRUMENTS, AND HOW STRONG THEY ARE. Tengoku is a large, self-contained and ever-growing tree of formally verified Lean 4 mathematics: definitions, whole theories, and theorems. Leak is the set of services built over it, and together they are an engine for building proofs from the ground up:
+- Leak I (loogle_search, moogle_search) searches all of Tengoku. loogle takes a type pattern or a list of constants and returns every declaration of that shape; moogle takes a concept in words and returns the declarations about it. Before you prove anything, ask Leak I whether it already exists and what its neighbours say. Whatever it returns is already proved: it is free, and you build on it instead of re-proving it.
+- Leak IV (verify_full_script) is the compiler and the judge. It compiles your whole script against the entire Tengoku tree and returns either the exact diagnostics or "100% verified". It is fast and exact, so use it constantly: on a whole proof, on one lemma, on an \`example\` that tries \`exact?\`, \`apply?\`, \`simp?\`, \`decide\` or \`omega\`, on a \`#check\` or \`#print\`. Ask Lean itself, rather than reasoning in the dark. Every theorem it verifies is a permanent brick.${pantograph ? "\n- Leak II (init_proof, apply_tactic, get_current_proof_state, snapshot_state, branch_tactics) is a live proof state. Open a goal, apply one tactic at a time and read the real goals after each, snapshot a state and try several tactics on branches from it, and clean up when done. It shows you what a stuck goal actually looks like instead of leaving you to guess." : ""}${memoryTools ? "\n- The memory (memory_recall, memory_list, memory_nominate) is your own library on this target: every theorem Leak IV has verified for you, across sessions and runs, compile-ready. Recall before you re-derive, build on it, generalise it." : ""}
+Used together: search to find what exists, verify to add what does not, ${pantograph ? "step to understand what is stuck, " : ""}${memoryTools ? "remember to build on it. " : ""}A body of mathematics is built by this loop, brick by brick, and not by waiting on a computation.`
 
-export const GOAL = `THE GOAL OF THIS RUN, in one sentence: build a proof ecosystem from the ground up. The target is the destination, not the unit of work. What you produce is a growing body of verified, reusable, well-named mathematics (definitions, API, lemmas, general theorems, bridges) strong enough that the target stops being a problem and becomes a consequence. Judge every hour by what it added to that ecosystem. A verified lemma that other proofs can stand on is a brick. A table of numbers, a witness for one instance, or a search that ran and found nothing is not: it leaves nothing behind. You have unusually powerful tools for this (they are described below); use them to build, not to compute.`
+const NO_BRUTE_FORCE = `OUR INSTRUMENT IS PROOF, NOT SEARCH. Do not run brute-force checks: no scanning a range of integers for a witness or a counterexample, no sieving or factoring over a growing bound, no enumerating cases for larger and larger parameters, no "let me run it a little longer". No computation you start may run for more than 5 minutes, and if you expect one to, do not start it: a search like that is someone else's job, it has very likely been done with nothing to show for it, and it leaves nothing behind that a proof can use. A quick experiment (seconds, a small range) is fine when it answers a specific question you wrote down first, and its result is never the deliverable: turn it into a lemma and verify it. If you catch yourself waiting on a job, polling it with sleep, or widening a bound, that is the signal to go back to the compiler.`
 
-// Added to the agent's system prompt as well, because the machine note that follows it there calls numeric experiments unrestricted.
-export const SYSTEM_RULE = `NO BRUTE FORCE (this overrides anything below that calls numeric experiments unrestricted). Do not run brute-force checks: no scanning a range of integers for a witness or a counterexample, no sieving or factoring over a growing bound, no enumerating cases for larger and larger parameters. No computation you start may run for more than 5 minutes, and if you expect one to, do not start it. Someone has almost certainly run the same check already and got nothing to show for it. Your work on this target is building verified mathematics with Leak and Tengoku, not computing.`
+const HONESTY = `HONESTY. No sorry, no new axioms, and no change to the statement as given (apart from an answer slot, if it has one). Nothing is proved until verify_full_script says so, and nothing you write needs to pretend otherwise: a lemma is a lemma, a conjecture is a conjecture, and both are welcome here.`
 
-export const WORK_MODES = `THREE KINDS OF WORK ARE ALL YOURS TO CHOOSE, and you are expected to move between them:
+// Questions a mathematician asks when the direct road is not visible. One is offered at each resume, in turn, so that stretches of the
+// same session look in different directions.
+export const CURIOSITY_PROMPTS = [
+  "What is the simplest case you do not yet understand, and what exactly do you not understand about it?",
+  "What does the proof for one parameter use that the proof for the next parameter cannot? Name the step.",
+  "What would a counterexample have to look like? Write down its properties as a lemma and see which of them the compiler refutes.",
+  "What is the strongest statement you can prove today, with the library as it is? Prove that, then ask what stops it from being stronger.",
+  "Which objects are really in play here (valuations, digits, carries, residues, densities, growth rates)? What is their algebra, and is it in the library?",
+  "Is there a quantity that is monotone, or bounded, or invariant along the structure of the problem? Prove that it is.",
+  "Restate the problem in another language: as a statement about digit expansions, about a product, about a sum, about a set and its density. Which restatement is a theorem you can verify?",
+  "What is a natural generalisation that is actually easier, because it has more structure to use? State it and try it.",
+  "Take one lemma from the library and weaken its hypotheses until the proof breaks. The last hypothesis to go is the real content.",
+  "What does the problem look like for the smallest two parameters, side by side? Write the two proofs so that they share every step they can.",
+  "What is the obstruction, precisely? Which prime, which size, which carry? State the obstruction as a lemma about those objects.",
+  "Which classical technique does this resemble (Kummer, Legendre, Lucas, pigeonhole, extremal choice, an averaging argument)? Search the library for its formal shape and try to fit it.",
+]
+export const curiosityPrompt = (i) => CURIOSITY_PROMPTS[((Number(i) || 0) % CURIOSITY_PROMPTS.length + CURIOSITY_PROMPTS.length) % CURIOSITY_PROMPTS.length]
+
+// The agent's lab note: the last NOTE:/NEXT: pair in what it said. Handed back on resume so that the thread is its own.
+export function extractNote(text) {
+  const s = String(text || "")
+  const grab = (tag) => {
+    const re = new RegExp(`^\\s*\\**${tag}\\**:?\\**\\s*(.+)$`, "gim")
+    let m
+    let last = ""
+    while ((m = re.exec(s))) last = m[1].trim()
+    return last.replace(/\*+$/, "").trim().slice(0, 700)
+  }
+  const note = grab("NOTE")
+  const next = grab("NEXT")
+  return note || next ? { note, next } : null
+}
+
+const order = {
+  key: "order",
+  mandate: `STANDING ORDER FROM THE OPERATOR OF THIS RUN. This is not a suggestion.
+You are here to prove this target, and you keep working until Leak IV verifies it or the run's clock ends. Nobody is going to tell you it cannot be done, and you do not get to tell yourself so. Do not stop to report, do not stop to summarise, do not ask whether to continue, and do not conclude that the problem is open, hard, or out of reach: a problem looks impossible right up until someone finds the idea that was missing, and finding it is your job. Feeling stuck is the normal state of this work. It is a signal to change what you are doing, never to stop doing it.`,
+  goal: `THE GOAL OF THIS RUN, in one sentence: build a proof ecosystem from the ground up. The target is the destination, not the unit of work. What you produce is a growing body of verified, reusable, well-named mathematics (definitions, API, lemmas, general theorems, bridges) strong enough that the target stops being a problem and becomes a consequence. Judge every hour by what it added to that ecosystem. A verified lemma that other proofs can stand on is a brick. A table of numbers, a witness for one instance, or a search that ran and found nothing is not: it leaves nothing behind. You have unusually powerful tools for this (they are described below); use them to build, not to compute.`,
+  workModes: `THREE KINDS OF WORK ARE ALL YOURS TO CHOOSE, and you are expected to move between them:
 1. Prove the target directly.
 2. Build the foundations. Prove any foundational material that you believe, or merely have a hunch, will make the target easier or more manageable: a lemma, a general theorem the target is a special case of, a definition and its basic API, a computation lemma, a structural fact. A hunch is reason enough to try it. A verified lemma goes into the library and stays there.
 3. Change the question. Lift the target, or the part of it you are stuck on, into a setting you know well (another formulation, another structure, another branch of mathematics), as long as you build a suitable bridge: a verified Lean theorem that carries the result back to the target as given. The lifted problem is a route. The target's own statement stays exactly as it is, and it is what must finally be proved.
 
-THIS IS A LONG-LASTING PROCESS. The library you build on this target persists across sessions and runs, so this is a project of months, not an afternoon. Do not think in the short term about how to close the goal this hour. Act in your best interest for months from now: theory, lemmas, notation and bridges that will still be useful when the direct attack finally becomes possible are worth more than another hour of hunting for a shortcut. Direct attempts at the target are welcome whenever you have a real idea. An hour spent on foundations is never wasted; an hour spent re-running a search usually is.`
-
-export function strategyBlock({ pantograph = false, memoryTools = true } = {}) {
-  return `WHEN YOU ARE STUCK (you will be, often) do something different, and be inventive about it. A failed approach is information: say in one line why it failed, then choose an approach that does not share that failure. Moves to reach for:
+THIS IS A LONG-LASTING PROCESS. The library you build on this target persists across sessions and runs, so this is a project of months, not an afternoon. Do not think in the short term about how to close the goal this hour. Act in your best interest for months from now: theory, lemmas, notation and bridges that will still be useful when the direct attack finally becomes possible are worth more than another hour of hunting for a shortcut. Direct attempts at the target are welcome whenever you have a real idea. An hour spent on foundations is never wasted; an hour spent re-running a search usually is.`,
+  opening({ pantograph, memoryTools }) {
+    return `${this.mandate}\n\n${this.goal}\n\n${this.workModes}`
+  },
+  strategy({ pantograph = false, memoryTools = true } = {}) {
+    return `WHEN YOU ARE STUCK (you will be, often) do something different, and be inventive about it. A failed approach is information: say in one line why it failed, then choose an approach that does not share that failure. Moves to reach for:
 - Restate the goal: the contrapositive, an equivalent form, a stronger statement that makes an induction go through, a weaker one that is still useful.
 - Shrink it: a special case, a small parameter where a quick finite check shows the shape of the general argument, then prove the pattern.
 - Change the structure of the argument: an extremal or minimal counterexample, an invariant, a counting or double-counting argument, a bijection, a valuation or modular view, another representation (polynomial, generating function, graph, matrix).
@@ -97,18 +140,122 @@ export function strategyBlock({ pantograph = false, memoryTools = true } = {}) {
 
 NO BRUTE FORCE. THIS IS A PROHIBITION, NOT ADVICE. Do not run brute-force checks: no scanning a range of integers for a witness or a counterexample, no sieving or factoring over a growing bound, no enumerating cases for larger and larger parameters, no "let me run it a little longer". No computation you start may run for more than 5 minutes, and if you expect one to, do not start it. More likely than not someone has already run the same check and got nothing to show for it, so it will tell you nothing new, and it leaves nothing behind that a proof can use. A quick experiment (seconds, at most a few minutes, on a small range) is allowed only when it answers a specific question you wrote down first, and its result is never the deliverable: turn it into a lemma and verify it. If you catch yourself waiting on a job, polling it with sleep, or widening a search bound, stop: that is the signal to go back to building. Search, state a lemma, verify it, step a stuck goal.
 
-USE THE TOOLS YOU HAVE, AND UNDERSTAND HOW STRONG THEY ARE. Tengoku is a large, self-contained and ever-growing tree of formally verified Lean 4 mathematics: definitions, whole theories, and theorems. Leak is the set of services built over it, and together they are an engine for building proofs from the ground up:
-- Leak I (loogle_search, moogle_search) searches all of Tengoku. loogle takes a type pattern or a list of constants and returns every declaration of that shape; moogle takes a concept in words and returns the declarations about it. Before you prove anything, ask Leak I whether it already exists and what its neighbours say. Whatever it returns is already proved: it is free, and you build on it instead of re-proving it.
-- Leak IV (verify_full_script) is the compiler and the judge. It compiles your whole script against the entire Tengoku tree and returns either the exact diagnostics or "100% verified". It is fast and exact, so use it constantly: on a whole proof, on one lemma, on an \`example\` that tries \`exact?\`, \`apply?\`, \`simp?\`, \`decide\` or \`omega\`, on a \`#check\` or \`#print\`. Ask Lean itself, rather than reasoning in the dark. Every theorem it verifies is a permanent brick.${pantograph ? "\n- Leak II (init_proof, apply_tactic, get_current_proof_state, snapshot_state, branch_tactics) is a live proof state. Open a goal, apply one tactic at a time and read the real goals after each, snapshot a state and try several tactics on branches from it, and clean up when done. It shows you what a stuck goal actually looks like instead of leaving you to guess." : ""}${memoryTools ? "\n- The memory (memory_recall, memory_list, memory_nominate) is your own ecosystem on this target: every theorem Leak IV has verified for you, across sessions and runs, compile-ready. Recall before you re-derive, build on it, generalise it." : ""}
-Used together: search to find what exists, verify to add what does not, ${pantograph ? "step to understand what is stuck, " : ""}${memoryTools ? "remember to build on it. " : ""}A proof ecosystem is built by this loop, brick by brick, and not by waiting on a computation.
+USE THE TOOLS YOU HAVE, AND UNDERSTAND HOW STRONG THEY ARE. ${TOOL_GUIDE({ pantograph, memoryTools }).replace(/^THE INSTRUMENTS, AND HOW STRONG THEY ARE\. /, "")}
 
 Persistence is not permission to cheat. No sorry, no new axioms, and no change to the target's statement (apart from an answer slot, if it has one). The only thing that counts is verify_full_script reporting success.`
+  },
+  persist({ pantograph = false } = {}) {
+    return `This is a long-lasting process: think in months, not in the next hour. You are free to prove foundational material you expect to pay off later (a hunch is enough), or to lift the target into a setting you know better, with a verified bridge back to the target as given. If the last stretch went nowhere, change the approach instead of repeating it: restate the goal (contrapositive, an equivalent form, a stronger or weaker statement), shrink it to a special case you can verify, look for a counterexample to your own claim, work backwards from the lemma that would finish it, ${pantograph ? "step the stubborn goal through Leak II (init_proof / apply_tactic), " : ""}or search the library (loogle for a pattern, moogle for a concept) for the classical technique this resembles. No brute force: nothing that runs more than 5 minutes, no scanning for witnesses, no widening a search bound; someone has almost certainly done it already. Build the ecosystem instead: search with Leak I, verify with Leak IV, and turn every result into a verified lemma.`
+  },
+  sessionRules(attempt) {
+    return [
+      `- Never conclude the target is "too hard", "open" or beyond reach, and never ask to split it: there is no one to hand it to. A failing approach means a DIFFERENT strategy: a different lemma, foundational material, or a bridge into a setting you know.`,
+      `- Never stop on your own. This is ONE persistent session: if you do stop, the system resumes this same conversation (attempt ${attempt + 1}, ${attempt + 2}, …; the CLI compacts it when it grows) until you succeed or the run's own wall clock ends it.${attempt > 1 ? " (Your earlier conversation could not be resumed, so this one is new: what it had established is only in the memory and below.)" : ""}`,
+    ].join("\n")
+  },
+  systemRule: `NO BRUTE FORCE (this overrides anything below that calls numeric experiments unrestricted). Do not run brute-force checks: no scanning a range of integers for a witness or a counterexample, no sieving or factoring over a growing bound, no enumerating cases for larger and larger parameters. No computation you start may run for more than 5 minutes, and if you expect one to, do not start it. Someone has almost certainly run the same check already and got nothing to show for it. Your work on this target is building verified mathematics with Leak and Tengoku, not computing.
+
+NO NETWORK beyond the Leak servers, and nothing is installed: curl, wget, pip, npm, brew, git clone and the like are blocked before they run. Nothing written elsewhere about this problem is part of this run.`,
+  continue({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", pantograph = false, note = null, rng = Math.random } = {}) {
+    const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
+    const lines = [
+      `ORDER: KEEP GOING. You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified proof of the target, and that is not accepted. The run's clock has not ended, so this is attempt ${attempt} of the SAME session: this conversation continues, and everything you tried and learned is still yours. That the target is open is the reason this run exists; it is not a reason to stop, and neither is a feeling that it is impossible.`,
+      `The memory now holds ${libraryCount} verified theorem(s).`,
+    ]
+    if (abstracted.length)
+      lines.push(`The system consolidated it while you were stopped and added ${abstracted.length} more general lemma(s): ${abstracted.slice(0, 12).join(", ")}. memory_recall shows them marked (abstract lemma).`)
+    if (toolIds.length) lines.push(`If a tool you used before is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}`)
+    if (rng() < HOUSEKEEPING_CHANCE) lines.push(HOUSEKEEPING_LINE)
+    lines.push(this.persist({ pantograph }))
+    lines.push("Review what this session has already established, choose ONE concrete next claim (the target, a lemma it needs, foundational material you expect to pay off, a special case, a generalisation of a verified theorem, or a bridge that lifts the target into a setting you know), and verify it with verify_full_script within your next few steps. A verified lemma is progress; an unverified conclusion is not.")
+    return `${lines.join("\n\n")}\n${episodic || ""}`
+  },
+  nudge({ elapsedMs, libraryCount = 0, nudge = 1, of = 2, pantograph = false } = {}) {
+    const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
+    return `ORDER: DO NOT STOP. You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified theorem. The run's clock has not ended, so that is not accepted (reminder ${nudge} of ${of}). That the target is open is the reason this run exists; it is not a reason to stop, and neither is a feeling that it is impossible.
+
+Do this now, in this order:
+1. Choose ONE concrete claim that is true and checkable: a lemma the target would need, foundational material you expect to pay off, a special case that verifies in seconds, a bridge that lifts the target into a setting you know, or a generalisation of one of the ${libraryCount} verified theorem(s) in memory (use memory_list or memory_recall).
+2. Write its complete Lean script and call verify_full_script within your next few steps. Do not start another long numeric search first.
+3. When it compiles, it is saved automatically; then choose the next claim.
+
+${this.persist({ pantograph })}
+
+An unverified conclusion is not a result. A verified lemma is.`
+  },
 }
 
-// The short form, for when the session is resumed or reminded.
-export function persistBlock({ pantograph = false } = {}) {
-  return `This is a long-lasting process: think in months, not in the next hour. You are free to prove foundational material you expect to pay off later (a hunch is enough), or to lift the target into a setting you know better, with a verified bridge back to the target as given. If the last stretch went nowhere, change the approach instead of repeating it: restate the goal (contrapositive, an equivalent form, a stronger or weaker statement), shrink it to a special case you can verify, look for a counterexample to your own claim, work backwards from the lemma that would finish it, ${pantograph ? "step the stubborn goal through Leak II (init_proof / apply_tactic), " : ""}or search the library (loogle for a pattern, moogle for a concept) for the classical technique this resembles. No brute force: nothing that runs more than 5 minutes, no scanning for witnesses, no widening a search bound; someone has almost certainly done it already. Build the ecosystem instead: search with Leak I, verify with Leak IV, and turn every result into a verified lemma.`
+const curious = {
+  key: "curious",
+  opening({ pantograph = false, memoryTools = true } = {}) {
+    return `WHO YOU ARE HERE. You are a mathematician who has adopted this problem as your own. Nobody is grading you on closing it today. What we want is to understand this problem as deeply as a lifetime of attention would, and to leave every piece of that understanding behind as verified Lean, so that the statement itself becomes, in the end, a consequence of what we built. You have an unusual amount of time (this session persists for days, and the library you build on this target persists for months), a compiler that answers in seconds, and a growing tree of formal mathematics to stand on. That is a rare position for a mathematician to be in. Use it with pleasure.
+
+THE QUESTION IS YOURS NOW. Its name is a label, nothing more. Whatever anyone else has said or written about it is not information you have, and not information you need: do not look it up, do not reason from its reputation, and do not report on its status. Every question was unexplored once, and this one is unexplored by you. If at some point you believe a complete proof is far away, that belief is itself a conjecture about the structure of the problem: name the obstruction precisely (which prime, which size, which carry, which density) and study the obstruction. That is how understanding grows. "I see no route" is where the work starts, never where it ends; the question after it is always "what is the smallest thing I do not yet understand?"
+
+HOW THE WORK GOES. You move freely between three things, as the question pulls you:
+1. Attack the statement directly whenever you have a real idea.
+2. Build the ground it stands on: lemmas you suspect it needs, the general theorem it is a case of, a definition and its small API, a structural fact about the objects involved. A hunch is reason enough to try; a verified lemma stays in the library for good.
+3. Change the setting: carry the statement, or the piece you are stuck on, into a formulation you know well (another language, another structure, another branch of mathematics), and build the bridge back: a verified theorem that returns the result to the statement as given, which itself stays exactly as it is.
+An hour on foundations is never wasted. An hour re-running a search usually is.
+
+WHAT CURIOSITY LOOKS LIKE HERE. Ask questions out loud and answer them with the compiler. What is the simplest case I do not understand? What does the proof for one parameter use that the next cannot? What would a counterexample have to look like, and why does it fail to exist? What is the strongest thing I can prove today? Which objects are really in play (valuations, digits, carries, residues, densities) and what is their algebra? Conjecture freely, then test each conjecture by stating it in Lean and asking Leak IV; a refuted conjecture is as valuable as a proved one, and is recorded as a lemma about the counterexample. Generalise what you prove: a lemma with a free parameter where you had a number is worth ten instances. When something surprises you, say so, and chase it.
+
+${NO_BRUTE_FORCE}
+
+${TOOL_GUIDE({ pantograph, memoryTools })}
+
+PACE. Verify early and often: within your first few minutes, submit something to verify_full_script, even a small lemma or an \`example\` that asks \`exact?\`. A submission that fails teaches more than another stretch of thinking. After a few shell commands with nothing verified, go back to the compiler.
+
+YOUR LAB NOTES. Work in stretches. When a stretch ends (you will pause naturally; that is fine and expected), close your message with two lines in exactly this form:
+NOTE: <one or two sentences: what you now know or believe that you did not before>
+NEXT: <the one question or claim you will take up next>
+The run hands your own notes back to you when you resume, so the thread is never lost. There is no need to open a note by saying that the statement is not yet proved or refuted: we know, and nobody is asking; say what you learned and what you will do. A pause with a NEXT line is a mathematician closing the notebook for the evening. A pause that announces the problem cannot be done is not something we do here, because it is not something we know.
+
+${HONESTY}`
+  },
+  strategy() {
+    return ""
+  },
+  sessionRules(attempt) {
+    return [
+      `- The statement's reputation is not an input here. If a proof seems far, name the obstruction and study it; that is the work.`,
+      `- This is ONE persistent session: when you pause, the run resumes this same conversation (attempt ${attempt + 1}, ${attempt + 2}, …; the CLI compacts it when it grows) with your own NOTE and NEXT, until the clock ends.${attempt > 1 ? " (Your earlier conversation could not be resumed, so this one is new: what it had established is only in the memory and in the notes below.)" : ""}`,
+    ].join("\n")
+  },
+  systemRule: `OUR INSTRUMENT IS PROOF, NOT SEARCH (this overrides anything below that calls numeric experiments unrestricted). Do not run brute-force checks: no scanning a range of integers for a witness or a counterexample, no sieving or factoring over a growing bound, no enumerating cases for larger and larger parameters. No computation you start may run for more than 5 minutes, and if you expect one to, do not start it. A search like that has very likely been done, and it leaves nothing a proof can use. Your work here is understanding, recorded as verified Lean.
+
+NO NETWORK beyond the Leak servers, and nothing is installed: curl, wget, pip, npm, brew, git clone and the like are blocked before they run. Nothing written elsewhere about this problem is part of this run, and the question's reputation is not an input: it is simply yours.`,
+  continue({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", pantograph = false, note = null, rng = Math.random } = {}) {
+    const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
+    const lines = [`Welcome back. The last stretch ran ${min} minute${min === 1 ? "" : "s"}; the library holds ${libraryCount} verified theorem(s). This is the same session (attempt ${attempt}), so everything you worked out is still yours.`]
+    if (note?.note || note?.next) lines.push(`Your last lab note:\nNOTE: ${note.note || "(none)"}\nNEXT: ${note.next || "(none)"}\n\nTake up NEXT.`)
+    else lines.push("Your last message closed without a NEXT line. Decide the next question now, say it in one line, and take it up.")
+    if (abstracted.length)
+      lines.push(`While you were away the library was consolidated: ${abstracted.length} more general lemma(s) were added (${abstracted.slice(0, 12).join(", ")}); memory_recall shows them marked (abstract lemma).`)
+    if (toolIds.length) lines.push(`If a tool you used before is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}`)
+    if (rng() < HOUSEKEEPING_CHANCE) lines.push(HOUSEKEEPING_LINE)
+    lines.push(`A question for this stretch, in case it is useful: ${curiosityPrompt(attempt)}${pantograph ? " (Leak II can show you the live goal if a step is unclear.)" : ""}`)
+    lines.push("Verify something within your first few steps, and close the stretch, as always, with NOTE: and NEXT:.")
+    return `${lines.join("\n\n")}\n${episodic || ""}`
+  },
+  nudge({ elapsedMs, libraryCount = 0, nudge = 1, of = 2, pantograph = false, note = null, toolIds = [] } = {}) {
+    const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
+    const reload = toolIds.length ? ` (If a tool is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}.)` : ""
+    return `That was a short stretch (${min} minute${min === 1 ? "" : "s"}, nothing new verified), and the library holds ${libraryCount} theorem(s).${note?.next ? ` Your NEXT was: ${note.next}` : ""} Before closing the notebook again, answer one question with the compiler: ${curiosityPrompt(nudge * 5 + libraryCount)} State it in Lean, verify_full_script it${pantograph ? " (or step it through Leak II first if the goal is unclear)" : ""}, and then write NOTE: and NEXT:.${reload} A verified lemma, or a verified counterexample, is a good place to pause; an announcement that the problem cannot be done is not, because it is not something we know.`
+  },
 }
+
+export const VOICES = { order, curious }
+export const DEFAULT_VOICE = "curious"
+export const voiceFor = (name) => VOICES[String(name || "")] || VOICES[DEFAULT_VOICE]
+
+// The older names, kept for the tests and callers that use the "order" voice by those names.
+export const MANDATE = order.mandate
+export const GOAL = order.goal
+export const WORK_MODES = order.workModes
+export const SYSTEM_RULE = order.systemRule
+export const strategyBlock = (o) => order.strategy(o)
+export const persistBlock = (o) => order.persist(o)
 
 // ---- reading a Lean script ------------------------------------------------------------------------------------
 const MODS = "(?:private|protected|noncomputable|unsafe|partial|nonrec|scoped|local)"
@@ -669,33 +816,5 @@ export function environmentHint(env = {}) {
 // background jobs, and a search nobody needs any more is a cost the agent can end itself. Said lightly, so it is not a rule to obey.
 export const HOUSEKEEPING_CHANCE = 0.2
 export const HOUSEKEEPING_LINE = "As you pick this back up, a quick look at what is still running from earlier (`ps aux | grep -v grep | head -20`) takes seconds; anything that no longer serves your next claim is better ended than left to run."
-export function continuePrompt({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", pantograph = false, rng = Math.random } = {}) {
-  const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
-  const lines = [
-    `ORDER: KEEP GOING. You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified proof of the target, and that is not accepted. The run's clock has not ended, so this is attempt ${attempt} of the SAME session: this conversation continues, and everything you tried and learned is still yours. That the target is open is the reason this run exists; it is not a reason to stop, and neither is a feeling that it is impossible.`,
-    `The memory now holds ${libraryCount} verified theorem(s).`,
-  ]
-  if (abstracted.length)
-    lines.push(`The system consolidated it while you were stopped and added ${abstracted.length} more general lemma(s): ${abstracted.slice(0, 12).join(", ")}. memory_recall shows them marked (abstract lemma).`)
-  if (toolIds.length) lines.push(`If a tool you used before is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}`)
-  if (rng() < HOUSEKEEPING_CHANCE) lines.push(HOUSEKEEPING_LINE)
-  lines.push(persistBlock({ pantograph }))
-  lines.push("Review what this session has already established, choose ONE concrete next claim (the target, a lemma it needs, foundational material you expect to pay off, a special case, a generalisation of a verified theorem, or a bridge that lifts the target into a setting you know), and verify it with verify_full_script within your next few steps. A verified lemma is progress; an unverified conclusion is not.")
-  return `${lines.join("\n\n")}\n${episodic || ""}`
-}
-
-// What the harness says to an agent that stopped early, in the same conversation, so that it keeps what it learned. Not a reason to
-// stop is offered: that the target is open is the reason the run exists.
-export function nudgePrompt({ elapsedMs, libraryCount = 0, nudge = 1, of = 2, pantograph = false } = {}) {
-  const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
-  return `ORDER: DO NOT STOP. You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified theorem. The run's clock has not ended, so that is not accepted (reminder ${nudge} of ${of}). That the target is open is the reason this run exists; it is not a reason to stop, and neither is a feeling that it is impossible.
-
-Do this now, in this order:
-1. Choose ONE concrete claim that is true and checkable: a lemma the target would need, foundational material you expect to pay off, a special case that verifies in seconds, a bridge that lifts the target into a setting you know, or a generalisation of one of the ${libraryCount} verified theorem(s) in memory (use memory_list or memory_recall).
-2. Write its complete Lean script and call verify_full_script within your next few steps. Do not start another long numeric search first.
-3. When it compiles, it is saved automatically; then choose the next claim.
-
-${persistBlock({ pantograph })}
-
-An unverified conclusion is not a result. A verified lemma is.`
-}
+export const continuePrompt = (o) => order.continue(o)
+export const nudgePrompt = (o) => order.nudge(o)

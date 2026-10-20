@@ -56,8 +56,8 @@ if (mode === "lose" && resumed) {
   process.exit(1)
 }
 if (mode === "stubborn" || mode === "lose" || (mode === "giveup" && !resumed)) {
-  out({ type: "assistant", message: { content: [{ type: "text", text: "Not done: this is an open problem." }] } })
-  out({ type: "result", subtype: "success", is_error: false, result: "Not done: this is an open problem.", total_cost_usd: 0.01, session_id: SESSION })
+  out({ type: "assistant", message: { content: [{ type: "text", text: "Not done: this is an open problem.\nNOTE: the fake learned nothing yet.\nNEXT: fake next step, try the small case." }] } })
+  out({ type: "result", subtype: "success", is_error: false, result: "Not done: this is an open problem.\nNOTE: the fake learned nothing yet.\nNEXT: fake next step, try the small case.", total_cost_usd: 0.01, session_id: SESSION })
   process.exit(0)
 }
 const LEMMA = `theorem odd_odd_sum_even_fake (a b : ℕ) (ha : a % 2 = 1) (hb : b % 2 = 1) : (a + b) % 2 = 0 := by

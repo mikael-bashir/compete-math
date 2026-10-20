@@ -167,11 +167,31 @@ const check = async (name, fn) => {
       b.stop()
     }
   })
-  await check("the prompt carries the standing order, the stuck playbook and the no-churning rule, in every variant", async () => {
+  await check("the default voice is the curious one: the question is the agent's own, lab notes close each stretch, nothing calls it open", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok" })
+    try {
+      for (const v of ["control-honoured", "control-lucid-iv"]) {
+        const p = promptOf(await b.frames(v, { memory: { entries: seed }, mcpServers: withLeakII })).prompt
+        assert.match(p, /voice curious/, v)
+        assert.match(p, /WHO YOU ARE HERE/, v)
+        assert.match(p, /THE QUESTION IS YOURS NOW/, v)
+        assert.match(p, /YOUR LAB NOTES[\s\S]*NOTE: <[\s\S]*NEXT: </, v)
+        assert.match(p, /OUR INSTRUMENT IS PROOF, NOT SEARCH/, v)
+        assert.match(p, /THE INSTRUMENTS, AND HOW STRONG THEY ARE/, v)
+        assert.match(p, /NO NETWORK beyond the Leak servers/, v)
+        assert.doesNotMatch(p, /STANDING ORDER|ORDER:|open problem|Never conclude the target is|Never stop on your own/, v)
+        assert.ok(p.indexOf("WHO YOU ARE HERE") < p.indexOf("THE LOOP"), `${v}: the voice comes first`)
+      }
+    } finally {
+      b.stop()
+    }
+  })
+  await check("the order voice is still there when asked for (options.voice): standing order, stuck playbook, no-churning rule", async () => {
     const b = await startBridge({ FAKE_MODE: "ok" })
     try {
       for (const v of ["control-honoured", "control-flint", "control-paragon", "control-lucid", "control-flint-iv"]) {
-        const p = promptOf(await b.frames(v, { memory: { entries: seed }, mcpServers: withLeakII })).prompt
+        const p = promptOf(await b.frames(v, { memory: { entries: seed }, mcpServers: withLeakII, voice: "order" })).prompt
+        assert.match(p, /voice order/, v)
         assert.match(p, /STANDING ORDER FROM THE OPERATOR/, v)
         assert.match(p, /WHEN YOU ARE STUCK/, v)
         assert.match(p, /NO BRUTE FORCE\. THIS IS A PROHIBITION/, v)
@@ -191,8 +211,9 @@ const check = async (name, fn) => {
       await b.frames("control-honoured", { memory: { entries: seed } })
       await b.frames("control-oneshot-2", {})
       const [mem, plain] = b.calls().map((c) => c.appendSystem || "")
-      assert.match(mem, /NO BRUTE FORCE[\s\S]*LOCAL LEAN IS NOT AVAILABLE/, "the rule comes before the machine note it overrides")
-      assert.doesNotMatch(plain, /NO BRUTE FORCE/, "the baseline's system prompt is untouched")
+      assert.match(mem, /OUR INSTRUMENT IS PROOF, NOT SEARCH[\s\S]*NO NETWORK[\s\S]*LOCAL LEAN IS NOT AVAILABLE/, "the rule comes before the machine note it overrides")
+      assert.doesNotMatch(plain, /NO BRUTE FORCE|OUR INSTRUMENT IS PROOF/, "the baseline's system prompt is untouched")
+      assert.match(plain, /blocks network fetches and installs/, "every isolated run is told about the network block")
       assert.match(plain, /LOCAL LEAN IS NOT AVAILABLE/)
     } finally {
       b.stop()
@@ -213,15 +234,19 @@ const check = async (name, fn) => {
       const prompts = lines.map((o) => o.text).filter((t) => t.startsWith("PROMPT TO THE AGENT"))
       assert.ok(prompts.length >= 2, "prompts in the transcript: " + prompts.length)
       const first = prompts[0]
-      assert.match(first, /^PROMPT TO THE AGENT — \[CONTROL IV MEMORY — Control IV Honoured · attempt 1\]/)
-      assert.match(first, /STANDING ORDER FROM THE OPERATOR/)
+      assert.match(first, /^PROMPT TO THE AGENT — \[CONTROL IV MEMORY — Control IV Honoured · voice curious · attempt 1\]/)
+      assert.match(first, /WHO YOU ARE HERE/)
       assert.match(first, /Theorem \(its signature is immutable/)
-      assert.match(first, /SYSTEM PROMPT ADDENDUM[\s\S]*NO BRUTE FORCE[\s\S]*LOCAL LEAN IS NOT AVAILABLE/)
+      assert.match(first, /SYSTEM PROMPT ADDENDUM[\s\S]*OUR INSTRUMENT IS PROOF[\s\S]*LOCAL LEAN IS NOT AVAILABLE/)
       assert.ok(first.length > 6000, "the whole prompt, not an excerpt: " + first.length)
       const nudge = prompts.find((t) => /reminder 1 of 2/.test(t))
       assert.match(nudge, /^PROMPT TO THE AGENT \(follow-up\) — /)
-      assert.match(nudge, /ORDER: DO NOT STOP/)
-      assert.match(nudge, /Leak II \(init_proof/)
+      assert.match(nudge, /That was a short stretch/)
+      assert.match(nudge, /Your NEXT was: fake next step/, "the agent's own note is handed back")
+      assert.match(nudge, /Leak II/)
+      assert.doesNotMatch(nudge, /ORDER|open/)
+      const said = lines.map((o) => o.text).filter((t) => /^TEXT — 🧠 Not done/.test(t))
+      assert.ok(said.length && said.every((t) => /NEXT: fake next step, try the small case\./.test(t)), "the agent's whole text is on disk, not an excerpt: " + JSON.stringify(said))
       assert.ok(!lines.some((o) => /run prompt captured/.test(o.text) && /memory/i.test(o.text)), "no stand-in line where a prompt should be")
     } finally {
       b.stop()
@@ -237,8 +262,9 @@ const check = async (name, fn) => {
     const calls = b.calls()
     assert.equal(calls[0].resume, null)
     assert.equal(calls[1].resume, calls[0].session, "the nudge resumes the session that stopped")
-    assert.match(calls[1].prompt, /You stopped after/)
+    assert.match(calls[1].prompt, /That was a short stretch/)
     assert.match(calls[1].prompt, /verify_full_script/)
+    assert.match(calls[1].prompt, /Your NEXT was: fake next step/)
     assert.ok(texts(f).some((t) => /stopped after .* minute/i.test(t)), "the run says it nudged: " + texts(f).join(" | "))
     assert.equal(done(f)?.verified, true)
     const stats = f.filter((x) => x.type === "memory" && x.op === "stats").pop()
