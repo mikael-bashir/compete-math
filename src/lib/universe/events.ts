@@ -153,13 +153,18 @@ export class LiveInterpreter {
     if (op === 'save') {
       const ev: UniverseEvent = { k: 'save', t: 0 };
       if (entry) {
+        // saving the same theorem again (an improved version) is not a new theorem
+        if (this.saved.includes(entry.name)) return;
         const cited = extractNames(entry.closure);
+        // what it leans on is what the theorem itself cites; what it was built from is any earlier save its proof, anywhere, cites
+        const decls = entry.closure.split(/\n(?=(?:open\s+\S+\s+in\s*\n)?\s*(?:theorem|lemma)\s)/);
+        const mine = new Set(extractNames(decls[decls.length - 1] ?? ''));
         const own = new Set(this.saved);
         ev.name = entry.name;
-        ev.deps = this.saved.flatMap((n, k) => (n !== entry.name && cited.includes(n) ? [k] : []));
-        ev.stars = this.resolve(cited.filter((n) => !own.has(n) && n !== entry.name), 10);
+        ev.deps = this.saved.flatMap((n, k) => (cited.includes(n) ? [k] : []));
+        ev.stars = this.resolve(cited.filter((n) => mine.has(n) && !own.has(n) && n !== entry.name), 10);
         ev.abstract = isGeneralLemma(entry.closure);
-        if (!own.has(entry.name)) this.saved.push(entry.name);
+        this.saved.push(entry.name);
       }
       this.sink.finish(this.sink.start(ev), {});
     }
@@ -172,7 +177,11 @@ export class LiveInterpreter {
       if (!k) return;
       const { query, script } = parseInput(e.input);
       const ev: UniverseEvent = { k, t: 0, q: query };
-      if (k === 'compile' && script) ev.used = this.resolve(extractNames(script), 18);
+      if (k === 'compile' && script) {
+        const cited = extractNames(script);
+        ev.used = this.resolve(cited, 18);
+        ev.saves = this.saved.flatMap((n, i) => (cited.includes(n) ? [i] : []));
+      }
       this.pending[k].push(this.sink.start(ev));
     } else if (e.kind === 'tool_result' || e.kind === 'tool_error') {
       const body = e.detail ?? '';

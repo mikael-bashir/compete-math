@@ -5,6 +5,7 @@
 import type { ReplayRun, UniverseEvent, UniverseLib, UniverseMeta } from './types';
 import { NameIndex } from './names';
 import { LiveInterpreter, type ProverEventLike, type UniverseSink, type Vec3 } from './events';
+import { FINALE, igniteTime, lineageSummary, traceLineage, type Lineage } from './lineage';
 import { STAR_FLUX_EXPONENT, emptySky, fadeOf, libRadius, linkBrightness, pairKey, seedGain, strongestLinks } from './lighting';
 
 export interface UniverseData {
@@ -294,6 +295,13 @@ export class Universe implements UniverseSink {
   private seedGain = 0.42;
   private seedKey = '';
   private carried: Ev[] = [];
+  private seedPos: Vec3[] = [];
+  // the finale: what the proof is built from, traced once when the target is proven
+  private lineage: Lineage | null = null;
+  private lineageKey = '';
+  private finaleText = '';
+  private finaleFa = -1;
+  private finBox: { c: Vec3; r: number } | null = null;
 
   // hud
   private readonly el: Record<string, HTMLElement> = {};
@@ -965,7 +973,6 @@ export class Universe implements UniverseSink {
     } else if (this.evs.length && this.run?.ok) fa = T - (this.evs[this.evs.length - 1].ds + 2.5);
     const fin = fa >= 0;
     const finGlow = fin ? Math.min(1, fa / 1.5) : 0;
-    const okIds = new Set<number>();
     const trail: { p: Vec3; t: number }[] = [];
     const saves: Ev[] = [];
     // heat: recomputed from the events now and then (it is a function of T, so scrubbing works), uploaded in frame()
@@ -1132,7 +1139,6 @@ export class Universe implements UniverseSink {
         for (const id of (e.used ?? []).slice(0, 18)) {
           this.starPos(id, simT, tmp);
           this.G(tmp, COL.gold, 0.36 * settle, 3.4);
-          okIds.add(id);
         }
       }
       if (e.hits && resolved) for (const id of e.hits) touched.add(id);
@@ -1155,37 +1161,22 @@ export class Universe implements UniverseSink {
       }
     }
 
-    let finR = 0;
-    if (fin) {
-      const wave = fa * 0.55; // the front of light, in universe units per second
-      let n = 0;
-      for (const id of okIds) {
-        if (n++ >= 400) break;
-        this.starPos(id, simT, tmp);
-        const dist = Math.hypot(tmp[0] - pr[0], tmp[1] - pr[1], tmp[2] - pr[2]);
-        finR = Math.max(finR, dist);
-        const behind = Math.min(1, Math.max(0, (wave - dist) / 0.08 + 0.5)); // 1 once the front has passed
-        const flash = Math.exp(-(((dist - wave) / 0.07) ** 2));
-        const breathe = 0.8 + 0.2 * Math.sin(simT * 2.2 + dist * 14);
-        this.G(tmp, COL.gold, behind * 0.55 * breathe + flash * 0.9, 7 + 12 * flash + 3 * behind);
-      }
-      // a sunrise at the closing step: one big soft bloom that opens and fades, and a steady white-gold heart
-      this.G(pr, COL.gold, 0.85 * Math.exp(-fa * 0.7) * Math.min(1, fa * 3), 40 + 30 * Math.min(1, fa / 2));
-      this.G(pr, [1, 0.97, 0.85], 0.7 * finGlow, 14 + 2 * Math.sin(simT * 2));
-    }
+    this.finaleFa = fa;
     this.marks = marks;
     this.probe = pr;
-    if (fin) dimTarget = 1; // the whole universe comes up to full light
+    // the proof closes: the sky holds its breath, then the whole universe comes up to full light
+    if (fin) dimTarget = fa < FINALE.stillness ? 0.06 : 1;
     const anyActive = dimTarget < 0.8;
     this.drawComet(pr, trail, T, simT);
     this.drawLibrary(saves, T, simT);
+    const finR = this.drawFinale(fa, saves, pr, simT);
     if (this.home) {
       const H = this.home;
       const libR = libRadius(Math.max(saves.length, this.mode === 'live' ? this.memSize : 0)) + 0.015;
       const sep = Math.hypot(pr[0] - H[0], pr[1] - H[1]);
       // the library sits in the lower half of the view, clear of the controls and the ticker
-      this.tgoal = [(pr[0] + H[0]) * 0.5, (pr[1] + H[1]) * 0.5 - 0.09 * this.dist, 0];
-      this.dgoal = Math.min(1.3, Math.max(0.3, Math.max(0.28 + 1.4 * (fin ? Math.max(finR, 0.25) : anyActive ? this.maxR : 0.3), sep * 1.5 + libR * 2.2)));
+      this.tgoal = fin && fa > FINALE.settle - 2 && this.finBox ? [this.finBox.c[0], this.finBox.c[1] - 0.06 * this.dist, 0] : [(pr[0] + H[0]) * 0.5, (pr[1] + H[1]) * 0.5 - 0.09 * this.dist, 0];
+      this.dgoal = Math.min(1.3, Math.max(0.3, Math.max(0.28 + 1.4 * (fin && fa > FINALE.settle - 2 ? Math.max(finR, 0.25) : anyActive ? this.maxR : 0.3), sep * 1.5 + libR * 2.2)));
     } else {
       this.tgoal = [pr[0] * 0.9, pr[1] * 0.9, 0];
       this.dgoal = Math.min(2.6, Math.max(0.3, 0.28 + 1.6 * (fin ? Math.max(finR, 0.25) : anyActive ? this.maxR : 0.5)));
@@ -1196,6 +1187,7 @@ export class Universe implements UniverseSink {
       if (this.el[k].textContent !== v) this.el[k].textContent = v;
     };
     if (!this.evs.length && this.mode === 'live') ticker = this.runStartMs !== null && this.runEndMs === null ? 'waiting for the first tool call' : 'waiting for a prover run';
+    if (fin) ticker = fa < FINALE.settle ? '<b style="color:#ffd98a">proved</b>' : `<b style="color:#ffd98a">proved</b> · ${esc(this.finaleText)}`;
     this.el.ticker.innerHTML = ticker;
     if (this.mode === 'live') {
       const t = this.runStartMs === null ? '' : fmt(((this.runEndMs ?? Date.now()) - this.runStartMs) / 1000);
@@ -1306,6 +1298,7 @@ export class Universe implements UniverseSink {
         this.seedKey = key;
         this.uploadSeeds(shown, pos);
       }
+      this.seedPos = pos;
       const depAlpha = 0.26 * Math.min(1, 80 / Math.max(1, N));
       for (let k = 0; k < N; k++) {
         const e = shown[k];
@@ -1385,6 +1378,115 @@ export class Universe implements UniverseSink {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.bufSeedHeat);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, heat);
     this.seedN = N;
+  }
+
+  // ---------- the finale ----------
+  // The target is proven. The sky holds its breath; the target is born as the brightest star in the library; light runs back through
+  // what the proof is built from (the saved theorems it cites, what those cite, and so on down to the Mathlib stars), and what it was
+  // built from keeps a golden thread and a glow for as long as the page is open, while the library theorems it did not use dim.
+  // Returns how far the finale reaches (for the camera).
+  private drawFinale(fa: number, saves: Ev[], pr: Vec3, simT: number): number {
+    if (fa < 0) {
+      this.lineage = null;
+      this.lineageKey = '';
+      this.finBox = null;
+      return 0;
+    }
+    const H: Vec3 = this.home ?? pr;
+    let last = -1;
+    for (let i = this.evs.length - 1; i >= 0; i--)
+      if (this.evs[i].k === 'compile' && this.evs[i].ok) {
+        last = i;
+        break;
+      }
+    const key = `${this.evs.length}:${saves.length}:${last}:${this.carried.length}`;
+    if (this.lineageKey !== key) {
+      this.lineageKey = key;
+      const root = last >= 0 ? this.evs[last] : null;
+      const off = this.carried.length;
+      this.lineage = traceLineage(
+        { saves: (root?.saves ?? []).map((k) => k + off), stars: root?.used ?? [] },
+        [...this.carried.map(() => ({ deps: [], stars: [] })), ...saves.map((e) => ({ deps: (e.deps ?? []).map((d) => d + off), stars: e.stars ?? [] }))],
+      );
+      const seconds = this.mode === 'live' ? (this.runStartMs === null ? 0 : ((this.runEndMs ?? Date.now()) - this.runStartMs) / 1000) : (this.run?.seconds ?? 0);
+      this.finaleText = lineageSummary(this.lineage, (id) => this.data.lib[id] & 0x7fff, seconds);
+    }
+    const L = this.lineage;
+    const gold = COL.gold;
+    const white: Rgb = [1, 0.97, 0.85];
+    const p: Vec3 = [0, 0, 0];
+    const q: Vec3 = [0, 0, 0];
+    // where the closing step landed
+    this.G(pr, gold, Math.exp(-fa * 1.2) * 0.8, 30);
+    // the held breath: light gathers where the target will be
+    if (fa < FINALE.ignite) this.G(H, white, Math.min(1, fa / FINALE.stillness) * 0.7, 6 + 10 * (fa / FINALE.ignite));
+    // the target, born: one flare, one ring, then the brightest steady star in the library, pinged by a slow ring
+    const born = fa - FINALE.stillness;
+    if (born > 0) {
+      const settle = Math.min(1, born / 1.5);
+      this.G(H, white, 1.0 * settle, -(84 + 40 * Math.exp(-born * 1.2)));
+      this.G(H, white, 1.0, 8);
+      this.G(H, white, 0.7 * settle, 14);
+      this.G(H, gold, 0.16 * settle, 30 + 6 * Math.sin(simT * 1.6));
+      if (born < 2) this.G(H, gold, (1 - born / 2) * 0.9, 1000 + 12 + 90 * (born / 2));
+      const ping = (simT % 5) / 5;
+      if (born > 3) this.G(H, gold, (1 - ping) * 0.4, 1000 + 20 + 70 * ping);
+    }
+    if (!L || !L.nodes.length) {
+      this.finBox = { c: H, r: 0.25 };
+      return 0.25;
+    }
+    // the light runs back: each thing the proof rests on is reached at its depth, a thread grows to it, and it stays lit
+    let x0 = H[0];
+    let x1 = H[0];
+    let y0 = H[1];
+    let y1 = H[1];
+    const pos = (n: { type: 'save' | 'star'; id: number }, out: Vec3): boolean => {
+      if (n.type === 'star') {
+        this.starPos(n.id, simT, out);
+        return true;
+      }
+      const sp = this.seedPos[n.id];
+      if (!sp) return false;
+      out[0] = sp[0];
+      out[1] = sp[1];
+      out[2] = sp[2];
+      return true;
+    };
+    for (let i = 0; i < L.nodes.length; i++) {
+      const n = L.nodes[i];
+      if (!pos(n, q)) continue;
+      x0 = Math.min(x0, q[0]);
+      x1 = Math.max(x1, q[0]);
+      y0 = Math.min(y0, q[1]);
+      y1 = Math.max(y1, q[1]);
+      const t0 = igniteTime(n.depth, L.maxDepth) + hash32(i * 31 + 7) * 0.35;
+      const prog = Math.min(1, Math.max(0, (fa - t0) / FINALE.travel));
+      if (prog <= 0) continue;
+      const par = n.parent >= 0 ? L.nodes[n.parent] : null;
+      if (par && pos(par, p)) {
+        /* the thread hangs from the saved theorem it was found in */
+      } else {
+        p[0] = H[0];
+        p[1] = H[1];
+        p[2] = H[2];
+      }
+      const tip: Vec3 = [p[0] + (q[0] - p[0]) * prog, p[1] + (q[1] - p[1]) * prog, p[2] + (q[2] - p[2]) * prog];
+      const span = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      this.curve(p, tip, hash32(i * 17 + 3), simT, gold, 0.42 / (1 + span * span * 6), 1.6, 28, 0.2, 1);
+      const flash = Math.exp(-Math.max(0, fa - t0 - FINALE.travel) * 2.2);
+      if (n.type === 'star') {
+        this.G(q, gold, 0.7 + 0.3 * flash, -(30 + 16 * flash));
+        this.G(q, white, 0.6 * prog + 0.4 * flash, 7 + 8 * flash);
+        this.G(q, gold, 0.3 * prog, 16);
+      } else {
+        this.G(q, gold, 0.3 * prog + 0.5 * flash, 4 + 6 * flash);
+      }
+    }
+    const c: Vec3 = [(x0 + x1) / 2, (y0 + y1) / 2, 0];
+    const r = Math.max(0.25, 0.6 * Math.max(x1 - x0, (y1 - y0) * 1.6));
+    this.finBox = { c, r };
+    return r;
   }
 
   // ---------- labels: every galaxy gets one, shown when you are close enough to read it; the best results of a search are named and ranked ----------
@@ -1631,7 +1733,7 @@ export class Universe implements UniverseSink {
       gl.uniform1f(this.u(this.progStar, 'u_tintMix'), 0.8);
       gl.uniform1f(this.u(this.progStar, 'u_big'), 0.004);
       gl.uniform3f(this.u(this.progStar, 'u_tint'), 0.6, 0.38, 1.0);
-      gl.uniform1f(this.u(this.progStar, 'u_gain'), this.seedGain);
+      gl.uniform1f(this.u(this.progStar, 'u_gain'), this.seedGain * (1 - 0.55 * Math.min(1, Math.max(0, (this.finaleFa - 2) / 2))));
       gl.drawArrays(gl.POINTS, 0, this.seedN);
     }
     gl.blendFunc(gl.ONE, gl.ONE);

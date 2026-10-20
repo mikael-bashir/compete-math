@@ -191,9 +191,10 @@ test('a save that arrives with its proof says what it leans on, what it was buil
   assert.deepEqual(saves[0].deps, [], 'nothing earlier to build on');
   assert.equal(saves[0].abstract, true);
   assert.deepEqual(saves[1].deps, [0], 'the second was built from the first');
-  // a saved theorem's closure carries the lemma it was built from, so it leans on everything that one leans on as well
-  assert.deepEqual([...(saves[1].stars ?? [])].sort(), [11, 22], 'the Mathlib lemmas it cites, and never the earlier save itself');
+  assert.deepEqual(saves[1].stars, [11], 'it leans on what its own theorem cites, not on what the earlier save leans on, and never on the earlier save itself');
   assert.equal(saves[1].abstract, false, 'an instance');
+  interp.memory('save', undefined, { name: 'my_first', closure: 'theorem my_first (n : ℕ) : 0 < Nat.centralBinom n := by\n  exact better' });
+  assert.equal(saves.length, 2, 'saving the same theorem again (an improved version) is not a new theorem');
   interp.forgetSaves();
   interp.memory('save', undefined, { name: 'fresh', closure: 'theorem fresh (n : ℕ) : n = n := rfl' });
   assert.deepEqual(saves[2].deps, [], 'a new run starts with no earlier saves');

@@ -15,4 +15,5 @@ export const UNIVERSE_NOTES: string[] = [
   'A search sends threads to the stars it found, strongest to the best match. When a proof is accepted, the lemmas it used light up together, and the link between them joins a golden web that grows brighter the more it is used. A line means “used together in an accepted proof”, not “implies”.',
   'Light fades with age: recent work burns bright, old work dims but never vanishes, so the sky stays readable however long the run.',
   'The violet cloud is the driver’s own library, each dot a theorem it has saved, tinted by the area it leans on, with a thread to the areas it builds on.',
+  'When the target is proved, the sky goes still, the target is born as a star in the library, and light runs back through everything the proof is built from, which keeps a golden thread.',
 ];
