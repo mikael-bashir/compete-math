@@ -57,7 +57,43 @@ export const VARIANTS = {
     sleep: { everyMs: 60 * 60_000, minNew: 6, timeboxMs: 10 * 60_000 },
   },
 }
+// The same four variants again with Leak II (Pantograph: init_proof / apply_tactic) added to the agent's tools, the way Control IV adds it to
+// Control II. Nothing else differs: same memory, same tools, same sleep stage, same prompt apart from what Leak II adds. Keys end in -iv.
+for (const [key, v] of Object.entries({ ...VARIANTS })) {
+  VARIANTS[`${key}-iv`] = { ...v, name: v.name.replace("Control II", "Control IV"), blurb: `${v.blurb} Plus Leak II, the interactive Pantograph tactic-stepper.`, pantograph: true }
+}
 export const isMemoryVariant = (name) => Object.prototype.hasOwnProperty.call(VARIANTS, String(name))
+export const usesPantograph = (name) => !!VARIANTS[String(name)]?.pantograph
+export const baseVariant = (name) => String(name).replace(/-iv$/, "")
+
+
+// ---- the harness's voice --------------------------------------------------------------------------------------
+// What the agent is told about persistence, getting stuck, computing, and its tools. It is written as an order from the operator of the
+// run, because the failure it answers is an agent that gives up, or that spends hours churning numbers and calls that work. It pushes
+// toward persistence and toward invention; it does not push toward cheating, and says so.
+export const MANDATE = `STANDING ORDER FROM THE OPERATOR OF THIS RUN. This is not a suggestion.
+You are here to prove this target, and you keep working until Leak IV verifies it or the run's clock ends. Nobody is going to tell you it cannot be done, and you do not get to tell yourself so. Do not stop to report, do not stop to summarise, do not ask whether to continue, and do not conclude that the problem is open, hard, or out of reach: a problem looks impossible right up until someone finds the idea that was missing, and finding it is your job. Feeling stuck is the normal state of this work. It is a signal to change what you are doing, never to stop doing it.`
+
+export function strategyBlock({ pantograph = false, memoryTools = true } = {}) {
+  return `WHEN YOU ARE STUCK (you will be, often) do something different, and be inventive about it. A failed approach is information: say in one line why it failed, then choose an approach that does not share that failure. Moves to reach for:
+- Restate the goal: the contrapositive, an equivalent form, a stronger statement that makes an induction go through, a weaker one that is still useful.
+- Shrink it: a special case, a small parameter where a finite check shows the shape of the general argument, then prove the pattern.
+- Change the structure of the argument: an extremal or minimal counterexample, an invariant, a counting or double-counting argument, a bijection, a valuation or modular view, another representation (polynomial, generating function, graph, matrix).
+- Work backwards: write the lemma that would finish the proof if it were true, and attack that lemma on its own. Look for a counterexample to your own intermediate claim, too: refuting it is progress.
+- Use what mathematics already knows: name the classical theorem or technique this resembles, search for it (loogle for a type pattern, moogle for the concept), and formalise its idea here.
+- If the statement has an answer slot, the other direction is open to you as well.
+
+DO NOT JUST COMPUTE. A numeric search or a factorisation table is fine when it answers a specific question you wrote down first (what do I expect to see, and what will I do differently if I see it?). Running one more range or one more bound, hoping the pattern announces itself, is churning, and it is the commonest way a run like this goes nowhere. When a computation is finished, the very next thing you do is turn what it showed into a claim and give it to verify_full_script, or use it to choose a different argument. After a few computations in a row with no verify_full_script call in between, stop computing.
+
+USE THE TOOLS YOU HAVE; they are strong and mostly sit unused. verify_full_script (Leak IV) is a real Lean 4 + Mathlib kernel: use it for a tactic you are unsure of, a \`decide +kernel\`, an \`exact?\` or \`apply?\`, a \`#check\`, a small lemma, not only for finished proofs. loogle_search and moogle_search (Leak I) find the lemma you would otherwise rebuild.${memoryTools ? " memory_recall and memory_list hold every theorem proved so far on this target." : ""}${pantograph ? " Leak II (init_proof / apply_tactic) shows the real goal state after each tactic: step a stubborn goal through it instead of guessing." : ""} Combine them: search, then verify, then step, then record.
+
+Persistence is not permission to cheat. No sorry, no new axioms, and no change to the target's statement (apart from an answer slot, if it has one). The only thing that counts is verify_full_script reporting success.`
+}
+
+// The short form, for when the session is resumed or reminded.
+export function persistBlock({ pantograph = false } = {}) {
+  return `If the last stretch went nowhere, change the approach instead of repeating it: restate the goal (contrapositive, an equivalent form, a stronger or weaker statement), shrink it to a special case you can verify, look for a counterexample to your own claim, work backwards from the lemma that would finish it, ${pantograph ? "step the stubborn goal through Leak II (init_proof / apply_tactic), " : ""}or search the library (loogle for a pattern, moogle for a concept) for the classical technique this resembles. Do not start another numeric sweep: compute only to answer a question you have written down, and then verify a claim.`
+}
 
 // ---- reading a Lean script ------------------------------------------------------------------------------------
 const MODS = "(?:private|protected|noncomputable|unsafe|partial|nonrec|scoped|local)"
@@ -519,8 +555,9 @@ export function makeHandlers(memory, variantKey) {
 
 // The sentences added to Control II's prompt for a variant. The baseline forbids top-level helper lemmas; a memory
 // variant allows them, because a lemma that verifies on its own is the unit of progress that memory keeps.
-export function memoryRules(variantKey, { envHint = "" } = {}) {
+export function memoryRules(variantKey, { envHint = "", pantograph } = {}) {
   const cfg = VARIANTS[variantKey]
+  const withLeakII = pantograph === undefined ? !!cfg.pantograph : !!pantograph // the bridge says false when no Leak II server is connected
   const tools = cfg.tools.length
   const lines = [
     "- You MAY prove helper theorems/lemmas as separate top-level declarations and verify them with verify_full_script (a helper must compile with no sorry). Every verified, non-trivial theorem is saved automatically to this target's memory, for you and for later attempts: a verified lemma is progress even if the target is still open. The target itself stays exactly as given.",
@@ -531,6 +568,7 @@ export function memoryRules(variantKey, { envHint = "" } = {}) {
   if (tools) lines.push("- Before you re-derive something, call memory_recall: you may already have proved it. Save effort for what is genuinely new.")
   if (cfg.augmentSearch) lines.push("- Your library searches also return matching theorems from this memory under a MEMORY heading; they are compile-ready.")
   if (tools) lines.push(`- When a saved theorem is general, minimally assumed and well named, nominate it with memory_nominate (at most ${MAX_NOMINATED}). Nominated theorems are the ones that can later be submitted to the Tengoku library, so nominate only what you would be proud to have others reuse.`)
+  if (withLeakII) lines.push("- Leak II (init_proof, apply_tactic) is yours as well: when an error is opaque or a subgoal is fiddly, init_proof the goal and apply_tactic ONE tactic at a time to read the real goal state, then fold the tactics that worked into a full script and verify it. Never put sorry in an apply_tactic. Pantograph never certifies anything; only verify_full_script does.")
   if (cfg.sleep) lines.push("- From time to time the system consolidates the memory in the background and adds more general lemmas; you will see them in memory_recall results marked (abstract lemma).")
   return lines.join("\n")
 }
@@ -616,30 +654,33 @@ export function environmentHint(env = {}) {
 // background jobs, and a search nobody needs any more is a cost the agent can end itself. Said lightly, so it is not a rule to obey.
 export const HOUSEKEEPING_CHANCE = 0.2
 export const HOUSEKEEPING_LINE = "As you pick this back up, a quick look at what is still running from earlier (`ps aux | grep -v grep | head -20`) takes seconds; anything that no longer serves your next claim is better ended than left to run."
-export function continuePrompt({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", rng = Math.random } = {}) {
+export function continuePrompt({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", pantograph = false, rng = Math.random } = {}) {
   const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
   const lines = [
-    `You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified proof of the target. The run's clock has not ended, so this is attempt ${attempt} of the SAME session: this conversation continues, and everything you tried and learned is still yours. That the target is open is the reason this run exists; it is not a reason to stop.`,
+    `ORDER: KEEP GOING. You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified proof of the target, and that is not accepted. The run's clock has not ended, so this is attempt ${attempt} of the SAME session: this conversation continues, and everything you tried and learned is still yours. That the target is open is the reason this run exists; it is not a reason to stop, and neither is a feeling that it is impossible.`,
     `The memory now holds ${libraryCount} verified theorem(s).`,
   ]
   if (abstracted.length)
     lines.push(`The system consolidated it while you were stopped and added ${abstracted.length} more general lemma(s): ${abstracted.slice(0, 12).join(", ")}. memory_recall shows them marked (abstract lemma).`)
   if (toolIds.length) lines.push(`If a tool you used before is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}`)
   if (rng() < HOUSEKEEPING_CHANCE) lines.push(HOUSEKEEPING_LINE)
+  lines.push(persistBlock({ pantograph }))
   lines.push("Review what this session has already established, choose ONE concrete next claim (a lemma the target needs, a special case, or a generalisation of a verified theorem), and verify it with verify_full_script within your next few steps. A verified lemma is progress; an unverified conclusion is not.")
   return `${lines.join("\n\n")}\n${episodic || ""}`
 }
 
 // What the harness says to an agent that stopped early, in the same conversation, so that it keeps what it learned. Not a reason to
 // stop is offered: that the target is open is the reason the run exists.
-export function nudgePrompt({ elapsedMs, libraryCount = 0, nudge = 1, of = 2 } = {}) {
+export function nudgePrompt({ elapsedMs, libraryCount = 0, nudge = 1, of = 2, pantograph = false } = {}) {
   const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
-  return `You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified theorem. The run's clock has not ended, so that is not accepted (reminder ${nudge} of ${of}). That the target is open is the reason this run exists; it is not a reason to stop.
+  return `ORDER: DO NOT STOP. You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified theorem. The run's clock has not ended, so that is not accepted (reminder ${nudge} of ${of}). That the target is open is the reason this run exists; it is not a reason to stop, and neither is a feeling that it is impossible.
 
 Do this now, in this order:
 1. Choose ONE concrete claim that is true and checkable: a lemma the target would need, a special case (a small k with its witness), or a generalisation of one of the ${libraryCount} verified theorem(s) in memory (use memory_list or memory_recall).
 2. Write its complete Lean script and call verify_full_script within your next few steps. Do not start another long numeric search first.
 3. When it compiles, it is saved automatically; then choose the next claim.
+
+${persistBlock({ pantograph })}
 
 An unverified conclusion is not a result. A verified lemma is.`
 }

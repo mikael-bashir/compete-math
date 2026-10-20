@@ -44,9 +44,9 @@ theorem still_open (n : ℕ) : n = n + 0 := by
   sorry
 `
 
-test("variants: four of them, each with a name, and only the memory ones are memory variants", () => {
-  assert.deepEqual(Object.keys(VARIANTS).sort(), ["control-flint", "control-honoured", "control-lucid", "control-paragon"])
-  for (const v of Object.values(VARIANTS)) assert.ok(v.name.startsWith("Control II "))
+test("variants: four designs, each with a Leak II twin, each with a name, and only the memory ones are memory variants", () => {
+  assert.deepEqual(Object.keys(VARIANTS).sort(), ["control-flint", "control-flint-iv", "control-honoured", "control-honoured-iv", "control-lucid", "control-lucid-iv", "control-paragon", "control-paragon-iv"])
+  for (const [k, v] of Object.entries(VARIANTS)) assert.ok(v.name.startsWith(k.endsWith("-iv") ? "Control IV " : "Control II "))
   // the agent manages its own context: no variant ends a session on a timer of its own
   for (const v of Object.values(VARIANTS)) assert.ok(!("attemptMs" in v), `${v.name} has a timer of its own on a session`)
   assert.ok(isMemoryVariant("control-lucid"))
@@ -330,4 +330,85 @@ test("one new attempt in five is quietly reminded to check for runaway processes
   let hits = 0
   for (let i = 0; i < 2000; i++) if (continuePrompt({ attempt: 2 }).includes(HOUSEKEEPING_LINE)) hits++
   assert.ok(hits > 300 && hits < 500, `about 20% of 2000, got ${hits}`)
+})
+
+// ---- the Leak II variants and the harness's voice ---------------------------------------------------------------
+import fs from "node:fs"
+import { MANDATE, baseVariant, persistBlock, strategyBlock, usesPantograph } from "../../public/leak-memory.mjs"
+import { MEMORY_VARIANTS } from "../../src/lib/prover/memory-client.ts"
+
+test("every memory variant has a Leak II twin that differs in nothing but Leak II", () => {
+  const bases = Object.keys(VARIANTS).filter((k) => !k.endsWith("-iv"))
+  assert.equal(bases.length, 4)
+  for (const k of bases) {
+    const base = VARIANTS[k]
+    const iv = VARIANTS[`${k}-iv`]
+    assert.ok(iv, `${k}-iv is missing`)
+    assert.equal(base.pantograph, undefined)
+    assert.equal(iv.pantograph, true)
+    for (const f of ["tools", "episodic", "augmentSearch", "sleep"]) assert.deepEqual(iv[f], base[f], `${k}-iv differs in ${f}`)
+    assert.equal(iv.name, base.name.replace("Control II", "Control IV"))
+    assert.ok(isMemoryVariant(`${k}-iv`))
+    assert.equal(usesPantograph(`${k}-iv`), true)
+    assert.equal(usesPantograph(k), false)
+    assert.equal(baseVariant(`${k}-iv`), k)
+    assert.equal(baseVariant(k), k)
+  }
+})
+
+test("the page's list of variants, the module's and the bridge's registry name the same eight", () => {
+  const bridge = fs.readFileSync(new URL("../../public/local-claude-bridge.mjs", import.meta.url), "utf8")
+  assert.deepEqual(MEMORY_VARIANTS.map((v) => v.key).sort(), Object.keys(VARIANTS).sort())
+  for (const k of Object.keys(VARIANTS)) assert.match(bridge, new RegExp(`\\n  "${k}": \\{[\\s\\S]*?style: "memory"`), `${k} is not a memory strategy in the bridge`)
+})
+
+test("memoryRules mentions Leak II only for the -iv variants, and not when the bridge says it is not connected", () => {
+  for (const k of Object.keys(VARIANTS)) {
+    const has = /init_proof/.test(memoryRules(k))
+    assert.equal(has, k.endsWith("-iv"), k)
+  }
+  assert.doesNotMatch(memoryRules("control-honoured-iv", { pantograph: false }), /init_proof/)
+  assert.match(memoryRules("control-honoured", { pantograph: true }), /init_proof/)
+  assert.match(memoryRules("control-lucid-iv"), /consolidates/, "the twin keeps the base variant's own rules")
+})
+
+test("the standing order is firm about persistence, not about cheating", () => {
+  assert.match(MANDATE, /STANDING ORDER/)
+  assert.match(MANDATE, /not a suggestion/i)
+  assert.match(MANDATE, /do not conclude that the problem is open, hard, or out of reach/)
+  assert.match(MANDATE, /never to stop doing it/)
+  const b = strategyBlock()
+  assert.match(b, /WHEN YOU ARE STUCK/)
+  assert.match(b, /inventive/)
+  for (const move of [/contrapositive/, /special case/, /counterexample/, /invariant/, /loogle/, /moogle/, /answer slot/]) assert.match(b, move)
+  assert.match(b, /DO NOT JUST COMPUTE/)
+  assert.match(b, /churning/)
+  assert.match(b, /USE THE TOOLS YOU HAVE/)
+  assert.match(b, /No sorry, no new axioms/)
+  assert.match(b, /only thing that counts is verify_full_script/)
+})
+
+test("the playbook names Leak II and the memory tools only where the agent has them", () => {
+  assert.doesNotMatch(strategyBlock({ pantograph: false, memoryTools: false }), /Leak II|memory_recall/)
+  assert.match(strategyBlock({ pantograph: true, memoryTools: false }), /Leak II \(init_proof/)
+  assert.doesNotMatch(strategyBlock({ pantograph: true, memoryTools: false }), /memory_recall/)
+  assert.match(strategyBlock({ memoryTools: true }), /memory_recall/)
+  assert.doesNotMatch(persistBlock(), /Leak II/)
+  assert.match(persistBlock({ pantograph: true }), /Leak II \(init_proof/)
+})
+
+test("a resumed session and a reminder both give an order, say what to change, and forbid another numeric sweep", () => {
+  const c = continuePrompt({ attempt: 4, elapsedMs: 3 * 60000, libraryCount: 2, rng: () => 1 })
+  assert.match(c, /^ORDER: KEEP GOING/)
+  assert.match(c, /not accepted/)
+  assert.match(c, /neither is a feeling that it is impossible/)
+  assert.match(c, /change the approach instead of repeating it/)
+  assert.match(c, /Do not start another numeric sweep/)
+  const n = nudgePrompt({ elapsedMs: 60000, libraryCount: 2, nudge: 2, of: 2 })
+  assert.match(n, /^ORDER: DO NOT STOP/)
+  assert.match(n, /reminder 2 of 2/)
+  assert.match(n, /change the approach instead of repeating it/)
+  assert.doesNotMatch(c + n, /Leak II/)
+  assert.match(continuePrompt({ attempt: 2, pantograph: true, rng: () => 1 }), /Leak II \(init_proof/)
+  assert.match(nudgePrompt({ elapsedMs: 1, pantograph: true }), /Leak II \(init_proof/)
 })
