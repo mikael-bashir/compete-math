@@ -2114,7 +2114,7 @@ function mcpToolSection(mcpServers = [], extraTools = []) {
     const prefix = sanitize(s.name)
     for (const t of Array.isArray(s.tools) ? s.tools : []) {
       const tn = typeof t === "string" ? t : t && t.name
-      if (!tn) continue
+      if (!tn || /tengoku_sync$/.test(tn)) continue // the servers' own maintenance tool (it restarts the shared verifier): not the agent's
       const id = `mcp__${prefix}__${tn}`
       toolIds.push(id)
       const args =
@@ -6695,7 +6695,9 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   let lastAttemptMs = 0
   let lastNote = null // the agent's own NOTE/NEXT from the end of its last stretch, handed back when the session resumes
   let lastSaidText = "" // the agent's last text block, in case the CLI's result frame is empty
-  const toolIds = [...allowedServers.flatMap((s) => (Array.isArray(s.tools) ? s.tools : []).map((t) => `mcp__${String(s.name).replace(/[^a-zA-Z0-9_]/g, "_")}__${typeof t === "string" ? t : t?.name}`)), ...cfg.tools.map((t) => `mcp__memory__${t}`)].filter((x) => !x.endsWith("__undefined"))
+  const toolIds = [...allowedServers.flatMap((s) => (Array.isArray(s.tools) ? s.tools : []).map((t) => `mcp__${String(s.name).replace(/[^a-zA-Z0-9_]/g, "_")}__${typeof t === "string" ? t : t?.name}`)), ...cfg.tools.map((t) => `mcp__memory__${t}`)].filter((x) => !x.endsWith("__undefined") && !/__tengoku_sync$/.test(x))
+  // tengoku_sync moves a shared server onto a newer tree and restarts it: never the agent's call
+  const syncTools = allowedServers.map((s) => `mcp__${String(s.name).replace(/[^a-zA-Z0-9_]/g, "_")}__tengoku_sync`)
   try {
   while (!ctx.signal?.aborted && !deadlinePassed(ctx)) {
     attempt++
@@ -6761,6 +6763,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         metrics: ctx.metrics,
         signal: ctx.signal,
         searchBudget: ctx.searchBudget,
+        disallowedTools: [...PROVER_DISALLOWED_TOOLS, ...syncTools],
         systemAppend: V.systemRule,
         bridgeHandlers: handlers.size ? handlers : undefined,
         bridgeServerName: handlers.size ? "memory" : undefined,

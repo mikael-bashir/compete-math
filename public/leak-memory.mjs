@@ -104,7 +104,7 @@ export const curiosityPrompt = (i) => CURIOSITY_PROMPTS[((Number(i) || 0) % CURI
 export function extractNote(text) {
   const s = String(text || "")
   const grab = (tag) => {
-    const re = new RegExp(`^\\s*\\**${tag}\\**:?\\**\\s*(.+)$`, "gim")
+    const re = new RegExp(`^\\s*\\**${tag}\\**:\\**\\s*(.+)$`, "gim") // the colon is required: "Next the general case" is prose
     let m
     let last = ""
     while ((m = re.exec(s))) last = m[1].trim()
@@ -204,7 +204,7 @@ ${NO_BRUTE_FORCE}
 
 ${TOOL_GUIDE({ pantograph, memoryTools })}
 
-PACE. Verify early and often: within your first few minutes, submit something to verify_full_script, even a small lemma or an \`example\` that asks \`exact?\`. A submission that fails teaches more than another stretch of thinking. After a few shell commands with nothing verified, go back to the compiler.
+PACE. Verify early and often: within your first few minutes, submit something to verify_full_script, even a small lemma or an \`example\` that asks \`exact?\`. A submission that fails teaches more than another stretch of thinking. After a few shell commands with nothing verified, go back to the compiler. And before you prove a lemma, ask Leak I whether the tree already has it or its neighbours (loogle for the shape, moogle for the idea): a mathematician reads before writing, and what the tree already knows is free.
 
 YOUR LAB NOTES. Work in stretches. When a stretch ends (you will pause naturally; that is fine and expected), close your message with two lines in exactly this form:
 NOTE: <one or two sentences: what you now know or believe that you did not before>

@@ -11,7 +11,8 @@ import fs from "node:fs"
 import { parseTranscript } from "../lrr-sync/core.mjs"
 
 const RE = {
-  defeat: /\b(open problem|is (still )?open|remains open|no (viable )?(route|plan|path|way)( to| forward)?|cannot be (done|proved|proven)|can't be (done|proved|proven)|impossible|beyond (my |our )?(reach|means|tools)|out of reach|unsolved|give up|giving up|I('m| am) stopping|stopping here|not going to claim|don't think I can|do not think I can|not (feasible|tractable))\b/i,
+  // "the carry condition is still open" is a mathematician talking about a sub-question; "the problem is open" is the flag
+  defeat: /\b(open problem|(problem|statement|target|conjecture|theorem|question|this|it) (is|remains) (still |currently )?(open|unsolved)|no (viable )?(route|plan|path|way)( to| forward)?|know of no way|cannot be (done|proved|proven)|can't be (done|proved|proven)|impossible|beyond (my |our )?(reach|means|tools)|out of reach|give up|giving up|I('m| am) stopping|stopping here|not going to claim|don't think I can|do not think I can|haven't attempted a proof|not (feasible|tractable))\b/i,
   authority: /\b(erdosproblems|oeis|arxiv|the literature|is known|known result|experts|nobody has|no one has|has been (shown|proved|proven) by|according to|the forum|the comments)\b/i,
   curiosity: /\b(conjecture|hypothesis|hypothesise|I suspect|hunch|what if|why (does|is|would|should)|interesting|curious|surprising|surprise|notice that|observe that|I wonder|let me check whether|try to understand|obstruction|necessary condition|sufficient condition|this forces|this gives|the key (bound|lemma|idea|fact)|generali[sz]e|generali[sz]ation|restate|reformulat|invariant|monotone|counterexample|reusable|bridge lemma|structure)\b/i,
   web: /\b(curl|wget)\b|https?:\/\//i,
@@ -128,8 +129,8 @@ export function scoreTranscript(text) {
       r.text.curiosity += (prose.match(new RegExp(RE.curiosity.source, "gi")) || []).length
       r.text.defeat += (prose.match(new RegExp(RE.defeat.source, "gi")) || []).length
       r.text.authority += (prose.match(new RegExp(RE.authority.source, "gi")) || []).length
-      if (/^\s*\**NOTE\**:?/im.test(s)) r.text.notes++
-      if (/^\s*\**NEXT\**:?/im.test(s)) r.text.nexts++
+      if (/^\s*\**NOTE\**:/im.test(s)) r.text.notes++
+      if (/^\s*\**NEXT\**:/im.test(s)) r.text.nexts++
       lastAgentText = s
     }
   }
