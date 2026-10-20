@@ -6577,12 +6577,16 @@ function controlMemoryPrompt(M, variantKey, memory, theorem, mcpServers, attempt
   const pantograph = !!cfg.pantograph && !!resolvePantographUrl(mcpServers)
   return `${M.MANDATE}
 
+${M.GOAL}
+
+${M.WORK_MODES}
+
 You are working on ONE Lean 4 + Mathlib theorem in a long, single continuous session, and you keep a library of verified theorems as you go. Your tools are Leak IV's verify_full_script — it IS the compiler: every call returns either "✅ Compilation Successful! The proof is 100% verified." or the exact Lean diagnostic text (line number, error/warning message) — and Leak I's loogle_search/moogle_search for library lookups.${pantograph ? " You ALSO have Leak II's interactive proof assistant (init_proof / apply_tactic): step a goal ONE tactic at a time to watch the live goal state evolve, then fold the tactics that worked into your verify_full_script submission." : ""} verify_full_script is the ONLY thing that counts as progress; search${pantograph ? " and Pantograph only support" : " only supports"} a submission, ${pantograph ? "they do" : "it does"} not replace one. ${memLine}
 
 ${toolSection}
 
 THE LOOP:
-1. Decide the next claim that moves you toward the theorem: the theorem itself, or a lemma it will need.
+1. Decide the next claim: the theorem itself, a lemma it will need, foundational material you expect to pay off, or a bridge that lifts it into a setting you know.
 2. Write the complete Lean script and call verify_full_script with it.
 3. If it fails, read the compiler's error CAREFULLY — the line and message tell you exactly what broke. Fix precisely that, or try a genuinely different approach to the same claim. Resubmit.
 4. A script only counts when verify_full_script reports success with ZERO 'sorry'. A verified, non-trivial theorem is saved to the memory automatically.
@@ -6592,7 +6596,7 @@ ${M.strategyBlock({ pantograph, memoryTools: cfg.tools.length > 0 })}
 
 RULES:
 ${M.memoryRules(variantKey, { envHint, pantograph })}
-- Never conclude the target is "too hard", "open" or beyond reach, and never ask to split it: there is no one to hand it to. A failing approach means a DIFFERENT strategy, or a different lemma that gets you closer.
+- Never conclude the target is "too hard", "open" or beyond reach, and never ask to split it: there is no one to hand it to. A failing approach means a DIFFERENT strategy: a different lemma, foundational material, or a bridge into a setting you know.
 - Never stop on your own. This is ONE persistent session: if you do stop, the system resumes this same conversation (attempt ${attempt + 1}, ${attempt + 2}, …; the CLI compacts it when it grows) until you succeed or the run's own wall clock ends it.${attempt > 1 ? " (Your earlier conversation could not be resumed, so this one is new: what it had established is only in the memory and below.)" : ""}
 - The target is only proved when verify_full_script succeeds on a script that contains the target's exact statement with no sorry.
 ${episodic}${lastBlock}
@@ -6727,7 +6731,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     ctx.emit({
       type: "prompt",
       kind: resuming ? "followup" : undefined,
-      prompt: `[${memoryHeader} · attempt ${attempt}${resuming ? " · same session" : ""}]\n\n${attemptPrompt}${resuming ? "" : `\n\n=== SYSTEM PROMPT ADDENDUM (added by the harness to the agent's system prompt) ===\n${NO_LOCAL_LEAN_NOTE}`}`,
+      prompt: `[${memoryHeader} · attempt ${attempt}${resuming ? " · same session" : ""}]\n\n${attemptPrompt}${resuming ? "" : `\n\n=== SYSTEM PROMPT ADDENDUM (added by the harness to the agent's system prompt) ===\n${M.SYSTEM_RULE}\n\n${NO_LOCAL_LEAN_NOTE}`}`,
       model: ctx.model || null,
       mcpServers: allowedServers.map((s) => ({ name: s.name, url: s.url })),
     })
@@ -6749,6 +6753,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         metrics: ctx.metrics,
         signal: ctx.signal,
         searchBudget: ctx.searchBudget,
+        systemAppend: M.SYSTEM_RULE,
         bridgeHandlers: handlers.size ? handlers : undefined,
         bridgeServerName: handlers.size ? "memory" : undefined,
         searchAugment: augment,

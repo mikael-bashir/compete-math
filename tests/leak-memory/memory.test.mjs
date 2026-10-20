@@ -334,7 +334,7 @@ test("one new attempt in five is quietly reminded to check for runaway processes
 
 // ---- the Leak II variants and the harness's voice ---------------------------------------------------------------
 import fs from "node:fs"
-import { MANDATE, baseVariant, persistBlock, strategyBlock, usesPantograph } from "../../public/leak-memory.mjs"
+import { GOAL, MANDATE, SYSTEM_RULE, WORK_MODES, baseVariant, persistBlock, strategyBlock, usesPantograph } from "../../public/leak-memory.mjs"
 import { MEMORY_VARIANTS } from "../../src/lib/prover/memory-client.ts"
 
 test("every memory variant has a Leak II twin that differs in nothing but Leak II", () => {
@@ -381,8 +381,6 @@ test("the standing order is firm about persistence, not about cheating", () => {
   assert.match(b, /WHEN YOU ARE STUCK/)
   assert.match(b, /inventive/)
   for (const move of [/contrapositive/, /special case/, /counterexample/, /invariant/, /loogle/, /moogle/, /answer slot/]) assert.match(b, move)
-  assert.match(b, /DO NOT JUST COMPUTE/)
-  assert.match(b, /churning/)
   assert.match(b, /USE THE TOOLS YOU HAVE/)
   assert.match(b, /No sorry, no new axioms/)
   assert.match(b, /only thing that counts is verify_full_script/)
@@ -397,13 +395,13 @@ test("the playbook names Leak II and the memory tools only where the agent has t
   assert.match(persistBlock({ pantograph: true }), /Leak II \(init_proof/)
 })
 
-test("a resumed session and a reminder both give an order, say what to change, and forbid another numeric sweep", () => {
+test("a resumed session and a reminder both give an order, say what to change, and forbid brute force", () => {
   const c = continuePrompt({ attempt: 4, elapsedMs: 3 * 60000, libraryCount: 2, rng: () => 1 })
   assert.match(c, /^ORDER: KEEP GOING/)
   assert.match(c, /not accepted/)
   assert.match(c, /neither is a feeling that it is impossible/)
   assert.match(c, /change the approach instead of repeating it/)
-  assert.match(c, /Do not start another numeric sweep/)
+  assert.match(c, /No brute force/)
   const n = nudgePrompt({ elapsedMs: 60000, libraryCount: 2, nudge: 2, of: 2 })
   assert.match(n, /^ORDER: DO NOT STOP/)
   assert.match(n, /reminder 2 of 2/)
@@ -411,4 +409,70 @@ test("a resumed session and a reminder both give an order, say what to change, a
   assert.doesNotMatch(c + n, /Leak II/)
   assert.match(continuePrompt({ attempt: 2, pantograph: true, rng: () => 1 }), /Leak II \(init_proof/)
   assert.match(nudgePrompt({ elapsedMs: 1, pantograph: true }), /Leak II \(init_proof/)
+})
+
+test("the agent may build foundations or lift the target with a bridge, and is told this is a long project", () => {
+  assert.match(WORK_MODES, /THREE KINDS OF WORK/)
+  assert.match(WORK_MODES, /Prove the target directly/)
+  assert.match(WORK_MODES, /Build the foundations/)
+  assert.match(WORK_MODES, /hunch/)
+  assert.match(WORK_MODES, /Change the question/)
+  assert.match(WORK_MODES, /suitable bridge/)
+  assert.match(WORK_MODES, /verified Lean theorem that carries the result back/)
+  assert.match(WORK_MODES, /target's own statement stays exactly as it is/, "a lift is a route; the statement is not changed")
+  assert.match(WORK_MODES, /LONG-LASTING PROCESS/)
+  assert.match(WORK_MODES, /months/)
+  assert.match(WORK_MODES, /Do not think in the short term/)
+  assert.match(WORK_MODES, /best interest/)
+})
+
+test("brute force is forbidden outright: nothing over 5 minutes, and why", () => {
+  const b = strategyBlock()
+  assert.match(b, /NO BRUTE FORCE\. THIS IS A PROHIBITION, NOT ADVICE/)
+  assert.match(b, /no scanning a range of integers for a witness or a counterexample/)
+  assert.match(b, /may run for more than 5 minutes/)
+  assert.match(b, /someone has already run the same check and got nothing to show for it/)
+  assert.match(b, /polling it with sleep/)
+  assert.match(SYSTEM_RULE, /NO BRUTE FORCE/)
+  assert.match(SYSTEM_RULE, /more than 5 minutes/)
+  assert.match(SYSTEM_RULE, /overrides anything below that calls numeric experiments unrestricted/)
+  for (const t of [persistBlock(), continuePrompt({ attempt: 2, rng: () => 1 }), nudgePrompt({ elapsedMs: 1 })]) {
+    assert.match(t, /No brute force/)
+    assert.match(t, /more than 5 minutes/)
+  }
+  assert.match(environmentHint({ platform: "linux", timeout: true, python3: true, modules: {}, gcc: true }), /more than 5 minutes/)
+})
+
+test("the goal is a proof ecosystem built from the ground up", () => {
+  assert.match(GOAL, /THE GOAL OF THIS RUN/)
+  assert.match(GOAL, /build a proof ecosystem from the ground up/)
+  assert.match(GOAL, /destination, not the unit of work/)
+  assert.match(GOAL, /brick/)
+  assert.match(GOAL, /witness for one instance/)
+  assert.doesNotMatch(GOAL, /Mathlib/, "Tengoku is not framed around Mathlib")
+})
+
+test("the tools are explained as Tengoku with Leak, each one as it is, and Leak II only when the agent has it", () => {
+  const b = strategyBlock({ pantograph: true, memoryTools: true })
+  assert.match(b, /Tengoku is a large, self-contained and ever-growing tree of formally verified Lean 4 mathematics/)
+  assert.match(b, /Leak I \(loogle_search, moogle_search\) searches all of Tengoku/)
+  assert.match(b, /loogle takes a type pattern/)
+  assert.match(b, /moogle takes a concept in words/)
+  assert.match(b, /Leak IV \(verify_full_script\) is the compiler and the judge/)
+  assert.match(b, /entire Tengoku tree/)
+  assert.match(b, /Leak II \(init_proof, apply_tactic, get_current_proof_state, snapshot_state, branch_tactics\)/)
+  assert.match(b, /memory_recall, memory_list, memory_nominate/)
+  assert.match(b, /search to find what exists, verify to add what does not, step to understand what is stuck, remember/)
+  const plain = strategyBlock({ pantograph: false, memoryTools: false })
+  assert.doesNotMatch(plain, /snapshot_state|memory_recall/)
+  assert.match(plain, /Leak IV \(verify_full_script\)/)
+  assert.doesNotMatch(b, /Mathlib/, "Tengoku is not framed around Mathlib")
+})
+
+test("a resumed session and a reminder offer foundations and bridges, and remind of the long horizon", () => {
+  for (const t of [continuePrompt({ attempt: 3, elapsedMs: 1, rng: () => 1 }), nudgePrompt({ elapsedMs: 1 })]) {
+    assert.match(t, /long-lasting process/)
+    assert.match(t, /foundational material/)
+    assert.match(t, /bridge/)
+  }
 })

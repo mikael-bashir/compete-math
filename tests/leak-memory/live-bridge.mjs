@@ -174,9 +174,26 @@ const check = async (name, fn) => {
         const p = promptOf(await b.frames(v, { memory: { entries: seed }, mcpServers: withLeakII })).prompt
         assert.match(p, /STANDING ORDER FROM THE OPERATOR/, v)
         assert.match(p, /WHEN YOU ARE STUCK/, v)
-        assert.match(p, /DO NOT JUST COMPUTE/, v)
+        assert.match(p, /NO BRUTE FORCE\. THIS IS A PROHIBITION/, v)
+        assert.match(p, /THE GOAL OF THIS RUN[\s\S]*proof ecosystem/, v)
+        assert.match(p, /Tengoku is a large, self-contained/, v)
+        assert.match(p, /THREE KINDS OF WORK[\s\S]*LONG-LASTING PROCESS/, v)
+        assert.ok(p.indexOf("THREE KINDS OF WORK") < p.indexOf("THE LOOP"), `${v}: the options come before the loop`)
         assert.ok(p.indexOf("STANDING ORDER") < p.indexOf("THE LOOP"), `${v}: the order comes first`)
       }
+    } finally {
+      b.stop()
+    }
+  })
+  await check("the CLI's system prompt carries the brute-force rule for the memory variants and not for plain Control II", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok" })
+    try {
+      await b.frames("control-honoured", { memory: { entries: seed } })
+      await b.frames("control-oneshot-2", {})
+      const [mem, plain] = b.calls().map((c) => c.appendSystem || "")
+      assert.match(mem, /NO BRUTE FORCE[\s\S]*LOCAL LEAN IS NOT AVAILABLE/, "the rule comes before the machine note it overrides")
+      assert.doesNotMatch(plain, /NO BRUTE FORCE/, "the baseline's system prompt is untouched")
+      assert.match(plain, /LOCAL LEAN IS NOT AVAILABLE/)
     } finally {
       b.stop()
     }
@@ -199,7 +216,7 @@ const check = async (name, fn) => {
       assert.match(first, /^PROMPT TO THE AGENT — \[CONTROL IV MEMORY — Control IV Honoured · attempt 1\]/)
       assert.match(first, /STANDING ORDER FROM THE OPERATOR/)
       assert.match(first, /Theorem \(its signature is immutable/)
-      assert.match(first, /SYSTEM PROMPT ADDENDUM[\s\S]*LOCAL LEAN IS NOT AVAILABLE/)
+      assert.match(first, /SYSTEM PROMPT ADDENDUM[\s\S]*NO BRUTE FORCE[\s\S]*LOCAL LEAN IS NOT AVAILABLE/)
       assert.ok(first.length > 6000, "the whole prompt, not an excerpt: " + first.length)
       const nudge = prompts.find((t) => /reminder 1 of 2/.test(t))
       assert.match(nudge, /^PROMPT TO THE AGENT \(follow-up\) — /)
