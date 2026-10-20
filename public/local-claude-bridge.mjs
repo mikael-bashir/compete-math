@@ -889,6 +889,11 @@ function createGovernor({ initial } = {}) {
     id,
     budget: Number.isFinite(initial) ? initial : GOV_INITIAL,
     searchServer: null, // { url, tools: [{ name, argKey }] } — the upstream we proxy
+    // The verifier, when a run asks for its scripts to be looked at before they are sent (verifyGuard: script -> refusal text or
+    // null): { url, tools: [names] }. Served on this governor's /verify endpoint; everything it does not refuse is forwarded as is.
+    verifyServer: null,
+    verifyGuard: null,
+    verifyRefused: 0,
     sessions: new Map(), // sseSessionId -> res
     searchCount: 0,
     grantCount: 0,
@@ -945,7 +950,13 @@ function buildGovernedMcpConfig(mcpServers, governor) {
       .map((t) => (typeof t === "string" ? { name: t } : t))
       .filter((t) => t && t.name)
     const searchTools = tools.filter((t) => isSearchToolName(t.name))
-    if (governor && searchTools.length && searchTools.length === tools.length) {
+    const verifyTools = tools.filter((t) => /verify_full_script$/i.test(t.name))
+    if (governor?.verifyGuard && verifyTools.length) {
+      // The verifier, through the guard: the CLI reaches it at the governor's /verify endpoint.
+      governor.verifyServer = { url: s.url, tools: tools.map((t) => t.name).filter((n) => !/tengoku_sync$/.test(n)) }
+      servers[s.name] = { type: "sse", url: `http://127.0.0.1:${PORT}/gov/${governor.id}/verify/sse` }
+      console.log(`[gov ${governor.id}] guarding "${s.name}" verify -> ${s.url}`)
+    } else if (governor && searchTools.length && searchTools.length === tools.length) {
       // Pure search server -> govern it.
       governor.searchServer = {
         url: s.url,
@@ -1005,7 +1016,7 @@ MEANWHILE: you already know Lean 4; lead with strong automation (decide / native
 // The claude CLI connects here as if to a normal SSE MCP server: GET opens the
 // stream and we advertise a POST endpoint; POSTed JSON-RPC replies go back over
 // the stream. We expose only the upstream's search tools, gated by the budget.
-function governorSse(req, res, govId) {
+function governorSse(req, res, govId, role = "") {
   const g = governors.get(govId)
   if (!g) {
     res.writeHead(404)
@@ -1019,7 +1030,7 @@ function governorSse(req, res, govId) {
     connection: "keep-alive",
   })
   g.sessions.set(sid, res)
-  res.write(`event: endpoint\ndata: /gov/${govId}/message?sessionId=${sid}\n\n`)
+  res.write(`event: endpoint\ndata: /gov/${govId}/${role ? `${role}/` : ""}message?sessionId=${sid}\n\n`)
   const ka = setInterval(() => {
     try {
       res.write(`: keep-alive\n\n`)
@@ -1033,7 +1044,7 @@ function governorSse(req, res, govId) {
   })
 }
 
-async function governorMessage(req, res, govId, sid) {
+async function governorMessage(req, res, govId, sid, role = "") {
   const g = governors.get(govId)
   const stream = g && g.sessions.get(sid)
   const raw = await readBody(req)
@@ -1064,6 +1075,35 @@ async function governorMessage(req, res, govId, sid) {
     /* notification — no reply */
   } else if (method === "ping") {
     reply({})
+  } else if (method === "tools/list" && role === "verify") {
+    reply({
+      tools: (g.verifyServer?.tools || []).map((name) => ({
+        name,
+        description: /verify_full_script$/i.test(name)
+          ? "Compile a whole Lean 4 script against the tree and report whether it checks: \"✅ Compilation Successful!\" or \"❌ Compilation Failed:\" with each Line/severity/message. The tree's root import is injected for you. A script that asks the kernel to evaluate a large numeral (decide, native_decide, rfl on a 5-digit value) is refused before it is sent, because such an evaluation cannot be interrupted."
+          : name,
+        inputSchema: /verify_full_script$/i.test(name)
+          ? { type: "object", properties: { script: { type: "string", description: "the complete Lean script" } }, required: ["script"] }
+          : { type: "object", properties: {} },
+      })),
+    })
+  } else if (method === "tools/call" && role === "verify") {
+    const name = String(msg.params?.name || "")
+    const args = msg.params?.arguments || {}
+    let text
+    const refusal = /verify_full_script$/i.test(name) && typeof g.verifyGuard === "function" ? g.verifyGuard(String(args.script ?? "")) : null
+    if (refusal) {
+      g.verifyRefused++
+      console.log(`[gov ${g.id}] verify REFUSED by the guard (${g.verifyRefused} so far)`)
+      text = refusal
+    } else if (!g.verifyServer?.url) {
+      text = "❌ Verification Error: no verifier is connected to this run."
+    } else {
+      // Leak IV's own cap is 180 s; the CLI gives up at 300 s of silence. Stay inside both.
+      const r = await callRemoteMcpTool(g.verifyServer.url, name, args, { timeoutMs: 240000 })
+      text = r.ok ? r.text : `❌ Verification Error: ${r.error || "the verifier did not answer"}`
+    }
+    reply({ content: [{ type: "text", text: String(text ?? "") }] })
   } else if (method === "tools/list") {
     const tools = (g.searchServer?.tools || []).map((t) => ({
       name: t.name,
@@ -3398,7 +3438,7 @@ function mapObjectToEvents(o, emit, stage, metrics) {
 // `onObject` (which returns true to stop the run early — e.g. goal closed), and
 // mirror activity into the console via `emit`. Shared by the node-prover and the
 // decomposer. Resolves when the process exits.
-function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, bridgeServerName, searchAugment, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId, cwd, isolate, agentToken, holdGroup }, { onObject, emit }) {
+function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, bridgeServerName, searchAugment, verifyGuard, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId, cwd, isolate, agentToken, holdGroup }, { onObject, emit }) {
   return new Promise((resolve) => {
     // Each subagent run gets its OWN search governor (budget resets per node /
     // per decomposition — a fresh sub-goal earns a fresh allowance). The initial
@@ -3411,6 +3451,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     if (bridgeHandlers) for (const [n, h] of bridgeHandlers) governor.handlers.set(n, h)
     if (bridgeServerName) governor.serverName = bridgeServerName
     if (typeof searchAugment === "function") governor.augment = searchAugment
+    if (typeof verifyGuard === "function") governor.verifyGuard = verifyGuard // the verifier is then proxied, and a refused script never leaves the machine
     let cfgPath
     try {
       const dir = mkdtempSync(join(tmpdir(), "claude-tree-"))
@@ -6764,6 +6805,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         signal: ctx.signal,
         searchBudget: ctx.searchBudget,
         disallowedTools: [...PROVER_DISALLOWED_TOOLS, ...syncTools],
+        verifyGuard: (script) => M.kernelEvalGuard(script),
         systemAppend: V.systemRule,
         bridgeHandlers: handlers.size ? handlers : undefined,
         bridgeServerName: handlers.size ? "memory" : undefined,
@@ -13060,12 +13102,12 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  const govMatch = url.pathname.match(/^\/gov\/([^/]+)\/(sse|message)$/)
+  const govMatch = url.pathname.match(/^\/gov\/([^/]+)\/(?:(verify)\/)?(sse|message)$/)
   if (govMatch) {
-    const [, govId, kind] = govMatch
-    if (req.method === "GET" && kind === "sse") return governorSse(req, res, govId)
+    const [, govId, role, kind] = govMatch
+    if (req.method === "GET" && kind === "sse") return governorSse(req, res, govId, role || "")
     if (req.method === "POST" && kind === "message")
-      return governorMessage(req, res, govId, url.searchParams.get("sessionId"))
+      return governorMessage(req, res, govId, url.searchParams.get("sessionId"), role || "")
     res.writeHead(405)
     res.end()
     return

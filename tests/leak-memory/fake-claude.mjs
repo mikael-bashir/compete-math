@@ -139,14 +139,24 @@ if (searchUrl && process.env.FAKE_SEARCH) {
   const r = await mcp(searchUrl, "tools/call", { name: "moogle_search", arguments: { concept: "odd sum even" } })
   toolResult(id, r.result?.content?.[0]?.text || "")
 }
+// FAKE_VERIFY_VIA_MCP=1: the verify call really goes to the Leak_IV server of the config (the bridge's guarded proxy, in a memory
+// run), so what the bridge does with a script before it reaches the verifier can be seen. Otherwise the answer is made up here.
+const verify = async (script) => {
+  const url = cfg.mcpServers.Leak_IV?.url
+  if (process.env.FAKE_VERIFY_VIA_MCP === "1" && url) {
+    const r = await mcp(url, "tools/call", { name: "verify_full_script", arguments: { script } })
+    return `${r.result?.content?.[0]?.text || ""}\n[tools: ${r.tools.join(",")}]`
+  }
+  return "✅ Compilation Successful! The proof is 100% verified."
+}
 if (process.env.FAKE_LEMMA !== "0") {
   await pace()
   const id = toolUse("mcp__Leak_IV__verify_full_script", { script: LEMMA })
-  toolResult(id, "✅ Compilation Successful! The proof is 100% verified.")
+  toolResult(id, await verify(LEMMA))
 }
 if (process.env.FAKE_TARGET !== "0") {
   await pace()
   const id = toolUse("mcp__Leak_IV__verify_full_script", { script: TARGET })
-  toolResult(id, "✅ Compilation Successful! The proof is 100% verified.")
+  toolResult(id, await verify(TARGET))
 }
 out({ type: "result", subtype: "success", is_error: false, result: "done", total_cost_usd: 0.01, session_id: SESSION })

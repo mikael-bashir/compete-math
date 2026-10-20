@@ -561,3 +561,28 @@ test("curiosity prompts rotate and never run out", () => {
   assert.equal(curiosityPrompt(-1), CURIOSITY_PROMPTS[CURIOSITY_PROMPTS.length - 1])
   assert.equal(curiosityPrompt("x"), CURIOSITY_PROMPTS[0])
 })
+
+// ---- the verifier guard ----------------------------------------------------------------------------------------
+import { KERNEL_EVAL_RE, kernelEvalGuard } from "../../public/leak-memory.mjs"
+
+test("kernelEvalGuard refuses a kernel evaluation on a large numeral, and nothing else", () => {
+  const big = "open Nat in\ntheorem E396_k4 : (45153 : ℕ).descFactorial 5 ∣ (45153 : ℕ).centralBinom := by\n  rw [cb_eq]; decide +kernel"
+  const r = kernelEvalGuard(big)
+  assert.ok(r, "refused")
+  assert.match(r, /^❌ Refused before compiling/)
+  assert.match(r, /45153/)
+  assert.match(r, /cannot be interrupted/)
+  assert.match(r, /Prove the statement structurally/)
+  assert.equal(kernelEvalGuard("theorem E396_k2 : (2480 : ℕ).descFactorial 3 ∣ (2480 : ℕ).centralBinom := by\n  decide +kernel"), null, "four digits are fine")
+  assert.equal(kernelEvalGuard("theorem t : (123456 : ℕ) + 0 = 123456 := by\n  omega"), null, "no kernel evaluation, no refusal")
+  assert.equal(kernelEvalGuard("-- the witness is 17609764994\ntheorem t (n : ℕ) : n = n := by decide"), null, "numerals in comments do not count")
+  assert.equal(kernelEvalGuard("/- 17609764994 -/\ntheorem t (n : ℕ) : n = n := rfl"), null)
+  assert.ok(kernelEvalGuard("theorem t : (17609764994 : ℕ) % 2 = 0 := by native_decide"))
+  assert.ok(kernelEvalGuard("theorem t : (100000 : ℕ) % 2 = 0 := rfl"))
+  assert.ok(kernelEvalGuard("example : (100000 : ℕ) % 2 = 0 := by\n  rfl"))
+  assert.equal(kernelEvalGuard("theorem t : (99999 : ℕ) % 2 = 1 := by decide", { maxDigits: 6 }), null, "the threshold is a knob")
+  assert.equal(kernelEvalGuard(""), null)
+  assert.equal(kernelEvalGuard(null), null)
+  assert.ok(KERNEL_EVAL_RE.test("by decide"))
+  assert.ok(!KERNEL_EVAL_RE.test("by omega"))
+})

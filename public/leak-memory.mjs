@@ -257,6 +257,23 @@ export const SYSTEM_RULE = order.systemRule
 export const strategyBlock = (o) => order.strategy(o)
 export const persistBlock = (o) => order.persist(o)
 
+// ---- the verifier guard --------------------------------------------------------------------------------------
+// A kernel evaluation on a large numeral (`decide`, `decide +kernel`, `native_decide`, `rfl` on a 5-digit witness) cannot be
+// interrupted once Lean has started it. On 2026-10-20 one such script ran past Leak IV's cap and held every later script of
+// every user behind it for 25 minutes, twice. The bridge asks this before it sends a memory run's script to the verifier; a
+// refusal is returned to the agent as the tool's answer, and nothing reaches the server.
+export const KERNEL_EVAL_RE = /\b(decide|native_decide|Nat\.decEq|Decidable\.decide)\b|(:=|\bby)\s*rfl\b/
+export function kernelEvalGuard(script, { maxDigits = 5 } = {}) {
+  const src = String(script || "")
+    .replace(/\/-[\s\S]*?-\//g, " ")
+    .replace(/--[^\n]*/g, " ")
+  if (!KERNEL_EVAL_RE.test(src)) return null
+  const big = (src.match(/\b\d+\b/g) || []).filter((n) => n.length >= maxDigits)
+  if (!big.length) return null
+  const worst = big.sort((a, b) => b.length - a.length || (b > a ? 1 : -1))[0]
+  return `❌ Refused before compiling (the script was not sent to the verifier). It asks Lean's kernel to evaluate \`decide\`/\`native_decide\`/\`rfl\` with a numeral of ${worst.length} digits (${worst}) in play. A kernel evaluation cannot be interrupted once it starts; one like it ran past the verifier's cap and stalled every user's verifications for 25 minutes. Prove the statement structurally instead (valuations, a certificate lemma with the factorizations as hypotheses, a general lemma with the numeral as a parameter), or leave the instance out: a bare instance is not what the library needs. Numerals under ${"1" + "0".repeat(maxDigits - 1)} are fine.`
+}
+
 // ---- reading a Lean script ------------------------------------------------------------------------------------
 const MODS = "(?:private|protected|noncomputable|unsafe|partial|nonrec|scoped|local)"
 const DECL_KW = "(?:theorem|lemma|def|abbrev|instance|structure|inductive|class|opaque|example)"

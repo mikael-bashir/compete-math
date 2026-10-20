@@ -254,6 +254,52 @@ const check = async (name, fn) => {
   })
 }
 
+// ---- the verifier guard: a memory run's scripts pass through the bridge on their way to Leak IV ----
+{
+  const BIG = "open Nat in\ntheorem E396_k4 : (45153 : ℕ).descFactorial 5 ∣ (45153 : ℕ).centralBinom := by\n  decide +kernel"
+  await check("a script that asks the kernel to evaluate a large numeral is refused by the bridge and never reaches the verifier", async () => {
+    const before = leak.calls.length
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1", FAKE_TARGET_PROOF: BIG, FAKE_LEMMA: "0" })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: [] }, computeBudgetMs: 4000 })
+      const results = f.filter((x) => x.subtype === "tool_result").map((x) => String(x.output || ""))
+      const refused = results.find((t) => /Refused before compiling/.test(t))
+      assert.ok(refused, "the agent saw the refusal: " + results.join(" | ").slice(0, 400))
+      assert.match(refused, /45153/)
+      assert.match(refused, /\[tools: [^\]]*verify_full_script/, "the proxied verifier lists its tool")
+      assert.notEqual(done(f)?.verified, true)
+      const sent = leak.calls.slice(before).filter((c) => c.tool === "verify_full_script" && /45153/.test(JSON.stringify(c.args)))
+      assert.equal(sent.length, 0, "nothing reached the fake Leak IV")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("an ordinary script goes through the proxy to the verifier and its answer comes back unchanged", async () => {
+    const before = leak.calls.length
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1", FAKE_LEMMA: "0" })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: [] } })
+      const results = f.filter((x) => x.subtype === "tool_result").map((x) => String(x.output || ""))
+      assert.ok(results.some((t) => /Compilation Successful/.test(t)), results.join(" | ").slice(0, 300))
+      assert.equal(done(f)?.verified, true)
+      const sent = leak.calls.slice(before).filter((c) => c.tool === "verify_full_script" && /target_fake/.test(JSON.stringify(c.args)))
+      assert.ok(sent.length >= 1, "the fake Leak IV received the script through the proxy")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("plain Control II is not proxied: its verifier stays direct", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1", FAKE_TARGET_PROOF: BIG, FAKE_LEMMA: "0" })
+    try {
+      const f = await b.frames("control-oneshot-2", { computeBudgetMs: 4000 })
+      const results = f.filter((x) => x.subtype === "tool_result").map((x) => String(x.output || ""))
+      assert.ok(!results.some((t) => /Refused before compiling/.test(t)), "the baseline is untouched")
+    } finally {
+      b.stop()
+    }
+  })
+}
+
 // ---- the agent stops early ----
 {
   const b = await startBridge({ FAKE_MODE: "giveup" })
