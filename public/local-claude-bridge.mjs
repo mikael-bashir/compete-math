@@ -294,6 +294,12 @@ process.stdin.on("data", (d) => (s += d)).on("end", () => {
     process.stderr.write("BLOCKED: this run may not invoke a local Lean toolchain. Compile ONLY through verify_full_script — the local checkout is a DIFFERENT Mathlib from the one your verifier compiles against, so anything it tells you about which lemmas exist is unsound here. Everything else (scratchpad files, numeric probing, notes) is fine.")
     process.exit(2)
   }
+  // No network beyond the Leak servers (which the agent reaches over MCP, not the shell) and nothing installed: what is written
+  // elsewhere about a problem is not part of a run, and nothing is downloaded onto this machine.
+  if (/(^|[;&|(\\\`]|\\s)(curl|wget|ssh|scp|sftp|rsync|nc|ncat|telnet|ftp)(\\s|$)|(^|[;&|(\\\`]|\\s)(pip3?|pipx|npm|npx|pnpm|yarn|brew|gem|cargo|conda|uv)\\s+(install|add|get|i)\\b|\\bgit\\s+(clone|fetch|pull|submodule)\\b|https?:\\/\\/|\\burllib\\b|\\brequests\\.(get|post|request)|\\bhttp\\.client\\b|\\bsocket\\.(create_connection|socket)\\(/i.test(cmd)) {
+    process.stderr.write("BLOCKED: this run has no network beyond its Leak servers (reached through your MCP tools, not the shell) and installs nothing: no curl, wget, ssh, pip, npm, brew, git clone, no URLs. Nothing written elsewhere about this problem is part of this run; the question is yours.")
+    process.exit(2)
+  }
   // An isolated run names a file; the shell that runs each command writes its own pid there first. That pid is the process group
   // of everything the command starts, including a \`nohup … &\` job that outlives the shell (see sweepAgent).
   const shells = process.env.${AGENT_SHELLS_ENV}
@@ -312,6 +318,8 @@ process.stdin.on("data", (d) => (s += d)).on("end", () => {
 const NO_LOCAL_LEAN_NOTE = `LOCAL LEAN IS NOT AVAILABLE TO YOU. This machine happens to have Lean toolchains and Mathlib checkouts on disk. Do not try to use them: \`lean\`, \`lake\`, \`elan\` and \`leanc\` are blocked before they run, so the attempt just fails and costs you a turn. Do not go looking for them either — no \`find / -name "*.lean"\`, no hunting for a local \`Mathlib/\`.
 
 The reason is soundness, not bureaucracy: any local checkout is a DIFFERENT Mathlib from the one your verifier compiles against, so what it says about which lemmas exist, what they are called, and what shape they have can simply be wrong here. A name you read off local source and then cannot compile is not a mystery — it is a version mismatch, and chasing it wastes the run. Your ONE source of truth about Lean is verify_full_script.
+
+The same hook blocks network fetches and installs (curl, wget, ssh, pip, npm, brew, git clone, any URL): this run reaches nothing beyond its Leak servers, and downloads nothing onto this machine.
 
 Everything else on the machine is yours and unrestricted — shell commands, scratch files, notes, numeric experiments. A local scratchpad is fine and often useful.`
 
@@ -881,6 +889,11 @@ function createGovernor({ initial } = {}) {
     id,
     budget: Number.isFinite(initial) ? initial : GOV_INITIAL,
     searchServer: null, // { url, tools: [{ name, argKey }] } — the upstream we proxy
+    // The verifier, when a run asks for its scripts to be looked at before they are sent (verifyGuard: script -> refusal text or
+    // null): { url, tools: [names] }. Served on this governor's /verify endpoint; everything it does not refuse is forwarded as is.
+    verifyServer: null,
+    verifyGuard: null,
+    verifyRefused: 0,
     sessions: new Map(), // sseSessionId -> res
     searchCount: 0,
     grantCount: 0,
@@ -937,7 +950,13 @@ function buildGovernedMcpConfig(mcpServers, governor) {
       .map((t) => (typeof t === "string" ? { name: t } : t))
       .filter((t) => t && t.name)
     const searchTools = tools.filter((t) => isSearchToolName(t.name))
-    if (governor && searchTools.length && searchTools.length === tools.length) {
+    const verifyTools = tools.filter((t) => /verify_full_script$/i.test(t.name))
+    if (governor?.verifyGuard && verifyTools.length) {
+      // The verifier, through the guard: the CLI reaches it at the governor's /verify endpoint.
+      governor.verifyServer = { url: s.url, tools: tools.map((t) => t.name).filter((n) => !/tengoku_sync$/.test(n)) }
+      servers[s.name] = { type: "sse", url: `http://127.0.0.1:${PORT}/gov/${governor.id}/verify/sse` }
+      console.log(`[gov ${governor.id}] guarding "${s.name}" verify -> ${s.url}`)
+    } else if (governor && searchTools.length && searchTools.length === tools.length) {
       // Pure search server -> govern it.
       governor.searchServer = {
         url: s.url,
@@ -997,7 +1016,7 @@ MEANWHILE: you already know Lean 4; lead with strong automation (decide / native
 // The claude CLI connects here as if to a normal SSE MCP server: GET opens the
 // stream and we advertise a POST endpoint; POSTed JSON-RPC replies go back over
 // the stream. We expose only the upstream's search tools, gated by the budget.
-function governorSse(req, res, govId) {
+function governorSse(req, res, govId, role = "") {
   const g = governors.get(govId)
   if (!g) {
     res.writeHead(404)
@@ -1011,7 +1030,7 @@ function governorSse(req, res, govId) {
     connection: "keep-alive",
   })
   g.sessions.set(sid, res)
-  res.write(`event: endpoint\ndata: /gov/${govId}/message?sessionId=${sid}\n\n`)
+  res.write(`event: endpoint\ndata: /gov/${govId}/${role ? `${role}/` : ""}message?sessionId=${sid}\n\n`)
   const ka = setInterval(() => {
     try {
       res.write(`: keep-alive\n\n`)
@@ -1025,7 +1044,7 @@ function governorSse(req, res, govId) {
   })
 }
 
-async function governorMessage(req, res, govId, sid) {
+async function governorMessage(req, res, govId, sid, role = "") {
   const g = governors.get(govId)
   const stream = g && g.sessions.get(sid)
   const raw = await readBody(req)
@@ -1056,6 +1075,35 @@ async function governorMessage(req, res, govId, sid) {
     /* notification — no reply */
   } else if (method === "ping") {
     reply({})
+  } else if (method === "tools/list" && role === "verify") {
+    reply({
+      tools: (g.verifyServer?.tools || []).map((name) => ({
+        name,
+        description: /verify_full_script$/i.test(name)
+          ? "Compile a whole Lean 4 script against the tree and report whether it checks: \"✅ Compilation Successful!\" or \"❌ Compilation Failed:\" with each Line/severity/message. The tree's root import is injected for you. A script that asks the kernel to evaluate a large numeral (decide, native_decide, rfl on a 5-digit value) is refused before it is sent, because such an evaluation cannot be interrupted."
+          : name,
+        inputSchema: /verify_full_script$/i.test(name)
+          ? { type: "object", properties: { script: { type: "string", description: "the complete Lean script" } }, required: ["script"] }
+          : { type: "object", properties: {} },
+      })),
+    })
+  } else if (method === "tools/call" && role === "verify") {
+    const name = String(msg.params?.name || "")
+    const args = msg.params?.arguments || {}
+    let text
+    const refusal = /verify_full_script$/i.test(name) && typeof g.verifyGuard === "function" ? g.verifyGuard(String(args.script ?? "")) : null
+    if (refusal) {
+      g.verifyRefused++
+      console.log(`[gov ${g.id}] verify REFUSED by the guard (${g.verifyRefused} so far)`)
+      text = refusal
+    } else if (!g.verifyServer?.url) {
+      text = "❌ Verification Error: no verifier is connected to this run."
+    } else {
+      // Leak IV's own cap is 180 s; the CLI gives up at 300 s of silence. Stay inside both.
+      const r = await callRemoteMcpTool(g.verifyServer.url, name, args, { timeoutMs: 240000 })
+      text = r.ok ? r.text : `❌ Verification Error: ${r.error || "the verifier did not answer"}`
+    }
+    reply({ content: [{ type: "text", text: String(text ?? "") }] })
   } else if (method === "tools/list") {
     const tools = (g.searchServer?.tools || []).map((t) => ({
       name: t.name,
@@ -2106,7 +2154,7 @@ function mcpToolSection(mcpServers = [], extraTools = []) {
     const prefix = sanitize(s.name)
     for (const t of Array.isArray(s.tools) ? s.tools : []) {
       const tn = typeof t === "string" ? t : t && t.name
-      if (!tn) continue
+      if (!tn || /tengoku_sync$/.test(tn)) continue // the servers' own maintenance tool (it restarts the shared verifier): not the agent's
       const id = `mcp__${prefix}__${tn}`
       toolIds.push(id)
       const args =
@@ -3159,10 +3207,10 @@ function proveStreamRun(res, theorem, mcpServers, opts = {}) {
               metrics,
             })
           } else if (c.type === "text" && c.text && c.text.trim()) {
-            send({ type: "message-annotation", subtype: "status", thought: c.text.trim().slice(0, 300), metrics })
+            send({ type: "message-annotation", subtype: "status", thought: c.text.trim().slice(0, 300), text: c.text.trim(), metrics })
           } else if (c.type === "thinking" && c.thinking) {
             // Extended-thinking blocks — stream the model's reasoning.
-            send({ type: "thinking", text: String(c.thinking).slice(0, 2000), metrics })
+            send({ type: "thinking", text: String(c.thinking).slice(0, 2000), full: String(c.thinking).slice(0, 20000), metrics })
           }
         }
       } else if (o.type === "user" && o.message?.content) {
@@ -3369,9 +3417,9 @@ function mapObjectToEvents(o, emit, stage, metrics) {
           input: typeof c.input === "string" ? c.input : JSON.stringify(c.input),
         })
       } else if (c.type === "text" && c.text && c.text.trim()) {
-        emit({ type: "message-annotation", subtype: "status", thought: `${tag}${c.text.trim().slice(0, 300)}` })
+        emit({ type: "message-annotation", subtype: "status", thought: `${tag}${c.text.trim().slice(0, 300)}`, text: `${tag}${c.text.trim()}` })
       } else if (c.type === "thinking" && c.thinking) {
-        emit({ type: "thinking", text: String(c.thinking).slice(0, 2000) })
+        emit({ type: "thinking", text: String(c.thinking).slice(0, 2000), full: String(c.thinking).slice(0, 20000) })
       }
     }
   } else if (o.type === "user" && o.message?.content) {
@@ -3390,7 +3438,7 @@ function mapObjectToEvents(o, emit, stage, metrics) {
 // `onObject` (which returns true to stop the run early — e.g. goal closed), and
 // mirror activity into the console via `emit`. Shared by the node-prover and the
 // decomposer. Resolves when the process exits.
-function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, bridgeServerName, searchAugment, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId, cwd, isolate, agentToken, holdGroup }, { onObject, emit }) {
+function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, bridgeServerName, searchAugment, verifyGuard, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId, cwd, isolate, agentToken, holdGroup }, { onObject, emit }) {
   return new Promise((resolve) => {
     // Each subagent run gets its OWN search governor (budget resets per node /
     // per decomposition — a fresh sub-goal earns a fresh allowance). The initial
@@ -3403,6 +3451,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     if (bridgeHandlers) for (const [n, h] of bridgeHandlers) governor.handlers.set(n, h)
     if (bridgeServerName) governor.serverName = bridgeServerName
     if (typeof searchAugment === "function") governor.augment = searchAugment
+    if (typeof verifyGuard === "function") governor.verifyGuard = verifyGuard // the verifier is then proxied, and a refused script never leaves the machine
     let cfgPath
     try {
       const dir = mkdtempSync(join(tmpdir(), "claude-tree-"))
@@ -6563,8 +6612,9 @@ const queryOfArgs = (args) => Object.values(args || {}).filter((v) => typeof v =
 // The prompt of a memory variant. Same skeleton as controlPrompt (Control II: Leak IV + Leak I search, one continuous agent,
 // fresh attempts until the clock ends), with the rule about top-level lemmas turned around: here a verified helper lemma is
 // the unit of progress that the memory keeps.
-function controlMemoryPrompt(M, variantKey, memory, theorem, mcpServers, attempt, lastAttempt, envHint = "") {
+function controlMemoryPrompt(M, variantKey, memory, theorem, mcpServers, attempt, lastAttempt, envHint = "", V = null) {
   const cfg = M.VARIANTS[variantKey]
+  V = V || M.voiceFor()
   const extra = cfg.tools.map((t) => ({ id: `mcp__memory__${t}`, args: t === "memory_recall" ? ["query", "limit"] : t === "memory_nominate" ? ["names", "on"] : ["limit", "nominatedOnly"] }))
   const toolSection = mcpToolSection(mcpServers, extra)
   const lastBlock = lastAttempt
@@ -6575,11 +6625,7 @@ function controlMemoryPrompt(M, variantKey, memory, theorem, mcpServers, attempt
     ? `This target's memory already holds ${memory.size} verified theorem(s).`
     : "This target's memory is empty so far."
   const pantograph = !!cfg.pantograph && !!resolvePantographUrl(mcpServers)
-  return `${M.MANDATE}
-
-${M.GOAL}
-
-${M.WORK_MODES}
+  return `${V.opening({ pantograph, memoryTools: cfg.tools.length > 0 })}
 
 You are working on ONE Lean 4 + Mathlib theorem in a long, single continuous session, and you keep a library of verified theorems as you go. Your tools are Leak IV's verify_full_script — it IS the compiler: every call returns either "✅ Compilation Successful! The proof is 100% verified." or the exact Lean diagnostic text (line number, error/warning message) — and Leak I's loogle_search/moogle_search for library lookups.${pantograph ? " You ALSO have Leak II's interactive proof assistant (init_proof / apply_tactic): step a goal ONE tactic at a time to watch the live goal state evolve, then fold the tactics that worked into your verify_full_script submission." : ""} verify_full_script is the ONLY thing that counts as progress; search${pantograph ? " and Pantograph only support" : " only supports"} a submission, ${pantograph ? "they do" : "it does"} not replace one. ${memLine}
 
@@ -6592,12 +6638,11 @@ THE LOOP:
 4. A script only counts when verify_full_script reports success with ZERO 'sorry'. A verified, non-trivial theorem is saved to the memory automatically.
 ${SEARCH_USAGE_NOTE}
 ${pantograph ? `\nINTERACTIVE (Leak II): when an error is opaque or a subgoal is fiddly, init_proof the goal and apply_tactic ONE tactic at a time to read the real goal state, then fold the working tactics back into the full script and verify_full_script it. Never put 'sorry' in an apply_tactic — a goal you cannot close means try a different tactic, not stop.\n` : ""}
-${M.strategyBlock({ pantograph, memoryTools: cfg.tools.length > 0 })}
+${V.strategy({ pantograph, memoryTools: cfg.tools.length > 0 })}
 
 RULES:
 ${M.memoryRules(variantKey, { envHint, pantograph })}
-- Never conclude the target is "too hard", "open" or beyond reach, and never ask to split it: there is no one to hand it to. A failing approach means a DIFFERENT strategy: a different lemma, foundational material, or a bridge into a setting you know.
-- Never stop on your own. This is ONE persistent session: if you do stop, the system resumes this same conversation (attempt ${attempt + 1}, ${attempt + 2}, …; the CLI compacts it when it grows) until you succeed or the run's own wall clock ends it.${attempt > 1 ? " (Your earlier conversation could not be resumed, so this one is new: what it had established is only in the memory and below.)" : ""}
+${V.sessionRules(attempt)}
 - The target is only proved when verify_full_script succeeds on a script that contains the target's exact statement with no sorry.
 ${episodic}${lastBlock}
 ${answerSlotNote(theorem)}Theorem (its signature is immutable${hasAnswerSlot(theoremSignature(theorem)) ? ", except for the answer slot" : ""}):
@@ -6650,6 +6695,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     ctx.emit({ type: "message-annotation", subtype: "error", thought: `Unknown memory variant ${variantKey}.` })
     return { verified: false, proof: "" }
   }
+  const V = M.voiceFor(opts?.voice) // how the harness speaks to the agent (options.voice; "curious" unless asked otherwise)
   ctx.stage = "🧠"
   const memory = new M.Memory({ targetId: ctx.targetId, variant: variantKey, emit: ctx.emit })
   memory.load(Array.isArray(opts?.memory?.entries) ? opts.memory.entries.slice(0, M.MAX_ENTRIES) : [])
@@ -6658,10 +6704,10 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   for (const seedScript of seeds) memory.addScript(seedScript, { origin: "seed", silent: true, keepTrivial: true })
   const loaded = memory.size
   const sig = theoremSignature(theorem)
-  ctx.memoryRun = { variant: variantKey, memory, sessionMode: "persistent", attempts: 0, resumes: 0, freshStarts: 0 } // read when the run ends, for its record
+  ctx.memoryRun = { variant: variantKey, voice: V.key, memory, sessionMode: "persistent", attempts: 0, resumes: 0, freshStarts: 0 } // read when the run ends, for its record
   const pantographUrl = resolvePantographUrl(ctx.mcpServers)
   const allowPantograph = !!cfg.pantograph
-  const memoryHeader = `${allowPantograph ? "CONTROL IV" : "CONTROL II"} MEMORY — ${cfg.name}`
+  const memoryHeader = `${allowPantograph ? "CONTROL IV" : "CONTROL II"} MEMORY — ${cfg.name} · voice ${V.key}`
   const allowedServers = (ctx.mcpServers || []).filter((s) => s?.url && (allowPantograph || s.url !== pantographUrl))
   const handlers = M.makeHandlers(memory, variantKey)
   const augment = cfg.augmentSearch ? (toolName, args, text) => M.augmentSearchText(memory, queryOfArgs(args), text) : null
@@ -6679,7 +6725,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   ctx.emit({
     type: "message-annotation",
     subtype: "status",
-    thought: `🧠 ${cfg.name}: one continuous agent against Leak IV + Leak I search${allowPantograph ? " + Leak II (Pantograph)" : ""}, a library of verified theorems (${loaded} loaded for this target), ONE persistent session across attempts (when the agent stops it is resumed in the same conversation, which the CLI compacts as it grows; a new conversation only if the old one cannot be resumed), no cap on it, until the clock ends.`,
+    thought: `🧠 ${cfg.name}: one continuous agent against Leak IV + Leak I search${allowPantograph ? " + Leak II (Pantograph)" : ""}, a library of verified theorems (${loaded} loaded for this target), ONE persistent session across attempts (when the agent stops it is resumed in the same conversation, which the CLI compacts as it grows; a new conversation only if the old one cannot be resumed), no cap on it, until the clock ends. Voice: ${V.key}.`,
   })
   if (allowPantograph && !pantographUrl)
     ctx.emit({ type: "message-annotation", subtype: "error", thought: `🧠 ${cfg.name} is meant to have Leak II (Pantograph), but no Leak II server is connected: the agent will run without it.` })
@@ -6688,7 +6734,11 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   let sessionId = "" // the one persistent conversation; "" until attempt 1 opens it, and again if it cannot be resumed
   let lastStopIso = ""
   let lastAttemptMs = 0
-  const toolIds = [...allowedServers.flatMap((s) => (Array.isArray(s.tools) ? s.tools : []).map((t) => `mcp__${String(s.name).replace(/[^a-zA-Z0-9_]/g, "_")}__${typeof t === "string" ? t : t?.name}`)), ...cfg.tools.map((t) => `mcp__memory__${t}`)].filter((x) => !x.endsWith("__undefined"))
+  let lastNote = null // the agent's own NOTE/NEXT from the end of its last stretch, handed back when the session resumes
+  let lastSaidText = "" // the agent's last text block, in case the CLI's result frame is empty
+  const toolIds = [...allowedServers.flatMap((s) => (Array.isArray(s.tools) ? s.tools : []).map((t) => `mcp__${String(s.name).replace(/[^a-zA-Z0-9_]/g, "_")}__${typeof t === "string" ? t : t?.name}`)), ...cfg.tools.map((t) => `mcp__memory__${t}`)].filter((x) => !x.endsWith("__undefined") && !/__tengoku_sync$/.test(x))
+  // tengoku_sync moves a shared server onto a newer tree and restarts it: never the agent's call
+  const syncTools = allowedServers.map((s) => `mcp__${String(s.name).replace(/[^a-zA-Z0-9_]/g, "_")}__tengoku_sync`)
   try {
   while (!ctx.signal?.aborted && !deadlinePassed(ctx)) {
     attempt++
@@ -6716,8 +6766,9 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     const gate = makeProofGate(theorem)
     const pendingVerify = new Map()
     const attemptPrompt = resuming
-      ? M.continuePrompt({
+      ? V.continue({
           attempt,
+          note: lastNote,
           elapsedMs: lastAttemptMs,
           libraryCount: memory.size,
           abstracted: memory.list({ limit: 1000 }).filter((e) => e.origin === "abstracted" && String(e.savedAt || "") > lastStopIso).map((e) => e.name),
@@ -6725,13 +6776,13 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
           pantograph: allowPantograph && !!pantographUrl,
           episodic: cfg.episodic ? M.episodicBlock(memory, cfg.episodic) : "",
         })
-      : controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint)
+      : controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint, V)
     // what the agent is really told, for the console and the admin log (the frame sent when the run opens cannot know the memory yet)
     // The system prompt addendum goes with a new conversation too (it is what the CLI is started with, and a resumed one keeps it).
     ctx.emit({
       type: "prompt",
       kind: resuming ? "followup" : undefined,
-      prompt: `[${memoryHeader} · attempt ${attempt}${resuming ? " · same session" : ""}]\n\n${attemptPrompt}${resuming ? "" : `\n\n=== SYSTEM PROMPT ADDENDUM (added by the harness to the agent's system prompt) ===\n${M.SYSTEM_RULE}\n\n${NO_LOCAL_LEAN_NOTE}`}`,
+      prompt: `[${memoryHeader} · attempt ${attempt}${resuming ? " · same session" : ""}]\n\n${attemptPrompt}${resuming ? "" : `\n\n=== SYSTEM PROMPT ADDENDUM (added by the harness to the agent's system prompt) ===\n${V.systemRule}\n\n${NO_LOCAL_LEAN_NOTE}`}`,
       model: ctx.model || null,
       mcpServers: allowedServers.map((s) => ({ name: s.name, url: s.url })),
     })
@@ -6753,7 +6804,9 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         metrics: ctx.metrics,
         signal: ctx.signal,
         searchBudget: ctx.searchBudget,
-        systemAppend: M.SYSTEM_RULE,
+        disallowedTools: [...PROVER_DISALLOWED_TOOLS, ...syncTools],
+        verifyGuard: (script) => M.kernelEvalGuard(script),
+        systemAppend: V.systemRule,
         bridgeHandlers: handlers.size ? handlers : undefined,
         bridgeServerName: handlers.size ? "memory" : undefined,
         searchAugment: augment,
@@ -6763,8 +6816,10 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
           const ev = gate.observe(o)
           try {
             if (o?.type === "assistant" && Array.isArray(o.message?.content)) {
-              for (const c of o.message.content)
+              for (const c of o.message.content) {
                 if (c?.type === "tool_use" && c.id && String(c.name || "").endsWith("verify_full_script") && typeof c.input?.script === "string") pendingVerify.set(c.id, c.input.script)
+                if (c?.type === "text" && typeof c.text === "string" && c.text.trim()) lastSaidText = c.text
+              }
             } else if (o?.type === "user" && Array.isArray(o.message?.content)) {
               for (const c of o.message.content) {
                 if (c?.type !== "tool_result" || !c.tool_use_id || !pendingVerify.has(c.tool_use_id)) continue
@@ -6787,15 +6842,17 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     // it keeps what it learned) instead of being started afresh: an overnight run had about seventy attempts of one to five minutes each.
     const t0 = Date.now()
     let r = await session(attemptPrompt, sessionId || undefined)
+    lastNote = M.extractNote(r?.finalText) || M.extractNote(lastSaidText) || lastNote
     let nudges = 0
     while (!gate.verifiedScript && !ctx.signal?.aborted && !deadlinePassed(ctx) && nudges < maxNudges && r?.sessionId && !r.timedOut && !r.stopped && Date.now() - t0 < minAttemptMs) {
       nudges++
       memory.stats.nudges++
       const elapsed = Date.now() - t0
-      ctx.emit({ type: "message-annotation", subtype: "status", thought: `↩️ The agent stopped after ${Math.max(1, Math.round(elapsed / 60000))} minute(s) with no verified proof: reminding it in the same conversation (${nudges} of ${maxNudges}).` })
-      const nudgeText = M.nudgePrompt({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl })
+      ctx.emit({ type: "message-annotation", subtype: "status", thought: `↩️ The agent stopped after ${Math.max(1, Math.round(elapsed / 60000))} minute(s) without a verified proof: continuing the same conversation (${nudges} of ${maxNudges}).` })
+      const nudgeText = V.nudge({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl, note: lastNote, toolIds })
       ctx.emit({ type: "prompt", kind: "followup", prompt: `[${memoryHeader} · reminder ${nudges} of ${maxNudges} · same session]\n\n${nudgeText}`, model: ctx.model || null })
       r = await session(nudgeText, r.sessionId)
+      lastNote = M.extractNote(r?.finalText) || M.extractNote(lastSaidText) || lastNote
     }
     // The session goes on only if it can be resumed. A resume the CLI refused (no conversation under that id: no session id comes back and
     // nothing was said) ends it: the next attempt opens a new conversation. Only then are the jobs it started ended; while the session
@@ -10318,7 +10375,9 @@ function traceSubmission(trace, toolName, args) {
 // content the admin prover viewer shows the operator — so the run-scoped ring
 // (the mechanic's window) and each agent's own log (consultant/interceptor
 // material) are built from identical ground truth.
-function renderStreamFrame(obj) {
+// `disk`: the run's own record (openRunLog) keeps what the mechanic's window clips: the agent's whole text and thinking, the whole tool
+// input (a verified script is the record), what the memory saved. The window stays short; it is a window.
+function renderStreamFrame(obj, { disk = false } = {}) {
   try {
     if (!obj || typeof obj !== "object") return ""
     const clip = (s, n) => {
@@ -10326,10 +10385,15 @@ function renderStreamFrame(obj) {
       return s.length > n ? `${s.slice(0, n)} …[+${s.length - n} chars]` : s
     }
     if (obj.type === "message-annotation") {
-      if (obj.subtype === "tool_intent") return `TOOL_CALL → ${obj.tool || "tool"}\n${clip(obj.input, 700)}`
-      if (obj.subtype === "tool_result") return `TOOL_RESULT\n${clip(obj.output, 1000)}`
+      if (obj.subtype === "tool_intent") return `TOOL_CALL → ${obj.tool || "tool"}\n${clip(obj.input, disk ? 60000 : 700)}`
+      if (obj.subtype === "tool_result") return `TOOL_RESULT\n${clip(obj.output, disk ? 6000 : 1000)}`
       if (obj.subtype === "error") return `ERROR — ${clip(obj.thought, 700)}`
-      return `TEXT — ${clip(obj.thought, 1500)}`
+      return `TEXT — ${disk && typeof obj.text === "string" ? clip(obj.text, 20000) : clip(obj.thought, 1500)}`
+    }
+    if (disk && obj.type === "thinking") return `THINKING — ${clip(obj.full || obj.text, 20000)}`
+    if (disk && obj.type === "memory" && obj.entry?.name) {
+      if (obj.op === "save") return `SYSTEM — Saved to memory: ${obj.entry.name}\n${clip(obj.entry.closure, 30000)}`
+      if (obj.op === "update") return `SYSTEM — Memory entry improved: ${obj.entry.name}\n${clip(obj.entry.closure, 30000)}`
     }
     // Context manifests + full prompts repeat identically per agent; the
     // mechanic's brief already carries the stage contracts, so clip hard here.
@@ -12640,7 +12704,7 @@ function runEndDetail(ctx, metrics, proof) {
   const run = ctx?.memoryRun
   if (run?.memory) {
     try {
-      detail.memory_run = { variant: run.variant, session_mode: run.sessionMode, attempts: run.attempts, resumes: run.resumes, fresh_starts: run.freshStarts, stats: { ...run.memory.stats }, size: run.memory.size }
+      detail.memory_run = { variant: run.variant, voice: run.voice || null, session_mode: run.sessionMode, attempts: run.attempts, resumes: run.resumes, fresh_starts: run.freshStarts, stats: { ...run.memory.stats }, size: run.memory.size }
       detail.memory = { schema: "leak-run-memory/1", variant: run.variant, target_id: ctx.targetId || "", entries: [...run.memory.entries.values()].map((e) => run.memory.publicEntry(e)) }
     } catch {
       /* the record is an extra: it never breaks a run */
@@ -12679,10 +12743,12 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
       if (text) {
         streamLog.push({ seq: ++streamSeq, t: metrics.time_elapsed, text, mech: String(obj?.watcher || "").startsWith("mechanic") })
         if (streamLog.length > 600) streamLog.shift()
-        // The record on disk says what the agent was actually told: the whole prompt, not "a prompt was captured".
-        const full = obj?.type === "prompt" && typeof obj.prompt === "string" ? obj.prompt : ""
-        runLog?.line(metrics.time_elapsed, full ? `PROMPT TO THE AGENT${obj.kind === "followup" ? " (follow-up)" : ""} — ${full.length > 120000 ? `${full.slice(0, 120000)}\n…[+${full.length - 120000} chars]` : full}` : text)
       }
+      // The record on disk says what the agent was actually told and said: the whole prompt (not "a prompt was captured"), its whole
+      // text and thinking, the whole script it submitted, what the memory saved.
+      const full = obj?.type === "prompt" && typeof obj.prompt === "string" ? obj.prompt : ""
+      const diskText = full ? `PROMPT TO THE AGENT${obj.kind === "followup" ? " (follow-up)" : ""} — ${full.length > 120000 ? `${full.slice(0, 120000)}\n…[+${full.length - 120000} chars]` : full}` : renderStreamFrame(obj, { disk: true })
+      if (diskText) runLog?.line(metrics.time_elapsed, diskText)
     } catch {}
     send({ ...obj, metrics })
   }
@@ -13036,12 +13102,12 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  const govMatch = url.pathname.match(/^\/gov\/([^/]+)\/(sse|message)$/)
+  const govMatch = url.pathname.match(/^\/gov\/([^/]+)\/(?:(verify)\/)?(sse|message)$/)
   if (govMatch) {
-    const [, govId, kind] = govMatch
-    if (req.method === "GET" && kind === "sse") return governorSse(req, res, govId)
+    const [, govId, role, kind] = govMatch
+    if (req.method === "GET" && kind === "sse") return governorSse(req, res, govId, role || "")
     if (req.method === "POST" && kind === "message")
-      return governorMessage(req, res, govId, url.searchParams.get("sessionId"))
+      return governorMessage(req, res, govId, url.searchParams.get("sessionId"), role || "")
     res.writeHead(405)
     res.end()
     return

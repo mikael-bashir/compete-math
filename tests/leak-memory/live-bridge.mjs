@@ -167,11 +167,31 @@ const check = async (name, fn) => {
       b.stop()
     }
   })
-  await check("the prompt carries the standing order, the stuck playbook and the no-churning rule, in every variant", async () => {
+  await check("the default voice is the curious one: the question is the agent's own, lab notes close each stretch, nothing calls it open", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok" })
+    try {
+      for (const v of ["control-honoured", "control-lucid-iv"]) {
+        const p = promptOf(await b.frames(v, { memory: { entries: seed }, mcpServers: withLeakII })).prompt
+        assert.match(p, /voice curious/, v)
+        assert.match(p, /WHO YOU ARE HERE/, v)
+        assert.match(p, /THE QUESTION IS YOURS NOW/, v)
+        assert.match(p, /YOUR LAB NOTES[\s\S]*NOTE: <[\s\S]*NEXT: </, v)
+        assert.match(p, /OUR INSTRUMENT IS PROOF, NOT SEARCH/, v)
+        assert.match(p, /THE INSTRUMENTS, AND HOW STRONG THEY ARE/, v)
+        assert.match(p, /NO NETWORK beyond the Leak servers/, v)
+        assert.doesNotMatch(p, /STANDING ORDER|ORDER:|open problem|Never conclude the target is|Never stop on your own/, v)
+        assert.ok(p.indexOf("WHO YOU ARE HERE") < p.indexOf("THE LOOP"), `${v}: the voice comes first`)
+      }
+    } finally {
+      b.stop()
+    }
+  })
+  await check("the order voice is still there when asked for (options.voice): standing order, stuck playbook, no-churning rule", async () => {
     const b = await startBridge({ FAKE_MODE: "ok" })
     try {
       for (const v of ["control-honoured", "control-flint", "control-paragon", "control-lucid", "control-flint-iv"]) {
-        const p = promptOf(await b.frames(v, { memory: { entries: seed }, mcpServers: withLeakII })).prompt
+        const p = promptOf(await b.frames(v, { memory: { entries: seed }, mcpServers: withLeakII, voice: "order" })).prompt
+        assert.match(p, /voice order/, v)
         assert.match(p, /STANDING ORDER FROM THE OPERATOR/, v)
         assert.match(p, /WHEN YOU ARE STUCK/, v)
         assert.match(p, /NO BRUTE FORCE\. THIS IS A PROHIBITION/, v)
@@ -191,8 +211,9 @@ const check = async (name, fn) => {
       await b.frames("control-honoured", { memory: { entries: seed } })
       await b.frames("control-oneshot-2", {})
       const [mem, plain] = b.calls().map((c) => c.appendSystem || "")
-      assert.match(mem, /NO BRUTE FORCE[\s\S]*LOCAL LEAN IS NOT AVAILABLE/, "the rule comes before the machine note it overrides")
-      assert.doesNotMatch(plain, /NO BRUTE FORCE/, "the baseline's system prompt is untouched")
+      assert.match(mem, /OUR INSTRUMENT IS PROOF, NOT SEARCH[\s\S]*NO NETWORK[\s\S]*LOCAL LEAN IS NOT AVAILABLE/, "the rule comes before the machine note it overrides")
+      assert.doesNotMatch(plain, /NO BRUTE FORCE|OUR INSTRUMENT IS PROOF/, "the baseline's system prompt is untouched")
+      assert.match(plain, /blocks network fetches and installs/, "every isolated run is told about the network block")
       assert.match(plain, /LOCAL LEAN IS NOT AVAILABLE/)
     } finally {
       b.stop()
@@ -213,16 +234,66 @@ const check = async (name, fn) => {
       const prompts = lines.map((o) => o.text).filter((t) => t.startsWith("PROMPT TO THE AGENT"))
       assert.ok(prompts.length >= 2, "prompts in the transcript: " + prompts.length)
       const first = prompts[0]
-      assert.match(first, /^PROMPT TO THE AGENT — \[CONTROL IV MEMORY — Control IV Honoured · attempt 1\]/)
-      assert.match(first, /STANDING ORDER FROM THE OPERATOR/)
+      assert.match(first, /^PROMPT TO THE AGENT — \[CONTROL IV MEMORY — Control IV Honoured · voice curious · attempt 1\]/)
+      assert.match(first, /WHO YOU ARE HERE/)
       assert.match(first, /Theorem \(its signature is immutable/)
-      assert.match(first, /SYSTEM PROMPT ADDENDUM[\s\S]*NO BRUTE FORCE[\s\S]*LOCAL LEAN IS NOT AVAILABLE/)
+      assert.match(first, /SYSTEM PROMPT ADDENDUM[\s\S]*OUR INSTRUMENT IS PROOF[\s\S]*LOCAL LEAN IS NOT AVAILABLE/)
       assert.ok(first.length > 6000, "the whole prompt, not an excerpt: " + first.length)
       const nudge = prompts.find((t) => /reminder 1 of 2/.test(t))
       assert.match(nudge, /^PROMPT TO THE AGENT \(follow-up\) — /)
-      assert.match(nudge, /ORDER: DO NOT STOP/)
-      assert.match(nudge, /Leak II \(init_proof/)
+      assert.match(nudge, /That was a short stretch/)
+      assert.match(nudge, /Your NEXT was: fake next step/, "the agent's own note is handed back")
+      assert.match(nudge, /Leak II/)
+      assert.doesNotMatch(nudge, /ORDER|open/)
+      const said = lines.map((o) => o.text).filter((t) => /^TEXT — 🧠 Not done/.test(t))
+      assert.ok(said.length && said.every((t) => /NEXT: fake next step, try the small case\./.test(t)), "the agent's whole text is on disk, not an excerpt: " + JSON.stringify(said))
       assert.ok(!lines.some((o) => /run prompt captured/.test(o.text) && /memory/i.test(o.text)), "no stand-in line where a prompt should be")
+    } finally {
+      b.stop()
+    }
+  })
+}
+
+// ---- the verifier guard: a memory run's scripts pass through the bridge on their way to Leak IV ----
+{
+  const BIG = "open Nat in\ntheorem E396_k4 : (45153 : ℕ).descFactorial 5 ∣ (45153 : ℕ).centralBinom := by\n  decide +kernel"
+  await check("a script that asks the kernel to evaluate a large numeral is refused by the bridge and never reaches the verifier", async () => {
+    const before = leak.calls.length
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1", FAKE_TARGET_PROOF: BIG, FAKE_LEMMA: "0" })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: [] }, computeBudgetMs: 4000 })
+      const results = f.filter((x) => x.subtype === "tool_result").map((x) => String(x.output || ""))
+      const refused = results.find((t) => /Refused before compiling/.test(t))
+      assert.ok(refused, "the agent saw the refusal: " + results.join(" | ").slice(0, 400))
+      assert.match(refused, /45153/)
+      assert.match(refused, /\[tools: [^\]]*verify_full_script/, "the proxied verifier lists its tool")
+      assert.notEqual(done(f)?.verified, true)
+      const sent = leak.calls.slice(before).filter((c) => c.tool === "verify_full_script" && /45153/.test(JSON.stringify(c.args)))
+      assert.equal(sent.length, 0, "nothing reached the fake Leak IV")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("an ordinary script goes through the proxy to the verifier and its answer comes back unchanged", async () => {
+    const before = leak.calls.length
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1", FAKE_LEMMA: "0" })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: [] } })
+      const results = f.filter((x) => x.subtype === "tool_result").map((x) => String(x.output || ""))
+      assert.ok(results.some((t) => /Compilation Successful/.test(t)), results.join(" | ").slice(0, 300))
+      assert.equal(done(f)?.verified, true)
+      const sent = leak.calls.slice(before).filter((c) => c.tool === "verify_full_script" && /target_fake/.test(JSON.stringify(c.args)))
+      assert.ok(sent.length >= 1, "the fake Leak IV received the script through the proxy")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("plain Control II is not proxied: its verifier stays direct", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1", FAKE_TARGET_PROOF: BIG, FAKE_LEMMA: "0" })
+    try {
+      const f = await b.frames("control-oneshot-2", { computeBudgetMs: 4000 })
+      const results = f.filter((x) => x.subtype === "tool_result").map((x) => String(x.output || ""))
+      assert.ok(!results.some((t) => /Refused before compiling/.test(t)), "the baseline is untouched")
     } finally {
       b.stop()
     }
@@ -237,8 +308,9 @@ const check = async (name, fn) => {
     const calls = b.calls()
     assert.equal(calls[0].resume, null)
     assert.equal(calls[1].resume, calls[0].session, "the nudge resumes the session that stopped")
-    assert.match(calls[1].prompt, /You stopped after/)
+    assert.match(calls[1].prompt, /That was a short stretch/)
     assert.match(calls[1].prompt, /verify_full_script/)
+    assert.match(calls[1].prompt, /Your NEXT was: fake next step/)
     assert.ok(texts(f).some((t) => /stopped after .* minute/i.test(t)), "the run says it nudged: " + texts(f).join(" | "))
     assert.equal(done(f)?.verified, true)
     const stats = f.filter((x) => x.type === "memory" && x.op === "stats").pop()
@@ -259,7 +331,7 @@ const check = async (name, fn) => {
     assert.deepEqual(calls.slice(0, 4).map((c) => c.resume !== null), [false, true, true, true])
     assert.equal(calls[2].resume, calls[1].session, "each reminder resumes the latest session")
     assert.equal(calls[3].resume, calls[2].session, "the next attempt resumes it too, instead of opening a fresh conversation")
-    assert.match(calls[3].prompt, /attempt 2 of the SAME session/)
+    assert.match(calls[3].prompt, /same session \(attempt 2\)|attempt 2 of the SAME session/)
     assert.doesNotMatch(calls[3].prompt, /THE LOOP/, "the rules are not repeated: they are already in the conversation")
     assert.match(calls[3].prompt, /select:mcp__Leak_IV__verify_full_script/, "it says how to reload a tool, in case the resume lost it")
   })
@@ -277,8 +349,8 @@ const check = async (name, fn) => {
     assert.equal(calls[0].resume, null)
     assert.equal(calls[1].resume, calls[0].session)
     assert.equal(calls[2].resume, calls[1].session)
-    assert.match(calls[1].prompt, /attempt 2 of the SAME session/)
-    assert.match(calls[2].prompt, /attempt 3 of the SAME session/)
+    assert.match(calls[1].prompt, /same session \(attempt 2\)|attempt 2 of the SAME session/)
+    assert.match(calls[2].prompt, /same session \(attempt 3\)|attempt 3 of the SAME session/)
   })
   b.stop()
 }
@@ -414,7 +486,7 @@ const bgFile = (name) => path.join(tmp, `bg-${name}.txt`)
     await p
     const calls = b.calls()
     assert.deepEqual(calls.slice(0, 3).map((c) => c.resume !== null), [false, true, false])
-    assert.match(calls[2].prompt, /THE LOOP/)
+    assert.match(calls[2].promptFull, /THE LOOP/)
     assert.match(calls[2].promptFull, /could not be resumed/)
     assert.ok(calls[2].prevBgAlive.every((x) => x === false), `the new conversation found jobs alive: ${calls[2].prevBgAlive}`)
     assert.deepEqual(await waitDead(readPids(bg)), [])

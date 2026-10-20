@@ -476,3 +476,113 @@ test("a resumed session and a reminder offer foundations and bridges, and remind
     assert.match(t, /bridge/)
   }
 })
+
+// ---- the two voices ---------------------------------------------------------------------------------------------
+import { CURIOSITY_PROMPTS, DEFAULT_VOICE, VOICES, curiosityPrompt, extractNote, voiceFor } from "../../public/leak-memory.mjs"
+
+test("the default voice is the curious mathematician; the order voice stays available by name", () => {
+  assert.equal(DEFAULT_VOICE, "curious")
+  assert.deepEqual(Object.keys(VOICES).sort(), ["curious", "order"])
+  assert.equal(voiceFor("order").key, "order")
+  assert.equal(voiceFor("curious").key, "curious")
+  assert.equal(voiceFor("").key, "curious")
+  assert.equal(voiceFor("nonsense").key, "curious")
+  for (const v of Object.values(VOICES)) for (const f of ["opening", "strategy", "sessionRules", "continue", "nudge"]) assert.equal(typeof v[f], "function", `${v.key}.${f}`)
+})
+
+test("the curious voice never calls the problem open, hard or unsolved, gives no orders, and asks for lab notes", () => {
+  const V = VOICES.curious
+  const all = [V.opening({ pantograph: true, memoryTools: true }), V.sessionRules(1), V.systemRule, V.continue({ attempt: 2, rng: () => 1 }), V.nudge({ elapsedMs: 1 })].join("\n")
+  assert.doesNotMatch(all, /open problem|is open|unsolved|too hard|impossible|STANDING ORDER|ORDER:|not accepted|you must\b/i)
+  assert.match(V.opening(), /WHO YOU ARE HERE/)
+  assert.match(V.opening(), /THE QUESTION IS YOURS NOW/)
+  assert.match(V.opening(), /do not look it up/)
+  assert.match(V.opening(), /name the obstruction precisely/)
+  assert.match(V.opening(), /"I see no route" is where the work starts/)
+  assert.match(V.opening(), /WHAT CURIOSITY LOOKS LIKE HERE/)
+  assert.match(V.opening(), /OUR INSTRUMENT IS PROOF, NOT SEARCH/)
+  assert.match(V.opening(), /more than 5 minutes/)
+  assert.match(V.opening(), /THE INSTRUMENTS, AND HOW STRONG THEY ARE/)
+  assert.match(V.opening(), /YOUR LAB NOTES[\s\S]*NOTE: <[\s\S]*NEXT: </)
+  assert.match(V.opening(), /HONESTY/)
+  assert.doesNotMatch(V.opening(), /Mathlib/, "Tengoku is not framed around Mathlib")
+  assert.match(V.opening({ pantograph: true }), /Leak II \(init_proof/)
+  assert.doesNotMatch(V.opening({ pantograph: false, memoryTools: false }), /Leak II|memory_recall/)
+  assert.match(V.systemRule, /NO NETWORK/)
+  assert.match(V.sessionRules(1), /reputation is not an input/)
+  assert.match(V.sessionRules(3), /earlier conversation could not be resumed/)
+  assert.doesNotMatch(V.sessionRules(1), /could not be resumed/)
+})
+
+test("the curious continue prompt hands the agent its own note back, and offers a different question each time", () => {
+  const V = VOICES.curious
+  const withNote = V.continue({ attempt: 2, elapsedMs: 3 * 60000, libraryCount: 7, note: { note: "carries are the point", next: "prove the carry lemma for p = 2" }, rng: () => 1 })
+  assert.match(withNote, /Welcome back/)
+  assert.match(withNote, /3 minutes/)
+  assert.match(withNote, /7 verified theorem/)
+  assert.match(withNote, /NOTE: carries are the point\nNEXT: prove the carry lemma for p = 2\n\nTake up NEXT\./)
+  assert.match(withNote, /close the stretch, as always, with NOTE: and NEXT:/)
+  const without = V.continue({ attempt: 2, rng: () => 1 })
+  assert.match(without, /closed without a NEXT line/)
+  const qs = new Set([2, 3, 4, 5, 6].map((a) => /A question for this stretch, in case it is useful: ([^\n]+)/.exec(V.continue({ attempt: a, rng: () => 1 }))[1]))
+  assert.equal(qs.size, 5, "five resumes, five different questions")
+  assert.match(V.continue({ attempt: 2, abstracted: ["gen_one"], rng: () => 1 }), /consolidated[\s\S]*gen_one/)
+  assert.match(V.continue({ attempt: 2, toolIds: ["mcp__Leak_IV__verify_full_script"], rng: () => 1 }), /select:mcp__Leak_IV__verify_full_script/)
+  assert.ok(V.continue({ attempt: 2, rng: () => 0 }).includes(HOUSEKEEPING_LINE))
+  assert.match(V.continue({ attempt: 2, pantograph: true, rng: () => 1 }), /Leak II can show you the live goal/)
+})
+
+test("the curious nudge is light: a short stretch, one question, the agent's own NEXT, no order", () => {
+  const V = VOICES.curious
+  const t = V.nudge({ elapsedMs: 50000, libraryCount: 2, nudge: 1, of: 2, note: { next: "the p = 3 case" } })
+  assert.match(t, /^That was a short stretch \(1 minute, nothing new verified\)/)
+  assert.match(t, /Your NEXT was: the p = 3 case/)
+  assert.match(t, /answer one question with the compiler/)
+  assert.match(t, /write NOTE: and NEXT:/)
+  assert.doesNotMatch(t, /ORDER|reminder \d of \d|not accepted/)
+  assert.match(V.nudge({ elapsedMs: 1, pantograph: true }), /Leak II/)
+})
+
+test("extractNote reads the last NOTE/NEXT pair in whatever form the agent wrote it", () => {
+  assert.deepEqual(extractNote("blah\nNOTE: a\nNEXT: b"), { note: "a", next: "b" })
+  assert.deepEqual(extractNote("**NOTE:** first\n**NEXT:** second\n\nlater\nNOTE: third.\nNEXT: fourth."), { note: "third.", next: "fourth." })
+  assert.deepEqual(extractNote("NEXT: only a next"), { note: "", next: "only a next" })
+  assert.deepEqual(extractNote("  note: lower case works\n  next: too"), { note: "lower case works", next: "too" })
+  assert.equal(extractNote("nothing here"), null)
+  assert.equal(extractNote(""), null)
+  assert.equal(extractNote(null), null)
+  assert.ok(extractNote("NEXT: " + "x".repeat(2000)).next.length <= 700)
+})
+
+test("curiosity prompts rotate and never run out", () => {
+  assert.ok(CURIOSITY_PROMPTS.length >= 10)
+  assert.equal(curiosityPrompt(0), CURIOSITY_PROMPTS[0])
+  assert.equal(curiosityPrompt(CURIOSITY_PROMPTS.length), CURIOSITY_PROMPTS[0])
+  assert.equal(curiosityPrompt(-1), CURIOSITY_PROMPTS[CURIOSITY_PROMPTS.length - 1])
+  assert.equal(curiosityPrompt("x"), CURIOSITY_PROMPTS[0])
+})
+
+// ---- the verifier guard ----------------------------------------------------------------------------------------
+import { KERNEL_EVAL_RE, kernelEvalGuard } from "../../public/leak-memory.mjs"
+
+test("kernelEvalGuard refuses a kernel evaluation on a large numeral, and nothing else", () => {
+  const big = "open Nat in\ntheorem E396_k4 : (45153 : ℕ).descFactorial 5 ∣ (45153 : ℕ).centralBinom := by\n  rw [cb_eq]; decide +kernel"
+  const r = kernelEvalGuard(big)
+  assert.ok(r, "refused")
+  assert.match(r, /^❌ Refused before compiling/)
+  assert.match(r, /45153/)
+  assert.match(r, /cannot be interrupted/)
+  assert.match(r, /Prove the statement structurally/)
+  assert.equal(kernelEvalGuard("theorem E396_k2 : (2480 : ℕ).descFactorial 3 ∣ (2480 : ℕ).centralBinom := by\n  decide +kernel"), null, "four digits are fine")
+  assert.equal(kernelEvalGuard("theorem t : (123456 : ℕ) + 0 = 123456 := by\n  omega"), null, "no kernel evaluation, no refusal")
+  assert.equal(kernelEvalGuard("-- the witness is 17609764994\ntheorem t (n : ℕ) : n = n := by decide"), null, "numerals in comments do not count")
+  assert.equal(kernelEvalGuard("/- 17609764994 -/\ntheorem t (n : ℕ) : n = n := rfl"), null)
+  assert.ok(kernelEvalGuard("theorem t : (17609764994 : ℕ) % 2 = 0 := by native_decide"))
+  assert.ok(kernelEvalGuard("theorem t : (100000 : ℕ) % 2 = 0 := rfl"))
+  assert.ok(kernelEvalGuard("example : (100000 : ℕ) % 2 = 0 := by\n  rfl"))
+  assert.equal(kernelEvalGuard("theorem t : (99999 : ℕ) % 2 = 1 := by decide", { maxDigits: 6 }), null, "the threshold is a knob")
+  assert.equal(kernelEvalGuard(""), null)
+  assert.equal(kernelEvalGuard(null), null)
+  assert.ok(KERNEL_EVAL_RE.test("by decide"))
+  assert.ok(!KERNEL_EVAL_RE.test("by omega"))
+})
