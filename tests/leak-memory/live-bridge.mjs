@@ -11,6 +11,7 @@ import assert from "node:assert/strict"
 import { startFakeLeak } from "./fake-leak.mjs"
 import { Memory } from "../../public/leak-memory.mjs"
 import { OLD, SLEEP_SCRIPT } from "./overnight-fixture.mjs"
+import { deriveItem } from "../../tools/lrr-sync/core.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const bridgePath = path.join(here, "../../public/local-claude-bridge.mjs")
@@ -64,7 +65,7 @@ async function startBridge(env = {}) {
     }
     return out
   }
-  return { frames, post, calls, log: () => log, stop: () => child.kill(), signal: (sig) => child.kill(sig), exited: () => child.exitCode !== null || child.signalCode !== null }
+  return { home: HOME, frames, post, calls, log: () => log, stop: () => child.kill(), signal: (sig) => child.kill(sig), exited: () => child.exitCode !== null || child.signalCode !== null }
 }
 
 const seed = [{ id: "seed1", name: "odd_pair_even_seed", statement: "theorem odd_pair_even_seed (a b : ℕ) (ha : a % 2 = 1) (hb : b % 2 = 1) : (a + b) % 2 = 0", closure: "theorem odd_pair_even_seed (a b : ℕ) (ha : a % 2 = 1) (hb : b % 2 = 1) : (a + b) % 2 = 0 := by\n  omega", origin: "seed", saved_at: 1 }]
@@ -73,6 +74,7 @@ const texts = (f) => f.filter((x) => x.subtype === "status").map((x) => x.though
 
 let failed = 0
 const check = async (name, fn) => {
+  if (process.env.LIVE_ONLY && !new RegExp(process.env.LIVE_ONLY).test(name)) return // LIVE_ONLY=<regex>: run just the matching scenarios while developing
   try {
     await fn()
     console.log("ok  ", name)
@@ -405,6 +407,104 @@ for (const sig of ["SIGTERM", "SIGINT"]) {
     try {
       await b.frames("control-honoured", { memory: { entries: [] } })
       assert.ok(!/ANSWER SLOT/.test(b.calls()[0].promptTail), "a plain target got the slot note")
+    } finally {
+      b.stop()
+    }
+  })
+}
+
+// ---- run records: what a finished run leaves in ~/.leak-runs for tools/lrr-sync (the end line, the sidecars, the hook) ----
+{
+  const waitFor = async (f, ms = 8000) => {
+    for (let i = 0; i < ms / 100; i++) {
+      const v = f()
+      if (v) return v
+      await new Promise((r) => setTimeout(r, 100))
+    }
+    return null
+  }
+  const runsOf = (home) => {
+    const d = path.join(home, ".leak-runs")
+    return fs.existsSync(d) ? fs.readdirSync(d).sort() : []
+  }
+  const readLines = (f) => fs.readFileSync(f, "utf8").trim().split("\n").map((l) => JSON.parse(l))
+  await check("a memory run leaves a start line with its target, an end line with its metrics and session, a .lean proof and a .memory.json library", async () => {
+    const hookOut = path.join(tmp, "hook-calls.txt")
+    const hook = path.join(tmp, "hook.sh")
+    fs.writeFileSync(hook, `#!/bin/sh\necho "$1" >> "${hookOut}"\n`, { mode: 0o755 })
+    const b = await startBridge({ FAKE_MODE: "ok", LEAK_RUN_HOOK: hook })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: seed }, targetId: "fake-1" })
+      assert.equal(done(f).verified, true)
+      const names = await waitFor(() => (runsOf(b.home).some((n) => n.endsWith(".memory.json")) ? runsOf(b.home) : null))
+      assert.ok(names, "no run record: " + runsOf(b.home).join(", "))
+      const jsonl = names.find((n) => n.endsWith(".jsonl") && n !== "index.jsonl")
+      const base = path.join(b.home, ".leak-runs", jsonl.replace(/\.jsonl$/, ""))
+      const lines = readLines(`${base}.jsonl`)
+      const start = lines[0]
+      const end = lines.at(-1)
+      assert.equal(start.kind, "start")
+      assert.equal(start.target_id, "fake-1")
+      assert.equal(start.strategy, "control-honoured")
+      assert.equal(end.kind, "end")
+      assert.equal(end.ok, true)
+      assert.equal(end.target_id, "fake-1")
+      assert.ok(end.metrics && ["tools_invoked", "llm_invocations", "time_elapsed", "bridge_build"].every((k) => k in end.metrics), "metrics on the end line: " + JSON.stringify(end.metrics))
+      assert.equal(end.memory_run.variant, "control-honoured")
+      assert.equal(end.memory_run.session_mode, "persistent")
+      assert.ok(end.memory_run.attempts >= 1)
+      assert.ok(end.sidecars.includes(path.basename(`${base}.lean`)) && end.sidecars.includes(path.basename(`${base}.memory.json`)))
+      const lean = fs.readFileSync(`${base}.lean`, "utf8")
+      assert.match(lean, /theorem target_fake/)
+      assert.ok(!/\bsorry\b/.test(lean))
+      const mem = JSON.parse(fs.readFileSync(`${base}.memory.json`, "utf8"))
+      assert.equal(mem.schema, "leak-run-memory/1")
+      assert.equal(mem.target_id, "fake-1")
+      assert.ok(mem.entries.length >= 1 && mem.entries.every((e) => e.name && e.closure))
+      const idx = readLines(path.join(b.home, ".leak-runs/index.jsonl")).at(-1)
+      assert.equal(idx.file, jsonl)
+      assert.equal(idx.strategy, "control-honoured")
+      // and the sync reads it as a run the bridge itself described, not a backfill
+      const d = deriveItem({ id: jsonl.replace(/\.jsonl$/, ""), text: fs.readFileSync(`${base}.jsonl`, "utf8"), sidecars: { proof: lean, memory: mem }, indexRow: idx })
+      assert.equal(d.item.status, "proved")
+      assert.equal(d.item.backfilled, false)
+      assert.equal(d.item.metrics_source, "bridge")
+      assert.equal(d.item.proof_source, "bridge")
+      assert.equal(d.item.memory_source, "bridge")
+      assert.equal(d.item.variant, "control-honoured")
+      assert.equal(d.item.session_mode, "persistent")
+      // the hook ran once, with the transcript's path
+      const called = await waitFor(() => (fs.existsSync(hookOut) ? fs.readFileSync(hookOut, "utf8").trim().split("\n") : null))
+      assert.deepEqual(called, [`${base}.jsonl`])
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a plain run leaves no memory sidecar, and a relative hook path is never run", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", LEAK_RUN_HOOK: "relative/hook.sh" })
+    try {
+      const f = await b.frames("control-oneshot-2", {})
+      assert.ok(done(f))
+      const names = await waitFor(() => (runsOf(b.home).some((n) => n.endsWith(".jsonl") && n !== "index.jsonl") ? runsOf(b.home) : null))
+      assert.ok(names)
+      assert.ok(!names.some((n) => n.endsWith(".memory.json")), names.join(", "))
+      const end = readLines(path.join(b.home, ".leak-runs", names.find((n) => n.endsWith(".jsonl") && n !== "index.jsonl"))).at(-1)
+      assert.equal(end.kind, "end")
+      assert.ok(end.metrics, "a plain run's end line has its metrics too")
+      assert.equal(end.memory_run, undefined)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a run that proves nothing writes no .lean", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_TARGET_PROOF: "theorem unrelated_fake : True := trivial", FAKE_LEMMA: "0" })
+    try {
+      const f = await b.frames("control-oneshot-2", { computeBudgetMs: 4000 })
+      assert.notEqual(done(f)?.verified, true)
+      const idx = await waitFor(() => (runsOf(b.home).includes("index.jsonl") ? readLines(path.join(b.home, ".leak-runs/index.jsonl")).at(-1) : null), 12000)
+      assert.ok(idx, "no index row")
+      assert.equal(idx.ok, false)
+      assert.ok(!runsOf(b.home).some((n) => n.endsWith(".lean")), "an unproved run wrote a proof")
     } finally {
       b.stop()
     }
