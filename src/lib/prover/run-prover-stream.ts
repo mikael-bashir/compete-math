@@ -371,12 +371,15 @@ export async function runProverStream(opts: RunOpts): Promise<ProverOutcome> {
           break;
         case 'prompt':
           // The exact context the bridge built for the agent (admin debug log).
-          context = {
-            prompt: d.prompt,
-            model: d.model,
-            mcpServers: d.mcpServers,
-          };
-          emit('system', 'Full agent context captured', { detail: d.prompt });
+          // A follow-up (a reminder, the sleep stage) is shown but does not replace the run's own prompt.
+          if (d.kind !== 'followup') {
+            context = {
+              prompt: d.prompt,
+              model: d.model,
+              mcpServers: d.mcpServers,
+            };
+          }
+          emit('system', `Prompt to the agent${d.kind === 'followup' ? ' (follow-up)' : ''}: ${String(d.prompt ?? '').split('\n')[0].replace(/^\[|\]$/g, '').slice(0, 140)}`, { detail: d.prompt });
           break;
         case 'system': {
           // Claude Code emits the rich init frame (model + connected MCP servers

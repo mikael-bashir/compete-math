@@ -42,7 +42,7 @@ async function startBridge(env = {}) {
     const res = await fetch(`http://127.0.0.1:${PORT}/prove-tree`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-bridge-token": "test-token", origin: "http://localhost:3000" },
-      body: JSON.stringify({ theorem: extra.theorem || THEOREM, mcpServers, model: "sonnet", options: { strategy, computeBudgetMs: 120000, targetId: "fake-1", ...Object.fromEntries(Object.entries(extra).filter(([k]) => k !== "theorem")) } }),
+      body: JSON.stringify({ theorem: extra.theorem || THEOREM, mcpServers: extra.mcpServers || mcpServers, model: "sonnet", options: { strategy, computeBudgetMs: 120000, targetId: "fake-1", ...Object.fromEntries(Object.entries(extra).filter(([k]) => k !== "theorem" && k !== "mcpServers")) } }),
       signal,
     })
     if (!res.ok) throw new Error("HTTP " + res.status + " " + (await res.text()))
@@ -132,6 +132,101 @@ const check = async (name, fn) => {
     assert.equal(c.autoMemory, "1")
   })
   b.stop()
+}
+
+// ---- Leak II variants and what the logs say about the prompts ----
+{
+  const withLeakII = [...mcpServers, { name: "Leak_II", url: `http://127.0.0.1:${leak.port}/ii/sse`, tools: [{ name: "init_proof", args: ["goal"] }, { name: "apply_tactic", args: ["tactic"] }] }]
+  const promptOf = (f) => f.filter((x) => x.type === "prompt" && x.kind !== "followup").pop()
+  await check("the -iv variant gives the agent Leak II and says so; the plain variant, given the same servers, does not", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok" })
+    try {
+      const iv = await b.frames("control-honoured-iv", { memory: { entries: seed }, mcpServers: withLeakII })
+      const p = promptOf(iv)
+      assert.match(p.prompt, /CONTROL IV MEMORY — Control IV Honoured/)
+      assert.match(p.prompt, /mcp__Leak_II__init_proof/)
+      assert.match(p.prompt, /INTERACTIVE \(Leak II\)/)
+      assert.ok(p.mcpServers.some((s) => s.name === "Leak_II"), "Leak II is among the agent's servers")
+      assert.match(texts(iv).join(" | "), /Leak II \(Pantograph\)/)
+      assert.equal(done(iv)?.verified, true)
+      const plain = await b.frames("control-honoured", { memory: { entries: seed }, mcpServers: withLeakII })
+      const q = promptOf(plain)
+      assert.doesNotMatch(q.prompt, /mcp__Leak_II__|INTERACTIVE \(Leak II\)|ALSO have Leak II|Leak II \(init_proof/)
+      assert.ok(!q.mcpServers.some((s) => s.name === "Leak_II"), "the plain variant must not get Leak II")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("an -iv variant with no Leak II connected says so, and its prompt does not promise tools it lacks", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok" })
+    try {
+      const f = await b.frames("control-lucid-iv", { memory: { entries: seed } })
+      assert.match(JSON.stringify(f), /no Leak II server is connected/)
+      assert.doesNotMatch(promptOf(f).prompt, /mcp__Leak_II__|INTERACTIVE \(Leak II\)|ALSO have Leak II|Leak II \(init_proof/)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("the prompt carries the standing order, the stuck playbook and the no-churning rule, in every variant", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok" })
+    try {
+      for (const v of ["control-honoured", "control-flint", "control-paragon", "control-lucid", "control-flint-iv"]) {
+        const p = promptOf(await b.frames(v, { memory: { entries: seed }, mcpServers: withLeakII })).prompt
+        assert.match(p, /STANDING ORDER FROM THE OPERATOR/, v)
+        assert.match(p, /WHEN YOU ARE STUCK/, v)
+        assert.match(p, /NO BRUTE FORCE\. THIS IS A PROHIBITION/, v)
+        assert.match(p, /THE GOAL OF THIS RUN[\s\S]*proof ecosystem/, v)
+        assert.match(p, /Tengoku is a large, self-contained/, v)
+        assert.match(p, /THREE KINDS OF WORK[\s\S]*LONG-LASTING PROCESS/, v)
+        assert.ok(p.indexOf("THREE KINDS OF WORK") < p.indexOf("THE LOOP"), `${v}: the options come before the loop`)
+        assert.ok(p.indexOf("STANDING ORDER") < p.indexOf("THE LOOP"), `${v}: the order comes first`)
+      }
+    } finally {
+      b.stop()
+    }
+  })
+  await check("the CLI's system prompt carries the brute-force rule for the memory variants and not for plain Control II", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok" })
+    try {
+      await b.frames("control-honoured", { memory: { entries: seed } })
+      await b.frames("control-oneshot-2", {})
+      const [mem, plain] = b.calls().map((c) => c.appendSystem || "")
+      assert.match(mem, /NO BRUTE FORCE[\s\S]*LOCAL LEAN IS NOT AVAILABLE/, "the rule comes before the machine note it overrides")
+      assert.doesNotMatch(plain, /NO BRUTE FORCE/, "the baseline's system prompt is untouched")
+      assert.match(plain, /LOCAL LEAN IS NOT AVAILABLE/)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("the transcript on disk holds every prompt the agent was given, in full, and says which is which", async () => {
+    const b = await startBridge({ FAKE_MODE: "giveup" })
+    try {
+      await b.frames("control-honoured-iv", { memory: { entries: [] }, mcpServers: withLeakII, minAttemptMs: 600000, maxNudges: 2 })
+      const dir = path.join(b.home, ".leak-runs")
+      let lines = []
+      for (let i = 0; i < 80 && !lines.length; i++) {
+        const f = fs.existsSync(dir) ? fs.readdirSync(dir).find((n) => n.endsWith(".jsonl") && n !== "index.jsonl") : null
+        if (f) lines = fs.readFileSync(path.join(dir, f), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((o) => o.kind === "event")
+        if (!lines.some((o) => /reminder 1 of 2/.test(o.text))) lines = []
+        if (!lines.length) await new Promise((r) => setTimeout(r, 100))
+      }
+      const prompts = lines.map((o) => o.text).filter((t) => t.startsWith("PROMPT TO THE AGENT"))
+      assert.ok(prompts.length >= 2, "prompts in the transcript: " + prompts.length)
+      const first = prompts[0]
+      assert.match(first, /^PROMPT TO THE AGENT — \[CONTROL IV MEMORY — Control IV Honoured · attempt 1\]/)
+      assert.match(first, /STANDING ORDER FROM THE OPERATOR/)
+      assert.match(first, /Theorem \(its signature is immutable/)
+      assert.match(first, /SYSTEM PROMPT ADDENDUM[\s\S]*NO BRUTE FORCE[\s\S]*LOCAL LEAN IS NOT AVAILABLE/)
+      assert.ok(first.length > 6000, "the whole prompt, not an excerpt: " + first.length)
+      const nudge = prompts.find((t) => /reminder 1 of 2/.test(t))
+      assert.match(nudge, /^PROMPT TO THE AGENT \(follow-up\) — /)
+      assert.match(nudge, /ORDER: DO NOT STOP/)
+      assert.match(nudge, /Leak II \(init_proof/)
+      assert.ok(!lines.some((o) => /run prompt captured/.test(o.text) && /memory/i.test(o.text)), "no stand-in line where a prompt should be")
+    } finally {
+      b.stop()
+    }
+  })
 }
 
 // ---- the agent stops early ----

@@ -360,3 +360,14 @@ test("constants the sync relies on", () => {
   assert.equal(sha256("a"), "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb")
   assert.ok(GZIP_OVER > 10 * 1024 * 1024 && GZIP_OVER < 50 * 1024 * 1024, "below GitHub's 50 MB warning")
 })
+
+test("deriveItem: the Leak II twins of the memory variants are memory runs too", () => {
+  for (const strategy of ["control-honoured-iv", "control-flint-iv", "control-paragon-iv", "control-lucid-iv"]) {
+    const end = { kind: "end", at: "2026-10-20T11:00:00.000Z", ok: false, reason: "time", seconds: 3600 }
+    const { item } = deriveItem({ id: "2026-10-20T10-00-00-000Z-erdos_396", text: jl({ ...START, strategy }, end), nowMs: NOW })
+    assert.equal(item.variant, strategy)
+    assert.equal(item.session_mode, "fresh_per_attempt", "an older record without a memory_run says what it knows")
+  }
+  const { item } = deriveItem({ id: "2026-10-20T10-00-00-000Z-foo_bar", text: jl({ ...START, strategy: "control-oneshot-4" }, { kind: "end", at: "2026-10-20T11:00:00.000Z", ok: false, reason: "time", seconds: 60 }), nowMs: NOW })
+  assert.equal(item.variant, null, "Control IV itself is not a memory variant")
+})

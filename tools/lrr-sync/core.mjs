@@ -10,7 +10,7 @@ export const MEMORY_SCHEMA = "leak-run-memory/1"
 export const STALE_MS = 2 * 3600 * 1000 // a transcript with no end line that has not changed for this long is an interrupted run
 export const GZIP_OVER = 25 * 1024 * 1024 // a transcript larger than this is stored gzipped (GitHub warns at 50 MB, refuses at 100 MB)
 
-const MEMORY_VARIANT = /^control-(honoured|flint|paragon|lucid)$/
+const MEMORY_VARIANT = /^control-(honoured|flint|paragon|lucid)(-iv)?$/
 
 // ---- scrubbing --------------------------------------------------------------------------------------------------------------------
 // Replaced in place with [REDACTED:kind], so a JSON line stays a JSON line. The patterns are the shapes of real credentials; a transcript

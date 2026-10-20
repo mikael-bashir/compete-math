@@ -2539,6 +2539,35 @@ const STRATEGIES = {
     search: GOV_INITIAL,
     style: "memory",
   },
+  // The same four, plus Leak II (Pantograph init_proof/apply_tactic), the way Control IV is Control II plus Leak II. Nothing else differs.
+  "control-honoured-iv": {
+    label: "Control IV Honoured — Control II Honoured + Leak II Pantograph (experimental)",
+    node: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    decompose: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    search: GOV_INITIAL,
+    style: "memory",
+  },
+  "control-flint-iv": {
+    label: "Control IV Flint — Control II Flint + Leak II Pantograph (experimental)",
+    node: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    decompose: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    search: GOV_INITIAL,
+    style: "memory",
+  },
+  "control-paragon-iv": {
+    label: "Control IV Paragon — Control II Paragon + Leak II Pantograph (experimental)",
+    node: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    decompose: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    search: GOV_INITIAL,
+    style: "memory",
+  },
+  "control-lucid-iv": {
+    label: "Control IV Lucid — Control II Lucid + Leak II Pantograph (experimental)",
+    node: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    decompose: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    search: GOV_INITIAL,
+    style: "memory",
+  },
   // Phase-1 linear context: planner writes a `have`-skeleton, isolated minions
   // fill each hole, an assembler stitches + re-verifies. Bounded context per
   // agent; falls back to `have` on any failure. See proveHaveTree.
@@ -6545,20 +6574,29 @@ function controlMemoryPrompt(M, variantKey, memory, theorem, mcpServers, attempt
   const memLine = memory.size
     ? `This target's memory already holds ${memory.size} verified theorem(s).`
     : "This target's memory is empty so far."
-  return `You are working on ONE Lean 4 + Mathlib theorem in a long, single continuous session, and you keep a library of verified theorems as you go. Your tools are Leak IV's verify_full_script — it IS the compiler: every call returns either "✅ Compilation Successful! The proof is 100% verified." or the exact Lean diagnostic text (line number, error/warning message) — and Leak I's loogle_search/moogle_search for library lookups. verify_full_script is the ONLY thing that counts as progress; search only supports a submission, it does not replace one. ${memLine}
+  const pantograph = !!cfg.pantograph && !!resolvePantographUrl(mcpServers)
+  return `${M.MANDATE}
+
+${M.GOAL}
+
+${M.WORK_MODES}
+
+You are working on ONE Lean 4 + Mathlib theorem in a long, single continuous session, and you keep a library of verified theorems as you go. Your tools are Leak IV's verify_full_script — it IS the compiler: every call returns either "✅ Compilation Successful! The proof is 100% verified." or the exact Lean diagnostic text (line number, error/warning message) — and Leak I's loogle_search/moogle_search for library lookups.${pantograph ? " You ALSO have Leak II's interactive proof assistant (init_proof / apply_tactic): step a goal ONE tactic at a time to watch the live goal state evolve, then fold the tactics that worked into your verify_full_script submission." : ""} verify_full_script is the ONLY thing that counts as progress; search${pantograph ? " and Pantograph only support" : " only supports"} a submission, ${pantograph ? "they do" : "it does"} not replace one. ${memLine}
 
 ${toolSection}
 
 THE LOOP:
-1. Decide the next claim that moves you toward the theorem: the theorem itself, or a lemma it will need.
+1. Decide the next claim: the theorem itself, a lemma it will need, foundational material you expect to pay off, or a bridge that lifts it into a setting you know.
 2. Write the complete Lean script and call verify_full_script with it.
 3. If it fails, read the compiler's error CAREFULLY — the line and message tell you exactly what broke. Fix precisely that, or try a genuinely different approach to the same claim. Resubmit.
 4. A script only counts when verify_full_script reports success with ZERO 'sorry'. A verified, non-trivial theorem is saved to the memory automatically.
 ${SEARCH_USAGE_NOTE}
+${pantograph ? `\nINTERACTIVE (Leak II): when an error is opaque or a subgoal is fiddly, init_proof the goal and apply_tactic ONE tactic at a time to read the real goal state, then fold the working tactics back into the full script and verify_full_script it. Never put 'sorry' in an apply_tactic — a goal you cannot close means try a different tactic, not stop.\n` : ""}
+${M.strategyBlock({ pantograph, memoryTools: cfg.tools.length > 0 })}
 
 RULES:
-${M.memoryRules(variantKey, { envHint })}
-- Never conclude the target is "too hard", "open" or beyond reach, and never ask to split it: there is no one to hand it to. A failing approach means a DIFFERENT strategy, or a different lemma that gets you closer.
+${M.memoryRules(variantKey, { envHint, pantograph })}
+- Never conclude the target is "too hard", "open" or beyond reach, and never ask to split it: there is no one to hand it to. A failing approach means a DIFFERENT strategy: a different lemma, foundational material, or a bridge into a setting you know.
 - Never stop on your own. This is ONE persistent session: if you do stop, the system resumes this same conversation (attempt ${attempt + 1}, ${attempt + 2}, …; the CLI compacts it when it grows) until you succeed or the run's own wall clock ends it.${attempt > 1 ? " (Your earlier conversation could not be resumed, so this one is new: what it had established is only in the memory and below.)" : ""}
 - The target is only proved when verify_full_script succeeds on a script that contains the target's exact statement with no sorry.
 ${episodic}${lastBlock}
@@ -6574,9 +6612,11 @@ async function runSleepStage(M, memory, ctx, theorem, cfg, state) {
   memory.stats.sleeps++
   const verifyOnly = (ctx.mcpServers || []).filter((s) => s?.url === ctx.verifyUrl)
   ctx.emit({ type: "message-annotation", subtype: "status", thought: `🌙 Sleep: consolidating ${memory.size} saved theorem(s) into more general lemmas (at most ${Math.round(cfg.sleep.timeboxMs / 60000)} min).` })
+  const sleepText = M.sleepPrompt(memory, theorem)
+  ctx.emit({ type: "prompt", kind: "followup", prompt: `[${cfg.name} · sleep stage: a separate short session whose only tool is Leak IV]\n\n${sleepText}`, model: ctx.model || null })
   const r = await spawnProverStream(
     {
-      prompt: M.sleepPrompt(memory, theorem),
+      prompt: sleepText,
       mcpServers: verifyOnly,
       model: ctx.model,
       maxTurns: 0,
@@ -6620,7 +6660,9 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   const sig = theoremSignature(theorem)
   ctx.memoryRun = { variant: variantKey, memory, sessionMode: "persistent", attempts: 0, resumes: 0, freshStarts: 0 } // read when the run ends, for its record
   const pantographUrl = resolvePantographUrl(ctx.mcpServers)
-  const allowedServers = (ctx.mcpServers || []).filter((s) => s?.url && s.url !== pantographUrl)
+  const allowPantograph = !!cfg.pantograph
+  const memoryHeader = `${allowPantograph ? "CONTROL IV" : "CONTROL II"} MEMORY — ${cfg.name}`
+  const allowedServers = (ctx.mcpServers || []).filter((s) => s?.url && (allowPantograph || s.url !== pantographUrl))
   const handlers = M.makeHandlers(memory, variantKey)
   const augment = cfg.augmentSearch ? (toolName, args, text) => M.augmentSearchText(memory, queryOfArgs(args), text) : null
   const sleepState = { lastSleepAt: 0, lastSleepIso: "", attempt: 0, scratch: null }
@@ -6637,8 +6679,10 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   ctx.emit({
     type: "message-annotation",
     subtype: "status",
-    thought: `🧠 ${cfg.name}: one continuous agent against Leak IV + Leak I search, a library of verified theorems (${loaded} loaded for this target), ONE persistent session across attempts (when the agent stops it is resumed in the same conversation, which the CLI compacts as it grows; a new conversation only if the old one cannot be resumed), no cap on it, until the clock ends.`,
+    thought: `🧠 ${cfg.name}: one continuous agent against Leak IV + Leak I search${allowPantograph ? " + Leak II (Pantograph)" : ""}, a library of verified theorems (${loaded} loaded for this target), ONE persistent session across attempts (when the agent stops it is resumed in the same conversation, which the CLI compacts as it grows; a new conversation only if the old one cannot be resumed), no cap on it, until the clock ends.`,
   })
+  if (allowPantograph && !pantographUrl)
+    ctx.emit({ type: "message-annotation", subtype: "error", thought: `🧠 ${cfg.name} is meant to have Leak II (Pantograph), but no Leak II server is connected: the agent will run without it.` })
   let attempt = 0
   let lastAttempt = null
   let sessionId = "" // the one persistent conversation; "" until attempt 1 opens it, and again if it cannot be resumed
@@ -6678,11 +6722,19 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
           libraryCount: memory.size,
           abstracted: memory.list({ limit: 1000 }).filter((e) => e.origin === "abstracted" && String(e.savedAt || "") > lastStopIso).map((e) => e.name),
           toolIds,
+          pantograph: allowPantograph && !!pantographUrl,
           episodic: cfg.episodic ? M.episodicBlock(memory, cfg.episodic) : "",
         })
       : controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint)
     // what the agent is really told, for the console and the admin log (the frame sent when the run opens cannot know the memory yet)
-    ctx.emit({ type: "prompt", prompt: `[CONTROL II MEMORY — ${cfg.name} · attempt ${attempt}${resuming ? " · same session" : ""}]\n\n${attemptPrompt}`, model: ctx.model || null, mcpServers: allowedServers.map((s) => ({ name: s.name, url: s.url })) })
+    // The system prompt addendum goes with a new conversation too (it is what the CLI is started with, and a resumed one keeps it).
+    ctx.emit({
+      type: "prompt",
+      kind: resuming ? "followup" : undefined,
+      prompt: `[${memoryHeader} · attempt ${attempt}${resuming ? " · same session" : ""}]\n\n${attemptPrompt}${resuming ? "" : `\n\n=== SYSTEM PROMPT ADDENDUM (added by the harness to the agent's system prompt) ===\n${M.SYSTEM_RULE}\n\n${NO_LOCAL_LEAN_NOTE}`}`,
+      model: ctx.model || null,
+      mcpServers: allowedServers.map((s) => ({ name: s.name, url: s.url })),
+    })
     const session = (prompt, resumeSessionId) =>
       spawnProverStream(
       {
@@ -6701,6 +6753,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         metrics: ctx.metrics,
         signal: ctx.signal,
         searchBudget: ctx.searchBudget,
+        systemAppend: M.SYSTEM_RULE,
         bridgeHandlers: handlers.size ? handlers : undefined,
         bridgeServerName: handlers.size ? "memory" : undefined,
         searchAugment: augment,
@@ -6740,7 +6793,9 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       memory.stats.nudges++
       const elapsed = Date.now() - t0
       ctx.emit({ type: "message-annotation", subtype: "status", thought: `↩️ The agent stopped after ${Math.max(1, Math.round(elapsed / 60000))} minute(s) with no verified proof: reminding it in the same conversation (${nudges} of ${maxNudges}).` })
-      r = await session(M.nudgePrompt({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges }), r.sessionId)
+      const nudgeText = M.nudgePrompt({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl })
+      ctx.emit({ type: "prompt", kind: "followup", prompt: `[${memoryHeader} · reminder ${nudges} of ${maxNudges} · same session]\n\n${nudgeText}`, model: ctx.model || null })
+      r = await session(nudgeText, r.sessionId)
     }
     // The session goes on only if it can be resumed. A resume the CLI refused (no conversation under that id: no session id comes back and
     // nothing was said) ends it: the next attempt opens a new conversation. Only then are the jobs it started ended; while the session
@@ -12624,7 +12679,9 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
       if (text) {
         streamLog.push({ seq: ++streamSeq, t: metrics.time_elapsed, text, mech: String(obj?.watcher || "").startsWith("mechanic") })
         if (streamLog.length > 600) streamLog.shift()
-        runLog?.line(metrics.time_elapsed, text)
+        // The record on disk says what the agent was actually told: the whole prompt, not "a prompt was captured".
+        const full = obj?.type === "prompt" && typeof obj.prompt === "string" ? obj.prompt : ""
+        runLog?.line(metrics.time_elapsed, full ? `PROMPT TO THE AGENT${obj.kind === "followup" ? " (follow-up)" : ""} — ${full.length > 120000 ? `${full.slice(0, 120000)}\n…[+${full.length - 120000} chars]` : full}` : text)
       }
     } catch {}
     send({ ...obj, metrics })

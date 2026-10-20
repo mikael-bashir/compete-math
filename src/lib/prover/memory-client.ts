@@ -32,6 +32,11 @@ export const MEMORY_VARIANTS: MemoryVariant[] = [
   { key: 'control-flint', label: 'Control II Flint', blurb: 'no tool: the most recent verified theorems are replayed into each fresh attempt' },
   { key: 'control-paragon', label: 'Control II Paragon', blurb: 'the library is also folded into the search results the agent already reads' },
   { key: 'control-lucid', label: 'Control II Lucid', blurb: 'Honoured, plus an hourly pass that merges the library into fewer, more general lemmas' },
+  // The same four with Leak II (Pantograph) added to the agent's tools, as Control IV is Control II plus Leak II.
+  { key: 'control-honoured-iv', label: 'Control IV Honoured', blurb: 'Honoured, plus Leak II: the agent can step a goal one tactic at a time' },
+  { key: 'control-flint-iv', label: 'Control IV Flint', blurb: 'Flint, plus Leak II: the agent can step a goal one tactic at a time' },
+  { key: 'control-paragon-iv', label: 'Control IV Paragon', blurb: 'Paragon, plus Leak II: the agent can step a goal one tactic at a time' },
+  { key: 'control-lucid-iv', label: 'Control IV Lucid', blurb: 'Lucid, plus Leak II: the agent can step a goal one tactic at a time' },
 ];
 
 export const isMemoryStrategy = (s: string) => MEMORY_VARIANTS.some((v) => v.key === s);
