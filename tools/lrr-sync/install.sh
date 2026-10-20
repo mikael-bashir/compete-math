@@ -45,7 +45,7 @@ esac
 command -v node >/dev/null 2>&1 || { echo "node is not on PATH" >&2; exit 1; }
 command -v git >/dev/null 2>&1 || { echo "git is not on PATH" >&2; exit 1; }
 [ -f "$KEY" ] || { echo "no deploy key at $KEY (see tools/lrr-sync/README.md)" >&2; exit 1; }
-PERM="$(stat -f %Lp "$KEY" 2>/dev/null || stat -c %a "$KEY")"
+PERM="$(stat -c %a "$KEY" 2>/dev/null || stat -f %Lp "$KEY")" # GNU first: on Linux, BSD-style -f means something else and still exits 0
 [ "$PERM" = 600 ] || [ "$PERM" = 400 ] || { echo "$KEY must be readable by you only (chmod 600 $KEY)" >&2; exit 1; }
 
 mkdir -p "$DEST" "$RUNS" "$HOME_DIR/Library/LaunchAgents"
