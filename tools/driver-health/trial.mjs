@@ -51,7 +51,20 @@ const mcpServers = [
 const runsDir = path.join(os.homedir(), ".leak-runs")
 const trialsDir = path.join(runsDir, ".trials")
 fs.mkdirSync(trialsDir, { recursive: true })
-const PORT = 4700 + Math.floor(Math.random() * 100)
+// a free port in 4700-4799 (trials run side by side: a port another trial's bridge holds is skipped)
+const PORT = await (async () => {
+  const net = await import("node:net")
+  for (let i = 0; i < 50; i++) {
+    const p = 4700 + Math.floor(Math.random() * 100)
+    const free = await new Promise((r) => {
+      const srv = net.createServer()
+      srv.once("error", () => r(false))
+      srv.listen(p, "127.0.0.1", () => srv.close(() => r(true)))
+    })
+    if (free) return p
+  }
+  throw new Error("no free port in 4700-4799")
+})()
 const token = randomBytes(12).toString("hex")
 const startedAt = new Date()
 const stamp = startedAt.toISOString().replace(/[:.]/g, "-")

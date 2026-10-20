@@ -19,7 +19,7 @@ const RE = {
   poll: /\bsleep\s+\d+|\buntil\s+\[|\bwhile\s+\[|for\s+\w+\s+in\s+\$\(seq|\bwait\b.*\$!/,
   background: /\bnohup\b|&\s*(;|$|\))|run_in_background/,
   sweep: /\bseq\s+\d{5,}|range\(\s*\d{6,}|\b\d{9,}\b|for\s*\(\s*\w+\s*=\s*\d+.*<\s*\d{6,}/,
-  instanceName: /_k\d+$|witness|_n\d+$/i,
+  instanceName: /_k\d+$|_n\d+$/i, // a name alone rarely says it; the statement does
 }
 const LEMMA_HEAD = /^(?:open\s+\S+\s+in\s*\n)?\s*(?:@\[[^\]]*\]\s*)?(?:private\s+|protected\s+|noncomputable\s+)?(theorem|lemma)\s+([^\s(:]+)([\s\S]*?):=/m
 
