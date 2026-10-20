@@ -5,6 +5,7 @@
 import type { ReplayRun, UniverseEvent, UniverseLib, UniverseMeta } from './types';
 import { NameIndex } from './names';
 import { LiveInterpreter, type ProverEventLike, type UniverseSink, type Vec3 } from './events';
+import { STAR_FLUX_EXPONENT, emptySky, fadeOf, libRadius, linkBrightness, pairKey, seedGain, strongestLinks } from './lighting';
 
 export interface UniverseData {
   meta: UniverseMeta;
@@ -37,6 +38,8 @@ const COL: Record<string, Rgb> = {
   gold: [1.0, 0.86, 0.5],
   memory: [0.72, 0.55, 1.0], // violet: the memory's own colour, nothing else in the sky is this
   memhot: [0.95, 0.9, 1.0],
+  driver: [0.12, 0.72, 1.0], // ice: the driver, and nothing else
+  driverHot: [0.5, 0.92, 1.0],
 };
 
 const CSS = `
@@ -52,7 +55,7 @@ const CSS = `
 .tku .tku-right{margin-left:auto;text-align:right;color:var(--dim);font-size:10px;line-height:1.5;font-variant-numeric:tabular-nums;max-width:100%;overflow-wrap:anywhere}
 .tku b{color:#fff4dc;font-weight:600}
 .tku .tku-bottom{display:flex;flex-direction:column;align-items:center;gap:6px;padding:0 14px}
-.tku .tku-ticker{font-size:10.5px;color:var(--dim);text-align:center;max-width:min(720px,100%);overflow-wrap:anywhere;min-height:14px}
+.tku .tku-ticker{font-size:10.5px;color:#cfc8b2;text-align:center;max-width:min(720px,100%);overflow-wrap:anywhere;min-height:14px}.tku .tku-ticker:not(:empty){padding:3px 11px;background:rgba(6,7,10,.62);border-radius:999px;backdrop-filter:blur(6px);text-shadow:none}
 .tku .tku-bar{pointer-events:auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px;padding:5px 7px;max-width:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;backdrop-filter:blur(10px)}
 .tku .tku-bar button,.tku .tku-bar select{box-sizing:border-box;height:22px;padding:0 8px;margin:0;background:rgba(255,255,255,.04);color:#e9e2cc;border:1px solid var(--line);border-radius:5px;font:inherit;font-size:10.5px;line-height:20px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .tku .tku-bar select{padding-right:18px;max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'><path d='M1 1l3 3 3-3' fill='none' stroke='%23a39c86' stroke-width='1.2'/></svg>");background-repeat:no-repeat;background-position:right 6px center}
@@ -75,27 +78,39 @@ const FLOW_GLSL = `vec3 flow(vec3 p, float h, float h2, float t){ return 0.0042*
 
 const STAR_VS = `#version 300 es
 precision highp float; precision highp int;
-in vec3 a_pos; in uint a_lib;
-uniform mat4 u_vp; uniform float u_scale, u_time, u_psize, u_dim, u_gain; uniform sampler2D u_pal;
+in vec3 a_pos; in uint a_lib; in float a_heat;
+uniform mat4 u_vp; uniform float u_scale, u_time, u_psize, u_dim, u_gain, u_flow, u_tintMix, u_big; uniform vec3 u_tint; uniform sampler2D u_pal;
 out vec4 v_col; out float v_big;
 ${HASH_GLSL}
 ${FLOW_GLSL}
 void main(){
   uint id = uint(gl_VertexID); float h = hash(id), h2 = hash(id*747796405u+2891336453u), h3 = hash(id*2246822519u+3266489917u);
-  vec3 p = a_pos*u_scale; p += flow(p,h,h2,u_time);
+  vec3 p = a_pos*u_scale; p += flow(p,h,h2,u_time)*u_flow;
   gl_Position = u_vp*vec4(p,1.0);
   uint lib = a_lib & 0x7FFFu;
   vec3 hue = texelFetch(u_pal, ivec2(int(lib)&255, int(lib)>>8), 0).rgb;
   float tw = 0.72 + 0.28*sin(u_time*(0.6+h*1.4)+h2*40.0);
   // the landing page's warm spectrum - cream, amber, orange, ember - hashed per star, then tinted by its galaxy
   vec3 warm = mix(mix(vec3(1.0,0.95,0.80), vec3(1.0,0.80,0.55), smoothstep(0.25,0.55,h3)), mix(vec3(1.0,0.62,0.30), vec3(0.95,0.42,0.22), smoothstep(0.9,1.0,h3)), smoothstep(0.62,0.9,h3));
-  vec3 col = mix(warm, hue, 0.45);
+  // the driver's own library is drawn with this same shader, tinted violet, so it is lit and sized exactly like a galaxy
+  vec3 col = mix(mix(warm, hue, 0.62), u_tint, u_tintMix);
+  // heat: a star the run has searched for or built on keeps a warmer, brighter light; the more it was used, the more so (and it never floods:
+  // the heat saturates, and it is the star itself that shines, not a line drawn over it)
+  float ht = 1.6*(1.0-exp(-a_heat/1.2));
+  // warmth ramps cream -> gold -> rose rather than toward white, so a heavily used star gains colour as it gains light
+  float wm = clamp(ht/1.6, 0.0, 1.0);
+  col = mix(col, mix(vec3(1.0,0.86,0.52), vec3(1.0,0.52,0.5), smoothstep(0.45, 1.0, wm)), min(1.0, ht)*0.65);
   // one star in sixty-odd is a bright one: a hot cream core, a halo and a diffraction cross
-  float big = step(0.985, h);
+  float big = max(step(1.0-u_big, h), step(1.35, ht));
   v_big = big;
-  v_col = vec4(col*tw, u_gain*(0.55+h2*0.9)*u_dim*(1.0+big*1.5));
   float d = max(gl_Position.w, 0.05);
-  gl_PointSize = big > 0.5 ? clamp(u_psize*(2.4+h2*1.8)/d, 4.0, 11.0) : clamp(u_psize*(0.7+h*0.9)/d, 1.0, 3.4);
+  // a star's light is conserved: drawn smaller than the smallest sprite it keeps that sprite's size but gives only the light of the area it
+  // really covers, so a galaxy seen from twice as far has the same surface brightness and a quarter of the total light, as in the real sky
+  float raw = (big > 0.5 ? u_psize*(2.4+h2*1.8+ht*2.0) : u_psize*(0.7+h*0.9+ht*1.2)) / d;
+  float lo = big > 0.5 ? 4.0 : 1.0;
+  gl_PointSize = clamp(raw, lo, big > 0.5 ? 15.0 : 5.0+ht*2.0);
+  float flux = raw < lo ? pow(raw/lo, ${STAR_FLUX_EXPONENT.toFixed(2)}) : 1.0; // lighting.ts: the light a star keeps below the smallest sprite
+  v_col = vec4(col*tw, flux*u_gain*(0.55+h2*0.9)*(u_dim + ht*(1.0-u_dim)*0.7 + ht*0.9)*(1.0+big*1.5));
 }`;
 const STAR_FS = `#version 300 es
 precision mediump float; in vec4 v_col; in float v_big; out vec4 o;
@@ -140,12 +155,12 @@ float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h21(i),h21(i+vec2(1.0,0.0)),f.x), mix(h21(i+vec2(0.0,1.0)),h21(i+vec2(1.0,1.0)),f.x), f.y); }
 void main(){
   vec3 c = texture(u_tex, v_uv).rgb; float L = dot(c, vec3(0.2126,0.7152,0.0722)) + 1e-5; float k = L*u_exposure; float m = 1.0 - exp(-k);
-  vec3 col = c*(m/L); col = mix(col, vec3(m), smoothstep(1.5,6.0,k)*0.35);
+  vec3 col = c*(m/L); col = mix(col, vec3(m), smoothstep(2.0,8.0,k)*0.2);
   vec2 q = v_uv-0.5; float vig = 1.0 - dot(q,q)*0.55;
   vec2 p = q*vec2(u_aspect,1.0)*1.7 + u_cam*0.75;
   float n = vn(p*1.3)*0.6 + vn(p*2.9+17.0)*0.4;
   float gate = smoothstep(0.42,0.78, vn(p*0.45+3.0));
-  vec3 haze = mix(vec3(0.30,0.09,0.045), vec3(0.85,0.55,0.28), n)*gate*(0.012+0.05*n*n);
+  vec3 haze = mix(vec3(0.30,0.09,0.045), vec3(0.85,0.55,0.28), n)*gate*(0.002+0.009*n*n);
   o = vec4(pow(col, vec3(0.92)) + (vec3(0.022,0.024,0.014)+haze)*vig, 1.0); }`;
 const LINE_VS = `#version 300 es
 precision highp float; in vec3 a_pos; in vec4 a_col; uniform mat4 u_vp; out vec4 v_col;
@@ -259,6 +274,26 @@ export class Universe implements UniverseSink {
   private readonly gpuPending: WebGLQuery[] = [];
   private simT = 0;
   private libLabelAlpha = new Map<string, number>();
+  // the heat of every star (how much it has been searched for and built on, fading with age), and where the run's home is
+  private readonly heat: Float32Array;
+  private readonly bufHeat: WebGLBuffer;
+  private heatAt = -1e9;
+  private heatUploadAt = -2e9;
+  private home: Vec3 | null = null;
+  // the backbone: every link between two lemmas the compiler has ever accepted together, weighted by how often; only the strongest are
+  // drawn, so it can grow for ever and stay as dense as a nebula, never more
+  private web: { a: number; b: number; w: number }[] = [];
+  // the library's seeds, drawn as stars: positions, the galaxy each leans on, and a heat (general lemmas burn hotter)
+  private readonly vaoSeeds: WebGLVertexArrayObject;
+  private readonly bufSeedPos: WebGLBuffer;
+  private readonly bufSeedLib: WebGLBuffer;
+  private readonly bufSeedHeat: WebGLBuffer;
+  private seedCap = 0;
+  private seedN = 0;
+  private libN = 0;
+  private seedGain = 0.42;
+  private seedKey = '';
+  private carried: Ev[] = [];
 
   // hud
   private readonly el: Record<string, HTMLElement> = {};
@@ -319,6 +354,15 @@ export class Universe implements UniverseSink {
     loc = gl.getAttribLocation(this.progStar, 'a_lib');
     gl.enableVertexAttribArray(loc);
     gl.vertexAttribIPointer(loc, 1, gl.UNSIGNED_SHORT, 2, 0);
+    this.heat = new Float32Array(this.N);
+    this.bufHeat = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufHeat);
+    gl.bufferData(gl.ARRAY_BUFFER, this.heat, gl.DYNAMIC_DRAW);
+    loc = gl.getAttribLocation(this.progStar, 'a_heat');
+    if (loc >= 0) {
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, 4, 0);
+    }
 
     const pal = new Uint8Array(512 * 3);
     data.meta.libs.forEach((l, i) => {
@@ -333,6 +377,26 @@ export class Universe implements UniverseSink {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, 256, 2, 0, gl.RGB, gl.UNSIGNED_BYTE, pal);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+    this.vaoSeeds = gl.createVertexArray()!;
+    gl.bindVertexArray(this.vaoSeeds);
+    this.bufSeedPos = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufSeedPos);
+    loc = gl.getAttribLocation(this.progStar, 'a_pos');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 12, 0);
+    this.bufSeedLib = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufSeedLib);
+    loc = gl.getAttribLocation(this.progStar, 'a_lib');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribIPointer(loc, 1, gl.UNSIGNED_SHORT, 2, 0);
+    this.bufSeedHeat = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufSeedHeat);
+    loc = gl.getAttribLocation(this.progStar, 'a_heat');
+    if (loc >= 0) {
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, 4, 0);
+    }
 
     this.vaoGlow = gl.createVertexArray()!;
     gl.bindVertexArray(this.vaoGlow);
@@ -380,10 +444,10 @@ export class Universe implements UniverseSink {
   }
 
   /** The memory of a Control II variant changed or was loaded (live runs only). */
-  pushMemory(op: 'save' | 'update' | 'load' | 'stats', size?: number): void {
+  pushMemory(op: 'save' | 'update' | 'load' | 'stats', size?: number, entry?: { name: string; closure: string }): void {
     this.memUsed = true;
     if (op === 'save' && size === undefined) this.memSize++;
-    this.interp?.memory(op, size);
+    this.interp?.memory(op, size, entry);
     if (size !== undefined) this.memSize = size;
   }
 
@@ -394,7 +458,10 @@ export class Universe implements UniverseSink {
 
   /** Forget the previous live run (call when a new one starts). */
   resetLive(): void {
+    this.interp?.forgetSaves();
     this.evs = [];
+    this.home = null;
+    this.heatAt = -1e9;
     this.liveFinal = null;
     this.memSize = 0;
     this.memUsed = false;
@@ -446,6 +513,8 @@ export class Universe implements UniverseSink {
     e.dres = this.T;
     e.te = this.T;
     e.focus = this.centroid(e.hits ?? e.used ?? []);
+    if (!this.home && e.focus) this.home = this.emptySky(e.focus);
+    this.heatAt = -1e9;
   }
   starAt(i: number): Vec3 {
     return this.basePos(i);
@@ -504,6 +573,11 @@ export class Universe implements UniverseSink {
     out[2] = z + k * Math.sin(x * 9 + t * 0.21 + (h + h2) * 3.1);
     return out;
   }
+  // where the library lives: the emptiest patch of sky near where the run began, so it is a thing of its own and not laid over a galaxy
+  // or over the driver
+  private emptySky(p: Vec3): Vec3 {
+    return emptySky(p, this.data.meta.libs);
+  }
   private centroid(ids: number[]): Vec3 | null {
     if (!ids.length) return null;
     const c: Vec3 = [0, 0, 0];
@@ -542,23 +616,33 @@ export class Universe implements UniverseSink {
     return e;
   }
 
-  private loadRun(i: number): void {
+  private loadRun(i: number, keepT = -1): void {
     const run = this.data.replays[i];
     if (!run) return;
     this.run = run;
     let t = 1;
-    this.evs = run.events.map((raw, k) => {
+    const own: Ev[] = run.events.map((raw, k) => {
       if (k) t += Math.min(3.5, Math.max(0.5, raw.t - run.events[k - 1].t));
       const span = Math.min(3, Math.max(0.8, (raw.te ?? raw.t) - raw.t));
-      const e: Ev = { ...raw, ds: t, dres: t + span };
+      const e: Ev = { ...(raw as Ev), ds: t, dres: t + span };
       e.focus = this.centroid(e.hits ?? e.used ?? []);
       e.chain = e.used && e.used.length > 1 ? this.chainOf(e.used.slice(0, 18)) : [];
       return e;
     });
-    this.dur = (this.evs.length ? this.evs[this.evs.length - 1].ds : 0) + 6;
-    this.T = 0;
-    this.probe = [0, 0, 0];
-    (this.el.seek as HTMLInputElement).value = '0';
+    const span = (own.length ? own[own.length - 1].ds : 0) + 6;
+    this.evs = own;
+    this.dur = span;
+    this.home = null;
+    for (const e of own) {
+      if (e.focus) {
+        this.home = this.emptySky(e.focus);
+        break;
+      }
+    }
+    this.T = keepT >= 0 ? keepT : 0;
+    this.heatAt = -1e9;
+    this.probe = this.home ?? [0, 0, 0];
+    (this.el.seek as HTMLInputElement).value = String((this.T / this.dur) * 1000);
   }
 
   // ---------- HUD ----------
@@ -569,7 +653,7 @@ export class Universe implements UniverseSink {
           <div class="tku-title" data-k="title">Tengoku universe<span class="tku-live">● live<span class="tku-clock" data-k="clock"></span></span></div>
           <div class="tku-right">
             <div data-k="stats"><b data-k="search">0</b> searches · <b data-k="ok">0</b> ✅ <b data-k="fail">0</b> ❌ · <b data-k="lem">0</b> lemmas<span data-k="memwrap" style="display:none"> · <b data-k="mem" style="color:#cdb4ff">0</b> remembered</span></div>
-            <div data-k="perf" aria-label="Performance"></div>
+            <div data-k="perf" aria-label="Performance" hidden></div>
           </div>
         </div>
         <div class="tku-bottom">
@@ -821,7 +905,7 @@ export class Universe implements UniverseSink {
     d[o + 6] = a;
   }
   // a hairline that sways like weed in a current, drawn three times for a soft glow, with a pulse of light travelling along it
-  private curve(A: Vec3, B: Vec3, seed: number, t: number, c: Rgb, a: number, pulse: number, segs = 14, sway = 0.16): void {
+  private curve(A: Vec3, B: Vec3, seed: number, t: number, c: Rgb, a: number, pulse: number, segs = 14, sway = 0.16, strands = 3): void {
     if (this.nl + segs * 6 + 6 >= MAXL) return;
     const dx = B[0] - A[0];
     const dy = B[1] - A[1];
@@ -830,7 +914,7 @@ export class Universe implements UniverseSink {
     const px = -dy / len;
     const py = dx / len;
     const amp = len * sway * Math.sin(t * 0.55 + seed * 6.28);
-    for (const [side, fade] of [[0, 1], [0.0011, 0.38], [-0.0011, 0.38]] as const) {
+    for (const [side, fade] of (strands === 1 ? [[0, 1]] : [[0, 1], [0.0011, 0.38], [-0.0011, 0.38]]) as readonly (readonly [number, number])[]) {
       let prev: Vec3 | null = null;
       let pa = 0;
       for (let s = 0; s <= segs; s++) {
@@ -882,7 +966,30 @@ export class Universe implements UniverseSink {
     const fin = fa >= 0;
     const finGlow = fin ? Math.min(1, fa / 1.5) : 0;
     const okIds = new Set<number>();
+    const trail: { p: Vec3; t: number }[] = [];
+    const saves: Ev[] = [];
+    // heat: recomputed from the events now and then (it is a function of T, so scrubbing works), uploaded in frame()
+    const reheat = Math.abs(T - this.heatAt) > 0.5;
+    const webMap = new Map<number, number>();
+    // light fades with age (lighting.ts), so what happened a moment ago burns bright and the sky stays readable however long the run
+    const warm = (e: Ev, age: number): void => {
+      const w = fadeOf(age);
+      if (e.hits) for (let k = 0; k < e.hits.length; k++) this.heat[e.hits[k]] += 0.22 * (1 - k / Math.max(1, e.hits.length)) * w;
+      if (e.k === 'compile' && e.ok) {
+        if (e.used) for (const id of e.used) this.heat[id] += 0.7 * w;
+        if (e.chain)
+          for (const [a1, b1] of e.chain) {
+            const key = pairKey(a1, b1);
+            webMap.set(key, (webMap.get(key) ?? 0) + w);
+          }
+      }
+    };
+    if (reheat) {
+      this.heat.fill(0);
+      this.heatAt = T;
+    }
 
+    if (this.evs[0]?.focus) pr = [...(this.evs[0].focus as Vec3)] as Vec3;
     for (let i = 0; i < this.evs.length; i++) {
       const e = this.evs[i];
       if (e.ds > T) break;
@@ -900,6 +1007,9 @@ export class Universe implements UniverseSink {
         else if (e.k === 'compile' && e.ok) ok++;
         else if (e.k === 'compile') fail++;
       }
+      if (e.k === 'save') saves.push(e);
+      if (reheat && resolved) warm(e, age);
+      if (e.focus && resolved && res > T - 150) trail.push({ p: e.focus, t: res });
       const base = e.k === 'compile' ? COL.pend : e.k === 'recall' || e.k === 'save' ? COL.memory : COL[e.k];
       const label =
         e.k === 'recall'
@@ -928,37 +1038,30 @@ export class Universe implements UniverseSink {
       }
 
       if (e.k === 'recall' || e.k === 'save') {
-        // the memory, in violet: a recall sends rings out from the orb and circles the best matches round it; a save opens a bright knot
-        const hold = e.k === 'recall' ? 5.5 : 3;
-        if (!resolved || age < hold) {
-          const fade = resolved ? Math.max(0, 1 - age / hold) : 1;
+        // the library lives at home: a recall is a violet pulse that runs from home to the driver and circles what came back round it;
+        // a save is a spark that leaves the driver for home (where the new theorem appears, drawn with the library below)
+        const hold = e.k === 'recall' ? 4 : 1.6;
+        if (resolved && age < hold && this.home) {
+          const fade = Math.max(0, 1 - age / hold);
           const o: Vec3 = [pr[0], pr[1], pr[2]];
-          if (e.k === 'recall') {
-            if (!resolved) this.G(o, COL.memory, 0.5 + 0.4 * Math.sin(flight * 7), 18);
-            else {
-              // a miss is one faint ring; a hit is three bright ones, a flaring core, and the matches circling it
-              const hit = (e.n ?? 0) > 0;
-              const gain = hit ? 1 : 0.3;
-              for (let r = 0; r < (hit ? 3 : 1); r++) {
-                const pt = age - r * 0.32;
-                if (pt > 0 && pt < 1.7) this.G(o, COL.memory, (1 - pt / 1.7) * 0.85 * fade * gain, 1000 + 12 + 62 * (pt / 1.7));
-              }
-              this.G(o, COL.memory, fade * 0.9 * gain * (0.8 + 0.2 * Math.sin(simT * 6)), 26 + 10 * Math.exp(-age * 1.4));
-              this.G(o, COL.memhot, fade * 0.8 * gain, 9);
-              const sat = Math.min(e.n ?? 0, 8);
-              for (let k = 0; k < sat; k++) {
-                const th = simT * (1.1 + 0.12 * k) + k * 2.4;
-                const rad = 0.034 + 0.007 * k;
-                this.G([o[0] + Math.cos(th) * rad, o[1] + Math.sin(th) * rad * 0.8, o[2]], COL.memory, fade * 0.9, 6);
-              }
+          const H = this.home;
+          const u = e.k === 'recall' ? Math.min(1, age / 0.9) : 1 - Math.min(1, age / 1.2);
+          const at: Vec3 = [H[0] + (o[0] - H[0]) * u, H[1] + (o[1] - H[1]) * u, H[2] + (o[2] - H[2]) * u];
+          this.curve(H, o, hash32(i * 977), simT, COL.memory, 0.35 * fade, 2.5, 18, 0.05);
+          this.G(at, COL.memhot, 0.9 * fade, 7);
+          this.G(at, COL.memory, 0.6 * fade, 16);
+          if (e.k === 'recall' && (e.n ?? 0) > 0 && u >= 1) {
+            const sat = Math.min(e.n ?? 0, 8);
+            for (let k = 0; k < sat; k++) {
+              const th = simT * (1.1 + 0.12 * k) + k * 2.4;
+              const rad = 0.03 + 0.006 * k;
+              this.G([o[0] + Math.cos(th) * rad, o[1] + Math.sin(th) * rad * 0.8, o[2]], COL.memory, fade * 0.8, 5);
             }
-          } else {
-            this.G(o, COL.memhot, Math.exp(-age * 1.6) * 0.9, 12 + 20 * Math.exp(-age * 2));
-            if (age < 1.4) this.G(o, COL.memory, (1 - age / 1.4) * 0.8, 1000 + 10 + 40 * (age / 1.4));
           }
         }
         continue;
       }
+
       const ids = e.hits ?? e.used ?? [];
       const n = Math.max(1, ids.length);
       const hold = e.k === 'compile' ? 4.5 : 7;
@@ -1001,17 +1104,7 @@ export class Universe implements UniverseSink {
             this.G(tmp, resColor, 0.9 * fade, 11);
           }
         }
-        if (isSearch) {
-          // feelers: arms that wander out of the glow while a search is under way, and keep reaching for a moment after
-          const feel = !resolved ? 1 : fade;
-          for (let q = 0; q < 6; q++) {
-            const th = hash32(i * 17 + q) * 6.283 + simT * (0.4 + q * 0.07);
-            const ph2 = hash32(i * 29 + q) * 6.283;
-            const reach = 0.07 + 0.09 * (0.5 + 0.5 * Math.sin(simT * 1.7 + ph2));
-            const tip: Vec3 = [origin[0] + Math.cos(th) * reach, origin[1] + Math.sin(th * 1.3) * reach * 0.8, origin[2] + Math.sin(th) * reach];
-            this.curve(origin, tip, hash32(i * 53 + q), simT, resColor, 0.65 * feel, 3.6, 14, 0.4);
-          }
-        } else if (e.chain?.length) {
+        if (e.chain?.length) {
           for (const [a1, b1] of e.chain) {
             this.starPos(a1, simT, tmp);
             this.starPos(b1, simT, tmp2);
@@ -1027,9 +1120,10 @@ export class Universe implements UniverseSink {
           }
         }
       }
-      if (e.k === 'compile' && e.ok && resolved) {
-        // a verified step stays: the constellation Leak actually used
-        const settle = Math.min(1, age / 1.5);
+      if (e.k === 'compile' && e.ok && resolved && age < 120) {
+        // a verified step lights the constellation Leak actually used, which stays two minutes and then lets go; its links join the web
+        // and its stars keep their warmth, so the sky remembers without filling up
+        const settle = Math.min(1, age / 1.5) * Math.exp(-Math.max(0, age - 20) / 35);
         for (const [a1, b1] of e.chain ?? []) {
           this.starPos(a1, simT, tmp);
           this.starPos(b1, simT, tmp2);
@@ -1043,6 +1137,22 @@ export class Universe implements UniverseSink {
       }
       if (e.hits && resolved) for (const id of e.hits) touched.add(id);
       if (e.used && e.ok && resolved) for (const id of e.used) touched.add(id);
+    }
+
+    if (reheat) {
+      this.web = strongestLinks(webMap);
+    }
+    if (this.web.length) {
+      // the backbone, drawn thin and warm; a link used again and again is brighter and rosier than one used once. The ink is bounded
+      // (600 links, alpha by the logarithm of use), so the sky gains structure as it grows and never gains glare.
+      for (const l of this.web) {
+        const g = linkBrightness(l.w); // 0 for a link last used long ago, towards 1 for one used again and again, lately
+        this.starPos(l.a, simT, tmp);
+        this.starPos(l.b, simT, tmp2);
+        const col: Rgb = [COL.gold[0], COL.gold[1] * (1 - 0.25 * g), COL.gold[2] * (1 - 0.4 * g) + 0.15 * g];
+        const span = Math.hypot(tmp[0] - tmp2[0], tmp[1] - tmp2[1]);
+        this.curve(tmp, tmp2, hash32(l.a ^ l.b), simT, col, (0.08 + 0.26 * g) / (1 + span * span * 14), 0.8, 8, 0.1, g > 0.55 ? 3 : 1);
+      }
     }
 
     let finR = 0;
@@ -1067,17 +1177,19 @@ export class Universe implements UniverseSink {
     this.probe = pr;
     if (fin) dimTarget = 1; // the whole universe comes up to full light
     const anyActive = dimTarget < 0.8;
-    if (this.memUsed && this.mode === 'live') {
-      // the orb: the memory, breathing behind the driver's attention; it grows with what it holds, and a recall flares it
-      const breath = 0.5 + 0.5 * Math.sin(T * 2.1);
-      const grow = 1 + Math.log2(1 + this.memSize);
-      this.G(pr, COL.memory, 0.14 + 0.12 * breath, 9 + 4 * grow + 3 * breath);
-      this.G(pr, COL.memory, 0.3 + 0.2 * breath, 5 + grow);
+    this.drawComet(pr, trail, T, simT);
+    this.drawLibrary(saves, T, simT);
+    if (this.home) {
+      const H = this.home;
+      const libR = libRadius(Math.max(saves.length, this.mode === 'live' ? this.memSize : 0)) + 0.015;
+      const sep = Math.hypot(pr[0] - H[0], pr[1] - H[1]);
+      // the library sits in the lower half of the view, clear of the controls and the ticker
+      this.tgoal = [(pr[0] + H[0]) * 0.5, (pr[1] + H[1]) * 0.5 - 0.09 * this.dist, 0];
+      this.dgoal = Math.min(1.3, Math.max(0.3, Math.max(0.28 + 1.4 * (fin ? Math.max(finR, 0.25) : anyActive ? this.maxR : 0.3), sep * 1.5 + libR * 2.2)));
+    } else {
+      this.tgoal = [pr[0] * 0.9, pr[1] * 0.9, 0];
+      this.dgoal = Math.min(2.6, Math.max(0.3, 0.28 + 1.6 * (fin ? Math.max(finR, 0.25) : anyActive ? this.maxR : 0.5)));
     }
-    this.G(pr, COL.gold, 0.95, 16 + 3 * Math.sin(T * 5));
-    this.G(pr, [1, 1, 1], 0.75, 7);
-    this.tgoal = [pr[0] * 0.9, pr[1] * 0.9, 0];
-    this.dgoal = Math.min(2.6, Math.max(0.3, 0.28 + 1.6 * (fin ? Math.max(finR, 0.25) : anyActive ? this.maxR : 0.5)));
     this.dimTarget = dimTarget;
 
     const set = (k: string, v: string): void => {
@@ -1097,6 +1209,182 @@ export class Universe implements UniverseSink {
     (this.el.memwrap as HTMLElement).style.display = this.memUsed && this.mode === 'live' ? '' : 'none';
     set('mem', String(this.memSize));
     return anyActive;
+  }
+
+  // ---------- the new views ----------
+  // the driver is a comet: an ice-white head no other thing in the sky shares, a tail along the path its attention took in the last
+  // minutes, and a thin ring that turns. Gold stays the colour of what it proved, violet of what it remembers.
+  private drawComet(pr: Vec3, trail: { p: Vec3; t: number }[], T: number, simT: number): void {
+    trail.sort((a, b) => a.t - b.t);
+    // the tail is short: only where its attention was in the last half minute, a few points, fading to nothing; it points where it came from
+    const pts = [...trail.filter((x) => T - x.t < 30).slice(-4).map((x) => ({ p: x.p, a: Math.max(0, 1 - (T - x.t) / 30) })), { p: pr, a: 1 }];
+    // a smooth curve through the last few places its attention was (Catmull-Rom), so the tail bends and never kinks
+    for (let q = 1; q < pts.length; q++) {
+      const p0 = pts[Math.max(0, q - 2)].p;
+      const p1 = pts[q - 1].p;
+      const p2 = pts[q].p;
+      const p3 = pts[Math.min(pts.length - 1, q + 1)].p;
+      const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+      const n = Math.min(90, Math.max(2, Math.round(len / 0.0008)));
+      const aa = pts[q - 1].a;
+      const bb = pts[q].a;
+      for (let k = 0; k < n; k++) {
+        const u = k / n;
+        const u2 = u * u;
+        const u3 = u2 * u;
+        const cr = (c: number): number => 0.5 * (2 * p1[c] + (-p0[c] + p2[c]) * u + (2 * p0[c] - 5 * p1[c] + 4 * p2[c] - p3[c]) * u2 + (-p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]) * u3);
+        const al = Math.pow(aa + (bb - aa) * u, 2.5) * 0.12;
+        this.G([cr(0), cr(1), p2[2]], COL.driver, al, 1.6 + 1.6 * u);
+      }
+    }
+    // the head is a reticle, which no star is: a hairline cross, a turning ring, a small hot core, and a second ring that pings every few seconds
+    this.G(pr, COL.driver, 1.2, -80);
+    this.G(pr, COL.driverHot, 0.9, 6);
+    this.G(pr, COL.driver, 1.1, 1000 + 30 + 1.5 * Math.sin(simT * 3));
+    const ping = (simT % 4) / 4;
+    this.G(pr, COL.driver, (1 - ping) * 0.9, 1000 + 30 + 70 * ping);
+    for (let q = 0; q < 4; q++) {
+      const th = simT * 0.9 + (q * Math.PI) / 2;
+      this.G([pr[0] + Math.cos(th) * 0.013, pr[1] + Math.sin(th) * 0.0105, pr[2]], COL.driverHot, 0.8, 3);
+    }
+  }
+
+  // a saved theorem's colour: the memory's violet, warmed by the galaxy its proof leans on
+  private seedColour(e: Ev): Rgb {
+    const st = e.stars?.[0];
+    if (st === undefined) return COL.memory;
+    const lib = this.data.meta.libs[this.data.lib[st] & 0x7fff];
+    if (!lib) return COL.memory;
+    const h = hsv(lib.h, 0.55, 1);
+    return [COL.memory[0] * 0.6 + h[0] * 0.4, COL.memory[1] * 0.6 + h[1] * 0.4, COL.memory[2] * 0.6 + h[2] * 0.4];
+  }
+
+  // the library: every theorem the run has saved, as a small galaxy of its own at the run's home (in the emptiest sky nearby).
+  private drawLibrary(saves: Ev[], T: number, simT: number): void {
+    const H = this.home;
+    if (!H) return;
+    // a library carried over from earlier sessions (live mode knows only how many theorems it holds) is drawn as that many plain seeds
+    const carried = this.mode === 'live' ? Math.max(0, this.memSize - saves.length) : 0;
+    if (carried !== this.carried.length) this.carried = Array.from({ length: carried }, (_, k) => ({ k: 'save', t: 0, ds: -1e9, dres: -1e9, name: `carried ${k}`, deps: [], stars: [] }) as Ev);
+    const shown = carried ? this.carried.concat(saves.filter((e) => e.ds <= T)) : saves.filter((e) => e.ds <= T);
+    if (!shown.length) {
+      // no library yet: nothing to draw, and nothing to name
+      this.libN = 0;
+      this.seedN = 0;
+      this.seedKey = '';
+      return;
+    }
+    {
+      // a sunflower: theorem k sits at radius a·√k and angle k·137.5°, so the library is always evenly packed, grows as the square root
+      // of its size, and shows the Fibonacci spirals as it fills. Older in the middle, newest at the rim. Each seed takes a little of the
+      // colour of the galaxy it leans on, so what the library is about reads as colour; what it builds on reads as filaments, which
+      // thin out as the library grows so that the seed head itself stays the picture.
+      const N = shown.length;
+      this.libN = N;
+      // each seed adds less light as the library grows, so a library of thousands is a luminous cloud with texture, never a solid ball
+      this.seedGain = seedGain(N);
+      const pos: Vec3[] = [];
+      // the disc grows as the square root of the library until it is as big as a medium galaxy, then packs tighter, so it can grow for ever
+      const Rtarget = libRadius(N);
+      const a = Rtarget / Math.sqrt(Math.max(1, N));
+      const GA = 2.399963;
+      // the seeds are drawn by the star shader (one pixel at a distance, the same tone map), so the seed head is lit like a galaxy and
+      // cannot burn out; glows are kept for what is happening now (a seed being born) and for the heart
+      const norm = Math.min(1, Math.sqrt(40 / Math.max(40, N)));
+      for (let k = 0; k < N; k++) {
+        // dense and bright at the heart, thinning to nothing at the edge (no rim): the radius is bent inward by x^1.6
+        const Rm = a * Math.sqrt(N + 0.5);
+        const x = a * Math.sqrt(k + 0.5) / Rm;
+        const jit = (Rm / Math.sqrt(N + 1)) * (0.35 + 1.4 * Math.pow(x, 0.6)) * (1 + 6 * Math.max(0, x - 0.55) * Math.max(0, x - 0.55) * 4); // the rim scatters into a soft fringe
+        const rho = Math.max(0, Rm * Math.pow(x, 2.0) + (hash32(k * 3 + 1) - 0.5) * 2 * jit);
+        const ang = k * GA + (hash32(k * 5 + 2) - 0.5) * (jit / Math.max(rho, jit)) * 1.2;
+        pos[k] = [H[0] + Math.cos(ang) * rho, H[1] + Math.sin(ang) * rho * 0.86, H[2]];
+      }
+      // general lemmas burn hotter; in a small library they are its bright stars, in a large one the heat is spread thinner
+      const key = `${N}:${H[0]},${H[1]}`;
+      if (key !== this.seedKey) {
+        this.seedKey = key;
+        this.uploadSeeds(shown, pos);
+      }
+      const depAlpha = 0.26 * Math.min(1, 80 / Math.max(1, N));
+      for (let k = 0; k < N; k++) {
+        const e = shown[k];
+        const p = pos[k];
+        const age = T - e.ds;
+        if (age < 1.5) {
+          this.G(p, COL.memhot, (1 - age / 1.5) * 0.9, 1000 + 7 + 20 * (age / 1.5));
+          this.G(p, COL.memhot, (1 - age / 1.5) * 0.8, 6);
+        }
+        if (depAlpha > 0.02)
+          for (const d of e.deps ?? []) {
+            const q = pos[d];
+            if (q) this.curve(q, p, hash32(k * 31 + d), simT, this.seedColour(e), depAlpha, 1.2, 8, 0.05);
+          }
+      }
+      // roots: one thread from the library to each galaxy it leans on, brighter the more of its theorems lean there. At most one per
+      // galaxy, so it stays readable however large the library gets
+      const lean = new Map<number, number>();
+      for (const e of shown) {
+        const st = e.stars?.[0];
+        if (st === undefined) continue;
+        const li = this.data.lib[st] & 0x7fff;
+        lean.set(li, (lean.get(li) ?? 0) + 1);
+      }
+      let top = 1;
+      for (const n of lean.values()) top = Math.max(top, n);
+      // only the few strongest, and only where a real share of the library leans: a thread to every galaxy would be a starburst
+      const roots = [...lean].filter(([, n]) => n >= 0.04 * N).sort((x, y) => y[1] - x[1]).slice(0, 6);
+      for (const [li, n] of roots) {
+        const l = this.data.meta.libs[li];
+        if (!l) continue;
+        const g = Math.log1p(n) / Math.log1p(top);
+        this.curve(H, l.c as Vec3, hash32(li * 13 + 5), simT, COL.memory, 0.05 + 0.16 * g, 0.6, 12, 0.12);
+      }
+      // the heart of the library, and a faint rim that marks how far it has grown
+      this.G(H, COL.memory, (0.25 + 0.08 * Math.sin(simT * 1.3)) * norm, 8);
+      this.G(H, COL.memhot, 0.45 * norm, 2.5);
+      // a soft halo behind the whole library, so it reads as one body of light
+      const hp: [number, number, number] = [0, 0, 0];
+      if (this.project(H, hp)) {
+        const pxPerS = (((this.DPR * (this.H / 900) * 2.1 * 0.97) / this.dist) * 7) / hp[2];
+        const rPx = libRadius(N) * (this.H / this.dist);
+        this.G(H, COL.memory, 0.16 * Math.min(1, N / 40), Math.min(84, Math.max(8, 2.2 * rPx)) / pxPerS);
+        this.G(H, COL.memory, 0.26 * Math.min(1, N / 40), Math.min(84, Math.max(6, 0.7 * rPx)) / pxPerS);
+      }
+    }
+  }
+
+  // hands the seed head to the GPU: a position, the galaxy it leans on (for its tint), and a heat per saved theorem
+  private uploadSeeds(shown: Ev[], pos: Vec3[]): void {
+    const gl = this.gl;
+    const N = shown.length;
+    if (N > this.seedCap) {
+      this.seedCap = Math.max(256, N * 2);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.bufSeedPos);
+      gl.bufferData(gl.ARRAY_BUFFER, this.seedCap * 12, gl.DYNAMIC_DRAW);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.bufSeedLib);
+      gl.bufferData(gl.ARRAY_BUFFER, this.seedCap * 2, gl.DYNAMIC_DRAW);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.bufSeedHeat);
+      gl.bufferData(gl.ARRAY_BUFFER, this.seedCap * 4, gl.DYNAMIC_DRAW);
+    }
+    const p = new Float32Array(N * 3);
+    const lib = new Uint16Array(N);
+    const heat = new Float32Array(N);
+    for (let k = 0; k < N; k++) {
+      p[k * 3] = pos[k][0];
+      p[k * 3 + 1] = pos[k][1];
+      p[k * 3 + 2] = pos[k][2];
+      const st = shown[k].stars?.[0];
+      lib[k] = st === undefined ? 0 : this.data.lib[st] & 0x7fff;
+      heat[k] = shown[k].abstract ? 0.3 : 0.1;
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufSeedPos);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufSeedLib);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, lib);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufSeedHeat);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, heat);
+    this.seedN = N;
   }
 
   // ---------- labels: every galaxy gets one, shown when you are close enough to read it; the best results of a search are named and ranked ----------
@@ -1167,10 +1455,14 @@ export class Universe implements UniverseSink {
 
     let best: UniverseLib | null = null;
     let bd = 1e9;
-    ctx.font = `${10 * D}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.font = `${9 * D}px ui-sans-serif, system-ui, sans-serif`;
+    const hp: [number, number, number] = [0, 0, 0];
+    const hasHome = !!this.home && this.libN > 0 && this.project(this.home, hp);
+    const libPx = libRadius(this.libN) * f;
     this.libsBySize.forEach((l, rank) => {
       if (!this.project(l.c, o)) return;
       const [x, y] = o;
+      if (hasHome && Math.hypot(x - hp[0], y - hp[1]) < Math.max(110 * D, libPx * 1.08)) return; // the library has its own name
       const pxR = l.r * f;
       if (x < -50 || y < -20 || x > this.W + 50 || y > this.H + 20) return;
       const d = Math.hypot(x / D - this.mouse.x, y / D - this.mouse.y);
@@ -1179,7 +1471,8 @@ export class Universe implements UniverseSink {
         best = l;
       }
       // the biggest are always named; the rest appear as the camera comes close enough that the galaxy is a readable size
-      const want = rank < 8 ? 1 : Math.max(0, Math.min(1, (pxR / D - 7) / 10));
+      const busy = this.marks.length > 0 ? 0.45 : 1;
+      const want = busy * (rank < 4 ? 0.85 : Math.max(0, Math.min(1, (pxR / D - 22) / 14)));
       const prev = this.libLabelAlpha.get(l.name) ?? 0;
       const a = prev + (want - prev) * 0.15;
       this.libLabelAlpha.set(l.name, a);
@@ -1188,15 +1481,27 @@ export class Universe implements UniverseSink {
       const tw = ctx.measureText(text).width;
       const lx = x + 6 * D;
       const ly = y + 6 * D;
-      if (hits(lx, ly, tw, 12 * D)) return;
-      placed.push([lx, ly, tw, 12 * D]);
-      ctx.globalAlpha = a * 0.9;
+      if (hits(lx - 6 * D, ly - 3 * D, tw + 12 * D, 18 * D)) return;
+      placed.push([lx - 6 * D, ly - 3 * D, tw + 12 * D, 18 * D]);
+      ctx.globalAlpha = a * 0.8;
       ctx.lineWidth = 2.5 * D;
       ctx.strokeStyle = 'rgba(4,5,10,.8)';
       ctx.strokeText(text, lx, ly);
       ctx.fillStyle = '#d7deef';
       ctx.fillText(text, lx, ly);
     });
+    if (hasHome) {
+      const text = 'the driver\u2019s library';
+      ctx.font = `${9.5 * D}px ui-sans-serif, system-ui, sans-serif`;
+      const tw = ctx.measureText(text).width;
+      const R = libRadius(this.libN) * f;
+      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = 2.5 * D;
+      ctx.strokeStyle = 'rgba(4,5,10,.8)';
+      ctx.strokeText(text, hp[0] - tw / 2, hp[1] + Math.min(R, 120 * D) + 6 * D);
+      ctx.fillStyle = '#c6b0ff';
+      ctx.fillText(text, hp[0] - tw / 2, hp[1] + Math.min(R, 120 * D) + 6 * D);
+    }
     ctx.globalAlpha = 1;
     const tip = this.el.tip as HTMLElement;
     const b = best as UniverseLib | null;
@@ -1295,6 +1600,11 @@ export class Universe implements UniverseSink {
     gl.clear(gl.COLOR_BUFFER_BIT);
     const gpuQ = this.beginGpu();
     const ps = (this.DPR * (this.H / 900) * 2.1 * 0.97) / this.dist; // what a perspective camera at this distance drew
+    if (this.heatUploadAt !== this.heatAt) {
+      this.heatUploadAt = this.heatAt;
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.bufHeat);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.heat);
+    }
     gl.useProgram(this.progStar);
     gl.bindVertexArray(this.vaoStars);
     gl.uniformMatrix4fv(this.u(this.progStar, 'u_vp'), false, this.VP);
@@ -1303,11 +1613,27 @@ export class Universe implements UniverseSink {
     gl.uniform1f(this.u(this.progStar, 'u_psize'), ps);
     gl.uniform1f(this.u(this.progStar, 'u_dim'), this.dimNow);
     gl.uniform1f(this.u(this.progStar, 'u_gain'), hdr ? 0.34 : 0.34);
+    gl.uniform1f(this.u(this.progStar, 'u_flow'), 1);
+    gl.uniform1f(this.u(this.progStar, 'u_tintMix'), 0);
+    gl.uniform1f(this.u(this.progStar, 'u_big'), 0.015);
+    gl.uniform3f(this.u(this.progStar, 'u_tint'), COL.memory[0], COL.memory[1], COL.memory[2]);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.palTex);
     gl.uniform1i(this.u(this.progStar, 'u_pal'), 0);
     if (!hdr) gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR); // without a float target, screen blending keeps dense cores from burning out
     gl.drawArrays(gl.POINTS, 0, Math.floor(this.N * this.drawFrac));
+    if (this.seedN) {
+      // the library's seed head, through the same shader: violet, never dimmed, barely drifting so the sunflower holds its pattern
+      gl.bindVertexArray(this.vaoSeeds);
+      gl.uniform1f(this.u(this.progStar, 'u_scale'), 1);
+      gl.uniform1f(this.u(this.progStar, 'u_dim'), 1);
+      gl.uniform1f(this.u(this.progStar, 'u_flow'), 0.08);
+      gl.uniform1f(this.u(this.progStar, 'u_tintMix'), 0.8);
+      gl.uniform1f(this.u(this.progStar, 'u_big'), 0.004);
+      gl.uniform3f(this.u(this.progStar, 'u_tint'), 0.6, 0.38, 1.0);
+      gl.uniform1f(this.u(this.progStar, 'u_gain'), this.seedGain);
+      gl.drawArrays(gl.POINTS, 0, this.seedN);
+    }
     gl.blendFunc(gl.ONE, gl.ONE);
     if (this.nl) {
       gl.useProgram(this.progLine);
@@ -1334,7 +1660,7 @@ export class Universe implements UniverseSink {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, hdr.tex);
       gl.uniform1i(this.u(this.progTone, 'u_tex'), 0);
-      gl.uniform1f(this.u(this.progTone, 'u_exposure'), 2.3);
+      gl.uniform1f(this.u(this.progTone, 'u_exposure'), 1.9);
       gl.uniform1f(this.u(this.progTone, 'u_aspect'), this.W / this.H);
       gl.uniform2f(this.u(this.progTone, 'u_cam'), this.target[0] * 0.5, this.target[1] * 0.5);
       gl.drawArrays(gl.TRIANGLES, 0, 3);

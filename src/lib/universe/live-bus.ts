@@ -4,7 +4,8 @@
 import type { ProverEventLike } from './events';
 
 export type MemoryOp = 'save' | 'update' | 'load' | 'stats';
-export type LiveMessage = { type: 'reset' } | { type: 'end' } | { type: 'event'; event: ProverEventLike } | { type: 'memory'; op: MemoryOp; size?: number };
+export type MemoryEntryLike = { name: string; closure: string };
+export type LiveMessage = { type: 'reset' } | { type: 'end' } | { type: 'event'; event: ProverEventLike } | { type: 'memory'; op: MemoryOp; size?: number; entry?: MemoryEntryLike };
 type Listener = (m: LiveMessage) => void;
 
 const listeners = new Set<Listener>();
@@ -22,8 +23,8 @@ export function publishProverEvent(event: ProverEventLike): void {
 }
 
 /** The memory saved a theorem, was loaded, or reported how many it holds. */
-export function publishMemory(op: MemoryOp, size?: number): void {
-  for (const l of listeners) l({ type: 'memory', op, size });
+export function publishMemory(op: MemoryOp, size?: number, entry?: MemoryEntryLike): void {
+  for (const l of listeners) l({ type: 'memory', op, size, entry });
 }
 
 export function subscribeLive(l: Listener): () => void {

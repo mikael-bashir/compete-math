@@ -152,8 +152,9 @@ export function ProverPlayground() {
         return;
       }
       setMemory((prev) => applyMemoryFrame(prev, frame));
-      // the visualiser's orb: a save is a spark and one more theorem in the orb
-      if (frame.op === 'save' || frame.op === 'update') publishMemory(frame.op);
+      // the visualiser's library: a save is a spark and one more theorem in the library, placed by what it cites
+      if (frame.op === 'save') publishMemory(frame.op, undefined, { name: String((frame.entry as { name?: unknown }).name ?? ''), closure: String((frame.entry as { closure?: unknown }).closure ?? '') });
+      else if (frame.op === 'update') publishMemory(frame.op);
       if (frame.op === 'save' || frame.op === 'update') {
         const e = frame.entry as unknown as MemoryEntry;
         if (e?.id) pendingSave.current.set(e.id, e);

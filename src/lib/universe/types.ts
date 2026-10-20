@@ -48,6 +48,11 @@ export interface UniverseEvent {
   blocked?: boolean;
   /** recall: how many saved theorems came back. */
   n?: number;
+  /** save: the theorem's name, which earlier saves its proof cited (their indices among the saves), the stars it leans on, and whether it is a general lemma (free parameters) and not an instance */
+  name?: string;
+  deps?: number[];
+  stars?: number[];
+  abstract?: boolean;
 }
 
 export interface ReplayRun {
