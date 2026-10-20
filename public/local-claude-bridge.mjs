@@ -22,7 +22,7 @@ import { spawn, execFile, execFileSync } from "node:child_process"
 import { randomBytes, timingSafeEqual, randomUUID, createHash } from "node:crypto"
 import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, appendFileSync, rmSync } from "node:fs"
 import { tmpdir, homedir } from "node:os"
-import { join, basename } from "node:path"
+import { join, basename, isAbsolute } from "node:path"
 
 // --- Resilience: never let a dropped socket take down the whole bridge. -------
 // The relay connection and remote MCP servers (HF Spaces sleep, tunnels reset)
@@ -6618,6 +6618,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   for (const seedScript of seeds) memory.addScript(seedScript, { origin: "seed", silent: true, keepTrivial: true })
   const loaded = memory.size
   const sig = theoremSignature(theorem)
+  ctx.memoryRun = { variant: variantKey, memory, sessionMode: "persistent", attempts: 0, resumes: 0, freshStarts: 0 } // read when the run ends, for its record
   const pantographUrl = resolvePantographUrl(ctx.mcpServers)
   const allowedServers = (ctx.mcpServers || []).filter((s) => s?.url && s.url !== pantographUrl)
   const handlers = M.makeHandlers(memory, variantKey)
@@ -6657,6 +6658,9 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       if (ctx.signal?.aborted || deadlinePassed(ctx)) break
     }
     const resuming = !!sessionId
+    ctx.memoryRun.attempts = attempt
+    if (resuming) ctx.memoryRun.resumes++
+    else ctx.memoryRun.freshStarts++
     if (attempt > 1)
       ctx.emit({
         type: "message-annotation",
@@ -12524,25 +12528,70 @@ function openRunLog(theorem, opts = {}) {
         /* a full or read-only disk must not take the run down */
       }
     }
-    write({ kind: "start", at: started.toISOString(), theorem, strategy: opts.strategy || "", model: opts.model || "", bridge_build: BRIDGE_BUILD })
+    write({ kind: "start", at: started.toISOString(), theorem, strategy: opts.strategy || "", model: opts.model || "", bridge_build: BRIDGE_BUILD, target_id: typeof opts.targetId === "string" ? opts.targetId.slice(0, 80) : "" })
     return {
       file,
       line: (t, text) => write({ kind: "event", t, text }),
-      close: (summary) => {
-        write({ kind: "end", at: new Date().toISOString(), ...summary })
+      // summary: the few fields the index row carries (ok, reason, seconds, cost_usd). detail: what only the end line keeps (the run's
+      // metrics, which target and variant, the session mode) and the sidecar files next to the transcript (the verified proof as .lean,
+      // a memory run's library as .memory.json) that the optional LEAK_RUN_HOOK and tools/lrr-sync read.
+      close: (summary, detail = {}) => {
+        const { proof, memory, ...rest } = detail || {}
+        const sidecars = []
+        try {
+          const base = file.replace(/\.jsonl$/, "")
+          if (typeof proof === "string" && proof.trim()) {
+            writeFileSync(`${base}.lean`, proof.endsWith("\n") ? proof : proof + "\n")
+            sidecars.push(basename(`${base}.lean`))
+          }
+          if (memory && typeof memory === "object") {
+            writeFileSync(`${base}.memory.json`, JSON.stringify(memory))
+            sidecars.push(basename(`${base}.memory.json`))
+          }
+        } catch {
+          /* a sidecar is an extra; the transcript is the record */
+        }
+        write({ kind: "end", at: new Date().toISOString(), ...summary, ...rest, ...(sidecars.length ? { sidecars } : {}) })
         try {
           appendFileSync(
             join(RUN_LOG_DIR, "index.jsonl"),
-            JSON.stringify({ at: started.toISOString(), file: basename(file), theorem: String(theorem || "").slice(0, 200), ...summary }) + "\n",
+            JSON.stringify({ at: started.toISOString(), file: basename(file), theorem: String(theorem || "").slice(0, 200), strategy: opts.strategy || "", model: opts.model || "", ...summary }) + "\n",
           )
         } catch {
           /* index is a convenience; the per-run file is the record */
+        }
+        // LEAK_RUN_HOOK: the path of an executable on this machine, run once with the transcript's path when a run has ended (how the
+        // run records get synced the moment they exist). It is never a shell string, and nothing about it is in this file.
+        const hook = process.env.LEAK_RUN_HOOK
+        if (hook && isAbsolute(hook)) {
+          try {
+            spawn(hook, [file], { detached: true, stdio: "ignore" }).on("error", () => {}).unref()
+          } catch {
+            /* a broken hook must never touch a run */
+          }
         }
       },
     }
   } catch {
     return null
   }
+}
+
+// What a finished run adds to its end line and sidecars, for the run records (see openRunLog): the metrics the run counted, which
+// target it was on, and for a memory variant how its session went and the library it ended with.
+function runEndDetail(ctx, metrics, proof) {
+  const detail = { metrics: { ...metrics }, target_id: ctx?.targetId || "" }
+  if (proof) detail.proof = proof
+  const run = ctx?.memoryRun
+  if (run?.memory) {
+    try {
+      detail.memory_run = { variant: run.variant, session_mode: run.sessionMode, attempts: run.attempts, resumes: run.resumes, fresh_starts: run.freshStarts, stats: { ...run.memory.stats }, size: run.memory.size }
+      detail.memory = { schema: "leak-run-memory/1", variant: run.variant, target_id: ctx.targetId || "", entries: [...run.memory.entries.values()].map((e) => run.memory.publicEntry(e)) }
+    } catch {
+      /* the record is an extra: it never breaks a run */
+    }
+  }
+  return detail
 }
 
 // SSE entrypoint for the decomposition orchestrator. Emits the SAME frame shapes
@@ -12683,7 +12732,7 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
   const verifyUrl = resolveVerifyUrl(mcpServers)
   if (!verifyUrl && style !== "architect") {
     emit({ type: "error", message: "No verify_full_script MCP server is connected — decomposition needs one to gate scaffolds." })
-    runLog?.close({ ok: false, reason: "startup", seconds: metrics.time_elapsed, cost_usd: metrics.cost_usd || 0 })
+    runLog?.close({ ok: false, reason: "startup", seconds: metrics.time_elapsed, cost_usd: metrics.cost_usd || 0 }, runEndDetail(ctx, metrics, ""))
     send({ type: "done", metrics, verified: false, proof: "" })
     res.end()
     return
@@ -12888,7 +12937,7 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
           })
         }
       }
-      runLog?.close({ ok: !!(ok && proof), reason: ok && proof ? "verified" : usageBlocked() ? "usage-limit" : "unverified", seconds: metrics.time_elapsed, cost_usd: metrics.cost_usd || 0 })
+      runLog?.close({ ok: !!(ok && proof), reason: ok && proof ? "verified" : usageBlocked() ? "usage-limit" : "unverified", seconds: metrics.time_elapsed, cost_usd: metrics.cost_usd || 0 }, runEndDetail(ctx, metrics, ok && proof ? proof : ""))
       send({ type: "done", metrics, verified: !!(ok && proof), proof, bankedProof: banked || undefined })
     } catch (e) {
       emit({ type: "error", message: `tree error: ${String(e?.message || e)}` })
@@ -12903,7 +12952,7 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
           subtype: "status",
           thought: `🏦 Run ended without a proof, but the theorem is NOT lost — a verified proof from an earlier run is banked (${banked.strategy}, ${banked.verifiedAt}).`,
         })
-      runLog?.close({ ok: false, reason: usageBlocked() ? "usage-limit" : "error", seconds: metrics.time_elapsed, cost_usd: metrics.cost_usd || 0 })
+      runLog?.close({ ok: false, reason: usageBlocked() ? "usage-limit" : "error", seconds: metrics.time_elapsed, cost_usd: metrics.cost_usd || 0 }, runEndDetail(ctx, metrics, ""))
       send({ type: "done", metrics, verified: false, proof: "", bankedProof: banked || undefined })
     } finally {
       ACTIVE_RUNS.delete(runId)
