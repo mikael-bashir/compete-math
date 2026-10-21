@@ -355,6 +355,31 @@ try {
 }
 const AGENT_CONTAINMENT = _containment ? _containment.containmentMode(process.env.LEAK_AGENT_CONTAINMENT) : "none"
 const AGENT_DENY_READ = _containment ? _containment.extraDenyRead(process.env.LEAK_AGENT_DENY_READ) : []
+
+// The single-agent paths (/prove, /prove-stream, the worker's runProve) are confined the same way. In a confined mode the agent works in a
+// scratch directory of the bridge's own making and a working directory named by the request is ignored (a page must not choose what the agent
+// may write); the web tools are banned as they are for every isolated agent; shell mode is exactly what these paths always did.
+function singleAgentLaunch(mcpServers, workingDirectory) {
+  if (AGENT_CONTAINMENT === "shell") return { ok: true, flags: ["--dangerously-skip-permissions"], extra: [], env: process.env, cwd: workingDirectory || process.cwd(), cleanup() {} }
+  if (!_containment) return { ok: false, error: "leak-containment.mjs is missing next to the bridge: run the setup command on the Leak page again" }
+  const scratch = makeAgentScratch()
+  const plan = _containment.containmentPlan({
+    mode: AGENT_CONTAINMENT,
+    workDir: realpathSync(scratch),
+    serverNames: Object.keys(buildMcpConfig(mcpServers).mcpServers),
+    disallowed: PROVER_DISALLOWED_TOOLS,
+    hookSettings: JSON.parse(NO_LOCAL_LEAN_SETTINGS),
+    denyRead: AGENT_DENY_READ,
+  })
+  return {
+    ok: true,
+    flags: plan.flags,
+    extra: ["--disallowedTools", ...plan.disallowed, "--settings", JSON.stringify(plan.settings), "--append-system-prompt", plan.note],
+    env: { ..._containment.scrubbedEnv(process.env, AGENT_CONTAINMENT), CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" },
+    cwd: scratch,
+    cleanup: () => rmSync(scratch, { recursive: true, force: true }),
+  }
+}
 // Everything an isolated agent starts ends with it. Killing the CLI does not do that: its Bash tool runs each command in a shell that
 // leads a process group of its own, and a `nohup … &` job (or a run_in_background one) is reparented to init when that shell exits, so
 // neither the CLI's process group nor its process tree reaches it — the real CLI showed exactly this: sleeps with parent 1 survived
@@ -2965,23 +2990,32 @@ function runProve(theorem, mcpServers, opts = {}) {
     // servers, dangerously-skip-permissions lets the agent call the MCP tools
     // without prompting (it's the user's own machine + own tools). stream-json
     // (not json) so we can watch each verify_full_script result as it lands.
+    const launch = singleAgentLaunch(mcpServers, opts.workingDirectory)
+    if (!launch.ok) {
+      resolve({ ok: false, verified: false, proof: "", finalText: "", stderr: launch.error, durationMs: 0 })
+      return
+    }
     const args = [
       "-p", provePrompt(theorem, mcpServers),
       "--output-format", "stream-json", "--verbose",
       "--mcp-config", cfgPath,
       "--strict-mcp-config",
-      "--dangerously-skip-permissions",
+      ...launch.flags,
+      ...launch.extra,
     ]
     if (opts.model) args.push("--model", opts.model)
 
     let child
     try {
       child = spawn(CLAUDE_BIN, args, {
-        cwd: opts.workingDirectory || process.cwd(),
+        cwd: launch.cwd,
+        env: launch.env,
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
       })
+      child.once("close", launch.cleanup)
     } catch (e) {
+      launch.cleanup()
       resolve({ ok: false, verified: false, proof: "", finalText: "", stderr: `Failed to launch "${CLAUDE_BIN}": ${e.message}`, durationMs: Date.now() - start })
       return
     }
@@ -3133,11 +3167,18 @@ function proveStreamRun(res, theorem, mcpServers, opts = {}) {
     return
   }
 
+  const launch = singleAgentLaunch(mcpServers, opts.workingDirectory)
+  if (!launch.ok) {
+    res.writeHead(500, { "content-type": "text/event-stream" })
+    res.write(`data: ${JSON.stringify({ type: "error", message: launch.error })}\n\n`)
+    res.end()
+    return
+  }
   const systemPrompt = provePrompt(theorem, mcpServers)
   const args = [
     "-p", systemPrompt,
     "--output-format", "stream-json", "--verbose",
-    "--mcp-config", cfgPath, "--strict-mcp-config", "--dangerously-skip-permissions",
+    "--mcp-config", cfgPath, "--strict-mcp-config", ...launch.flags, ...launch.extra,
   ]
   if (opts.model) args.push("--model", opts.model)
 
@@ -3190,11 +3231,14 @@ function proveStreamRun(res, theorem, mcpServers, opts = {}) {
   let child
   try {
     child = spawn(CLAUDE_BIN, args, {
-      cwd: opts.workingDirectory || process.cwd(),
+      cwd: launch.cwd,
+      env: launch.env,
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
     })
+    child.once("close", launch.cleanup)
   } catch (e) {
+    launch.cleanup()
     send({ type: "error", message: `Failed to launch "${CLAUDE_BIN}": ${e.message}` })
     res.end()
     return
