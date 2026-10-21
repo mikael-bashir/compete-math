@@ -18,6 +18,7 @@ What is saved: every declaration a run verifies on Leak IV that is not trivial (
 ## Where it lives
 
 - `public/leak-memory.mjs`: the pure memory module (splitting, closure, dedupe, BM25 recall, sleep prompt). Next to the bridge; the setup command downloads it.
+- `public/leak-containment.mjs`: how the agent is confined (see `docs/leak-agent-containment.md`). Next to the bridge; the setup command downloads it.
 - `public/local-claude-bridge.mjs`: the four strategies (`control-honoured`, `-flint`, `-paragon`, `-lucid`), `proveControlMemory`, the cost cap, the 48 h clamp.
 - The bridge keeps nothing between runs. The browser sends the account's entries with the run (`options.memory.entries`, at most about 1.2 MB) and persists the `{type:"memory"}` frames the run emits.
 - `src/app/api/leak/memory`, `src/app/lib/data/leak-memory.ts`: table `leak_memory`, one row per (username, target, statement). Every query filters by the signed-in username; the username comes from the session and never from the request, so one account cannot read or write another's memory. Limits: 600 entries per target, 3000 per account, 10 nominated per target.

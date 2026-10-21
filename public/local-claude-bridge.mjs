@@ -339,10 +339,22 @@ const NO_LOCAL_LEAN_SETTINGS = JSON.stringify({
 // memory, read them back as "my earlier notes" in later attempts, and learned to stop at once from them. So an isolated agent gets
 // a scratch directory of its own (removed when the run ends), auto memory off, and no CLAUDE.md files loaded. The local-Lean block
 // stays in its settings.
-const isolatedSettings = () => JSON.stringify({ ...JSON.parse(NO_LOCAL_LEAN_SETTINGS), autoMemoryEnabled: false })
 const shellsFile = (token) => join(HOOK_DIR, `shells-${token}.txt`)
 const blocksFile = (token) => join(HOOK_DIR, `blocks-${token}.txt`)
-const isolatedEnv = (token) => ({ ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", [AGENT_SHELLS_ENV]: shellsFile(token), [AGENT_BLOCKS_ENV]: blocksFile(token) })
+const isolatedEnv = (token) => ({ ...(_containment ? _containment.scrubbedEnv(process.env, AGENT_CONTAINMENT) : process.env), CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", [AGENT_SHELLS_ENV]: shellsFile(token), [AGENT_BLOCKS_ENV]: blocksFile(token) })
+
+// HOW AN ISOLATED AGENT IS CONFINED (LEAK_AGENT_CONTAINMENT = sandbox | restricted | shell). The whole of it is public/leak-containment.mjs, a pure
+// function that returns the CLI flags, settings and the note the agent is told, so a test reads the flags a run would get and
+// containment-selftest.mjs hands the same flags to the real CLI. It sits next to this file; if it is missing, an isolated run refuses to start
+// (an agent must never silently get the unconfined shell).
+let _containment = null
+try {
+  _containment = await import(new URL("./leak-containment.mjs", import.meta.url).href)
+} catch (e) {
+  process.stderr.write(`[containment] leak-containment.mjs not loaded (${String(e?.message || e).slice(0, 120)}): isolated runs will not start until the setup command on the Leak page is run again\n`)
+}
+const AGENT_CONTAINMENT = _containment ? _containment.containmentMode(process.env.LEAK_AGENT_CONTAINMENT) : "none"
+const AGENT_DENY_READ = _containment ? _containment.extraDenyRead(process.env.LEAK_AGENT_DENY_READ) : []
 // Everything an isolated agent starts ends with it. Killing the CLI does not do that: its Bash tool runs each command in a shell that
 // leads a process group of its own, and a `nohup … &` job (or a run_in_background one) is reparented to init when that shell exits, so
 // neither the CLI's process group nor its process tree reaches it — the real CLI showed exactly this: sleeps with parent 1 survived
@@ -3523,10 +3535,13 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     if (typeof searchAugment === "function") governor.augment = searchAugment
     if (typeof verifyGuard === "function") governor.verifyGuard = verifyGuard // the verifier is then proxied, and a refused script never leaves the machine
     let cfgPath
+    let serverNames = []
     try {
       const dir = mkdtempSync(join(tmpdir(), "claude-tree-"))
       cfgPath = join(dir, "mcp.json")
-      writeFileSync(cfgPath, JSON.stringify(buildGovernedMcpConfig(mcpServers, governor)))
+      const mcpCfg = buildGovernedMcpConfig(mcpServers, governor)
+      serverNames = Object.keys(mcpCfg.mcpServers)
+      writeFileSync(cfgPath, JSON.stringify(mcpCfg))
     } catch (e) {
       destroyGovernor(governor)
       resolve({ ok: false, finalText: "", exitCode: null, timedOut: false, stderr: `mcp config: ${e.message}` })
@@ -3536,20 +3551,40 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     // search budget when a REAL proof attempt reports an unknown NAME — and
     // withhold the refill from bare name-probing scripts.
     const verifyCalls = new Map()
+    // How this agent is confined. An isolated agent has a working directory of its own and a mode (sandbox, restricted or shell); a caller
+    // that is not isolated keeps the shell it always had. No containment module means no isolated run: never a silent unconfined shell.
+    let plan = null
+    let ownScratch = ""
+    if (isolate) {
+      if (!_containment) {
+        destroyGovernor(governor)
+        resolve({ ok: false, finalText: "", exitCode: null, timedOut: false, stderr: "leak-containment.mjs is missing next to the bridge: run the setup command on the Leak page again", launchFailed: true })
+        return
+      }
+      if (AGENT_CONTAINMENT !== "shell" && !cwd) cwd = ownScratch = makeAgentScratch()
+      plan = _containment.containmentPlan({
+        mode: AGENT_CONTAINMENT,
+        workDir: cwd ? realpathSync(cwd) : undefined,
+        serverNames,
+        disallowed: Array.isArray(disallowedTools) ? disallowedTools : PROVER_DISALLOWED_TOOLS,
+        hookSettings: JSON.parse(NO_LOCAL_LEAN_SETTINGS),
+        denyRead: AGENT_DENY_READ,
+      })
+    }
     const args = [
       "-p", prompt,
       "--output-format", "stream-json", "--verbose",
-      "--mcp-config", cfgPath, "--strict-mcp-config", "--dangerously-skip-permissions",
+      "--mcp-config", cfgPath, "--strict-mcp-config", ...(plan ? plan.flags : ["--dangerously-skip-permissions"]),
       // The prover PROVES — it does not browse the literature. WebSearch/WebFetch
       // were a surrender hatch: the agent would look up "is this open/hard", find
       // it's an unsolved conjecture, and stop — burning the run on research instead
       // of the compiler. Cut them. (Leak I loogle/moogle stay for LEAN lemma search,
       // and Bash stays — numeric witness-finding is real proof work.)
-      "--disallowedTools", ...(Array.isArray(disallowedTools) ? disallowedTools : PROVER_DISALLOWED_TOOLS),
+      "--disallowedTools", ...(plan ? plan.disallowed : Array.isArray(disallowedTools) ? disallowedTools : PROVER_DISALLOWED_TOOLS),
       // Applies to EVERY strategy, not just the controls: a local Lean is a
       // different Mathlib from the gate, so its answers are misleading for all
       // of them. Unlike removing Bash, this takes away nothing legitimate.
-      "--settings", isolate ? isolatedSettings() : NO_LOCAL_LEAN_SETTINGS,
+      "--settings", plan ? JSON.stringify(plan.settings) : NO_LOCAL_LEAN_SETTINGS,
     ]
     if (model) args.push("--model", model)
     // Continue an existing CLI conversation instead of opening a fresh one
@@ -3565,7 +3600,10 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     // Every prover agent is told about the local-Lean block, on the same system
     // channel as any stage contract the caller supplies (concatenated, not
     // replaced, so neither silently drops the other).
-    const sysAppend = [typeof systemAppend === "string" ? systemAppend.trim() : "", omitLeanNote ? "" : NO_LOCAL_LEAN_NOTE]
+    // A sandboxed shell is still told the local-Lean and network rules (the hook behind them still counts what the agent reaches for), minus the
+    // sentence that says the rest of the machine is unrestricted; a shell-less agent is told only that it has none.
+    const leanNote = omitLeanNote ? "" : plan && plan.mode !== "shell" ? NO_LOCAL_LEAN_NOTE.split("\n\nEverything else on the machine")[0] : NO_LOCAL_LEAN_NOTE
+    const sysAppend = [typeof systemAppend === "string" ? systemAppend.trim() : "", plan?.mode === "restricted" ? "" : leanNote, plan?.note || ""]
       .filter(Boolean)
       .join("\n\n")
     args.push("--append-system-prompt", sysAppend)
@@ -3576,12 +3614,13 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     let child
     try {
       child = spawn(CLAUDE_BIN, args, { cwd: cwd || process.cwd(), env: isolate ? isolatedEnv(token) : process.env, shell: false, stdio: ["ignore", "pipe", "pipe"] })
+      if (ownScratch) child.once("close", () => rmSync(ownScratch, { recursive: true, force: true }))
       if (token) {
         liveClis.add(child)
         child.once("close", () => liveClis.delete(child))
       }
     } catch (e) {
-      resolve({ ok: false, finalText: "", exitCode: null, timedOut: false, stderr: `Failed to launch "${CLAUDE_BIN}": ${e.message}` })
+      resolve({ ok: false, finalText: "", exitCode: null, timedOut: false, stderr: `Failed to launch "${CLAUDE_BIN}": ${e.message}`, launchFailed: true })
       return
     }
     // No hard per-node cap by default (0 = uncapped). A tree node can be a long
@@ -6787,7 +6826,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   const minAttemptMs = knob(opts?.minAttemptMs, 0, 3_600_000, 8 * 60_000)
   const maxNudges = Math.floor(knob(opts?.maxNudges, 0, 5, 2))
   const sleepCfg = cfg.sleep ? { ...cfg.sleep, everyMs: knob(opts?.sleepEveryMs, 0, 86_400_000, cfg.sleep.everyMs), minNew: knob(opts?.sleepMinNew, 1, 1000, cfg.sleep.minNew) } : null
-  const envHint = M.environmentHint(await probeEnvironment())
+  const envHint = AGENT_CONTAINMENT === "restricted" ? "" : M.environmentHint(await probeEnvironment())
   const scratch = makeAgentScratch()
   const agentToken = newAgentToken() // marks every process this run's agents start; swept when an attempt, the run, or the bridge ends
   ctx.memoryRun.agentToken = agentToken // so the run's record can say what the hook blocked
@@ -6801,6 +6840,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   if (allowPantograph && !pantographUrl)
     ctx.emit({ type: "message-annotation", subtype: "error", thought: `🧠 ${cfg.name} is meant to have Leak II (Pantograph), but no Leak II server is connected: the agent will run without it.` })
   let attempt = 0
+  let launchFailures = 0 // agents that could not even be started, in a row: an instant failure must not be retried until the clock runs out
   let lastAttempt = null
   let sessionId = "" // the one persistent conversation; "" until attempt 1 opens it, and again if it cannot be resumed
   let lastStopIso = ""
@@ -6936,6 +6976,13 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     sessionId = lost ? "" : r.sessionId
     lastAttemptMs = Date.now() - t0
     lastStopIso = new Date().toISOString()
+    if (r?.launchFailed) {
+      launchFailures++
+      if (launchFailures >= 3) {
+        ctx.emit({ type: "message-annotation", subtype: "error", thought: `🛑 The agent could not be started three times in a row (${String(r.stderr || "").slice(0, 200)}). The run stops here instead of retrying until the clock runs out.` })
+        return { verified: false, proof: "" }
+      }
+    } else launchFailures = 0
     if (!sessionId) reapAgent(agentToken)
     statsFrame()
     if (gate.verifiedScript) {
@@ -6997,7 +7044,7 @@ async function proveControl(theorem, ctx, tier = 1) {
   })
   let attempt = 0
   let lastAttempt = null // { script, result } from the previous session's LAST verify_full_script call
-  const scratch = makeAgentScratch() // this run's own working directory: see isolatedSettings
+  const scratch = makeAgentScratch() // this run's own working directory: see leak-containment.mjs
   try {
   while (!ctx.signal?.aborted && !deadlinePassed(ctx)) {
     attempt++
@@ -12779,7 +12826,7 @@ function runEndDetail(ctx, metrics, proof) {
   const run = ctx?.memoryRun
   if (run?.memory) {
     try {
-      detail.memory_run = { variant: run.variant, voice: run.voice || null, session_mode: run.sessionMode, attempts: run.attempts, resumes: run.resumes, fresh_starts: run.freshStarts, stats: { ...run.memory.stats }, size: run.memory.size, guards: { ...(run.guards || {}), hook_blocked: readBlocks(run.agentToken) } }
+      detail.memory_run = { variant: run.variant, voice: run.voice || null, session_mode: run.sessionMode, attempts: run.attempts, resumes: run.resumes, fresh_starts: run.freshStarts, stats: { ...run.memory.stats }, size: run.memory.size, guards: { ...(run.guards || {}), containment: AGENT_CONTAINMENT, hook_blocked: readBlocks(run.agentToken) } }
       detail.memory = { schema: "leak-run-memory/1", variant: run.variant, target_id: ctx.targetId || "", entries: [...run.memory.entries.values()].map((e) => run.memory.publicEntry(e)) }
     } catch {
       /* the record is an extra: it never breaks a run */
