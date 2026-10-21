@@ -10,7 +10,7 @@ Now the operating system says what it may do. `LEAK_AGENT_CONTAINMENT` on the br
 | `restricted` | no shell; the file tools in its own directory; its Leak tools | `--restricted`, which removes Bash and every other tool that runs code. |
 | `shell` | the first version, kept so an arm can be compared against it | a hook that reads command text (it still counts what the agent reaches for) |
 
-The single-agent paths (`/prove`, `/prove-stream` and the worker's prove) use the same modes. In `sandbox` and `restricted` they run in a scratch directory the bridge makes, and a working directory named in the request is ignored, so a page cannot choose what the agent may write. In `shell` they are exactly what they were.
+Every agent the bridge starts uses the same modes: the isolated memory agents, the strategy agents, and the single-agent paths (`/prove`, `/prove-stream` and the worker's prove). In `sandbox` and `restricted` they run in a scratch directory the bridge makes, and a working directory named in the request is ignored, so a page cannot choose what the agent may write. In `shell` they are exactly what they were. A strategy that passes its own working directory keeps it (the sandbox then allows writes there); one that does not gets a scratch directory.
 
 All three also ban the sub-agent tool and the web tools, start the CLI with the environment scrubbed of anything that looks like a secret (the bridge's own token included: with it the agent could drive the bridge), and tell the agent plainly what it has. `LEAK_AGENT_DENY_READ` adds directories (colon separated, absolute) a sandboxed shell may not read, for example a Mathlib checkout outside the home directory.
 
