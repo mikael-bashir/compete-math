@@ -281,22 +281,29 @@ const ARCHITECT_DISALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Gr
 // `-p --dangerously-skip-permissions`, blocks `lake --version`, and lets a
 // scratchpad write through untouched.
 const AGENT_SHELLS_ENV = "LEAK_AGENT_SHELLS"
+const AGENT_BLOCKS_ENV = "LEAK_AGENT_BLOCKS"
 const HOOK_DIR = mkdtempSync(join(tmpdir(), "leak-hook-"))
 const NO_LOCAL_LEAN_HOOK = join(HOOK_DIR, "no-local-lean.mjs")
 writeFileSync(
   NO_LOCAL_LEAN_HOOK,
-  `let s = ""
+  `import { appendFileSync } from "node:fs"
+// what this hook blocks is counted, by kind, in the run record (guards.hook_blocked): how often an agent reaches for a local toolchain or the
+// network is evidence for what the block is worth
+const note = (kind) => { const f = process.env.LEAK_AGENT_BLOCKS; if (f) try { appendFileSync(f, kind + "\\n") } catch {} }
+let s = ""
 process.stdin.on("data", (d) => (s += d)).on("end", () => {
   let inp = {}
   try { inp = JSON.parse(s).tool_input || {} } catch {}
   const cmd = String(inp.command || "")
   if (/(^|[;&|(\\\`]|\\s)(lean|lake|elan|leanc|lean4)(\\s|$)/.test(cmd)) {
+    note("lean")
     process.stderr.write("BLOCKED: this run may not invoke a local Lean toolchain. Compile ONLY through verify_full_script — the local checkout is a DIFFERENT Mathlib from the one your verifier compiles against, so anything it tells you about which lemmas exist is unsound here. Everything else (scratchpad files, numeric probing, notes) is fine.")
     process.exit(2)
   }
   // No network beyond the Leak servers (which the agent reaches over MCP, not the shell) and nothing installed: what is written
   // elsewhere about a problem is not part of a run, and nothing is downloaded onto this machine.
   if (/(^|[;&|(\\\`]|\\s)(curl|wget|ssh|scp|sftp|rsync|nc|ncat|telnet|ftp)(\\s|$)|(^|[;&|(\\\`]|\\s)(pip3?|pipx|npm|npx|pnpm|yarn|brew|gem|cargo|conda|uv)\\s+(install|add|get|i)\\b|\\bgit\\s+(clone|fetch|pull|submodule)\\b|https?:\\/\\/|\\burllib\\b|\\brequests\\.(get|post|request)|\\bhttp\\.client\\b|\\bsocket\\.(create_connection|socket)\\(/i.test(cmd)) {
+    note("network")
     process.stderr.write("BLOCKED: this run has no network beyond its Leak servers (reached through your MCP tools, not the shell) and installs nothing: no curl, wget, ssh, pip, npm, brew, git clone, no URLs. Nothing written elsewhere about this problem is part of this run; the question is yours.")
     process.exit(2)
   }
@@ -334,7 +341,8 @@ const NO_LOCAL_LEAN_SETTINGS = JSON.stringify({
 // stays in its settings.
 const isolatedSettings = () => JSON.stringify({ ...JSON.parse(NO_LOCAL_LEAN_SETTINGS), autoMemoryEnabled: false })
 const shellsFile = (token) => join(HOOK_DIR, `shells-${token}.txt`)
-const isolatedEnv = (token) => ({ ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", [AGENT_SHELLS_ENV]: shellsFile(token) })
+const blocksFile = (token) => join(HOOK_DIR, `blocks-${token}.txt`)
+const isolatedEnv = (token) => ({ ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", [AGENT_SHELLS_ENV]: shellsFile(token), [AGENT_BLOCKS_ENV]: blocksFile(token) })
 // Everything an isolated agent starts ends with it. Killing the CLI does not do that: its Bash tool runs each command in a shell that
 // leads a process group of its own, and a `nohup … &` job (or a run_in_background one) is reparented to init when that shell exits, so
 // neither the CLI's process group nor its process tree reaches it — the real CLI showed exactly this: sleeps with parent 1 survived
@@ -371,6 +379,18 @@ function sweepAgent(token) {
     }
   }
   return killed
+}
+// What the hook blocked for this run, by kind ({ lean: 2, network: 1 }); read once, when the run's record is written.
+function readBlocks(token) {
+  const counts = {}
+  if (!token) return counts
+  try {
+    for (const k of readFileSync(blocksFile(token), "utf8").split("\n")) if (k.trim()) counts[k.trim()] = (counts[k.trim()] || 0) + 1
+    rmSync(blocksFile(token), { force: true })
+  } catch {
+    /* nothing was blocked */
+  }
+  return counts
 }
 function reapAgent(token) {
   if (!token) return
@@ -6704,7 +6724,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   for (const seedScript of seeds) memory.addScript(seedScript, { origin: "seed", silent: true, keepTrivial: true })
   const loaded = memory.size
   const sig = theoremSignature(theorem)
-  ctx.memoryRun = { variant: variantKey, voice: V.key, memory, sessionMode: "persistent", attempts: 0, resumes: 0, freshStarts: 0 } // read when the run ends, for its record
+  ctx.memoryRun = { variant: variantKey, voice: V.key, memory, sessionMode: "persistent", attempts: 0, resumes: 0, freshStarts: 0, guards: { kernel_eval_refused: 0 } } // read when the run ends, for its record
   const pantographUrl = resolvePantographUrl(ctx.mcpServers)
   const allowPantograph = !!cfg.pantograph
   const memoryHeader = `${allowPantograph ? "CONTROL IV" : "CONTROL II"} MEMORY — ${cfg.name} · voice ${V.key}`
@@ -6720,6 +6740,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   const envHint = M.environmentHint(await probeEnvironment())
   const scratch = makeAgentScratch()
   const agentToken = newAgentToken() // marks every process this run's agents start; swept when an attempt, the run, or the bridge ends
+  ctx.memoryRun.agentToken = agentToken // so the run's record can say what the hook blocked
   sleepState.scratch = scratch
   const statsFrame = () => ctx.emit({ type: "memory", op: "stats", stats: { ...memory.stats, size: memory.size, nominated: memory.nominated().length } })
   ctx.emit({
@@ -6805,7 +6826,11 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         signal: ctx.signal,
         searchBudget: ctx.searchBudget,
         disallowedTools: [...PROVER_DISALLOWED_TOOLS, ...syncTools],
-        verifyGuard: (script) => M.kernelEvalGuard(script),
+        verifyGuard: (script) => {
+          const refusal = M.kernelEvalGuard(script)
+          if (refusal) ctx.memoryRun.guards.kernel_eval_refused++ // counted for the run's record
+          return refusal
+        },
         systemAppend: V.systemRule,
         bridgeHandlers: handlers.size ? handlers : undefined,
         bridgeServerName: handlers.size ? "memory" : undefined,
@@ -12704,7 +12729,7 @@ function runEndDetail(ctx, metrics, proof) {
   const run = ctx?.memoryRun
   if (run?.memory) {
     try {
-      detail.memory_run = { variant: run.variant, voice: run.voice || null, session_mode: run.sessionMode, attempts: run.attempts, resumes: run.resumes, fresh_starts: run.freshStarts, stats: { ...run.memory.stats }, size: run.memory.size }
+      detail.memory_run = { variant: run.variant, voice: run.voice || null, session_mode: run.sessionMode, attempts: run.attempts, resumes: run.resumes, fresh_starts: run.freshStarts, stats: { ...run.memory.stats }, size: run.memory.size, guards: { ...(run.guards || {}), hook_blocked: readBlocks(run.agentToken) } }
       detail.memory = { schema: "leak-run-memory/1", variant: run.variant, target_id: ctx.targetId || "", entries: [...run.memory.entries.values()].map((e) => run.memory.publicEntry(e)) }
     } catch {
       /* the record is an extra: it never breaks a run */
