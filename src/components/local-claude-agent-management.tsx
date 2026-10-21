@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { buildSetupCommand, type BridgeHashes } from '@/lib/leak/bridge-files';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -262,12 +263,18 @@ export function LocalClaudeAgentManagement({
   } catch {
     /* malformed URL — fall back to the default port (no PORT= in the command) */
   }
-  const portEnv =
-    bridgePort && bridgePort !== '4123' ? `PORT='${bridgePort}' ` : '';
-  const setupCommand =
-    origin && connection.token
-      ? `curl -fsSL '${origin}/local-claude-bridge.mjs' -o claude-bridge.mjs && curl -fsSL '${origin}/leak-min-imports.mjs' -o leak-min-imports.mjs && curl -fsSL '${origin}/leak-memory.mjs' -o leak-memory.mjs && curl -fsSL '${origin}/leak-containment.mjs' -o leak-containment.mjs && ${portEnv}BRIDGE_TOKEN='${connection.token}' ALLOWED_ORIGINS='${origin}' node claude-bridge.mjs`
-      : '';
+  let bridgeHashes: BridgeHashes = {};
+  try {
+    bridgeHashes = JSON.parse(process.env.NEXT_PUBLIC_BRIDGE_SHA256 || '{}');
+  } catch {
+    /* no hashes: the command is built without the check */
+  }
+  const setupCommand = buildSetupCommand({
+    origin: origin || '',
+    token: connection.token || '',
+    port: bridgePort,
+    hashes: bridgeHashes,
+  });
 
   const copyLeakIvCommand = async () => {
     try {
