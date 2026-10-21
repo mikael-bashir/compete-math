@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
+import { join } from "node:path";
+import { bridgeManifest } from "./src/lib/leak/bridge-manifest";
 
 const nextConfig: NextConfig = {
+  // the hashes the Leak setup command checks the bridge files against (src/lib/leak/bridge-files.ts); computed from public/ at build
+  env: { NEXT_PUBLIC_BRIDGE_SHA256: JSON.stringify(bridgeManifest(join(process.cwd(), "public"))) },
   // @huggingface/transformers (Tengoku's local search embeddings) pulls in
   // onnxruntime-node's native .node binary and sharp's native image
   // bindings — bundling native addons through webpack/Turbopack routinely
