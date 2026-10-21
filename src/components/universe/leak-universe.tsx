@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { UNIVERSE_LEGEND } from '@/lib/universe/legend';
+import { UNIVERSE_LEGEND, UNIVERSE_NOTES } from '@/lib/universe/legend';
 import { subscribeLive } from '@/lib/universe/live-bus';
 import type { Universe } from '@/lib/universe/engine';
 
@@ -57,7 +57,7 @@ export function LeakUniverse() {
           u.resetLive();
           u.startRun();
         } else if (m.type === 'end') u.endRun();
-        else if (m.type === 'memory') u.pushMemory(m.op, m.size);
+        else if (m.type === 'memory') u.pushMemory(m.op, m.size, m.entry);
         else u.pushProverEvent(m.event);
       }),
     [],
@@ -99,6 +99,13 @@ export function LeakUniverse() {
               <i className="inline-block size-2 rounded-full" style={{ background: l.color }} aria-hidden />
               {l.label}
             </span>
+          ))}
+        </div>
+      )}
+      {state === 'ready' && (
+        <div className="mt-2 max-w-[72ch] space-y-1.5 font-mono text-[11px] leading-relaxed text-white/50">
+          {UNIVERSE_NOTES.map((n) => (
+            <p key={n}>{n}</p>
           ))}
         </div>
       )}

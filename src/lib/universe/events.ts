@@ -83,8 +83,23 @@ export function compileOutcome(body: string): { ok: boolean; unk: string[] } {
   return { ok, unk };
 }
 
+/**
+ * Whether the last theorem of a proof is a general lemma: it has a binder over names (not a typed numeral like "(7 : ℕ)") or a quantifier,
+ * rather than being one instance of a statement. The same rule as tools/driver-health/score.mjs.
+ */
+export function isGeneralLemma(closure: string): boolean {
+  const decls = String(closure || '').split(/\n(?=(?:open\s+\S+\s+in\s*\n)?\s*(?:theorem|lemma)\s)/);
+  const last = decls[decls.length - 1] ?? '';
+  const m = /(?:theorem|lemma)\s+[^\s(:{[]+\s*([\s\S]*?):=/.exec(last);
+  if (!m) return false;
+  const sig = m[1];
+  return /[(\[{]\s*[A-Za-z_][\w'.]*(?:\s+[A-Za-z_][\w'.]*)*\s*:\s*[^)\]}]*[)\]}]/.test(sig) || /∀|∃|→/.test(sig);
+}
+
 export class LiveInterpreter {
   private readonly pending: Record<UniverseEventKind, UniverseEvent[]> = { loogle: [], moogle: [], compile: [], recall: [], save: [] };
+  /** the names of the theorems saved so far, in order: a later save that cites one of them is built on it */
+  private saved: string[] = [];
 
   constructor(
     private readonly names: NameIndex,
@@ -124,9 +139,35 @@ export class LiveInterpreter {
     return out;
   }
 
-  /** The memory itself changed (a theorem saved, the library loaded or counted): a spark, and the orb's size. */
-  memory(op: 'save' | 'update' | 'load' | 'stats', size?: number): void {
-    if (op === 'save') this.sink.finish(this.sink.start({ k: 'save', t: 0 }), {});
+  /** Forget which theorems were saved (a new run starts). */
+  forgetSaves(): void {
+    this.saved = [];
+  }
+
+  /**
+   * The memory itself changed (a theorem saved, the library loaded or counted): a spark, and the library's size. A save that comes with its
+   * name and proof also says which stars it leans on, which earlier saves it was built from, and whether it is a general lemma, so the
+   * library can be drawn from what it holds.
+   */
+  memory(op: 'save' | 'update' | 'load' | 'stats', size?: number, entry?: { name: string; closure: string }): void {
+    if (op === 'save') {
+      const ev: UniverseEvent = { k: 'save', t: 0 };
+      if (entry) {
+        // saving the same theorem again (an improved version) is not a new theorem
+        if (this.saved.includes(entry.name)) return;
+        const cited = extractNames(entry.closure);
+        // what it leans on is what the theorem itself cites; what it was built from is any earlier save its proof, anywhere, cites
+        const decls = entry.closure.split(/\n(?=(?:open\s+\S+\s+in\s*\n)?\s*(?:theorem|lemma)\s)/);
+        const mine = new Set(extractNames(decls[decls.length - 1] ?? ''));
+        const own = new Set(this.saved);
+        ev.name = entry.name;
+        ev.deps = this.saved.flatMap((n, k) => (cited.includes(n) ? [k] : []));
+        ev.stars = this.resolve(cited.filter((n) => mine.has(n) && !own.has(n) && n !== entry.name), 10);
+        ev.abstract = isGeneralLemma(entry.closure);
+        this.saved.push(entry.name);
+      }
+      this.sink.finish(this.sink.start(ev), {});
+    }
     if (typeof size === 'number') this.sink.memorySize?.(size);
   }
 
@@ -136,7 +177,11 @@ export class LiveInterpreter {
       if (!k) return;
       const { query, script } = parseInput(e.input);
       const ev: UniverseEvent = { k, t: 0, q: query };
-      if (k === 'compile' && script) ev.used = this.resolve(extractNames(script), 18);
+      if (k === 'compile' && script) {
+        const cited = extractNames(script);
+        ev.used = this.resolve(cited, 18);
+        ev.saves = this.saved.flatMap((n, i) => (cited.includes(n) ? [i] : []));
+      }
       this.pending[k].push(this.sink.start(ev));
     } else if (e.kind === 'tool_result' || e.kind === 'tool_error') {
       const body = e.detail ?? '';
