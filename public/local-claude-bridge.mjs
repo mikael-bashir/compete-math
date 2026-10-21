@@ -1212,45 +1212,77 @@ function theoremSignature(src) {
   return m ? canonicalSig(m[0]) : ""
 }
 
-// The ANSWER SLOT. Some targets ask a question whose answer is not known (an open problem: is it true, or false?). Their statement is
-// written `(sorry : Prop) ↔ P`, and the slot is the one thing in the signature the agent may fill: the literal `True` (it proves P)
-// or the literal `False` (it proves ¬P). Both compile, so either counts; no fixed statement can say that by itself (`P ∨ ¬P` is
-// trivial). The slot takes only those two literals — any other proposition would let `P ↔ P` pass with a one-line proof — and the
-// template itself, slot left as `sorry`, is never a proof (the daemon refuses a sorry anyway, and this does not rely on that).
+// A QUESTION target. Some targets ask a question whose answer is not known (an open problem: is it true, or false?). They are posed
+// as the plain statement P of formal-conjectures' `@[question]` convention, and either answer settles them: a proof of P, or a proof
+// of its negation. The earlier way, a free slot `(sorry : Prop) ↔ P` that the agent filled with True or False, is repudiated: a free
+// Prop slot has to be policed from outside the kernel (a slot filled with the hypothesis itself closes by Iff.rfl; see
+// https://github.com/leanprover/comparator#definition-holes), and Leak IV now rejects the form outright.
+// Inside the bridge a question target still carries the old text as an internal TAG, `(sorry : Prop) ↔ P`, because every prover
+// function derives its signature from the theorem text; the tag is never shown to the agent and never sent to the verifier
+// (plainTheorem strips it), and the only statements that settle the target are the plain ones (questionForms).
 const ANSWER_SLOT = canonicalSig("(sorry : Prop)")
-const ANSWER_FORMS = { yes: ["True", "(True)", "(True : Prop)"].map(canonicalSig), no: ["False", "(False)", "(False : Prop)"].map(canonicalSig) }
+const SLOT_RE = /\(\s*sorry\s*:\s*Prop\s*\)\s*↔\s*/
 const hasAnswerSlot = (targetSig) => typeof targetSig === "string" && targetSig.includes(ANSWER_SLOT)
-const withAnswer = (targetSig, form) => targetSig.split(ANSWER_SLOT).join(form)
 
-// Which answer does `script` give for the target? "plain" (a target without a slot, proved as stated), "yes" (slot True: P proved),
-// "no" (slot False: ¬P proved), or null. Scans every declaration in the script (a proof may define helper lemmas too).
+// Tag a plain closed statement `theorem NAME : P` as a yes-or-no question, when the request says it is one (options.question). A
+// statement that already carries the tag, or is not asked as a question, is returned as it was. Binders before the colon are not
+// supported (the negation would have to be re-quantified): the request is refused.
+function tagQuestion(theorem, options) {
+  if (!options || options.question !== "yes-no" || typeof theorem !== "string" || SLOT_RE.test(theorem)) return theorem
+  const m = /\b(?:theorem|lemma)\s+[^\s:(\[{]+\s*:(?!=)\s*/.exec(theorem)
+  if (!m) throw new Error("question_target_needs_a_closed_statement: write it as `theorem NAME : P` with no binders before the colon")
+  return theorem.slice(0, m.index + m[0].length) + "(sorry : Prop) ↔ " + theorem.slice(m.index + m[0].length)
+}
+// What the agent and the verifier see: the statement without the internal tag.
+const plainTheorem = (theorem) => String(theorem == null ? "" : theorem).replace(SLOT_RE, "")
+
+// The plain statements that settle a question target, as canonical signatures: P itself ("yes"), or its negation ("no"), the latter
+// under the target's name or NAME_neg. `¬ P` is accepted without parentheses only when P is a quantifier (it then parses as ¬(P));
+// `¬ A ∧ B` would be (¬A) ∧ B, a different proposition, so any other P needs the parentheses.
+function questionForms(targetSig) {
+  if (!hasAnswerSlot(targetSig)) return null
+  const i = targetSig.indexOf(ANSWER_SLOT)
+  const head = targetSig.slice(0, i)
+  const rest = targetSig.slice(i + ANSWER_SLOT.length)
+  const m = /^(theorem|lemma)([ ]?)([^\s:(\[{]+):$/.exec(head)
+  if (!m || !rest.startsWith("↔")) return null
+  const P = rest.slice(1)
+  const heads = [head, `${m[1]}${m[2]}${m[3]}_neg:`]
+  const quantifier = /^(∀|∃)/.test(P)
+  return {
+    yes: new Set([head + P, `${head}(${P})`]),
+    no: new Set(heads.flatMap((h) => [`${h}¬(${P})`, ...(quantifier ? [`${h}¬${P}`] : [])])),
+  }
+}
+
+// Which answer does `script` give for the target? "plain" (a target that is not a question, proved as stated), "yes" (P proved),
+// "no" (¬P proved), or null. Scans every declaration in the script (a proof may define helper lemmas too).
 function scriptAnswer(script, targetSig) {
   if (!targetSig) return null
+  const forms = questionForms(targetSig)
   const slot = hasAnswerSlot(targetSig)
-  const yes = slot ? new Set(ANSWER_FORMS.yes.map((f) => withAnswer(targetSig, f))) : null
-  const no = slot ? new Set(ANSWER_FORMS.no.map((f) => withAnswer(targetSig, f))) : null
+  if (slot && !forms) return null
   const re = /\b(?:theorem|lemma)\b[\s\S]*?(?=:=)/g
   let m
   while ((m = re.exec(script)) !== null) {
     const sig = canonicalSig(m[0])
     if (!slot) {
       if (sig === targetSig) return "plain"
-    } else if (yes.has(sig)) return "yes"
-    else if (no.has(sig)) return "no"
+    } else if (forms.yes.has(sig)) return "yes"
+    else if (forms.no.has(sig)) return "no"
   }
   return null
 }
 
-// True if `script` contains a theorem/lemma that settles targetSig: the signature itself, or, for a target with an answer slot, the
-// signature with the slot filled by True or False.
+// True if `script` contains a theorem/lemma that settles targetSig: the signature itself, or, for a question, P or its negation.
 function scriptProvesTarget(script, targetSig) {
   return scriptAnswer(script, targetSig) !== null
 }
 
-// What to tell the agent about the slot, and what to say when a run ends on one.
+// What to tell the agent about a question target, and what to say when a run ends on one.
 const answerSlotNote = (theorem) =>
   hasAnswerSlot(theoremSignature(theorem))
-    ? `ANSWER SLOT. The statement below is written \`(sorry : Prop) ↔ P\`. The slot is yours to fill, and it is the ONLY thing in the signature you may change: write the literal \`True\` to prove P, or the literal \`False\` to prove that P is false (¬P) — whichever you become convinced is right, and you may switch whenever the evidence changes. Either one, once verify_full_script accepts it with no sorry, ends the run. Nothing else counts: a slot left as \`sorry\`, or filled with any other proposition, is not accepted.\n\n`
+    ? `THIS TARGET IS A YES-OR-NO QUESTION. Settle it either way: prove the statement below exactly as given, or prove its negation, written \`theorem NAME : ¬ (P)\` (or \`theorem NAME_neg : ¬ (P)\`, where P is the statement's proposition, in parentheses). Whichever you become convinced of, and you may switch whenever the evidence changes. Either one, once verify_full_script accepts it with no sorry, ends the run. Do not wrap the question in an \`(… : Prop) ↔ …\` slot of your own: Leak IV rejects that form, which is repudiated because a free slot can be filled with the hypothesis itself.\n\n`
     : ""
 const answerOutcome = (script, targetSig) => {
   const a = scriptAnswer(script, targetSig)
@@ -6605,8 +6637,8 @@ RULES:
 - Never stop before verify_full_script has reported success with zero 'sorry'. An unfinished attempt is not a report-worthy result — keep going.
 - This is attempt ${attempt} of an unbounded series the system keeps making until either you succeed or the run's own wall clock — not you — ends it. If you get stuck, that's expected; just keep iterating on what the compiler actually told you.
 ${lastBlock}
-${answerSlotNote(theorem)}Theorem (its signature is immutable${hasAnswerSlot(theoremSignature(theorem)) ? ", except for the answer slot" : ""}):
-${theorem}`
+${answerSlotNote(theorem)}Theorem (its signature is immutable${hasAnswerSlot(theoremSignature(theorem)) ? ", but its negation settles it as well" : ""}):
+${plainTheorem(theorem)}`
 }
 
 const CONTROL_LABELS = { 1: "Leak Control I", 2: "Leak Control II", 4: "Leak Control IV" }
@@ -6663,8 +6695,8 @@ ${M.memoryRules(variantKey, { envHint, pantograph })}
 ${V.sessionRules(attempt)}
 - The target is only proved when verify_full_script succeeds on a script that contains the target's exact statement with no sorry.
 ${episodic}${lastBlock}
-${answerSlotNote(theorem)}Theorem (its signature is immutable${hasAnswerSlot(theoremSignature(theorem)) ? ", except for the answer slot" : ""}):
-${theorem}`
+${answerSlotNote(theorem)}Theorem (its signature is immutable${hasAnswerSlot(theoremSignature(theorem)) ? ", but its negation settles it as well" : ""}):
+${plainTheorem(theorem)}`
 }
 
 // The sleep stage of Control II Lucid: a short separate session whose only tool is Leak IV, asked to generalise clusters of
@@ -12665,7 +12697,7 @@ function openRunLog(theorem, opts = {}) {
         /* a full or read-only disk must not take the run down */
       }
     }
-    write({ kind: "start", at: started.toISOString(), theorem, strategy: opts.strategy || "", model: opts.model || "", bridge_build: BRIDGE_BUILD, target_id: typeof opts.targetId === "string" ? opts.targetId.slice(0, 80) : "" })
+    write({ kind: "start", at: started.toISOString(), theorem: plainTheorem(theorem), ...(hasAnswerSlot(theoremSignature(theorem)) ? { question: "yes-no" } : {}), strategy: opts.strategy || "", model: opts.model || "", bridge_build: BRIDGE_BUILD, target_id: typeof opts.targetId === "string" ? opts.targetId.slice(0, 80) : "" })
     return {
       file,
       line: (t, text) => write({ kind: "event", t, text }),
@@ -12692,7 +12724,7 @@ function openRunLog(theorem, opts = {}) {
         try {
           appendFileSync(
             join(RUN_LOG_DIR, "index.jsonl"),
-            JSON.stringify({ at: started.toISOString(), file: basename(file), theorem: String(theorem || "").slice(0, 200), strategy: opts.strategy || "", model: opts.model || "", ...summary }) + "\n",
+            JSON.stringify({ at: started.toISOString(), file: basename(file), theorem: plainTheorem(theorem).slice(0, 200), strategy: opts.strategy || "", model: opts.model || "", ...summary }) + "\n",
           )
         } catch {
           /* index is a convenience; the per-run file is the record */
@@ -13313,9 +13345,14 @@ const server = createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/prove-tree") {
       const body = JSON.parse((await readBody(req)) || "{}")
-      const theorem = body.theorem || body.prompt
+      let theorem = body.theorem || body.prompt
       if (typeof theorem !== "string" || !theorem.trim()) {
         return json(res, 400, { error: "theorem_required" })
+      }
+      try {
+        theorem = tagQuestion(theorem, body.options)
+      } catch (e) {
+        return json(res, 400, { error: String(e?.message || e) })
       }
       // A fresh run gets a fresh verdict on the account: the previous run may
       // have been refused hours ago and the quota has since reset. One stage

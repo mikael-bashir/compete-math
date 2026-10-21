@@ -10,6 +10,9 @@ export interface LeakTarget {
   kind: 'open-problem' | 'benchmark';
   status: string;
   statement: string;
+  // 'yes-no': the statement asks a question whose answer is open, and a proof of its negation settles it too
+  // (formal-conjectures' @[question] convention). The statement itself is the plain proposition, never a free slot.
+  question?: 'yes-no';
   informal: string;
   direction: string;
   provenance: Record<string, unknown>;

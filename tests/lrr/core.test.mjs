@@ -145,13 +145,31 @@ test("bankedProof: matched by theorem name and the run's time window, newest win
   assert.equal(bankedProof(null, "foo_bar", "2026-10-20T10:00:00Z", null), null)
 })
 
-test("answerOf reads which literal filled the answer slot", () => {
+test("answerOf: a question target is answered by the statement (True) or by its negation (False)", () => {
+  const stmt = "open Nat in\ntheorem erdos_396 : ∀ k : ℕ, ∃ n : ℕ, k ≤ n := by\n  sorry"
+  const proof = (head, body) => `import Mathlib\nopen Nat in\ntheorem ${head} := by\n  ${body}`
+  const P = "∀ k : ℕ, ∃ n : ℕ, k ≤ n"
+  assert.equal(answerOf(stmt, proof(`erdos_396 : ${P}`, "exact fun k => ⟨k, le_rfl⟩"), "yes-no"), "True")
+  assert.equal(answerOf(stmt, proof(`erdos_396 : (${P})`, "simp"), "yes-no"), "True")
+  assert.equal(answerOf(stmt, proof(`erdos_396 : ¬ (${P})`, "simp"), "yes-no"), "False")
+  assert.equal(answerOf(stmt, proof(`erdos_396 : ¬ ${P}`, "simp"), "yes-no"), "False", "a quantified statement may be negated without parentheses")
+  assert.equal(answerOf(stmt, proof(`erdos_396_neg : ¬ (${P})`, "simp"), "yes-no"), "False")
+  assert.equal(answerOf(stmt, proof("erdos_396 : (True : Prop) ↔ ∀ k : ℕ, ∃ n : ℕ, k ≤ n", "simp"), "yes-no"), null, "the repudiated slot form is not an answer")
+  assert.equal(answerOf(stmt, proof("erdos_396 : ∀ k : ℕ, ∃ n : ℕ, k + 1 ≤ n", "simp"), "yes-no"), null, "a different statement is not an answer")
+  assert.equal(answerOf(stmt, proof(`other : ${P}`, "simp"), "yes-no"), null, "a different name is not an answer")
+  assert.equal(answerOf(stmt, proof(`erdos_396 : ${P}`, "simp")), null, "a target that is not a question has no answer")
+  const conj = "theorem c : (1 = 1) ∧ (2 = 2) := by\n  sorry"
+  assert.equal(answerOf(conj, "theorem c : ¬ (1 = 1) ∧ (2 = 2) := by\n  sorry", "yes-no"), null, "(¬ A) ∧ B is not the negation of A ∧ B")
+  assert.equal(answerOf(stmt, "", "yes-no"), null)
+  assert.equal(answerOf(THEOREM, PROOF), null, "no question in the statement")
+})
+
+test("answerOf still reads records made with the old free slot", () => {
   const stmt = "open Nat in\ntheorem erdos_396 : (sorry : Prop) ↔ ∀ k : ℕ, ∃ n : ℕ, k ≤ n := by\n  sorry"
   const mk = (lit) => `import Mathlib\nopen Nat in\ntheorem erdos_396 : (${lit} : Prop) ↔ ∀ k : ℕ, ∃ n : ℕ, k ≤ n := by\n  simp`
   assert.equal(answerOf(stmt, mk("True")), "True")
   assert.equal(answerOf(stmt, mk("False")), "False")
   assert.equal(answerOf(stmt, mk("Foo")), null)
-  assert.equal(answerOf(THEOREM, PROOF), null, "no slot in the statement")
   assert.equal(answerOf(stmt, ""), null)
 })
 
