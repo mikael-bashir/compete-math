@@ -11,10 +11,11 @@
     "test:tengoku": "node --import tsx --test 'tests/tengoku-search/*.test.ts' 'src/app/lib/tengoku-search/*.test.ts' 'src/app/lib/tengoku-source/*.test.ts'",
     "test:minimps": "node --test tests/leak-min-imports/*.test.mjs",
     "test:lrr": "node --test 'tests/lrr/*.test.mjs'",
+    "vet:targets": "node tools/leak-vet/vet.mjs",
     "test:memory": "node --import tsx --test 'tests/leak-memory/*.test.mjs' 'tests/leak-memory/*.test.ts' && node tests/leak-memory/live-bridge.mjs",
     "tengoku:eval": "tsx scripts/tengoku-search-eval.ts",
     "tengoku:load": "tsx scripts/tengoku-index-load.ts",
-    "test": "node --import tsx --test 'tests/email/*.test.ts' 'tests/auth/*.test.ts' 'tests/join/*.test.ts' 'tests/tengoku-search/history-core.test.ts' 'tests/tengoku-search/dedup-core.test.ts' 'tests/tengoku-search/live-count.test.ts' 'tests/tengoku-search/tentative-core.test.ts' 'tests/tengoku-search/stats.test.ts' 'tests/universe/*.test.ts' 'tests/leak-min-imports/*.test.mjs' 'tests/leak-memory/*.test.mjs' 'tests/leak-memory/*.test.ts' 'tests/lrr/*.test.mjs' && node tests/leak-memory/live-bridge.mjs",
+    "test": "node --import tsx --test 'tests/email/*.test.ts' 'tests/auth/*.test.ts' 'tests/join/*.test.ts' 'tests/tengoku-search/history-core.test.ts' 'tests/tengoku-search/dedup-core.test.ts' 'tests/tengoku-search/live-count.test.ts' 'tests/tengoku-search/tentative-core.test.ts' 'tests/tengoku-search/stats.test.ts' 'tests/universe/*.test.ts' 'tests/leak-min-imports/*.test.mjs' 'tests/leak-memory/*.test.mjs' 'tests/leak-memory/*.test.ts' 'tests/lrr/*.test.mjs' 'tests/leak-vet/*.test.mjs' && node tests/leak-memory/live-bridge.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
