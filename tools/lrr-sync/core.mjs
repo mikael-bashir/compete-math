@@ -85,17 +85,35 @@ const slugOf = (theorem) => {
   return (m ? m[1] : "run").replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 60) || "run"
 }
 
-// "(sorry : Prop) ↔ P": which literal filled the slot in the proof, if the statement has one
-export function answerOf(theorem, proof) {
+// Which answer a proved run gave. A question target (the run's start line says question: "yes-no") is the plain statement P, and
+// either P or its negation settles it: "True" if the proof has `theorem NAME : P`, "False" if it has `theorem NAME : ¬ (P)` (or
+// NAME_neg). Records made before that change carry the old free slot `(sorry : Prop) ↔ P`, filled with True or False; they are read
+// as they were. Anything else is null.
+export function answerOf(theorem, proof, question) {
   if (!theorem || !proof) return null
   const i = theorem.indexOf("(sorry : Prop)")
-  if (i < 0) return null
-  const head = theorem.slice(0, i).replace(/\s+/g, " ").trim()
-  const norm = proof.replace(/\s+/g, " ")
-  const j = norm.lastIndexOf(head)
-  if (j < 0) return null
-  const m = /^\s*\(?\s*(True|False)\b/.exec(norm.slice(j + head.length))
-  return m ? m[1] : null
+  if (i >= 0) {
+    const head = theorem.slice(0, i).replace(/\s+/g, " ").trim()
+    const norm = proof.replace(/\s+/g, " ")
+    const j = norm.lastIndexOf(head)
+    if (j < 0) return null
+    const m = /^\s*\(?\s*(True|False)\b/.exec(norm.slice(j + head.length))
+    return m ? m[1] : null
+  }
+  if (question !== "yes-no") return null
+  const squash = (x) => String(x).replace(/\s+/g, "")
+  const t = /\b(?:theorem|lemma)\s+([A-Za-z0-9_'.]+)\s*:(?!=)([\s\S]*?)(?::=|$)/.exec(theorem)
+  if (!t) return null
+  const name = t[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const P = squash(t[2])
+  const re = new RegExp(`\\b(?:theorem|lemma)\\s+${name}(?:_neg)?\\s*:(?!=)([\\s\\S]*?)(?=:=)`, "g")
+  let found = null
+  for (let m; (m = re.exec(proof)) !== null; ) {
+    const s = squash(m[1])
+    if (s === P || s === `(${P})`) return "True"
+    if (s === `¬(${P})` || (/^(∀|∃)/.test(P) && s === `¬${P}`)) found = "False"
+  }
+  return found
 }
 
 const toolCallInfo = (text) => {
@@ -212,7 +230,7 @@ export function deriveItem({ id, text, indexRow = null, sidecars = {}, bank = []
       memorySource = "reconstructed"
     }
   }
-  const answer = status === "proved" ? answerOf(start.theorem, proof) : null
+  const answer = status === "proved" ? answerOf(start.theorem, proof, start.question) : null
   const item = {
     run_id: id,
     problem_id: slugOf(start.theorem),

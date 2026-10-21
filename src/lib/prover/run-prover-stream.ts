@@ -82,6 +82,8 @@ interface RunOpts {
   // is for; `memoryEntries` are the signed-in account's saved theorems for it, which the bridge loads for this run only
   // (it keeps nothing between runs). `maxCostUsd` is an optional limit the memory variants honour. (There is no per-session time cap: the agent manages its own context.)
   targetId?: string;
+  // 'yes-no' when the target is a question: a proof of its negation settles it too (the bridge accepts either, and tells the agent so).
+  question?: 'yes-no';
   memoryEntries?: unknown[];
   // The target's own vetted lemmas (scripts). They are in the run's library but are never saved to the account.
   seeds?: string[];
@@ -261,6 +263,7 @@ export async function runProverStream(opts: RunOpts): Promise<ProverOutcome> {
             ? { maxIters: opts.maxIters }
             : {}),
           ...(opts.targetId ? { targetId: opts.targetId } : {}),
+          ...(opts.question ? { question: opts.question } : {}),
           ...(opts.maxCostUsd && opts.maxCostUsd > 0
             ? { maxCostUsd: opts.maxCostUsd }
             : {}),

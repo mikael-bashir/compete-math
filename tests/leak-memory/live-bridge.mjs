@@ -523,60 +523,100 @@ for (const sig of ["SIGTERM", "SIGINT"]) {
   b.stop()
 }
 
-// ---- the answer slot: True proves the statement, False proves its negation, nothing else counts ----
+// ---- a yes-or-no question: the statement proves it, its negation proves it, nothing else counts ----
+// The target is the plain statement P (formal-conjectures' @[question] form); the old free slot `(sorry : Prop) ↔ P` is repudiated.
 {
-  const SLOT = "theorem slot_fake : (sorry : Prop) ↔ (∀ a : ℕ, a + 0 = a) := by\n  sorry"
+  const QUESTION = "theorem question_fake : ∀ a : ℕ, a + 0 = a := by\n  sorry"
   const proofs = {
-    yes: "theorem slot_fake : True ↔ (∀ a : ℕ, a + 0 = a) := by\n  simp",
-    yesParen: "theorem slot_fake : (True : Prop) ↔ (∀ a : ℕ, a + 0 = a) := by\n  simp",
-    no: "theorem slot_fake :  False  ↔ (∀ a : ℕ, a + 0 = a) := by\n  simp",
-    same: "theorem slot_fake : (∀ a : ℕ, a + 0 = a) ↔ (∀ a : ℕ, a + 0 = a) := by\n  exact Iff.rfl",
-    other: "theorem slot_fake : (1 = 1) ↔ (∀ a : ℕ, a + 0 = a) := by\n  simp",
-    changed: "theorem slot_fake : True ↔ (∀ a : ℕ, a + 1 = a + 1) := by\n  simp",
+    yes: "theorem question_fake : ∀ a : ℕ, a + 0 = a := by\n  simp",
+    yesParen: "theorem question_fake : (∀ a : ℕ, a + 0 = a) := by\n  simp",
+    no: "theorem question_fake : ¬ (∀ a : ℕ, a + 0 = a) := by\n  intro h\n  sorry",
+    noBare: "theorem question_fake : ¬ ∀ a : ℕ, a + 0 = a := by\n  intro h\n  sorry",
+    noNamed: "theorem question_fake_neg : ¬ (∀ a : ℕ, a + 0 = a) := by\n  intro h\n  sorry",
+    slotTrue: "theorem question_fake : True ↔ (∀ a : ℕ, a + 0 = a) := by\n  simp",
+    slotFalse: "theorem question_fake : (False : Prop) ↔ (∀ a : ℕ, a + 0 = a) := by\n  simp",
+    same: "theorem question_fake : (∀ a : ℕ, a + 0 = a) ↔ (∀ a : ℕ, a + 0 = a) := by\n  exact Iff.rfl",
+    changed: "theorem question_fake : ∀ a : ℕ, a + 1 = a + 1 := by\n  simp",
+    otherName: "theorem something_else : ∀ a : ℕ, a + 0 = a := by\n  simp",
   }
-  const run = async (key, strategy = "control-honoured") => {
+  const run = async (key, { strategy = "control-honoured", question = "yes-no", theorem = QUESTION } = {}) => {
     const b = await startBridge({ FAKE_MODE: "ok", FAKE_TARGET_PROOF: proofs[key], FAKE_LEMMA: "0" })
     try {
-      const f = await b.frames(strategy, { theorem: SLOT, memory: { entries: [] }, computeBudgetMs: /yes|no/.test(key) ? 120000 : 4000 })
-      return { f, calls: b.calls(), t: texts(f), done: f.find((x) => x.type === "done") }
+      const f = await b.frames(strategy, { theorem, question, memory: { entries: [] }, computeBudgetMs: /^(yes|no)/.test(key) ? 120000 : 4000 })
+      return { f, calls: b.calls(), t: texts(f), done: f.find((x) => x.type === "done"), home: b.home }
     } finally {
       b.stop()
     }
   }
-  await check("slot True: the statement counts as proved, and the run says so", async () => {
+  await check("a question: the statement as given counts as proved, and the run says so", async () => {
     const r = await run("yes")
     assert.ok(r.t.some((x) => /closed it on attempt 1.*Answer True: the statement is PROVED/.test(x)), r.t.join(" | "))
     assert.equal(r.done.verified, true)
   })
-  await check("slot written (True : Prop) also counts", async () => {
+  await check("the statement in parentheses also counts", async () => {
     assert.equal((await run("yesParen")).done.verified, true)
   })
-  await check("slot False: the negation counts as proved, and the run says DISPROVED", async () => {
-    const r = await run("no")
-    assert.ok(r.t.some((x) => /Answer False: the statement is DISPROVED/.test(x)), r.t.join(" | "))
-    assert.equal(r.done.verified, true)
-  })
+  for (const key of ["no", "noBare", "noNamed"]) {
+    await check(`a question: its negation counts as proved, and the run says DISPROVED (${key})`, async () => {
+      const r = await run(key)
+      assert.ok(r.t.some((x) => /Answer False: the statement is DISPROVED/.test(x)), r.t.join(" | "))
+      assert.equal(r.done.verified, true)
+    })
+  }
   await check("plain Control II takes either answer too", async () => {
-    const r = await run("no", "control-oneshot-2")
+    const r = await run("no", { strategy: "control-oneshot-2" })
     assert.equal(r.done.verified, true, r.t.join(" | "))
   })
-  for (const key of ["same", "other", "changed"]) {
-    await check(`slot filled with something else (${key}) does not count`, async () => {
+  for (const key of ["slotTrue", "slotFalse", "same", "changed", "otherName"]) {
+    await check(`the repudiated slot form and other statements do not count (${key})`, async () => {
       const r = await run(key)
       assert.notEqual(r.done?.verified, true, "the gate accepted it")
       assert.ok(!r.t.some((x) => /closed it on attempt/.test(x)), r.t.join(" | "))
     })
   }
-  await check("the prompt explains the slot for a slot target, and says nothing of it otherwise", async () => {
-    const withSlot = await run("yes")
-    assert.match(withSlot.calls[0].promptTail, /ANSWER SLOT[\s\S]*True[\s\S]*False[\s\S]*except for the answer slot/)
-    const b = await startBridge({ FAKE_MODE: "ok" })
+  await check("a negation without parentheses counts only for a quantified statement: ¬ A ∧ B is (¬ A) ∧ B", async () => {
+    const stmt = "theorem conj_fake : (1 = 1) ∧ (2 = 2) := by\n  sorry"
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_TARGET_PROOF: "theorem conj_fake : ¬ (1 = 1) ∧ (2 = 2) := by\n  sorry", FAKE_LEMMA: "0" })
     try {
-      await b.frames("control-honoured", { memory: { entries: [] } })
-      assert.ok(!/ANSWER SLOT/.test(b.calls()[0].promptTail), "a plain target got the slot note")
+      const f = await b.frames("control-honoured", { theorem: stmt, question: "yes-no", memory: { entries: [] }, computeBudgetMs: 4000 })
+      assert.notEqual(f.find((x) => x.type === "done")?.verified, true, "(¬ A) ∧ B was taken for ¬ (A ∧ B)")
     } finally {
       b.stop()
     }
+  })
+  await check("the agent is shown the plain statement and told its negation also settles it; the slot form never reaches it", async () => {
+    const r = await run("yes")
+    const tail = r.calls[0].promptTail
+    assert.match(tail, /THIS TARGET IS A YES-OR-NO QUESTION[\s\S]*its negation[\s\S]*Leak IV rejects that form/)
+    assert.match(tail, /Theorem \(its signature is immutable, but its negation settles it as well\):\s*theorem question_fake : ∀ a : ℕ, a \+ 0 = a/)
+    assert.ok(!/\(sorry : Prop\)/.test(r.calls[0].promptFull.replace(/\(… : Prop\)/g, "")), "the internal tag reached the agent")
+    const b = await startBridge({ FAKE_MODE: "ok" })
+    try {
+      await b.frames("control-honoured", { memory: { entries: [] } })
+      assert.ok(!/YES-OR-NO QUESTION/.test(b.calls()[0].promptTail), "a plain target got the question note")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a request that asks for a question with binders before the colon is refused", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok" })
+    try {
+      await assert.rejects(b.post("control-honoured", { theorem: "theorem needs_binders (n : ℕ) : n = n := by\n  sorry", question: "yes-no" }), /HTTP 400[\s\S]*question_target_needs_a_closed_statement/)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("the run record says what was asked and that it was a question, not the internal tag", async () => {
+    const r = await run("yes")
+    const dir = path.join(r.home, ".leak-runs")
+    const file = fs.readdirSync(dir).sort().filter((f) => f.endsWith(".jsonl") && f !== "index.jsonl").pop()
+    const start = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8").split("\n")[0])
+    assert.equal(start.question, "yes-no")
+    assert.ok(!/sorry : Prop/.test(start.theorem), start.theorem)
+    assert.match(start.theorem, /theorem question_fake : ∀ a : ℕ, a \+ 0 = a/)
+    const index = fs.readFileSync(path.join(dir, "index.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).pop()
+    assert.ok(!/sorry : Prop/.test(index.theorem), "the internal tag reached the run index: " + index.theorem)
+    assert.ok(r.done)
   })
 }
 

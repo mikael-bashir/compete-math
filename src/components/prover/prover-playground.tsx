@@ -258,6 +258,7 @@ export function ProverPlayground() {
             : undefined,
           maxCostUsd: asTree ? maxCostUsd : undefined,
           targetId: usesMemory && target ? target.id : undefined,
+          question: usesMemory && target ? target.question : undefined,
           memoryEntries: usesMemory && target ? packMemory(memoryRef.current) : undefined,
           seeds: usesMemory && target && useSeeds ? target.seeds : undefined,
           onMemory: usesMemory ? onMemoryFrame : undefined,

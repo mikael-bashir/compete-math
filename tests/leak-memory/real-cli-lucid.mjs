@@ -51,7 +51,8 @@ const say = (ok, msg) => { console.log(ok ? "ok  " : "FAIL", msg); if (!ok) bad+
 await new Promise((r) => setTimeout(r, 2500))
 if (target) {
   const slotTexts = (re) => [...new Set([...text.matchAll(re)].map((m) => m[0]))].slice(0, 4)
-  console.log("slot in what the agent sent:", { sorrySlot: slotTexts(/\(sorry : Prop\) ↔[^\\"]{0,40}/g), trueSlot: slotTexts(/\b(?:\(True : Prop\)|True) ↔ ∀[^\\"]{0,30}/g), falseSlot: slotTexts(/\b(?:\(False : Prop\)|False) ↔ ∀[^\\"]{0,30}/g) })
+  // the free slot `(… : Prop) ↔ P` is repudiated (Leak IV rejects it); a question is answered by P or by ¬(P). Neither slot list should show anything.
+  console.log("slot forms in what the agent sent (should be empty):", { sorrySlot: slotTexts(/\(sorry : Prop\) ↔[^\\"]{0,40}/g), trueSlot: slotTexts(/\b(?:\(True : Prop\)|True) ↔ ∀[^\\"]{0,30}/g), falseSlot: slotTexts(/\b(?:\(False : Prop\)|False) ↔ ∀[^\\"]{0,30}/g) }, "negations:", slotTexts(/theorem \w+(?:_neg)? : ¬[^\\"]{0,40}/g))
 } else say(leak.calls.some((c) => c.tool === "verify_full_script"), "the agent called verify_full_script")
 say(listing().every((f) => notesBefore.has(f)), "no new notes in ~/.claude/projects/*/memory: " + listing().filter((f) => !notesBefore.has(f)).join(", "))
 say(fs.readdirSync(tmp).every((f) => !f.startsWith("leak-agent-")), "no scratch directory left")
