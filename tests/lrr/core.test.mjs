@@ -285,13 +285,13 @@ test("deriveItem: a memory run carries its variant, session mode, attempts and l
     reason: "time",
     seconds: 3600,
     cost_usd: 9,
-    memory_run: { variant: "control-lucid", session_mode: "persistent", attempts: 4, resumes: 3, fresh_starts: 1, size: 1, stats: { saved: 2 } },
+    memory_run: { variant: "control-lucid", session_mode: "persistent", attempts: 4, resumes: 3, fresh_starts: 1, size: 1, stats: { saved: 2 }, guards: { kernel_eval_refused: 2, hook_blocked: { lean: 1, network: 4 } } },
   }
   const { item, memory: mem } = deriveItem({ id: "2026-10-20T10-00-00-000Z-erdos_396", text: jl({ ...START, strategy: "control-lucid" }, end), sidecars: { memory }, nowMs: NOW })
   assert.equal(item.variant, "control-lucid")
   assert.equal(item.session_mode, "persistent")
   assert.equal(item.attempts, 4)
-  assert.deepEqual(item.memory_run, { attempts: 4, resumes: 3, fresh_starts: 1, size: 1, stats: { saved: 2 } })
+  assert.deepEqual(item.memory_run, { attempts: 4, resumes: 3, fresh_starts: 1, size: 1, stats: { saved: 2 }, guards: { kernel_eval_refused: 2, hook_blocked: { lean: 1, network: 4 } } })
   assert.equal(item.memory_source, "bridge")
   assert.equal(mem, memory)
 })

@@ -279,6 +279,55 @@ const check = async (name, fn) => {
       b.stop()
     }
   })
+  // what the guards refused is part of the run's record: how often an agent reaches for a kernel evaluation, a local toolchain or the network is
+  // evidence for what each guard is worth
+  const endLine = async (home) => {
+    const dir = path.join(home, ".leak-runs")
+    for (let i = 0; i < 60; i++) {
+      const f = fs.existsSync(dir) ? fs.readdirSync(dir).filter((n) => n.endsWith(".jsonl") && n !== "index.jsonl").sort().pop() : null
+      const lines = f ? fs.readFileSync(path.join(dir, f), "utf8").trim().split("\n").map((l) => JSON.parse(l)) : []
+      const end = lines.find((l) => l.kind === "end")
+      if (end) return end
+      await new Promise((r) => setTimeout(r, 100))
+    }
+    return null
+  }
+  await check("the run record counts what the verifier guard refused", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1", FAKE_TARGET_PROOF: BIG, FAKE_LEMMA: "0" })
+    try {
+      await b.frames("control-honoured", { memory: { entries: [] }, computeBudgetMs: 4000 })
+      const end = await endLine(b.home)
+      assert.ok(end, "an end line")
+      assert.ok(end.memory_run.guards.kernel_eval_refused >= 1, JSON.stringify(end.memory_run.guards))
+    } finally {
+      b.stop()
+    }
+  })
+  await check("the run record counts what the hook blocked, by kind, and not what it let through", async () => {
+    const tries = ["lake build", "cd x && lean f.lean", "curl https://example.com/a", "pip install sympy", "git clone https://x/y", "ls -la", "python3 -c 'print(2+2)'"]
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_BASH_TRY: JSON.stringify(tries), FAKE_LEMMA: "0" })
+    try {
+      await b.frames("control-honoured", { memory: { entries: [] }, computeBudgetMs: 4000 })
+      const end = await endLine(b.home)
+      assert.ok(end, "an end line")
+      const blocked = end.memory_run.guards.hook_blocked
+      assert.equal(blocked.lean, 2, JSON.stringify(blocked))
+      assert.equal(blocked.network, 3, JSON.stringify(blocked))
+      assert.deepEqual(Object.keys(blocked).sort(), ["lean", "network"], "ls and python are not blocked and not counted")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a run that tried nothing says so", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_LEMMA: "0" })
+    try {
+      await b.frames("control-honoured", { memory: { entries: [] } })
+      const end = await endLine(b.home)
+      assert.deepEqual(end.memory_run.guards, { kernel_eval_refused: 0, hook_blocked: {} })
+    } finally {
+      b.stop()
+    }
+  })
   await check("an ordinary script goes through the proxy to the verifier and its answer comes back unchanged", async () => {
     const before = leak.calls.length
     const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1", FAKE_LEMMA: "0" })

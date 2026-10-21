@@ -15,6 +15,17 @@ const resumed = after("--resume")
 // FAKE_BG: like an agent that runs `nohup python3 search.py &`: start a background process in this CLI's own process group, and say
 // whether the ones earlier invocations started are still alive. FAKE_MODE=hang then never exits, like a CLI in a long think.
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
+// FAKE_BASH_TRY: a JSON list of shell commands the agent "tries": each goes through the PreToolUse hooks of --settings as the real CLI's Bash
+// tool does, and a blocked one (exit status 2) is not run.
+if (process.env.FAKE_BASH_TRY) {
+  const settingsArg = (() => { const i = process.argv.indexOf("--settings"); return i >= 0 ? process.argv[i + 1] : null })()
+  const hooks = settingsArg ? JSON.parse(existsSync(settingsArg) ? readFileSync(settingsArg, "utf8") : settingsArg).hooks?.PreToolUse || [] : []
+  for (const command of JSON.parse(process.env.FAKE_BASH_TRY)) {
+    for (const h of hooks.filter((x) => x.matcher === "Bash").flatMap((x) => x.hooks || [])) {
+      spawnSync("sh", ["-c", h.command], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command } }), encoding: "utf8" })
+    }
+  }
+}
 const prevBg = process.env.FAKE_BG && existsSync(process.env.FAKE_BG) ? readFileSync(process.env.FAKE_BG, "utf8").trim().split("\n").filter(Boolean).map(Number) : []
 const prevBgAlive = prevBg.map(alive)
 if (process.env.FAKE_BG) {

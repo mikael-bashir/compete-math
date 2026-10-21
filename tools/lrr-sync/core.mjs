@@ -252,7 +252,7 @@ export function deriveItem({ id, text, indexRow = null, sidecars = {}, bank = []
     session_mode: memoryRun?.session_mode || (isMemory ? "fresh_per_attempt" : null),
     reason,
     answer,
-    memory_run: memoryRun ? { attempts: memoryRun.attempts ?? null, resumes: memoryRun.resumes ?? null, fresh_starts: memoryRun.fresh_starts ?? null, size: memoryRun.size ?? null, stats: memoryRun.stats ?? null } : null,
+    memory_run: memoryRun ? { attempts: memoryRun.attempts ?? null, resumes: memoryRun.resumes ?? null, fresh_starts: memoryRun.fresh_starts ?? null, size: memoryRun.size ?? null, stats: memoryRun.stats ?? null, guards: memoryRun.guards ?? null } : null,
     metrics_source: endMetrics ? "bridge" : "derived",
     proof_source: proofSource,
     memory_source: memorySource,
