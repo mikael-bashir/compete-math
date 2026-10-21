@@ -65,7 +65,7 @@ async function startBridge(env = {}) {
     }
     return out
   }
-  return { home: HOME, frames, post, calls, log: () => log, stop: () => child.kill(), signal: (sig) => child.kill(sig), exited: () => child.exitCode !== null || child.signalCode !== null }
+  return { home: HOME, port: PORT, frames, post, calls, log: () => log, stop: () => child.kill(), signal: (sig) => child.kill(sig), exited: () => child.exitCode !== null || child.signalCode !== null }
 }
 
 const seed = [{ id: "seed1", name: "odd_pair_even_seed", statement: "theorem odd_pair_even_seed (a b : ℕ) (ha : a % 2 = 1) (hb : b % 2 = 1) : (a + b) % 2 = 0", closure: "theorem odd_pair_even_seed (a b : ℕ) (ha : a % 2 = 1) (hb : b % 2 = 1) : (a + b) % 2 = 0 := by\n  omega", origin: "seed", saved_at: 1 }]
@@ -173,6 +173,62 @@ const check = async (name, fn) => {
       assert.notEqual(done(f)?.verified, true)
       assert.match(r.log(), /leak-containment\.mjs not loaded/)
       assert.match(texts(f).join(" | ") + JSON.stringify(f), /could not be started three times/, "the run says why it stopped, instead of retrying until the clock runs out")
+    } finally {
+      r.stop()
+    }
+  })
+  // the single-agent endpoint (/prove-stream; /prove and the worker share its launch) is confined like the isolated agents
+  const proveStream = async (r, options = {}) => {
+    const res = await fetch(`http://127.0.0.1:${r.port}/prove-stream`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-bridge-token": "test-token", origin: "http://localhost:3000" },
+      body: JSON.stringify({ theorem: THEOREM, mcpServers, model: "sonnet", options }),
+    })
+    return res.text()
+  }
+  await check("/prove-stream is confined by default: a scratch directory of its own (the request's working directory is ignored), the sandbox, a scrubbed environment", async () => {
+    const wanted = fs.mkdtempSync(path.join(tmp, "wanted-"))
+    const r = await startBridge({ FAKE_MODE: "ok", TEST_SECRET_TOKEN: "s3cret" })
+    try {
+      await proveStream(r, { workingDirectory: wanted })
+      const c = r.calls()[0]
+      assert.ok(c.argv.includes("--restricted") && !c.argv.includes("--dangerously-skip-permissions"))
+      assert.match(path.basename(c.cwd), /^leak-agent-/)
+      assert.notEqual(fs.realpathSync(path.dirname(c.cwd)) + path.sep + path.basename(c.cwd), fs.realpathSync(wanted), "a page must not choose what the agent may write")
+      const st = JSON.parse(c.settings)
+      assert.equal(st.sandbox.enabled, true)
+      assert.equal(st.sandbox.network.strictAllowlist, true)
+      assert.ok(c.argv.slice(c.argv.indexOf("--disallowedTools") + 1).includes("WebSearch"))
+      assert.equal(c.env.BRIDGE_TOKEN, null)
+      assert.equal(c.env.TEST_SECRET_TOKEN, null)
+      assert.match(c.appendSystem, /RUNS IN A SANDBOX/)
+      await new Promise((x) => setTimeout(x, 400))
+      assert.equal(fs.existsSync(c.cwd), false, "scratch directory left behind")
+    } finally {
+      r.stop()
+    }
+  })
+  await check("/prove-stream in shell mode is what it always was: bypass of permissions, the requested working directory, the whole environment", async () => {
+    const wanted = fs.mkdtempSync(path.join(tmp, "wanted-"))
+    const r = await startBridge({ FAKE_MODE: "ok", LEAK_AGENT_CONTAINMENT: "shell", TEST_SECRET_TOKEN: "s3cret" })
+    try {
+      await proveStream(r, { workingDirectory: wanted })
+      const c = r.calls()[0]
+      assert.ok(c.argv.includes("--dangerously-skip-permissions") && !c.argv.includes("--restricted"))
+      assert.equal(fs.realpathSync(c.cwd), fs.realpathSync(wanted))
+      assert.equal(c.env.TEST_SECRET_TOKEN, "s3cret")
+    } finally {
+      r.stop()
+    }
+  })
+  await check("/prove-stream without the containment module starts no agent and says why", async () => {
+    const dir = fs.mkdtempSync(path.join(tmp, "nocontain-"))
+    for (const f of ["local-claude-bridge.mjs", "leak-memory.mjs", "leak-min-imports.mjs"]) fs.copyFileSync(path.join(here, "../../public", f), path.join(dir, f))
+    const r = await startBridge({ FAKE_MODE: "ok", __bridge: path.join(dir, "local-claude-bridge.mjs") })
+    try {
+      const text = await proveStream(r)
+      assert.equal(r.calls().length, 0, "the CLI must not be started")
+      assert.match(text, /leak-containment\.mjs is missing/)
     } finally {
       r.stop()
     }
