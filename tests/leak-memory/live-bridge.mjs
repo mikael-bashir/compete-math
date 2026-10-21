@@ -29,7 +29,7 @@ async function startBridge(env = {}) {
   const PORT = portCounter++
   const HOME = fs.mkdtempSync(path.join(tmp, "home-"))
   const report = path.join(HOME, "report.jsonl")
-  const child = spawn(env.__node || process.execPath, [bridgePath], {
+  const child = spawn(env.__node || process.execPath, [env.__bridge || bridgePath], {
     env: { PATH: process.env.PATH, TMPDIR: tmp, ...env, HOME, LEAK_PROOF_BANK: path.join(HOME, "bank.json"), PORT: String(PORT), CLAUDE_BIN: path.join(here, "fake-claude.mjs"), FAKE_SEARCH: "1", BRIDGE_TOKEN: "test-token", FAKE_REPORT: report },
     stdio: ["ignore", "pipe", "pipe"],
   })
@@ -86,7 +86,7 @@ const check = async (name, fn) => {
 
 // ---- the agent: what it is shown, where it runs ----
 {
-  const b = await startBridge()
+  const b = await startBridge({ TEST_SECRET_TOKEN: "s3cret", ANTHROPIC_API_KEY: "sk-test" })
   let honoured
   await check("honoured: solves, recalls, saves, and the logged prompt is the memory prompt", async () => {
     honoured = await b.frames("control-honoured", { memory: { entries: seed } })
@@ -115,6 +115,67 @@ const check = async (name, fn) => {
     assert.ok(st.hooks?.PreToolUse, "the local-Lean block is still in the settings")
     await new Promise((r) => setTimeout(r, 300))
     assert.equal(fs.existsSync(c.cwd), false, "scratch directory left behind")
+  })
+  await check("the agent is confined by default: the CLI's restricted mode with a sandboxed shell, no bypass of permissions, no secret in its environment", async () => {
+    const c = b.calls()[0]
+    assert.ok(c.argv.includes("--restricted"))
+    assert.ok(!c.argv.includes("--dangerously-skip-permissions"), "the first version's open shell is not the default")
+    const tools = c.argv.slice(c.argv.indexOf("--tools") + 1, c.argv.indexOf("--tools") + 7)
+    assert.deepEqual(tools, ["Bash", "Read", "Write", "Edit", "Glob", "Grep"])
+    const allowed = c.argv.slice(c.argv.indexOf("--allowedTools") + 1).filter((a) => !a.startsWith("--"))
+    assert.ok(allowed.includes("mcp__Leak_IV") && allowed.includes("mcp__Leak_I"), `the agent's own servers are named: ${allowed}`)
+    const sb = JSON.parse(c.settings).sandbox
+    assert.equal(sb.enabled, true)
+    assert.equal(sb.failIfUnavailable, true)
+    assert.equal(sb.network.strictAllowlist, true)
+    assert.deepEqual(sb.filesystem.allowRead, [fs.realpathSync(path.dirname(c.cwd)) + path.sep + path.basename(c.cwd)])
+    assert.match(c.appendSystem, /RUNS IN A SANDBOX/)
+    assert.equal(c.env.BRIDGE_TOKEN, null, "the bridge's own token must not reach the agent: it could then drive the bridge")
+    assert.equal(c.env.TEST_SECRET_TOKEN, null)
+    assert.equal(c.env.ANTHROPIC_API_KEY, "sk-test", "the CLI's own credentials are kept")
+  })
+  await check("restricted: no shell tool at all, Bash banned by name, and the agent is told it has none", async () => {
+    const r = await startBridge({ FAKE_MODE: "ok", LEAK_AGENT_CONTAINMENT: "restricted" })
+    try {
+      const f = await r.frames("control-honoured", { memory: { entries: seed } })
+      assert.equal(done(f)?.verified, true)
+      const c = r.calls()[0]
+      assert.ok(c.argv.includes("--restricted") && !c.argv.includes("--tools") && !c.argv.includes("--dangerously-skip-permissions"))
+      const banned = c.argv.slice(c.argv.indexOf("--disallowedTools") + 1).filter((a) => !a.startsWith("--"))
+      assert.ok(banned.includes("Bash") && banned.includes("Task"))
+      assert.equal(JSON.parse(c.settings).sandbox, undefined)
+      assert.match(c.appendSystem, /YOU HAVE NO SHELL/)
+      assert.doesNotMatch(c.promptFull, /Your shell \(/, "the prompt does not describe a shell the agent does not have")
+    } finally {
+      r.stop()
+    }
+  })
+  await check("shell (the first version, kept to compare an arm against): bypass of permissions, the hook, and the whole environment", async () => {
+    const r = await startBridge({ FAKE_MODE: "ok", LEAK_AGENT_CONTAINMENT: "shell", TEST_SECRET_TOKEN: "s3cret" })
+    try {
+      const f = await r.frames("control-honoured", { memory: { entries: seed } })
+      assert.equal(done(f)?.verified, true)
+      const c = r.calls()[0]
+      assert.ok(c.argv.includes("--dangerously-skip-permissions") && !c.argv.includes("--restricted"))
+      assert.ok(JSON.parse(c.settings).hooks?.PreToolUse)
+      assert.equal(c.env.TEST_SECRET_TOKEN, "s3cret")
+    } finally {
+      r.stop()
+    }
+  })
+  await check("a bridge without its containment module starts no isolated agent: it never falls back to the open shell", async () => {
+    const dir = fs.mkdtempSync(path.join(tmp, "nocontain-"))
+    for (const f of ["local-claude-bridge.mjs", "leak-memory.mjs", "leak-min-imports.mjs"]) fs.copyFileSync(path.join(here, "../../public", f), path.join(dir, f))
+    const r = await startBridge({ FAKE_MODE: "ok", __bridge: path.join(dir, "local-claude-bridge.mjs") })
+    try {
+      const f = await r.frames("control-honoured", { memory: { entries: seed } })
+      assert.equal(r.calls().length, 0, "the CLI must not be started")
+      assert.notEqual(done(f)?.verified, true)
+      assert.match(r.log(), /leak-containment\.mjs not loaded/)
+      assert.match(texts(f).join(" | ") + JSON.stringify(f), /could not be started three times/, "the run says why it stopped, instead of retrying until the clock runs out")
+    } finally {
+      r.stop()
+    }
   })
   await check("flint: no memory tools exposed", async () => {
     const f = await b.frames("control-flint", { memory: { entries: seed } })
@@ -323,7 +384,7 @@ const check = async (name, fn) => {
     try {
       await b.frames("control-honoured", { memory: { entries: [] } })
       const end = await endLine(b.home)
-      assert.deepEqual(end.memory_run.guards, { kernel_eval_refused: 0, hook_blocked: {} })
+      assert.deepEqual(end.memory_run.guards, { kernel_eval_refused: 0, containment: "sandbox", hook_blocked: {} })
     } finally {
       b.stop()
     }

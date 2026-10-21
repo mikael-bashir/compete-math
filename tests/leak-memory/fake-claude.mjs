@@ -52,7 +52,7 @@ if (process.env.FAKE_BG) {
 }
 // FAKE_REPORT: one line per invocation, so a test can see how the bridge called the CLI (cwd, env, resume, settings)
 if (process.env.FAKE_REPORT)
-  appendFileSync(process.env.FAKE_REPORT, JSON.stringify({ cwd: process.cwd(), autoMemory: process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY ?? null, claudeMds: process.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS ?? null, resume: resumed, appendSystem: after("--append-system-prompt"), settings: after("--settings"), prompt: prompt.slice(0, 6000), promptTail: prompt.slice(-2500), promptFull: prompt, session: SESSION, pid: process.pid, prevBgAlive }) + "\n")
+  appendFileSync(process.env.FAKE_REPORT, JSON.stringify({ cwd: process.cwd(), autoMemory: process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY ?? null, claudeMds: process.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS ?? null, resume: resumed, appendSystem: after("--append-system-prompt"), settings: after("--settings"), prompt: prompt.slice(0, 6000), promptTail: prompt.slice(-2500), promptFull: prompt, argv: args.filter((a) => a !== prompt), env: { BRIDGE_TOKEN: process.env.BRIDGE_TOKEN ?? null, TEST_SECRET_TOKEN: process.env.TEST_SECRET_TOKEN ?? null, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? null }, session: SESSION, pid: process.pid, prevBgAlive }) + "\n")
 // FAKE_MODE: giveup = stop at once unless resumed; stubborn = always stop at once; lose = stop at once, a resume fails; sleep = answer the consolidation prompt with FAKE_SLEEP_JSON
 const mode = process.env.FAKE_MODE || "ok"
 if (mode === "hang") setInterval(() => {}, 1000)
