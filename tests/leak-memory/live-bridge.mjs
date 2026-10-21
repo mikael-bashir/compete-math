@@ -100,8 +100,13 @@ const check = async (name, fn) => {
   })
   await check("the agent runs in a scratch directory with auto-memory off, and the directory is removed afterwards", async () => {
     const c = b.calls()[0]
-    assert.ok(fs.realpathSync(path.dirname(c.cwd)) === fs.realpathSync(tmp) || c.cwd.startsWith(tmp), `cwd ${c.cwd} is not under the bridge's temp directory ${tmp}`)
+    // under the bridge's temp directory, or (when that path has characters the CLI rewrites, as on macOS) under /tmp: see agentScratchRoot
+    const real = path.join(fs.realpathSync(path.dirname(c.cwd)), path.basename(c.cwd)) // the directory itself is already gone
+    assert.ok(fs.realpathSync(path.dirname(c.cwd)) === fs.realpathSync(tmp) || real.startsWith(fs.realpathSync("/tmp") + path.sep), `cwd ${c.cwd} is not under the bridge's temp directory ${tmp}`)
     assert.match(path.basename(c.cwd), /^leak-agent-/)
+    // the CLI names a background command's output folder after the working directory with every non-alphanumeric character turned into "-",
+    // so the directory's path must be only letters, digits, "-", "." and "/": there is then nothing for an agent to mis-undo
+    assert.match(real, /^[A-Za-z0-9/.-]+$/, `the agent's working directory ${real} has characters the CLI rewrites`)
     assert.notEqual(path.resolve(c.cwd), path.resolve(here, "../.."))
     assert.equal(c.autoMemory, "1")
     assert.equal(c.claudeMds, "1")

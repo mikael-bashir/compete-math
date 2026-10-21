@@ -20,7 +20,7 @@
 import { createServer } from "node:http"
 import { spawn, execFile, execFileSync } from "node:child_process"
 import { randomBytes, timingSafeEqual, randomUUID, createHash } from "node:crypto"
-import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, appendFileSync, rmSync } from "node:fs"
+import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, appendFileSync, rmSync, realpathSync, existsSync } from "node:fs"
 import { tmpdir, homedir } from "node:os"
 import { join, basename, isAbsolute } from "node:path"
 
@@ -401,7 +401,25 @@ process.on("SIGTERM", () => {
   reapAllAgents()
   process.exit(143)
 })
-const makeAgentScratch = () => mkdtempSync(join(tmpdir(), "leak-agent-"))
+// Where an agent works matters more than it looks: the Claude CLI keeps a background command's output under a folder named after the working
+// directory with every character that is not a letter or digit turned into "-", so on macOS (/private/var/folders/jn/fvdn4x_34209h__0r/T/...)
+// the path it prints has "--" where the real one has "__", and an agent that tries to "correct" the path it was given reads a file that does
+// not exist (and may go looking for it across the disk). So the agent works in a directory whose path is only letters, digits, "-", "." and
+// "/": there is then nothing to rewrite. LEAK_AGENT_ROOT overrides the place (tests use it).
+const PLAIN_PATH = /^[A-Za-z0-9/.-]+$/
+const agentScratchRoot = () => {
+  const forced = process.env.LEAK_AGENT_ROOT
+  if (forced) return forced
+  const t = tmpdir()
+  try {
+    if (PLAIN_PATH.test(realpathSync(t))) return t
+    if (existsSync("/tmp") && PLAIN_PATH.test(realpathSync("/tmp"))) return "/tmp"
+  } catch {
+    /* fall through to the system temp directory */
+  }
+  return t
+}
+const makeAgentScratch = () => mkdtempSync(join(agentScratchRoot(), "leak-agent-"))
 const removeAgentScratch = (dir) => {
   try {
     if (dir) rmSync(dir, { recursive: true, force: true })

@@ -501,6 +501,11 @@ test("the curious voice never calls the problem open, hard or unsolved, gives no
   assert.match(V.opening(), /"I see no route" is where the work starts/)
   assert.match(V.opening(), /WHAT CURIOSITY LOOKS LIKE HERE/)
   assert.match(V.opening(), /OUR INSTRUMENT IS PROOF, NOT SEARCH/)
+  // a command the CLI moves to the background has its output under a path the agent must copy, not rebuild or hunt for
+  assert.match(V.opening(), /moved to the background/)
+  assert.match(V.opening(), /copied character for character/)
+  assert.match(V.opening(), /never rebuild it by hand/)
+  assert.match(V.opening(), /never search the disk for it/)
   assert.match(V.opening(), /more than 5 minutes/)
   assert.match(V.opening(), /THE INSTRUMENTS, AND HOW STRONG THEY ARE/)
   assert.match(V.opening(), /YOUR LAB NOTES[\s\S]*NOTE: <[\s\S]*NEXT: </)
