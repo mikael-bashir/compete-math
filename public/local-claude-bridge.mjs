@@ -3599,13 +3599,14 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     // that is not isolated keeps the shell it always had. No containment module means no isolated run: never a silent unconfined shell.
     let plan = null
     let ownScratch = ""
-    if (isolate) {
+    const confined = AGENT_CONTAINMENT !== "shell" // sandbox or restricted, or "none" (no module): every agent is confined, not only the isolated ones
+    if (isolate || confined) {
       if (!_containment) {
         destroyGovernor(governor)
         resolve({ ok: false, finalText: "", exitCode: null, timedOut: false, stderr: "leak-containment.mjs is missing next to the bridge: run the setup command on the Leak page again", launchFailed: true })
         return
       }
-      if (AGENT_CONTAINMENT !== "shell" && !cwd) cwd = ownScratch = makeAgentScratch()
+      if (confined && !cwd) cwd = ownScratch = makeAgentScratch()
       plan = _containment.containmentPlan({
         mode: AGENT_CONTAINMENT,
         workDir: cwd ? realpathSync(cwd) : undefined,
@@ -3657,7 +3658,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     if (token) liveTokens.add(token)
     let child
     try {
-      child = spawn(CLAUDE_BIN, args, { cwd: cwd || process.cwd(), env: isolate ? isolatedEnv(token) : process.env, shell: false, stdio: ["ignore", "pipe", "pipe"] })
+      child = spawn(CLAUDE_BIN, args, { cwd: cwd || process.cwd(), env: isolate ? isolatedEnv(token) : confined ? { ..._containment.scrubbedEnv(process.env, AGENT_CONTAINMENT), CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" } : process.env, shell: false, stdio: ["ignore", "pipe", "pipe"] })
       if (ownScratch) child.once("close", () => rmSync(ownScratch, { recursive: true, force: true }))
       if (token) {
         liveClis.add(child)

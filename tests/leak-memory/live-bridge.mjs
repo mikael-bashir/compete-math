@@ -233,6 +233,22 @@ const check = async (name, fn) => {
       r.stop()
     }
   })
+  await check("an agent that is not isolated (a strategy's node prover) is confined too, in its own scratch directory", async () => {
+    const r = await startBridge({ FAKE_MODE: "ok", TEST_SECRET_TOKEN: "s3cret" })
+    try {
+      await r.frames("control-oneshot", {})
+      const calls = r.calls()
+      assert.ok(calls.length >= 1)
+      for (const c of calls) {
+        assert.ok(c.argv.includes("--restricted") && !c.argv.includes("--dangerously-skip-permissions"), JSON.stringify(c.argv.slice(0, 12)))
+        assert.match(path.basename(c.cwd), /^leak-agent-/)
+        assert.equal(c.env.TEST_SECRET_TOKEN, null)
+        assert.equal(c.env.BRIDGE_TOKEN, null)
+      }
+    } finally {
+      r.stop()
+    }
+  })
   await check("flint: no memory tools exposed", async () => {
     const f = await b.frames("control-flint", { memory: { entries: seed } })
     assert.ok(!JSON.stringify(f).includes("memory_recall"))
