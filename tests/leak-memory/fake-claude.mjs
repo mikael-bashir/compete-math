@@ -137,9 +137,19 @@ async function mcp(url, method, params, session) {
 let n = 0
 // FAKE_PACE_MS slows the stand-in down so the visualiser can be watched by hand
 const pace = () => new Promise((r) => setTimeout(r, Number(process.env.FAKE_PACE_MS) || 0))
+// FAKE_USAGE=1: every assistant message carries an id, a model and the usage a real API call reports, so the bridge's per-call usage record can
+// be checked: the context grows by 20 000 cache-read tokens a call, unless FAKE_USAGE_DROP_AT=k, where call k reads only 30 000 (a compaction).
+const usageOf = (k) =>
+  process.env.FAKE_USAGE
+    ? {
+        id: `msg_fake_${k}`,
+        model: "claude-sonnet-5-5",
+        usage: { input_tokens: 12, output_tokens: 300 + k, cache_read_input_tokens: Number(process.env.FAKE_USAGE_DROP_AT) === k ? 30000 : 100000 + 20000 * k, cache_creation_input_tokens: 500 },
+      }
+    : {}
 const toolUse = (name, input) => {
   const id = `tu${++n}`
-  out({ type: "assistant", message: { content: [{ type: "tool_use", id, name, input }] } })
+  out({ type: "assistant", message: { ...usageOf(n), content: [{ type: "tool_use", id, name, input }] } })
   return id
 }
 const toolResult = (id, text) => out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, content: [{ type: "text", text }] }] } })

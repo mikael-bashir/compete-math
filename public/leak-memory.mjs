@@ -176,6 +176,27 @@ export function renderGuide(g, { withLean = true } = {}) {
   return out.join("\n\n")
 }
 
+// What a reminder carries when the full text is already in the conversation: where the plan still needs work and the moves it suggested, a
+// few hundred characters instead of thousands. A 3-hour run was reminded 202 times, about every 34 s, and half of everything that entered
+// its conversation was the guide repeated in full; the bridge sends the full text on the first reminder of a conversation and again every
+// few reminders (GUIDE_REFRESH_EVERY in the bridge), and this in between.
+const GUIDE_POINTER_MOVE_CHARS = 150
+export function renderGuidePointer(g) {
+  if (!g || !Array.isArray(g.steps) || !g.steps.length) return ""
+  const ids = g.steps.map((s) => s.id).filter(Boolean)
+  const range = ids.length > 1 ? ` (${ids[0]} to ${ids[ids.length - 1]})` : ""
+  const open = g.steps.filter((s) => s.tag === "hole").map((s) => [s.id, s.title].filter(Boolean).join(" ")).filter(Boolean)
+  const clip = (x) => (x.length > GUIDE_POINTER_MOVE_CHARS ? `${x.slice(0, GUIDE_POINTER_MOVE_CHARS - 1).trimEnd()}…` : x)
+  const moves = (g.next || []).map((x, i) => `${i + 1}. ${clip(x)}`)
+  return [
+    `THE LINE OF ATTACK${range}, written out in full earlier in this conversation, is still there as a plan to use, repair or leave.`,
+    open.length ? `Where it needs work: ${open.join("; ")}.` : "",
+    moves.length ? `Moves it suggested: ${moves.join(" ")}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
+
 const order = {
   key: "order",
   mandate: `STANDING ORDER FROM THE OPERATOR OF THIS RUN. This is not a suggestion.

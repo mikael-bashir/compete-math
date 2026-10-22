@@ -7,6 +7,9 @@ import { randomBytes } from "node:crypto"
 export function startFakeLeak({ brokenBattery = false } = {}) {
   const sessions = new Map()
   const calls = []
+  // marker: a successful verify ends with the `[[LEAK_NORMALIZED_SCRIPT_B64:...]]` marker the real Leak IV appends (the exact compiled bytes:
+  // the script with `import Mathlib` in front). Off by default so the other scenarios keep their plain replies; a scenario turns it on.
+  let marker = false
   const server = createServer((req, res) => {
     const url = new URL(req.url, "http://x")
     const kind = url.pathname.startsWith("/iv") ? "iv" : "i"
@@ -44,7 +47,8 @@ export function startFakeLeak({ brokenBattery = false } = {}) {
             // a probe of the rating pass (a statement whose proof is a tactic battery or exact?): closes only an easy truth
             const probe = /exact\?|first \| decide/.test(script)
             const ok = probe ? !brokenBattery && /2 \+ 2 = 4|a \+ b = b \+ a|EASY_PROBE/.test(script) : !/\bsorry\b/.test(script)
-            return reply({ content: [{ type: "text", text: ok ? "✅ Compilation Successful! The proof is 100% verified." : "Compilation Failed: Line 1 (Error): declaration uses sorry" }] })
+            const tail = ok && marker ? `\n[[LEAK_NORMALIZED_SCRIPT_B64:${Buffer.from(`import Mathlib\n${script}`).toString("base64")}]]` : ""
+            return reply({ content: [{ type: "text", text: ok ? `✅ Compilation Successful! The proof is 100% verified.${tail}` : "Compilation Failed: Line 1 (Error): declaration uses sorry" }] })
           }
           return reply({ content: [{ type: "text", text: "Mathlib.Algebra.Group.even_add_odd_fake : Even a → Odd b → Odd (a + b)" }] })
         }
@@ -54,5 +58,5 @@ export function startFakeLeak({ brokenBattery = false } = {}) {
     }
     res.writeHead(404).end()
   })
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ port: server.address().port, calls, close: () => server.close() })))
+  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ port: server.address().port, calls, setMarker: (v) => (marker = !!v), close: () => server.close() })))
 }
