@@ -3614,6 +3614,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
         disallowed: Array.isArray(disallowedTools) ? disallowedTools : PROVER_DISALLOWED_TOOLS,
         hookSettings: JSON.parse(NO_LOCAL_LEAN_SETTINGS),
         denyRead: AGENT_DENY_READ,
+        hasRestricted: _containment.cliHasRestricted(CLAUDE_BIN),
       })
     }
     const args = [
@@ -7126,10 +7127,15 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     sessionId = lost ? "" : r.sessionId
     lastAttemptMs = Date.now() - t0
     lastStopIso = new Date().toISOString()
-    if (r?.launchFailed) {
+    // A CLI that started and exited on the spot, having opened no conversation and said nothing, never ran an agent (a flag it does not
+    // know, a refused setting): it counts as a launch failure, and the reason is shown, not swallowed.
+    const diedAtOnce = !r?.launchFailed && !r?.sessionId && !r?.ok && !r?.timedOut && !r?.stopped && r?.exitCode != null && !String(r.finalText || "").trim()
+    if (r?.launchFailed || diedAtOnce) {
       launchFailures++
+      const why = String(r.stderr || "").trim().slice(0, 300) || `exit ${r.exitCode}, no message`
+      ctx.emit({ type: "message-annotation", subtype: "error", thought: `⚠️ The agent's CLI ${diedAtOnce ? `exited at once (${why})` : `could not be started (${why})`}.` })
       if (launchFailures >= 3) {
-        ctx.emit({ type: "message-annotation", subtype: "error", thought: `🛑 The agent could not be started three times in a row (${String(r.stderr || "").slice(0, 200)}). The run stops here instead of retrying until the clock runs out.` })
+        ctx.emit({ type: "message-annotation", subtype: "error", thought: `🛑 The agent could not be started three times in a row. The run stops here instead of retrying until the clock runs out.` })
         return { verified: false, proof: "" }
       }
     } else launchFailures = 0
