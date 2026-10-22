@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Rank the theorems Leak banked, one to five stars, and say why.
 //   node tools/leak-rank/rank.mjs [--target erdos-396] [--runs ~/.leak-runs] [--out DIR]
-//                                 [--probes] [--read] [--draws 2] [--limit N] [--no-report]
+//                                 [--probes] [--read] [--draws 2] [--limit N] [--no-report] [--export]
 // Phases are independent and cached (one JSON line per answer in OUT), so a rerun pays for nothing twice:
 //   --probes   asks Leak IV two questions per entry (does a one-line automatic tactic prove its statement; does one existing lemma)
 //   --read     has a model read each entry (batches of 8, --draws independent readings with the batches reshuffled)
@@ -17,7 +17,7 @@ import { splitStatement } from "../leak-vet/vet-core.mjs"
 import { loadEntries } from "./load.mjs"
 import { CONTROLS, distribution, features, probeScripts, stars, summariseReading } from "./rank-core.mjs"
 import { readingPrompt, parseReading } from "./reading.mjs"
-import { reportCsv, reportHtml, reportMd } from "./report.mjs"
+import { exportQuality, reportCsv, reportHtml, reportMd } from "./report.mjs"
 
 const argv = process.argv.slice(2)
 const flag = (n) => argv.includes(n)
@@ -172,11 +172,18 @@ function report() {
     const probe = p && p.cheap !== undefined && p.library !== undefined ? { cheap: p.cheap === true, library: p.library === true } : p ? { cheap: p.cheap === true, library: p.library === true } : null
     const reading = summariseReading(reads.get(e.id))
     const s = stars(f, probe, reading)
-    return { id: e.id, name: e.entry.name, statement: e.entry.statement, features: f, probes: probe, reading, stars: s.stars, reasons: s.reasons, spread: s.spread ?? null, runs: e.runs.map((r) => r.run) }
+    return { id: e.id, entryId: e.entry.id, name: e.entry.name, statement: e.entry.statement, features: f, probes: probe, reading, stars: s.stars, reasons: s.reasons, spread: s.spread ?? null, runs: e.runs.map((r) => r.run) }
   })
   writeFileSync(join(outDir, "ranking.csv"), reportCsv(rows))
   writeFileSync(join(outDir, "ranking.md"), reportMd(rows, { target: targetId, distribution: distribution(rows) }))
   writeFileSync(join(outDir, "ranking.html"), reportHtml(rows, { target: targetId, title: target.title }))
+  // --export: the file the app reads (src/data/leak-quality/<target>.json), numbers and flags only, keyed by entry id
+  if (flag("--export")) {
+    const dest = join(here, "../../src/data/leak-quality", `${targetId}.json`)
+    mkdirSync(dirname(dest), { recursive: true })
+    writeFileSync(dest, JSON.stringify(exportQuality(rows, { targetId, rankedAt: new Date().toISOString().slice(0, 10), draws: DRAWS }), null, 0) + "\n")
+    console.error(`app data written to ${dest}`)
+  }
   console.error(`report written to ${outDir}`)
   console.error(JSON.stringify(distribution(rows)))
 }
