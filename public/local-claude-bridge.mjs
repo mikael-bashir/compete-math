@@ -7017,8 +7017,8 @@ async function qualityModule() {
 async function rateStage(memory, ctx, theorem, cfg, state, budget = null) {
   const rc = cfg.sleep.rate && budget ? { ...cfg.sleep.rate, boxMs: budget.rateMs, max: budget.rateMax } : cfg.sleep.rate
   if (!rc) return 0
-  const todo = memory.unrated().sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || ""))).slice(0, rc.max)
-  if (!todo.length) return 0
+  const newestUnrated = () => memory.unrated().sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || ""))).slice(0, rc.max)
+  if (!newestUnrated().length) return 0
   const status = (thought, subtype = "status") => ctx.emit({ type: "message-annotation", subtype, thought })
   const Q = await qualityModule()
   if (!Q) {
@@ -7031,17 +7031,6 @@ async function rateStage(memory, ctx, theorem, cfg, state, budget = null) {
     const v = await verifyViaDaemon(script, ctx.verifyUrl, { timeoutMs: ctx.verifyTimeoutMs })
     return Boolean(v.ok && parseVerifyOutput(v.text).success)
   }
-  status(`⭐ Rating ${todo.length} saved theorem(s) (at most ${Math.round(rc.boxMs / 60000)} min).`)
-  // the tactic test is checked before it is trusted: it must close an easy truth and not an easy falsehood (once per run)
-  if (!state.batteryOk) {
-    for (const c of Q.CONTROLS) {
-      if ((await closes(c.script)) !== c.expect) {
-        status(`⭐ Rating skipped: the tactic test failed its own check (${c.name}), so its answers would mean nothing.`, "error")
-        return 0
-      }
-    }
-    state.batteryOk = true
-  }
   const all = [...memory.entries.values()]
   const targetProp = (() => {
     const parts = Q.splitClosure(plainTheorem(theorem), "")
@@ -7049,6 +7038,29 @@ async function rateStage(memory, ctx, theorem, cfg, state, budget = null) {
   })()
   const feats = Q.features(all.map((e) => ({ key: e.id, entry: e, runs: [] })), targetProp)
   const featOf = new Map(all.map((e, i) => [e.id, feats[i]]))
+  // what the entry itself shows is already decisive for a repeat and for a numeric fact: those are rated now, all of them, with no reading
+  let mechanical = 0
+  if (Q.mechanicalStars)
+    for (const e of memory.unrated()) {
+      const f = featOf.get(e.id)
+      const v = f && Q.mechanicalStars(f)
+      const q = v && Q.toQuality(f, null, null, v)
+      if (q && memory.setQuality(e.id, q)) mechanical++
+    }
+  if (mechanical) status(`⭐ ${mechanical} numeric fact(s) and repeat(s) rated at once, without a reading.`)
+  const todo = newestUnrated()
+  if (!todo.length) return mechanical
+  status(`⭐ Rating ${todo.length} saved theorem(s) (at most ${Math.round(rc.boxMs / 60000)} min).`)
+  // the tactic test is checked before it is trusted: it must close an easy truth and not an easy falsehood (once per run)
+  if (!state.batteryOk) {
+    for (const c of Q.CONTROLS) {
+      if ((await closes(c.script)) !== c.expect) {
+        status(`⭐ Rating skipped: the tactic test failed its own check (${c.name}), so its answers would mean nothing.`, "error")
+        return mechanical
+      }
+    }
+    state.batteryOk = true
+  }
   const probes = new Map()
   for (const e of todo) {
     if (over()) break
@@ -7202,7 +7214,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
           attempt,
           note: lastNote,
           elapsedMs: lastAttemptMs,
-          libraryCount: memory.size,
+          libraryCount: memory.size - memory.hiddenCount(),
           abstracted: memory.list({ limit: 1000 }).filter((e) => e.origin === "abstracted" && String(e.savedAt || "") > lastStopIso).map((e) => e.name),
           toolIds,
           pantograph: allowPantograph && !!pantographUrl,
@@ -7296,7 +7308,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       memory.stats.nudges++
       const elapsed = Date.now() - t0
       ctx.emit({ type: "message-annotation", subtype: "status", thought: `↩️ The agent stopped after ${Math.max(1, Math.round(elapsed / 60000))} minute(s) without a verified proof: continuing the same conversation (${nudges} of ${maxNudges}).` })
-      const nudgeText = V.nudge({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl, note: lastNote, toolIds, guide: guideForReminder(), leakI: leakIStats(), turn: reminders++ })
+      const nudgeText = V.nudge({ elapsedMs: elapsed, libraryCount: memory.size - memory.hiddenCount(), nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl, note: lastNote, toolIds, guide: guideForReminder(), leakI: leakIStats(), turn: reminders++ })
       ctx.emit({ type: "prompt", kind: "followup", prompt: `[${memoryHeader} · reminder ${nudges} of ${maxNudges} · same session]\n\n${nudgeText}`, model: ctx.model || null })
       midNote = null
       r = await session(nudgeText, r.sessionId)

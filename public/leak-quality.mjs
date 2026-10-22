@@ -199,6 +199,16 @@ export function stars(f, probes, reading) {
   return { stars: Math.min(s, cap), reasons, rated: true, cap, spread: reading.spread }
 }
 
+// What the entry itself shows can already decide its rating, with no reading and no question to the verifier: a repeat of another entry is one
+// star, a numeric fact with no variable in it two (stars() caps them there however well they are read). The dream rates these at once, over the
+// whole library, so that the routine part of a big library is put away without waiting its turn for a model's reading.
+export function mechanicalStars(f) {
+  if (!f) return null
+  if (f.duplicateOf) return { stars: 1, reasons: [`the same statement as ${f.duplicateOf}`], rated: true }
+  if (f.ground) return { stars: 2, reasons: ["a numeric fact, with no variable in it"], rated: true }
+  return null
+}
+
 const fmt = (x) => (Number.isFinite(x) ? x.toFixed(1) : "?")
 
 export function distribution(rows) {

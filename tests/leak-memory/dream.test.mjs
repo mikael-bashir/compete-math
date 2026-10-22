@@ -25,6 +25,7 @@ import {
   sleepPrompt,
   splitCorollaries,
 } from "../../public/leak-memory.mjs"
+import { mechanicalStars, toQuality } from "../../public/leak-quality.mjs"
 
 const lemma = (name, a, b = a + 1) => `theorem ${name} (n : ℕ) (hn : ${a} < n) : ${b} ≤ n := by\n  have h := hn\n  omega`
 const star = (m, e, s, extra = {}) => m.setQuality(e.id, { s, u: 0, rv: 1, r: "2026-10-22", ...extra })
@@ -409,4 +410,17 @@ test("on lemmas written the way the agent writes them, the ones about the same f
   assert.ok(groups.some((g) => g.includes("offset_even_step") && g.includes("offset_odd_step")), JSON.stringify(groups))
   const grouped = new Set(groups.flat())
   assert.ok(!grouped.has("binomial_tail_chernoff") && !grouped.has("cycle_gap_odd"), "a theorem with nothing in common with the rest is in no group")
+})
+
+// ---- ratings that need no reading ---------------------------------------------------------------------------------------------------
+
+test("a repeat and a numeric fact are rated by what the entry shows, one star and two, and nothing else is", () => {
+  assert.deepEqual(mechanicalStars({ duplicateOf: "other_name", ground: true }), { stars: 1, reasons: ["the same statement as other_name"], rated: true }, "a repeat first")
+  assert.deepEqual(mechanicalStars({ duplicateOf: null, ground: true }), { stars: 2, reasons: ["a numeric fact, with no variable in it"], rated: true })
+  assert.equal(mechanicalStars({ duplicateOf: null, ground: false, oneLiner: true, usedBy: 9, keystone: true }), null, "everything else waits for a reading")
+  assert.equal(mechanicalStars(null), null)
+  const q = toQuality({ usedBy: 3, ground: true, duplicateOf: null }, null, null, mechanicalStars({ ground: true }), new Date("2026-10-22T12:00:00Z"))
+  assert.deepEqual(q, { s: 2, u: 3, rv: 1, r: "2026-10-22", n: 1 }, "numbers and flags only, as every rating")
+  const wounded = { quality: q, origin: "verified", subsumes: [] }
+  assert.equal(isWounded(wounded), true, "and a rating of two stars is wounded")
 })

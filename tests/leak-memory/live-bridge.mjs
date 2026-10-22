@@ -828,6 +828,26 @@ const GUIDE_SEED = "theorem guide_seed_lemma : 2 + 2 = 4 := by\n  norm_num"
   })
   bLow.stop()
 
+  // a numeric fact is rated at once, with no reading and no question to the verifier; the rest still wait for their reading
+  const bMech = await startBridge({ FAKE_MODE: "ok", FAKE_SLEEP_JSON: "[]" })
+  await check("a numeric fact is rated two stars at once, without being read; the others are read as before", async () => {
+    const mm = new Memory({})
+    const ground = mm.addScript("theorem ground_two_plus_two : 2 + 2 = 4 := by\n  norm_num", { attempt: 1, keepTrivial: true })
+    const f = await bMech.frames("control-lucid", { memory: { entries: [...ground, ...real].map((e) => ({ ...e })) }, sleepEveryMs: 0, sleepMinNew: 1 })
+    assert.ok(texts(f).some((t) => /1 numeric fact\(s\) and repeat\(s\) rated at once, without a reading/.test(t)), texts(f).join(" | "))
+    const q = quality(f, ground[0].id)
+    assert.equal(q.length, 1, "rated once")
+    assert.equal(q[0].s, 2)
+    assert.equal(q[0].n, 1, "and the rating says why: a numeric fact")
+    assert.ok(!q[0].c && !q[0].l && q[0].d === undefined, "no probe and no reading stands behind it")
+    const readings = bMech.calls().filter((c) => /You are reviewing theorems that an automated prover banked/.test(c.promptFull))
+    assert.ok(readings.length > 0)
+    assert.ok(readings.every((c) => !c.promptFull.includes(ground[0].id)), "it was never put to a reader")
+    assert.ok(readings.some((c) => c.promptFull.includes(real[0].id)), "the others were")
+    for (const e of real) assert.equal(quality(f, e.id).length, 1)
+  })
+  bMech.stop()
+
   // the tactic test is checked before it is trusted
   const leak2 = await startFakeLeak({ brokenBattery: true })
   const servers2 = [{ name: "Leak_IV", url: `http://127.0.0.1:${leak2.port}/iv/sse`, tools: ["verify_full_script"] }, { name: "Leak_I", url: `http://127.0.0.1:${leak2.port}/i/sse`, tools: [{ name: "moogle_search", args: ["concept"] }] }]
