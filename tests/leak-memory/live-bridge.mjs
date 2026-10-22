@@ -177,6 +177,19 @@ const check = async (name, fn) => {
       r.stop()
     }
   })
+  await check("a CLI that exits at once on a flag it does not know is stopped after three tries, and its message is shown", async () => {
+    const r = await startBridge({ FAKE_MODE: "die" })
+    try {
+      const f = await r.frames("control-honoured", { memory: { entries: seed } })
+      assert.equal(r.calls().length, 3, "three tries, not one per second until the clock ends")
+      assert.notEqual(done(f)?.verified, true)
+      const all = JSON.stringify(f)
+      assert.match(all, /unknown option '--restricted'/, "the CLI's own words reach the transcript")
+      assert.match(all, /could not be started three times/)
+    } finally {
+      r.stop()
+    }
+  })
   // the single-agent endpoint (/prove-stream; /prove and the worker share its launch) is confined like the isolated agents
   const proveStream = async (r, options = {}) => {
     const res = await fetch(`http://127.0.0.1:${r.port}/prove-stream`, {

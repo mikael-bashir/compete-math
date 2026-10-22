@@ -1,3 +1,8 @@
+import { spawnSync } from "node:child_process"
+import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 // How an isolated Leak agent is confined, as one pure function: given a mode, it returns the CLI flags, the settings and the note the agent is told.
 // Nothing here spawns anything, so a test can read the flags a run would get (the way TauCetiReview's tests check a reviewer's argv) and
 // containment-selftest.mjs can hand the same flags to the real CLI and watch it refuse.
@@ -37,16 +42,22 @@ export const SANDBOX_NOTE = `YOUR SHELL RUNS IN A SANDBOX. It can write only ins
 // mode: sandbox | restricted | shell. workDir: the agent's own directory (required unless shell). serverNames: the MCP servers of its config.
 // disallowed: tools the caller already bans (WebSearch/WebFetch). hookSettings: the settings object of the shell mode's hook (carried through,
 // never rewritten, in sandbox mode, where it still counts what the agent reaches for).
-export function containmentPlan({ mode, workDir, serverNames = [], disallowed = [], hookSettings = {}, denyRead = [] } = {}) {
+// hasRestricted: whether the installed CLI knows --restricted (see cliHasRestricted). An older CLI rejects the flag and exits at once, so
+// there the same confinement is built from permission rules: dontAsk refuses whatever no rule allows, and the file tools are allowed only
+// inside the working directory (the shell, where there is one, stays inside the OS sandbox exactly as before).
+export function containmentPlan({ mode, workDir, serverNames = [], disallowed = [], hookSettings = {}, denyRead = [], hasRestricted = true } = {}) {
   const m = containmentMode(mode)
   if (m === "shell") {
     return { mode: m, flags: ["--dangerously-skip-permissions"], disallowed: [...disallowed], settings: { ...hookSettings, autoMemoryEnabled: false }, note: "" }
   }
   if (typeof workDir !== "string" || !workDir.startsWith("/")) throw new Error("containment needs the agent's own absolute working directory")
   const servers = serverNames.map((n) => `mcp__${n}`)
-  const flags = ["--restricted"]
+  const flags = hasRestricted ? ["--restricted"] : ["--permission-mode", "dontAsk"]
   if (m === "sandbox") flags.push("--tools", ...SANDBOX_TOOLS)
-  flags.push("--allowedTools", ...FILE_TOOLS, ...servers)
+  else if (!hasRestricted) flags.push("--tools", ...FILE_TOOLS)
+  // the path rules: "//" starts an absolute path
+  const inDir = FILE_TOOLS.filter((t) => t !== "Glob" && t !== "Grep").map((t) => `${t === "Write" || t === "Edit" ? t : "Read"}(/${workDir}/**)`)
+  flags.push("--allowedTools", ...(hasRestricted ? FILE_TOOLS : [...new Set(inDir)]), ...(!hasRestricted && m === "sandbox" ? ["Bash"] : []), ...servers)
   const banned = [...new Set([...disallowed, "Task", "WebSearch", "WebFetch", ...(m === "restricted" ? ["Bash"] : [])])]
   if (m === "restricted") return { mode: m, flags, disallowed: banned, settings: { autoMemoryEnabled: false }, note: NO_SHELL_NOTE }
   return {
@@ -66,6 +77,27 @@ export function containmentPlan({ mode, workDir, serverNames = [], disallowed = 
     },
     note: SANDBOX_NOTE,
   }
+}
+
+// Does the installed CLI know --restricted? Asked once, of the CLI's own help text (an unknown flag makes it exit before it does anything).
+const _restrictedKnown = new Map()
+export function cliHasRestricted(bin = "claude") {
+  if (_restrictedKnown.has(bin)) return _restrictedKnown.get(bin)
+  let known = true // if the help cannot be read, assume a current CLI: a refusal then shows up as the error it is
+  try {
+    // through a file: the CLI exits without flushing a pipe, and a long help text arrives cut at 8 KiB
+    const dir = mkdtempSync(join(tmpdir(), "leak-help-"))
+    const out = join(dir, "help.txt")
+    try {
+      spawnSync("sh", ["-c", '"$LEAK_BIN" --help > "$LEAK_OUT" 2>&1'], { env: { ...process.env, LEAK_BIN: bin, LEAK_OUT: out }, timeout: 20000, stdio: "ignore" })
+      const text = readFileSync(out, "utf8")
+      if (text.includes("--permission-mode")) known = text.includes("--restricted")
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  } catch { /* keep the assumption */ }
+  _restrictedKnown.set(bin, known)
+  return known
 }
 
 // The environment an isolated agent's CLI starts with. The agent can print what a shell or a tool can see, and what it prints goes to the run's

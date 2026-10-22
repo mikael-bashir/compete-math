@@ -78,3 +78,18 @@ test("a contained agent's environment drops what looks like a secret, and keeps 
   assert.deepEqual(Object.keys(scrubbedEnv(env, "restricted")).sort(), kept)
   assert.deepEqual(scrubbedEnv(env, "shell"), env)
 })
+
+test("a CLI without --restricted gets the same confinement from permission rules: dontAsk, file tools allowed only inside the work directory", () => {
+  for (const mode of ["sandbox", "restricted"]) {
+    const p = containmentPlan({ ...base, mode, hasRestricted: false })
+    assert.ok(!p.flags.includes("--restricted"), "an old CLI rejects that flag and exits")
+    assert.ok(p.flags.includes("dontAsk"))
+    assert.ok(!p.flags.includes("--dangerously-skip-permissions"))
+    const allowed = p.flags.slice(p.flags.indexOf("--allowedTools") + 1)
+    for (const rule of allowed.filter((a) => /^(Read|Write|Edit)\(/.test(a))) assert.ok(rule.startsWith(`${rule.split("(")[0]}(/${base.workDir}/`), rule)
+    for (const bare of ["Read", "Write", "Edit", "Glob", "Grep"]) assert.ok(!allowed.includes(bare), `${bare} must not be allowed everywhere`)
+    assert.equal(allowed.includes("Bash"), mode === "sandbox")
+    const tools = p.flags.slice(p.flags.indexOf("--tools") + 1, p.flags.indexOf("--allowedTools"))
+    assert.equal(tools.includes("Bash"), mode === "sandbox")
+  }
+})

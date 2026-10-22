@@ -12,6 +12,12 @@ const SESSION = `fake-session-${process.pid}`
 const after = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : null)
 const prompt = after("-p") || ""
 const resumed = after("--resume")
+// FAKE_MODE=die: a CLI that rejects its own flags and exits at once, as an old CLI does at --restricted
+if (process.env.FAKE_MODE === "die") {
+  appendFileSync(process.env.FAKE_REPORT || "/dev/null", JSON.stringify({ died: true }) + "\n")
+  process.stderr.write("error: unknown option '--restricted'\n")
+  process.exit(1)
+}
 // FAKE_BG: like an agent that runs `nohup python3 search.py &`: start a background process in this CLI's own process group, and say
 // whether the ones earlier invocations started are still alive. FAKE_MODE=hang then never exits, like a CLI in a long think.
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }

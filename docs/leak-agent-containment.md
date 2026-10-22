@@ -36,3 +36,7 @@ A proof is true because Leak IV compiled it, so no program the agent runs can ma
 - The macOS sandbox is the CLI's. If a new CLI version changes its settings, the self-test is what notices.
 
 `tests/leak-memory/containment.test.mjs` checks the flags each mode produces without starting anything. `live-bridge.mjs` checks that the bridge passes them, that the environment is scrubbed, and that a bridge without `public/leak-containment.mjs` starts no isolated agent at all.
+
+## Older CLIs (no `--restricted`)
+
+`--restricted` exists only in recent CLIs; an older one (2.1.185 was seen) answers `error: unknown option '--restricted'` and exits before doing anything, so every attempt ended at once and the run looped. The bridge now reads the CLI's help once (`cliHasRestricted`). Without the flag the same confinement is built from permission rules: `--permission-mode dontAsk` (whatever no rule allows is refused), the file tools allowed only for paths inside the agent's own directory (`Read(//dir/**)`, `Write(...)`, `Edit(...)`), and the shell, where there is one, inside the same OS sandbox. Checked against the real 2.1.185 with decoy files: a read, a write and a shell read outside the directory are all refused, a read inside works. A CLI that exits at once with no conversation is counted as a failed launch, its own message is shown, and the run stops after three.
