@@ -5,69 +5,12 @@
 import { readdirSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { CHEAP_TACTICS, asScript, judge, negation, outcome, splitStatement, takeEvents, withProof } from "./vet-core.mjs"
+import { CHEAP_TACTICS, asScript, judge, negation, splitStatement, withProof } from "./vet-core.mjs"
+import { connect } from "./iv-client.mjs"
 
 const URL_IV = process.env.LEAK_IV_URL || "https://barkingtree-leak-iv.hf.space/sse"
-const CALL_TIMEOUT_MS = Number(process.env.LEAK_VET_TIMEOUT_MS) || 240000
 const here = dirname(fileURLToPath(import.meta.url))
 const dir = join(here, "../../src/data/leak-targets")
-
-// a minimal MCP client over SSE (initialize, then tools/call)
-async function connect(url) {
-  const res = await fetch(url, { headers: { accept: "text/event-stream" } })
-  const pending = new Map()
-  let endpoint = null
-  let ready
-  const gotEndpoint = new Promise((r) => (ready = r))
-  ;(async () => {
-    const dec = new TextDecoder()
-    let buf = ""
-    for await (const chunk of res.body) {
-      const t = takeEvents(buf + dec.decode(chunk, { stream: true }))
-      buf = t.rest
-      for (const { event, data } of t.events) {
-        if (event === "endpoint") {
-          endpoint = new URL(data, url).toString()
-          ready()
-        } else if (data) {
-          try {
-            const m = JSON.parse(data)
-            if (m.id != null && pending.has(m.id)) pending.get(m.id)(m)
-          } catch { /* a keep-alive or a non-JSON event */ }
-        }
-      }
-    }
-  })()
-  await gotEndpoint
-  let id = 0
-  const call = (method, params) =>
-    new Promise(async (resolve, reject) => {
-      const myId = ++id
-      const timer = setTimeout(() => reject(new Error(`${method} timed out after ${CALL_TIMEOUT_MS / 1000}s`)), CALL_TIMEOUT_MS)
-      pending.set(myId, (m) => {
-        clearTimeout(timer)
-        resolve(m)
-      })
-      await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: myId, method, params }) })
-    })
-  await call("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "leak-vet", version: "1" } })
-  await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) })
-  return {
-    verify: async (script, label = "") => {
-      const t0 = Date.now()
-      try {
-        const m = await call("tools/call", { name: "verify_full_script", arguments: { script } })
-        const o = outcome((m.result?.content || []).map((c) => c.text || "").join("\n"))
-        process.stderr.write(`  . ${label} ${o.ok ? "closed" : "not closed"} (${Math.round((Date.now() - t0) / 1000)}s)\n`)
-        return o
-      } catch (e) {
-        // a probe that never answered is not a proof: it counts as not closed, and the run says so
-        process.stderr.write(`  . ${label} no answer: ${e.message}\n`)
-        return { ok: false, failed: true, errors: [e.message], sorry: false, onlySorry: false, noAnswer: true }
-      }
-    },
-  }
-}
 
 const ids = process.argv.slice(2)
 const targets = readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => JSON.parse(readFileSync(join(dir, f), "utf8"))).filter((t) => !ids.length || ids.includes(t.id))
@@ -75,7 +18,7 @@ if (!targets.length) {
   console.error("no target matches")
   process.exit(2)
 }
-const iv = await connect(URL_IV)
+const iv = await connect(URL_IV, { timeoutMs: Number(process.env.LEAK_VET_TIMEOUT_MS) || 240000 })
 let failed = 0
 for (const t of targets) {
   console.log(`\n== ${t.id}: ${t.title}`)
