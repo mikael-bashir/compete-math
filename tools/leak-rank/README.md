@@ -1,6 +1,6 @@
 # leak-rank
 
-A star rating, one to five, for the theorems a Leak run banked, with the reasons. It exists so that "how good is this process" has a number: how many of the banked theorems are worth keeping, and which.
+A star rating, one to five, for the theorems a Leak run banked, with the reasons. Lucid does this itself when it sleeps (`public/leak-quality.mjs`, `docs/leak-memory.md`); this tool runs the same rule offline over a whole set, to backfill runs from before or to audit the sleep stage's ratings. It exists so that "how good is this process" has a number: how many of the banked theorems are worth keeping, and which.
 
 ```
 pnpm rank:bank -- --probes --read        # collect (cached, safe to stop and rerun), then write the report

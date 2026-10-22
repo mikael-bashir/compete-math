@@ -57,6 +57,13 @@ if (process.env.FAKE_REPORT)
 const mode = process.env.FAKE_MODE || "ok"
 if (mode === "hang") setInterval(() => {}, 1000)
 if (mode === "hang") await new Promise(() => {})
+// the rating pass of the sleep stage: a reading of each theorem in the prompt (FAKE_READING overrides the default scores)
+if (/You are reviewing theorems that an automated prover banked/.test(prompt)) {
+  const base = { says: "a fake reading", kind: "general-lemma", depth: 3, generality: 3, role: 2, inMathlib: "no", vacuous: "no", ...(process.env.FAKE_READING ? JSON.parse(process.env.FAKE_READING) : {}) }
+  const ids = [...prompt.matchAll(/^### (\S+)$/gm)].map((m) => m[1])
+  out({ type: "result", subtype: "success", is_error: false, result: "```json\n" + JSON.stringify(ids.map((id) => ({ id, ...base }))) + "\n```", total_cost_usd: 0.01, session_id: SESSION })
+  process.exit(0)
+}
 if (/consolidation \("sleep"\) stage/.test(prompt)) {
   out({ type: "result", subtype: "success", is_error: false, result: "```json\n" + (process.env.FAKE_SLEEP_JSON || "[]") + "\n```", total_cost_usd: 0.01, session_id: SESSION })
   process.exit(0)

@@ -17,7 +17,7 @@ curl -fsSL https://raw.githubusercontent.com/mikael-bashir/compete-math/main/pub
 
 Fingerprint of the current key: _(printed by `init`; add it here when the key is made)_
 
-To verify a set of files by hand, put them in a directory as `claude-bridge.mjs`, `leak-min-imports.mjs`, `leak-memory.mjs`, `leak-containment.mjs`, then in a checkout of the repository run `node scripts/bridge-signing/cli.mjs verify <the .sig file>`.
+To verify a set of files by hand, put them in a directory as `claude-bridge.mjs`, `leak-min-imports.mjs`, `leak-memory.mjs`, `leak-containment.mjs`, `leak-quality.mjs`, then in a checkout of the repository run `node scripts/bridge-signing/cli.mjs verify <the .sig file>`.
 
 ## Maintainer: making the key (once)
 

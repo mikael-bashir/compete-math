@@ -13,6 +13,45 @@ const MAX_STATEMENT = 20_000;
 const MAX_CLOSURE = 60_000;
 const ORIGINS = ['verified', 'abstracted', 'saved'];
 
+// The rating the sleep stage gives a theorem (public/leak-quality.mjs): numbers and flags only. Anything else in it is dropped.
+export interface Quality {
+  s: number;
+  u: number;
+  d?: number;
+  g?: number;
+  w?: number;
+  k?: string;
+  c?: 1;
+  l?: 1;
+  n?: 1;
+  m?: 1;
+  v?: 1;
+  x?: 1;
+  t?: 1;
+  r?: string;
+  rv?: number;
+}
+const KINDS = ['numeric-instance', 'special-case', 'reformulation', 'general-lemma', 'structural', 'reduction', 'other'];
+const num = (v: unknown, lo: number, hi: number): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? Math.round(v * 10) / 10 : undefined);
+
+export function cleanQuality(raw: unknown): Quality | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.s !== 'number' || !Number.isInteger(r.s) || r.s < 1 || r.s > 5) return null;
+  const q: Quality = { s: r.s, u: typeof r.u === 'number' && Number.isInteger(r.u) && r.u >= 0 ? Math.min(r.u, 1e6) : 0 };
+  const d = num(r.d, 1, 5);
+  const g = num(r.g, 1, 5);
+  const w = num(r.w, 0, 3);
+  if (d !== undefined) q.d = d;
+  if (g !== undefined) q.g = g;
+  if (w !== undefined) q.w = w;
+  if (typeof r.k === 'string' && KINDS.includes(r.k)) q.k = r.k;
+  for (const f of ['c', 'l', 'n', 'm', 'v', 'x', 't'] as const) if (r[f] === 1) q[f] = 1;
+  if (typeof r.r === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.r)) q.r = r.r;
+  if (typeof r.rv === 'number' && Number.isInteger(r.rv) && r.rv >= 1 && r.rv < 1000) q.rv = r.rv;
+  return q;
+}
+
 export interface MemoryEntry {
   id: string;
   name: string;
@@ -27,6 +66,7 @@ export interface MemoryEntry {
   subsumes: string[];
   subsumedBy: string | null;
   hits: number;
+  quality?: Quality | null;
 }
 
 export interface Limits {
@@ -66,6 +106,7 @@ export function cleanEntry(raw: unknown): MemoryEntry | null {
     subsumes: ids(r.subsumes),
     subsumedBy: typeof r.subsumedBy === 'string' && HEX.test(r.subsumedBy) ? r.subsumedBy : null,
     hits: typeof r.hits === 'number' && r.hits >= 0 ? Math.min(1e6, Math.trunc(r.hits)) : 0,
+    quality: cleanQuality(r.quality),
   };
 }
 

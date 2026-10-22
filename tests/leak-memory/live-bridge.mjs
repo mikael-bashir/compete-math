@@ -677,6 +677,71 @@ const GUIDE_SEED = "theorem guide_seed_lemma : 2 + 2 = 4 := by\n  norm_num"
   b.stop()
 }
 
+// ---- Lucid rates theorems as it sleeps ----
+// The second job of the sleep stage: every theorem with no rating gets one (public/leak-quality.mjs): features, two questions put to Leak IV, and
+// a model's reading. The rating rides in the entry, so the page saves it like any other update.
+{
+  const m = new Memory({})
+  const easy = m.addScript("theorem easy_comm (a b : ℕ) : a + b = b + a := by\n  omega", { attempt: 1, keepTrivial: true })
+  const real = OLD.flatMap((s) => m.addScript(s, { attempt: 1 }))
+  const entries = [...easy, ...real].map((e) => ({ ...e }))
+  const notes = (f) => f.filter((x) => x.type === "message-annotation" && x.thought).map((x) => x.thought) // status and error notes
+  const quality = (f, id) => f.filter((x) => x.type === "memory" && x.op === "update" && x.entry?.id === id && x.entry.quality).map((x) => x.entry.quality)
+  const b = await startBridge({ FAKE_MODE: "ok", FAKE_SLEEP_JSON: "[]" })
+  let rated
+  await check("sleep rates the theorems that have no rating: one update each, the easy one capped at one star, the rest read as solid lemmas", async () => {
+    const f = await b.frames("control-lucid", { memory: { entries }, sleepEveryMs: 0, sleepMinNew: 1 })
+    assert.ok(texts(f).some((t) => new RegExp(`Rated ${entries.length} of ${entries.length}`).test(t)), texts(f).join(" | "))
+    for (const e of entries) assert.equal(quality(f, e.id).length, 1, `${e.name} was rated ${quality(f, e.id).length} times`)
+    const easyQ = quality(f, easy[0].id)[0]
+    assert.equal(easyQ.s, 1)
+    assert.equal(easyQ.c, 1, "a one-line tactic closed it")
+    for (const e of real) {
+      const q = quality(f, e.id)[0]
+      assert.ok(q.s >= 2 && q.s <= 3, `${e.name}: ${q.s}`)
+      assert.ok(!q.c && !q.l)
+      assert.equal(q.k, "general-lemma")
+      assert.deepEqual([q.d, q.g, q.w], [3, 3, 2])
+    }
+    assert.match(quality(f, real[0].id)[0].r, /^\d{4}-\d{2}-\d{2}$/)
+    assert.equal(quality(f, real[0].id)[0].rv, 1)
+    // the reading was asked of a model with the target, and it was asked for no tool
+    assert.ok(b.calls().some((c) => /You are reviewing theorems that an automated prover banked/.test(c.prompt) && c.prompt.includes("target_fake")))
+    rated = f.filter((x) => x.type === "memory" && x.op === "update" && x.entry?.quality).map((x) => x.entry)
+  })
+  await check("a theorem that already has a rating is not rated again", async () => {
+    const f = await b.frames("control-lucid", { memory: { entries: rated }, sleepEveryMs: 0, sleepMinNew: 1 })
+    assert.ok(!f.some((x) => x.type === "memory" && x.op === "update" && x.entry?.quality && x.entry.id === rated[0].id), "a rated entry was rated again")
+    assert.ok(!texts(f).some((t) => /Rating \d+ saved/.test(t)))
+  })
+  b.stop()
+
+  // the tactic test is checked before it is trusted
+  const leak2 = await startFakeLeak({ brokenBattery: true })
+  const servers2 = [{ name: "Leak_IV", url: `http://127.0.0.1:${leak2.port}/iv/sse`, tools: ["verify_full_script"] }, { name: "Leak_I", url: `http://127.0.0.1:${leak2.port}/i/sse`, tools: [{ name: "moogle_search", args: ["concept"] }] }]
+  const b2 = await startBridge({ FAKE_MODE: "ok", FAKE_SLEEP_JSON: "[]" })
+  await check("a tactic test that closes nothing, not even an easy truth, stops the rating pass and says so; the run goes on", async () => {
+    const f = await b2.frames("control-lucid", { memory: { entries }, mcpServers: servers2, sleepEveryMs: 0, sleepMinNew: 1 })
+    assert.ok(notes(f).some((t) => /Rating skipped: the tactic test failed its own check/.test(t)), notes(f).join(" | "))
+    assert.ok(!f.some((x) => x.type === "memory" && x.op === "update" && x.entry?.quality))
+    assert.ok(f.some((x) => x.type === "done"), "the run still ended")
+  })
+  b2.stop()
+  leak2.close()
+
+  // a bridge without the module still sleeps
+  const dir = fs.mkdtempSync(path.join(tmp, "noquality-"))
+  for (const f of ["local-claude-bridge.mjs", "leak-memory.mjs", "leak-min-imports.mjs", "leak-containment.mjs"]) fs.copyFileSync(path.join(here, "../../public", f), path.join(dir, f))
+  const b3 = await startBridge({ FAKE_MODE: "ok", FAKE_SLEEP_JSON: "[]", __bridge: path.join(dir, "local-claude-bridge.mjs") })
+  await check("a bridge without leak-quality.mjs says the rating was skipped and carries on", async () => {
+    const f = await b3.frames("control-lucid", { memory: { entries }, sleepEveryMs: 0, sleepMinNew: 1 })
+    assert.ok(notes(f).some((t) => /Rating skipped: leak-quality\.mjs is missing/.test(t)), notes(f).join(" | "))
+    assert.ok(!f.some((x) => x.type === "memory" && x.op === "update" && x.entry?.quality))
+    assert.ok(f.some((x) => x.type === "done"))
+  })
+  b3.stop()
+}
+
 // ---- processes the agent starts ----
 // An overnight agent ran `nohup python3 … &` and a compiled C sieve over 400 million numbers. Killing the CLI does not kill what it
 // started, so the bridge starts the CLI as its own process group and kills the group: when the run ends, when it is aborted, and when

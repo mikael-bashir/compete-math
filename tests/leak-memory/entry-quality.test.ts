@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { QUALITY_FILES, type QualityEntry } from '../../src/data/leak-quality';
-import { RUNGS, evidenceLines, qualityOf, ratedSummary, rankedAt, rungOf, starText } from '../../src/lib/prover/entry-quality';
+import { RUNGS, backfillQuality, evidenceLines, qualityOf, ratedSummary, rankedAt, ratingOf, rungOf, starText } from '../../src/lib/prover/entry-quality';
+import { cleanEntry, cleanQuality } from '../../src/app/lib/leak-memory/memory-core';
 
 const file = QUALITY_FILES['erdos-396'];
-const ALLOWED = new Set(['s', 'u', 'd', 'g', 'w', 'k', 'c', 'l', 'n', 'm', 'v', 'x', 't']);
+const ALLOWED = new Set(['s', 'u', 'd', 'g', 'w', 'k', 'c', 'l', 'n', 'm', 'v', 'x', 't', 'r', 'rv']);
 const KINDS = ['numeric-instance', 'special-case', 'reformulation', 'general-lemma', 'structural', 'reduction', 'other'];
 
 test('the shipped data file is for its target, counts its entries, and has the shape the app reads', () => {
@@ -105,4 +106,42 @@ test('the saved-theorems modal builds with rated and unrated entries and the sor
   const html = renderToStaticMarkup(createElement(LeakMemoryModal, props));
   assert.ok(html.includes('Saved theorems (2)'));
   assert.ok(!html.includes('b_new'), 'the dialog body is closed until it is opened, so only the trigger renders');
+});
+
+test('cleanQuality keeps a well-formed rating, drops anything outside the ranges, and takes nothing that is not a number or a known flag', () => {
+  assert.deepEqual(cleanQuality({ s: 3, u: 2, d: 3.04, g: 2.96, w: 2, k: 'general-lemma', c: 1, r: '2026-10-22', rv: 1 }), { s: 3, u: 2, d: 3, g: 3, w: 2, k: 'general-lemma', c: 1, r: '2026-10-22', rv: 1 });
+  assert.equal(cleanQuality({ s: 0, u: 0 }), null);
+  assert.equal(cleanQuality({ s: 6, u: 0 }), null);
+  assert.equal(cleanQuality({ s: 2.5, u: 0 }), null);
+  assert.equal(cleanQuality('3 stars'), null);
+  assert.equal(cleanQuality(null), null);
+  const messy = cleanQuality({ s: 2, u: -4, d: 99, g: 'x', w: 7, k: 'a long invented kind', c: 2, l: true, says: 'prose that must not be stored', r: 'yesterday', rv: 'one' });
+  assert.deepEqual(messy, { s: 2, u: 0 });
+});
+
+test('the store keeps a rating that comes with an entry and drops a malformed one, and never takes a nomination from the caller', () => {
+  const base = { id: 'ab'.repeat(20), name: 'a_lemma', statement: 'theorem a_lemma : 1 = 1', closure: 'theorem a_lemma : 1 = 1 := rfl', origin: 'abstracted', nominated: true };
+  assert.deepEqual(cleanEntry({ ...base, quality: { s: 4, u: 1, rv: 1 } })?.quality, { s: 4, u: 1, rv: 1 });
+  assert.equal(cleanEntry({ ...base, quality: { s: 9 } })?.quality, null);
+  assert.equal(cleanEntry({ ...base })?.quality, null);
+  assert.equal(cleanEntry({ ...base, quality: { s: 3, u: 0 } })?.nominated, false);
+});
+
+type E = { id: string; quality?: QualityEntry | null };
+test('backfillQuality gives an older entry the shipped rating, keeps an entry its own, and leaves an unrated one or another target alone', () => {
+  const [id, q] = Object.entries(file.entries)[0];
+  const [out] = backfillQuality<E>('erdos-396', [{ id }]);
+  assert.deepEqual(out.quality, { ...q, r: file.rankedAt, rv: 1 });
+  const own = { s: 1, u: 0 };
+  assert.deepEqual(backfillQuality<E>('erdos-396', [{ id, quality: own }])[0].quality, own);
+  assert.equal(backfillQuality<E>('erdos-396', [{ id: 'f'.repeat(40) }])[0].quality, undefined);
+  assert.equal(backfillQuality<E>('another-target', [{ id }])[0].quality, undefined);
+});
+
+test('the rating the modal shows is the entry\'s own, else the shipped one', () => {
+  const [id, q] = Object.entries(file.entries)[0];
+  assert.deepEqual(ratingOf('erdos-396', { id }), q);
+  assert.deepEqual(ratingOf('erdos-396', { id, quality: { s: 5, u: 9 } }), { s: 5, u: 9 });
+  assert.equal(ratingOf('erdos-396', { id: 'f'.repeat(40) }), null);
+  assert.equal(ratingOf('another-target', { id: 'f'.repeat(40), quality: null }), null);
 });

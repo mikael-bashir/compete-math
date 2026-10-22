@@ -16,6 +16,8 @@ export interface QualityEntry {
   v?: 1; // the hypotheses look unsatisfiable
   x?: 1; // repeats another entry
   t?: 1; // states the target from smaller hypotheses
+  r?: string; // the date it was rated
+  rv?: number; // the version of the rule that rated it
 }
 
 export interface QualityFile {

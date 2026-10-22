@@ -18,6 +18,8 @@ export interface MemoryEntry {
   subsumes: string[];
   subsumedBy: string | null;
   hits: number;
+  // the star rating the sleep stage gave it (numbers and flags; see src/data/leak-quality)
+  quality?: import('@/data/leak-quality').QualityEntry | null;
 }
 
 export interface MemoryVariant {
@@ -31,7 +33,7 @@ export const MEMORY_VARIANTS: MemoryVariant[] = [
   { key: 'control-honoured', label: 'Control II Honoured', blurb: 'a library of verified theorems and a recall tool; the agent decides when to look' },
   { key: 'control-flint', label: 'Control II Flint', blurb: 'no tool: the most recent verified theorems are replayed into each fresh attempt' },
   { key: 'control-paragon', label: 'Control II Paragon', blurb: 'the library is also folded into the search results the agent already reads' },
-  { key: 'control-lucid', label: 'Control II Lucid', blurb: 'Honoured, plus an hourly pass that merges the library into fewer, more general lemmas' },
+  { key: 'control-lucid', label: 'Control II Lucid', blurb: 'Honoured, plus an hourly pass that merges the library into fewer, more general lemmas and gives every saved theorem a one-to-five star rating' },
   // The same four with Leak II (Pantograph) added to the agent's tools, as Control IV is Control II plus Leak II.
   { key: 'control-honoured-iv', label: 'Control IV Honoured', blurb: 'Honoured, plus Leak II: the agent can step a goal one tactic at a time' },
   { key: 'control-flint-iv', label: 'Control IV Flint', blurb: 'Flint, plus Leak II: the agent can step a goal one tactic at a time' },

@@ -3,7 +3,8 @@
 import { createServer } from "node:http"
 import { randomBytes } from "node:crypto"
 
-export function startFakeLeak() {
+// brokenBattery: the tactic probes of the rating pass close nothing, not even an easy truth (the pass must notice and stop)
+export function startFakeLeak({ brokenBattery = false } = {}) {
   const sessions = new Map()
   const calls = []
   const server = createServer((req, res) => {
@@ -39,7 +40,10 @@ export function startFakeLeak() {
           const a = m.params?.arguments || {}
           calls.push({ kind, tool: m.params?.name, args: a })
           if (kind === "iv") {
-            const ok = !/\bsorry\b/.test(String(a.script || ""))
+            const script = String(a.script || "")
+            // a probe of the rating pass (a statement whose proof is a tactic battery or exact?): closes only an easy truth
+            const probe = /exact\?|first \| decide/.test(script)
+            const ok = probe ? !brokenBattery && /2 \+ 2 = 4|a \+ b = b \+ a|EASY_PROBE/.test(script) : !/\bsorry\b/.test(script)
             return reply({ content: [{ type: "text", text: ok ? "✅ Compilation Successful! The proof is 100% verified." : "Compilation Failed: Line 1 (Error): declaration uses sorry" }] })
           }
           return reply({ content: [{ type: "text", text: "Mathlib.Algebra.Group.even_add_odd_fake : Even a → Odd b → Odd (a + b)" }] })
