@@ -34,13 +34,27 @@ A target may carry a `guide`: its heuristic, written as a chain of steps `G1, G2
 - `hole`: claimed, but the reasoning does not establish it. `fill` says what is already settled and what to try; a hole must have one.
 - `lean`: names of theorems among the target's `seeds` (verified on Leak IV), so the step can be acted on at once.
 
-**When the agent sees it.** Only when it is reminded to keep going: a resumed attempt (`continue`) and a reminder after a short stretch (`nudge`), in both voices. Never in the opening prompt, the system prompt or the session rules: the agent starts from the question and its own ideas, and gets the plan when it is picking the work back up. A conversation that could not be resumed is started again with the opening prompt, so it has no guide either (it is not a reminder). Each reminder carries the whole guide once; nothing is rotated or cut.
+**When the agent sees it.** Only when it is reminded to keep going: a resumed attempt (`continue`) and a reminder after a short stretch (`nudge`), in both voices. Never in the opening prompt, the system prompt or the session rules: the agent starts from the question and its own ideas, and gets the plan when it is picking the work back up. A conversation that could not be resumed is started again with the opening prompt, so it has no guide either (it is not a reminder). The first reminder of a conversation carries the guide in full, so does every tenth after it (the CLI compacts a long conversation, and a summary keeps the gist, not the steps), and the reminders in between carry a pointer of a few hundred characters (`renderGuidePointer`: where the plan needs work, the moves it suggested). In a 3-hour run the agent was reminded 202 times, about every 34 s, and the full text each time was half of everything that entered its conversation; `options.guideEvery` changes the cadence (1 is the full text every time). Nothing is cut: a guide too long to send in full is not sent.
 
 **How it gets there.** The playground sends `target.guide` as `options.guide` (next to `seeds`); the bridge runs `cleanGuide` (at most 24 steps, fixed tags, identifier-shaped Lean names, whitespace collapsed) and `renderGuide`, once per run, and passes the text to `V.continue` / `V.nudge` as `guide`. A guide that is malformed or renders to more than `GUIDE_MAX_CHARS` (9000) is not used at all, never cut in the middle, and the run says so. A run started without the seeds gets the steps without the Lean names (they would not be in its library).
 
 **What goes in one.** Whatever the source argument claims, in the order it needs it, with every hole left visible and filled as far as it can honestly be: no step is marked `holds` that does not follow, and a step that fails as written is `repaired`, not silently corrected. Nothing in the text says who wrote the argument or links to it (the agent has no network and the question's reputation is not an input); that is recorded in the target's `provenance.guide`. `tests/leak-memory/guide.test.mjs` checks every target's guide: valid, under the limit with room to spare, ids in order, a reason on every step, a `fill` on every hole, every Lean name declared by a seed, and no wording the curious voice forbids.
 
 `collatz`'s guide follows the slot-and-potential argument (see `provenance.guide`): G1 to G7 are exact and proved in the target's seeds (stopping-time reduction, slot-drop block, anchor drop, the round formula, slot-2 growth); G8 and G10 repair what fails as written; G9, G11 and G12 are the holes, with what is settled about each.
+
+## What a run costs, and how to read it
+
+The CLI reports cost once per call of the CLI, so the bill of a long run used to be one number. Now the run's record (`~/.leak-runs/<run>.jsonl`) has, for every API call of the agent's conversation, a line
+
+```
+USAGE — ctx 251,310 (read 250,900 · written 410 · new 0) · out 1,230 · est $0.118 (read 0.075 · write 0.002 · new 0.000 · out 0.018)
+```
+
+(the whole context of the call, how much of it came from the cache, how much was written to the cache anew, how much the model said, and the parts priced with the bridge's `MODEL_PRICE` table), a `COMPACTED (...)` marker when the context was much smaller than the one before it, and on the end line `metrics.usage`: the totals, `max_context_tokens`, `compactions`, and `est_usd` split into input / cache_read / cache_write / output. The estimate is not the bill: `cost_usd` (the CLI's own figure) stays the authoritative total. The lines are written when each call of the CLI ends and go to the record only, never to the console.
+
+Two things in what the agent sees were removed because they cost every later call: the guide repeated in full at every reminder (above), and the `[[LEAK_NORMALIZED_SCRIPT_B64:...]]` marker Leak IV appends to a successful verify (the exact compiled bytes, base64, for the proof gate). In a memory run the verifier proxy takes the marker off before the agent sees the reply and keeps the bytes by script, so the gate still stores what the daemon compiled.
+
+Settings that change the cost and are NOT set by the bridge (they pass through to the agent's CLI; their effect on this prover has not been measured, so compare with `tools/driver-health/trial.mjs`, which sends the target's guide as a page does): `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` and `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (how large the conversation grows before the CLI compacts it), `CLAUDE_CODE_EFFORT_LEVEL` (low to max), `CLAUDE_CODE_PROMPT_CACHE_TTL` (`5m` or `1h`; a longer TTL costs more per write). The `USAGE` lines say which of them matter: a context that never shrinks, a cache that is written again at every call.
 
 ## Tests
 

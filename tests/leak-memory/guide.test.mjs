@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import { readFileSync, readdirSync } from "node:fs"
 import test from "node:test"
 
-import { GUIDE_MAX_CHARS, GUIDE_TAGS, VOICES, cleanGuide, continuePrompt, nudgePrompt, renderGuide } from "../../public/leak-memory.mjs"
+import { GUIDE_MAX_CHARS, GUIDE_TAGS, VOICES, cleanGuide, continuePrompt, nudgePrompt, renderGuide, renderGuidePointer } from "../../public/leak-memory.mjs"
 
 const TARGETS = new URL("../../src/data/leak-targets/", import.meta.url)
 const targets = readdirSync(TARGETS).filter((f) => f.endsWith(".json")).map((f) => JSON.parse(readFileSync(new URL(f, TARGETS), "utf8")))
@@ -99,6 +99,35 @@ test("the old exported names still reach the order voice, and accept a guide", (
   assert.ok(nudgePrompt({ elapsedMs: 1, guide: rendered }).includes(rendered))
 })
 
+// ---- the pointer: what a reminder carries when the full text is already in the conversation ------------------------
+test("the pointer names where the plan needs work and the moves it suggested, and is a fraction of the full text", () => {
+  const g = cleanGuide(small)
+  const ptr = renderGuidePointer(g)
+  assert.match(ptr, /^THE LINE OF ATTACK \(G1 to G3\), written out in full earlier in this conversation, is still there as a plan to use, repair or leave\./)
+  assert.match(ptr, /Where it needs work: G3 Third\./)
+  assert.match(ptr, /Moves it suggested: 1\. Prove that f is injective\. 2\. Prove that orbits are unbounded\./)
+  assert.ok(!ptr.includes(MARK), "it is not mistaken for a full copy: the full text starts with " + MARK)
+  assert.ok(ptr.length < rendered.length / 2, `${ptr.length} against ${rendered.length}`)
+  assert.equal(renderGuidePointer(null), "")
+  assert.equal(renderGuidePointer({ steps: [] }), "")
+  const noHoles = renderGuidePointer(cleanGuide({ steps: [{ id: "G1", tag: "holds", title: "Only", says: "x." }] }))
+  assert.doesNotMatch(noHoles, /Where it needs work/)
+  assert.doesNotMatch(noHoles, /\(G1 to G1\)/, "a single step has no range")
+  const long = renderGuidePointer(cleanGuide({ steps: [{ id: "G1", says: "x." }], next: ["m".repeat(400)] }))
+  assert.ok(long.length < 400 && /…$/.test(long), "a long move is clipped to a line: " + long.length)
+})
+
+for (const [name, V] of Object.entries(VOICES)) {
+  test(`${name}: a reminder can carry the pointer in place of the guide, and then says nothing else new`, () => {
+    const ptr = renderGuidePointer(cleanGuide(small))
+    const c = V.continue({ attempt: 3, elapsedMs: 120000, libraryCount: 4, rng: () => 1, guide: ptr })
+    const n = V.nudge({ elapsedMs: 60000, libraryCount: 4, nudge: 1, of: 2, guide: ptr })
+    assert.ok(c.includes(ptr) && n.includes(ptr))
+    assert.ok(!c.includes(MARK) && !n.includes(MARK))
+    if (name === "curious") assert.doesNotMatch(c + n, /open problem|is open|unsolved|too hard|impossible|STANDING ORDER|ORDER:|not accepted|you must\b/i, "the curious voice's promises hold with the pointer in it")
+  })
+}
+
 // ---- every target that has a guide ---------------------------------------------------------------------------------
 const declared = (seeds) => new Set(seeds.flatMap((s) => [...String(s).matchAll(/^\s*(?:theorem|lemma|def|abbrev|instance)\s+([A-Za-z0-9_'.]+)/gm)].map((m) => m[1])))
 
@@ -118,6 +147,14 @@ for (const t of targets.filter((x) => x.guide)) {
       if (s.tag === "hole") assert.ok(s.fill, `${s.id} is a hole, so it says what is settled and what to try`)
     }
     assert.ok(t.guide.steps.some((s) => s.tag === "hole"), "a guide that marks no hole is claiming a proof")
+  })
+
+  test(`${t.id}: its pointer is short and names every hole`, () => {
+    const g = cleanGuide(t.guide)
+    const ptr = renderGuidePointer(g)
+    assert.ok(ptr.length > 100 && ptr.length < 1400, `the pointer is ${ptr.length} characters`)
+    for (const s of t.guide.steps.filter((x) => x.tag === "hole")) assert.ok(ptr.includes(`${s.id} ${s.title}`), `the pointer lacks ${s.id}`)
+    assert.ok(!ptr.includes(MARK))
   })
 
   test(`${t.id}: every Lean name the guide cites is a theorem in the target's seeds, which Leak IV verified`, () => {

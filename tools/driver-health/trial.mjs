@@ -107,6 +107,7 @@ const body = {
     targetId,
     memory: { entries },
     seeds: Array.isArray(target.seeds) ? target.seeds : [],
+    ...(target.guide ? { guide: target.guide } : {}), // as the page sends it, so a trial costs what a run costs
     voice,
     ...extra,
   },

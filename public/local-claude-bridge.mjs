@@ -1176,7 +1176,7 @@ async function governorMessage(req, res, govId, sid, role = "") {
     } else {
       // Leak IV's own cap is 180 s; the CLI gives up at 300 s of silence. Stay inside both.
       const r = await callRemoteMcpTool(g.verifyServer.url, name, args, { timeoutMs: 240000 })
-      text = r.ok ? r.text : `❌ Verification Error: ${r.error || "the verifier did not answer"}`
+      text = r.ok ? stripNormalizedMarker(r.text, typeof args.script === "string" ? args.script : "") : `❌ Verification Error: ${r.error || "the verifier did not answer"}`
     }
     reply({ content: [{ type: "text", text: String(text ?? "") }] })
   } else if (method === "tools/list") {
@@ -1579,7 +1579,35 @@ function normalizeProofScript(daemonText, rawScript) {
       /* fall through — treat as no marker */
     }
   }
+  // The guarded verifier proxy (memory runs) takes the marker off the reply before the agent sees it and keeps the bytes here, so the
+  // gate, which reads the agent's stream, still stores what the daemon actually compiled.
+  const kept = typeof rawScript === "string" ? normalizedByScript.get(rawScript) : undefined
+  if (kept) return kept
   return String(rawScript == null ? "" : rawScript)
+}
+
+// Leak IV appends the exact compiled bytes of a successful script to its reply as a base64 marker, for the proof gate above. The agent has no
+// use for it, and base64 is the most expensive text there is per useful character: in a 3-hour run 153 replies carried it (about 300 kB), and
+// each stayed in the agent's context for every later call. The proxy gives the agent the reply without it and remembers the bytes by script.
+// Bounded (the last few hundred scripts): the gate looks a script up within moments of its reply.
+const NORMALIZED_MARKER = /\n?\[\[LEAK_NORMALIZED_SCRIPT_B64:([A-Za-z0-9+/=]+)\]\]/g
+const NORMALIZED_KEEP = 400
+const normalizedByScript = new Map()
+function stripNormalizedMarker(replyText, rawScript) {
+  const text = String(replyText == null ? "" : replyText)
+  const found = [...text.matchAll(NORMALIZED_MARKER)]
+  if (!found.length) return text
+  try {
+    const decoded = Buffer.from(found[0][1], "base64").toString("utf8")
+    if (decoded.trim() && typeof rawScript === "string" && rawScript) {
+      normalizedByScript.delete(rawScript)
+      normalizedByScript.set(rawScript, decoded)
+      while (normalizedByScript.size > NORMALIZED_KEEP) normalizedByScript.delete(normalizedByScript.keys().next().value)
+    }
+  } catch {
+    /* an unreadable marker is just dropped: the gate falls back to the raw script, as it does with no marker at all */
+  }
+  return text.replace(NORMALIZED_MARKER, "")
 }
 
 // ===========================================================================
@@ -2971,6 +2999,89 @@ function priceUsageUsd(usage, model) {
   )
 }
 
+// ---- per-call usage: what each API call of a CLI conversation really cost ---------------------------------------------------------------
+// The CLI reports cost once per call of the CLI (`total_cost_usd` on its result frame), so after a long run its bill cannot be taken apart: how
+// big the context was, how much of it came from the cache, how much of each call was written to the cache anew (a cache that expired is paid
+// for again, in full), how much the model said, and when the CLI compacted. This reads the usage of every API call (one `assistant` object
+// per content block, all with the same message id and usage), prices the parts with MODEL_PRICE (an ESTIMATE: total_cost_usd stays the
+// authoritative figure) and does two things with them: one line per call in the run's record only (`diskOnly`: the console never shows it),
+// and running totals in metrics.usage, which the run's end line carries. A call whose context is much smaller than the one before it in the
+// same conversation counts as a compaction. Calls are written when the CLI call ends, one burst per call of the CLI.
+const USAGE_COMPACTION_RATIO = 0.6
+const USAGE_COMPACTION_MIN_CTX = 50000
+function makeUsageTap({ say, metrics, model }) {
+  const pending = new Map()
+  let prevCtx = 0
+  const n = (x) => Number(x) || 0
+  const round6 = (x) => Math.round(x * 1e6) / 1e6
+  const fmt = (x) => Math.round(x).toLocaleString("en-US")
+  const tot = metrics
+    ? (metrics.usage = metrics.usage || {
+        calls: 0,
+        input_tokens: 0,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        output_tokens: 0,
+        est_usd: { input: 0, cache_read: 0, cache_write: 0, output: 0 },
+        max_context_tokens: 0,
+        compactions: 0,
+        compact_boundaries: 0,
+      })
+    : null
+  return {
+    see(o) {
+      if (o?.type === "assistant" && o.message?.id && o.message.usage) pending.set(o.message.id, { u: o.message.usage, model: o.message.model || model })
+      else if (o?.type === "system" && /compact/i.test(String(o.subtype || ""))) {
+        if (tot) tot.compact_boundaries++
+        say?.({ type: "usage", diskOnly: true, line: `COMPACT BOUNDARY ${JSON.stringify(o.compact_metadata ?? o.subtype).slice(0, 240)}` })
+      }
+    },
+    flush() {
+      for (const { u, model: m } of pending.values()) {
+        try {
+          const p = modelPrice(m)
+          const input = n(u.input_tokens)
+          const output = n(u.output_tokens)
+          const read = n(u.cache_read_input_tokens)
+          const cc = u.cache_creation || {}
+          const w5 = n(cc.ephemeral_5m_input_tokens)
+          const w1 = n(cc.ephemeral_1h_input_tokens)
+          const write = w5 || w1 ? w5 + w1 : n(u.cache_creation_input_tokens)
+          const w5eff = w5 || w1 ? w5 : write
+          const ctx = input + read + write
+          const est = {
+            input: (input * p.i) / 1e6,
+            cache_read: (read * 0.1 * p.i) / 1e6,
+            cache_write: (w5eff * 1.25 * p.i + w1 * 2 * p.i) / 1e6,
+            output: (output * p.o) / 1e6,
+          }
+          const estTotal = est.input + est.cache_read + est.cache_write + est.output
+          const compacted = prevCtx >= USAGE_COMPACTION_MIN_CTX && ctx < prevCtx * USAGE_COMPACTION_RATIO
+          if (tot) {
+            tot.calls++
+            tot.input_tokens += input
+            tot.cache_read_tokens += read
+            tot.cache_write_tokens += write
+            tot.output_tokens += output
+            for (const k of Object.keys(est)) tot.est_usd[k] = round6(tot.est_usd[k] + est[k])
+            tot.max_context_tokens = Math.max(tot.max_context_tokens, ctx)
+            if (compacted) tot.compactions++
+          }
+          say?.({
+            type: "usage",
+            diskOnly: true,
+            line: `ctx ${fmt(ctx)} (read ${fmt(read)} · written ${fmt(write)}${w1 ? " (1h)" : ""} · new ${fmt(input)}) · out ${fmt(output)} · est $${estTotal.toFixed(3)} (read ${est.cache_read.toFixed(3)} · write ${est.cache_write.toFixed(3)} · new ${est.input.toFixed(3)} · out ${est.output.toFixed(3)})${compacted ? ` · COMPACTED (the context before it was ${fmt(prevCtx)})` : ""}`,
+          })
+          prevCtx = ctx
+        } catch {
+          /* usage accounting is telemetry: it must never take a call down */
+        }
+      }
+      pending.clear()
+    },
+  }
+}
+
 function runProve(theorem, mcpServers, opts = {}) {
   theorem = normalizeProblemSyntax(theorem)
   return new Promise((resolve) => {
@@ -3792,6 +3903,8 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     // no authoritative total_cost_usd was seen (costUsd === 0), so it never
     // double-counts a run that DID flush.
     let runningCostUsd = 0
+    // Per-API-call usage for the run's record (see makeUsageTap). Goes straight to emit, not say(): a usage line is not visible activity.
+    const usageTap = makeUsageTap({ say: (o) => emit?.(o), metrics, model })
     child.stdout.on("data", (chunk) => {
       buf += chunk.toString("utf8")
       let nl
@@ -3821,6 +3934,12 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
         lastObjectAt = Date.now()
         objectCount++
         if (typeof o.session_id === "string" && o.session_id) sessionId = o.session_id
+        try {
+          usageTap.see(o)
+          if (o.type === "result") usageTap.flush()
+        } catch {
+          /* telemetry */
+        }
         let stop = false
         try {
           stop = onObject ? onObject(o) : false
@@ -3940,6 +4059,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     child.on("close", (code) => {
       clearTimers()
       if (signal) signal.removeEventListener?.("abort", onAbort)
+      usageTap.flush() // a call that ended without its result frame (a hard kill) still leaves its usage in the record
       // Hard-killed before it could flush its `result` frame → no authoritative
       // total_cost_usd landed. Record the per-turn estimate so the spend is
       // captured instead of lost as $0 (the timed-out-attempt cost gap).
@@ -6975,6 +7095,24 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   const knob = (v, lo, hi, dflt) => (Number.isFinite(Number(v)) && v !== null && v !== "" ? Math.min(hi, Math.max(lo, Number(v))) : dflt)
   const minAttemptMs = knob(opts?.minAttemptMs, 0, 3_600_000, 8 * 60_000)
   const maxNudges = Math.floor(knob(opts?.maxNudges, 0, 5, 2))
+  // How often a reminder carries the guide in full. In a 3-hour run the agent was reminded 202 times, about every 34 s, and the full text
+  // each time (8.7 kB) was half of everything that entered its conversation: it stays in the conversation, so it was paid for again by every
+  // later call. Now the first reminder of a conversation carries it in full, so does every GUIDE_REFRESH_EVERY-th after that (the CLI compacts
+  // a long conversation and a summary keeps the gist, not the steps), and the ones in between carry a short pointer (where the plan needs
+  // work, the moves it suggested). options.guideEvery changes it for experiments; 1 is the full text at every reminder.
+  const GUIDE_REFRESH_EVERY = 10
+  const guideEvery = Math.floor(knob(opts?.guideEvery, 1, 1000, GUIDE_REFRESH_EVERY))
+  const guidePointer = guideObj ? M.renderGuidePointer?.(guideObj) || "" : ""
+  let remindersSinceFullGuide = Infinity // the conversation has not seen the guide yet: its opening prompt never carries one
+  const guideForReminder = () => {
+    if (!guideText) return ""
+    if (!guidePointer || remindersSinceFullGuide >= guideEvery) {
+      remindersSinceFullGuide = 1
+      return guideText
+    }
+    remindersSinceFullGuide++
+    return guidePointer
+  }
   const sleepCfg = cfg.sleep ? { ...cfg.sleep, everyMs: knob(opts?.sleepEveryMs, 0, 86_400_000, cfg.sleep.everyMs), minNew: knob(opts?.sleepMinNew, 1, 1000, cfg.sleep.minNew) } : null
   const envHint = AGENT_CONTAINMENT === "restricted" ? "" : M.environmentHint(await probeEnvironment())
   const scratch = makeAgentScratch()
@@ -7036,7 +7174,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
           toolIds,
           pantograph: allowPantograph && !!pantographUrl,
           episodic: cfg.episodic ? M.episodicBlock(memory, cfg.episodic) : "",
-          guide: guideText,
+          guide: guideForReminder(),
         })
       : controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint, V)
     // what the agent is really told, for the console and the admin log (the frame sent when the run opens cannot know the memory yet)
@@ -7115,7 +7253,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       memory.stats.nudges++
       const elapsed = Date.now() - t0
       ctx.emit({ type: "message-annotation", subtype: "status", thought: `↩️ The agent stopped after ${Math.max(1, Math.round(elapsed / 60000))} minute(s) without a verified proof: continuing the same conversation (${nudges} of ${maxNudges}).` })
-      const nudgeText = V.nudge({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl, note: lastNote, toolIds, guide: guideText })
+      const nudgeText = V.nudge({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl, note: lastNote, toolIds, guide: guideForReminder() })
       ctx.emit({ type: "prompt", kind: "followup", prompt: `[${memoryHeader} · reminder ${nudges} of ${maxNudges} · same session]\n\n${nudgeText}`, model: ctx.model || null })
       r = await session(nudgeText, r.sessionId)
       lastNote = M.extractNote(r?.finalText) || M.extractNote(lastSaidText) || lastNote
@@ -7125,6 +7263,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     // continues they are the agent's own, as across a reminder.
     const lost = !r?.sessionId || (resuming && !r.ok && !r.timedOut && !r.stopped && !String(r.finalText || "").trim())
     sessionId = lost ? "" : r.sessionId
+    if (lost) remindersSinceFullGuide = Infinity // a new conversation has not seen the guide: its first reminder carries it in full
     lastAttemptMs = Date.now() - t0
     lastStopIso = new Date().toISOString()
     // A CLI that started and exited on the spot, having opened no conversation and said nothing, never ran an agent (a flag it does not
@@ -10668,6 +10807,7 @@ function renderStreamFrame(obj, { disk = false } = {}) {
       if (obj.subtype === "error") return `ERROR — ${clip(obj.thought, 700)}`
       return `TEXT — ${disk && typeof obj.text === "string" ? clip(obj.text, 20000) : clip(obj.thought, 1500)}`
     }
+    if (obj.type === "usage") return disk ? `USAGE — ${clip(obj.line, 600)}` : "" // per-call usage is for the run's record, never the mechanic's window
     if (disk && obj.type === "thinking") return `THINKING — ${clip(obj.full || obj.text, 20000)}`
     if (disk && obj.type === "memory" && obj.entry?.name) {
       if (obj.op === "save") return `SYSTEM — Saved to memory: ${obj.entry.name}\n${clip(obj.entry.closure, 30000)}`
@@ -13028,6 +13168,7 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
       const diskText = full ? `PROMPT TO THE AGENT${obj.kind === "followup" ? " (follow-up)" : ""} — ${full.length > 120000 ? `${full.slice(0, 120000)}\n…[+${full.length - 120000} chars]` : full}` : renderStreamFrame(obj, { disk: true })
       if (diskText) runLog?.line(metrics.time_elapsed, diskText)
     } catch {}
+    if (obj?.diskOnly) return // for the run's record only (per-call usage): the console and the client never see it
     send({ ...obj, metrics })
   }
 

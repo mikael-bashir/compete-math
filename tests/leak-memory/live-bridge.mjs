@@ -498,6 +498,31 @@ const check = async (name, fn) => {
       b.stop()
     }
   })
+  // Leak IV appends the exact compiled bytes of a successful script as a base64 marker, for the proof gate. The agent has no use for it and
+  // it stayed in its context for every later call (153 replies, about 300 kB, in a 3-hour run).
+  await check("the agent gets Leak IV's reply without the base64 marker, and the proof gate still stores the bytes the daemon compiled", async () => {
+    leak.setMarker(true)
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1", FAKE_LEMMA: "0" })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: [] }, targetId: "fake-1" })
+      const results = f.filter((x) => x.subtype === "tool_result").map((x) => String(x.output || ""))
+      assert.ok(results.some((t) => /Compilation Successful/.test(t)), results.join(" | ").slice(0, 300))
+      assert.ok(!results.some((t) => /LEAK_NORMALIZED|[A-Za-z0-9+\/=]{120,}/.test(t)), "base64 reached the agent: " + results.join(" | ").slice(0, 400))
+      assert.equal(done(f)?.verified, true)
+      const dir = path.join(b.home, ".leak-runs")
+      let lean = ""
+      for (let i = 0; i < 60 && !lean; i++) {
+        const l = fs.existsSync(dir) ? fs.readdirSync(dir).find((n) => n.endsWith(".lean")) : null
+        if (l) lean = fs.readFileSync(path.join(dir, l), "utf8")
+        else await new Promise((r) => setTimeout(r, 100))
+      }
+      assert.match(lean, /^import Mathlib\n/, "the stored proof is what the daemon compiled (import-complete), taken from the proxy's copy: " + lean.slice(0, 80))
+      assert.match(lean, /theorem target_fake/)
+    } finally {
+      b.stop()
+      leak.setMarker(false)
+    }
+  })
 }
 
 // ---- the agent stops early ----
@@ -560,22 +585,45 @@ const GUIDE_SEED = "theorem guide_seed_lemma : 2 + 2 = 4 := by\n  norm_num"
   b.stop()
 }
 {
-  const b = await startBridge({ FAKE_MODE: "stubborn" })
-  await check("every reminder and every resumed attempt carries the guide, once; the opening prompt never does", async () => {
+  // A reminder carries the guide in full on the first reminder of a conversation and again every `guideEvery`-th; between them a short pointer
+  // (a 3-hour run was reminded 202 times and half of everything in its conversation was the guide repeated in full).
+  const remind = async (b, extra, want = 4) => {
     const ctl = new AbortController()
-    const p = b.post("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 2, guide: GUIDE, seeds: [GUIDE_SEED] }, { signal: ctl.signal }).then((r) => r.text()).catch(() => "")
-    for (let i = 0; i < 100 && b.calls().length < 4; i++) await new Promise((r) => setTimeout(r, 100))
+    const p = b.post("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 2, guide: GUIDE, seeds: [GUIDE_SEED], ...extra }, { signal: ctl.signal }).then((r) => r.text()).catch(() => "")
+    for (let i = 0; i < 100 && b.calls().length < want; i++) await new Promise((r) => setTimeout(r, 100))
     ctl.abort()
     await p
     const calls = b.calls()
-    assert.ok(calls.length >= 4, `only ${calls.length} CLI calls`)
-    assert.doesNotMatch(calls[0].promptFull, /GUIDE-/, "the opening prompt")
-    for (const i of [1, 2, 3]) {
-      assert.match(calls[i].promptFull, /GUIDE-SAYS-TWO/, `call ${i} (${i < 3 ? "a reminder" : "the next resumed attempt"}) lacks the guide`)
-      assert.equal(calls[i].promptFull.split("A LINE OF ATTACK").length - 1, 1, `call ${i}: the guide appears once`)
-    }
-  })
-  b.stop()
+    assert.ok(calls.length >= want, `only ${calls.length} CLI calls`)
+    return calls
+  }
+  const full = (c) => /A LINE OF ATTACK/.test(c.promptFull) && /GUIDE-SAYS-TWO/.test(c.promptFull)
+  const pointer = (c) => /THE LINE OF ATTACK \(G1 to G2\), written out in full earlier in this conversation/.test(c.promptFull) && !/GUIDE-SAYS-/.test(c.promptFull) && !/A LINE OF ATTACK/.test(c.promptFull)
+  {
+    const b = await startBridge({ FAKE_MODE: "stubborn" })
+    await check("by default the first reminder carries the guide in full and the ones after it a short pointer; the opening prompt never carries either", async () => {
+      const calls = await remind(b, {})
+      assert.doesNotMatch(calls[0].promptFull, /GUIDE-|LINE OF ATTACK/, "the opening prompt")
+      assert.ok(full(calls[1]), "the first reminder: the guide in full")
+      assert.ok(pointer(calls[2]), "the second reminder: the pointer, " + calls[2].promptFull.slice(-600))
+      assert.ok(pointer(calls[3]), "the next resumed attempt: the pointer too")
+      assert.match(calls[2].promptFull, /Where it needs work: G2 Beta\./, "the pointer says where the plan needs work")
+      assert.ok(calls[2].promptFull.length < calls[1].promptFull.length, "and it is shorter")
+    })
+    b.stop()
+  }
+  {
+    const b = await startBridge({ FAKE_MODE: "stubborn" })
+    await check("guideEvery 2 sends the full text again at the third reminder; guideEvery 1 is the full text every time", async () => {
+      const calls = await remind(b, { guideEvery: 2 })
+      assert.deepEqual([1, 2, 3].map((i) => (full(calls[i]) ? "full" : pointer(calls[i]) ? "pointer" : "neither")), ["full", "pointer", "full"])
+      await new Promise((r) => setTimeout(r, 500)) // the aborted run has stopped calling the CLI
+      const before = b.calls().length
+      const all = await remind(b, { guideEvery: 1 }, before + 4)
+      for (const i of [1, 2, 3]) assert.ok(full(all[before + i]), `guideEvery 1: reminder ${i} carries the full guide`)
+    })
+    b.stop()
+  }
 }
 {
   const b = await startBridge({ FAKE_MODE: "lose" })
@@ -975,6 +1023,40 @@ for (const sig of ["SIGTERM", "SIGINT"]) {
     return fs.existsSync(d) ? fs.readdirSync(d).sort() : []
   }
   const readLines = (f) => fs.readFileSync(f, "utf8").trim().split("\n").map((l) => JSON.parse(l))
+  // The CLI reports cost once per call of the CLI, so a long run's bill could not be taken apart afterwards. The bridge now reads the usage of
+  // every API call, prices the parts (an estimate: total_cost_usd stays the figure), and keeps one line per call in the run's record only.
+  await check("a run's record has one usage line per API call and the totals on its end line, counts a compaction, and the console never sees them", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_USAGE: "1", FAKE_USAGE_DROP_AT: "3" })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: [] }, targetId: "fake-1" })
+      assert.equal(done(f).verified, true)
+      assert.ok(!f.some((x) => x.type === "usage"), "no usage frame reached the client")
+      const names = await waitFor(() => (runsOf(b.home).some((n) => n.endsWith(".memory.json")) ? runsOf(b.home) : null))
+      const jsonl = names.find((n) => n.endsWith(".jsonl") && n !== "index.jsonl")
+      const lines = readLines(path.join(b.home, ".leak-runs", jsonl))
+      const usage = lines.filter((l) => l.kind === "event" && /^USAGE — /.test(l.text)).map((l) => l.text)
+      assert.ok(usage.length >= 3, "one line per API call of the fake: " + usage.join(" | "))
+      assert.match(usage[0], /^USAGE — ctx 120,512 \(read 120,000 · written 500 · new 12\) · out 301 · est \$0\.\d+ \(read 0\.036 · write 0\.002 · new 0\.000 · out 0\.005\)$/)
+      assert.match(usage[1], /ctx 140,512/)
+      assert.match(usage[2], /ctx 30,512 .* · COMPACTED \(the context before it was 140,512\)$/)
+      assert.equal(usage.filter((l) => /COMPACTED/.test(l)).length, 1, "only the call that read 30 000 after 140 000 is a compaction")
+      const num = (l, re) => Number(re.exec(l)[1].replace(/,/g, ""))
+      const n = usage.length
+      const reads = usage.map((l) => num(l, /\(read ([\d,]+) ·/))
+      const ctxs = usage.map((l) => num(l, /^USAGE — ctx ([\d,]+) /))
+      const u = lines.at(-1).metrics.usage
+      assert.equal(u.calls, n)
+      assert.equal(u.input_tokens, 12 * n)
+      assert.equal(u.cache_read_tokens, reads.reduce((a, b) => a + b, 0))
+      assert.equal(u.cache_write_tokens, 500 * n)
+      assert.equal(u.output_tokens, Array.from({ length: n }, (_, i) => 301 + i).reduce((a, b) => a + b, 0))
+      assert.equal(u.max_context_tokens, Math.max(...ctxs))
+      assert.equal(u.compactions, 1)
+      assert.ok(Math.abs(u.est_usd.cache_read - (u.cache_read_tokens * 0.3) / 1e6) < 1e-5 && u.est_usd.cache_write > 0 && u.est_usd.output > 0, JSON.stringify(u.est_usd))
+    } finally {
+      b.stop()
+    }
+  })
   await check("a memory run leaves a start line with its target, an end line with its metrics and session, a .lean proof and a .memory.json library", async () => {
     const hookOut = path.join(tmp, "hook-calls.txt")
     const hook = path.join(tmp, "hook.sh")
