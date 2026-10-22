@@ -50,3 +50,19 @@ export function evidenceLines(q: QualityEntry): string[] {
 export function ratedSummary(targetId: string, entryIds: string[], files: Record<string, QualityFile> = QUALITY_FILES): { rated: number; total: number } {
   return { rated: entryIds.filter((id) => qualityOf(targetId, id, files)).length, total: entryIds.length };
 }
+
+// Entries saved before the sleep stage rated theorems carry no rating of their own. Those that the offline ranking covered get theirs from the
+// shipped file, so the run is not asked to rate them again and the modal shows them. Entries that have a rating keep it.
+export function backfillQuality<T extends { id: string; quality?: QualityEntry | null }>(targetId: string, entries: T[], files: Record<string, QualityFile> = QUALITY_FILES): T[] {
+  const file = files[targetId];
+  if (!file) return entries;
+  return entries.map((e) => {
+    if (e.quality) return e;
+    const q = qualityOf(targetId, e.id, files);
+    return q ? { ...e, quality: { ...q, r: file.rankedAt, rv: 1 } } : e;
+  });
+}
+
+// the rating to show for an entry: its own, else the shipped one
+export const ratingOf = (targetId: string, e: { id: string; quality?: QualityEntry | null }, files: Record<string, QualityFile> = QUALITY_FILES): QualityEntry | null =>
+  e.quality && Number.isInteger(e.quality.s) ? e.quality : qualityOf(targetId, e.id, files);

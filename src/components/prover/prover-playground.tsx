@@ -23,6 +23,7 @@ import { ProverConsole } from '@/components/prover/prover-console';
 import type { ProverEvent, ProverOutcome } from '@/lib/prover/types';
 import { LEAK_TARGETS, findLeakTarget } from '@/data/leak-targets';
 import { LeakMemoryModal } from '@/components/prover/leak-memory-modal';
+import { backfillQuality } from '@/lib/prover/entry-quality';
 import {
   MEMORY_VARIANTS,
   applyMemoryFrame,
@@ -121,7 +122,7 @@ export function ProverPlayground() {
       if (!live) return;
       setMemoryLoading(false);
       if (r.ok) {
-        setMemory(r.data.entries);
+        setMemory(backfillQuality(targetId, r.data.entries));
         setMemoryLimits({ maxNominated: r.data.limits.maxNominated, minNominatedForAudit: r.data.limits.minNominatedForAudit });
       }
     });

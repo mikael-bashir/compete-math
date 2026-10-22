@@ -11,12 +11,13 @@ All four are Control II (one continuous agent, Leak IV plus Leak I search) with 
 | Honoured | append-only library of verified theorems | `memory_recall`, `memory_list`, `memory_nominate` tools |
 | Flint | episodic: the most recent verified theorems | replayed into each fresh attempt, no tool |
 | Paragon | the same library | also folded into the Leak I results the agent already reads, plus the tools |
-| Lucid | Honoured | plus an hourly "sleep" pass that merges the library into fewer, more general lemmas |
+| Lucid | Honoured | plus an hourly "sleep" pass that merges the library into fewer, more general lemmas and rates every saved theorem, one to five stars |
 
 What is saved: every declaration a run verifies on Leak IV that is not trivial (a closing-tactic proof of a one-line statement is not), with the helper declarations it needs, so each entry compiles on its own. Entries are keyed by the statement (not the name); a shorter proof of the same statement replaces a longer one. `sorry`, `admit` and `native_decide` scripts are never saved.
 
 ## Where it lives
 
+- `public/leak-quality.mjs`: the rating rule (features, two probes, a model's reading, the stars). Next to the bridge; the setup command downloads it. The sleep stage and `tools/leak-rank` both use it.
 - `public/leak-memory.mjs`: the pure memory module (splitting, closure, dedupe, BM25 recall, sleep prompt). Next to the bridge; the setup command downloads it.
 - `public/leak-containment.mjs`: how the agent is confined (see `docs/leak-agent-containment.md`). Next to the bridge; the setup command downloads it.
 - `public/local-claude-bridge.mjs`: the four strategies (`control-honoured`, `-flint`, `-paragon`, `-lucid`), `proveControlMemory`, the cost cap, the 48 h clamp.
@@ -48,3 +49,9 @@ A target may carry a `guide`: its heuristic, written as a chain of steps `G1, G2
 ## Into Tengoku
 
 Memory never reaches Tengoku by itself. A theorem leaves an account only when it is nominated (3 to 10 per target, by the author) and then passes the intake pipeline in emissary-archangel: a mechanical preflight, a Tau Ceti style agent audit, and Jinshi on the nominated modules. See `memory-intake/README.md` there. The modal's **Export nominated** button downloads the bundle (`GET /api/leak/memory/bundle?target=`) that pipeline takes.
+
+## Ratings (Lucid's second job when it sleeps)
+
+When Lucid sleeps it also rates every saved theorem that has no rating yet (at most 24 per sleep, newest first, within eight minutes), by the rule in `public/leak-quality.mjs`: features of the entry (proof size, whether the statement has any variable, how many other entries rest on it, whether it states the target), two questions put to Leak IV (does a one-line automatic tactic prove its statement; does a single existing lemma), and a model's reading in two independent draws. The tactic test is checked first (it must close an easy truth and not an easy falsehood) or the pass stops and says so. A sleep is also due when enough theorems are waiting for a rating, not only when enough are new.
+
+The rating is numbers and flags (`entry.quality`), saved with the entry like any other update, and the saved-theorems modal shows it as stars with a hover card that says what the rung means and what stands behind this theorem's rating. Entries saved before this existed carry the rating from the offline ranking (`src/data/leak-quality/<target>.json`) until they have their own. Only Lucid rates; the other variants never sleep, so their theorems show the shipped rating or none. See `docs/leak-agent-containment.md` for the confinement the reading runs under, and `tools/leak-rank/README.md` for the same rule run offline over a whole set.

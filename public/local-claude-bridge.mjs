@@ -6806,9 +6806,20 @@ ${plainTheorem(theorem)}`
 // The sleep stage of Control II Lucid: a short separate session whose only tool is Leak IV, asked to generalise clusters of
 // saved lemmas. Nothing it says is trusted: every candidate is re-verified here before it is added to the memory.
 async function runSleepStage(M, memory, ctx, theorem, cfg, state) {
+  const fresh = M.freshCount(memory, state) // before the clock below moves: what has been saved since the last sleep
   state.lastSleepAt = Date.now()
   state.lastSleepIso = new Date().toISOString()
   memory.stats.sleeps++
+  if (fresh >= cfg.sleep.minNew) await consolidate(M, memory, ctx, theorem, cfg, state)
+  // The second job of the sleep: rate the theorems that have no rating yet (public/leak-quality.mjs). A failure here never loses the consolidation.
+  try {
+    await rateStage(memory, ctx, theorem, cfg, state)
+  } catch (e) {
+    ctx.emit({ type: "message-annotation", subtype: "error", thought: `⭐ Rating failed (${String(e?.message || e).slice(0, 160)}); the theorems stay unrated until the next sleep.` })
+  }
+}
+
+async function consolidate(M, memory, ctx, theorem, cfg, state) {
   const verifyOnly = (ctx.mcpServers || []).filter((s) => s?.url === ctx.verifyUrl)
   ctx.emit({ type: "message-annotation", subtype: "status", thought: `🌙 Sleep: consolidating ${memory.size} saved theorem(s) into more general lemmas (at most ${Math.round(cfg.sleep.timeboxMs / 60000)} min).` })
   const sleepText = M.sleepPrompt(memory, theorem)
@@ -6838,6 +6849,94 @@ async function runSleepStage(M, memory, ctx, theorem, cfg, state) {
     kept += memory.addAbstract(c.script, M.resolveSubsumes(memory, c.subsumes), { attempt: state.attempt }).length
   }
   ctx.emit({ type: "message-annotation", subtype: "status", thought: `🌙 Sleep done: ${kept} abstract lemma(s) added (each re-verified).` })
+}
+
+// ---- rating: the second job of Lucid's sleep ----------------------------------------------------------------------------------------
+// Every theorem the library holds without a rating gets one, one to five stars, by the rule in public/leak-quality.mjs: features of the entry,
+// two questions put to Leak IV (does a one-line tactic prove its statement; does one existing lemma), and a model's reading in two independent
+// draws. The rating rides in the entry, so the page saves it like any other change, and the saved-theorems modal shows it. A missing module
+// or a broken tactic test skips the pass and says so; it never stops a run.
+let _qualityModule = null
+async function qualityModule() {
+  if (_qualityModule) return _qualityModule
+  try {
+    _qualityModule = await import(new URL("./leak-quality.mjs", import.meta.url).href)
+  } catch {
+    return null
+  }
+  return _qualityModule
+}
+
+async function rateStage(memory, ctx, theorem, cfg, state) {
+  const rc = cfg.sleep.rate
+  if (!rc) return 0
+  const todo = memory.unrated().sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || ""))).slice(0, rc.max)
+  if (!todo.length) return 0
+  const status = (thought, subtype = "status") => ctx.emit({ type: "message-annotation", subtype, thought })
+  const Q = await qualityModule()
+  if (!Q) {
+    status("⭐ Rating skipped: leak-quality.mjs is missing next to the bridge (run the setup command on the Leak page again).", "error")
+    return 0
+  }
+  const t0 = Date.now()
+  const over = () => Date.now() - t0 > rc.boxMs || ctx.signal?.aborted || deadlinePassed(ctx)
+  const closes = async (script) => {
+    const v = await verifyViaDaemon(script, ctx.verifyUrl, { timeoutMs: ctx.verifyTimeoutMs })
+    return Boolean(v.ok && parseVerifyOutput(v.text).success)
+  }
+  status(`⭐ Rating ${todo.length} saved theorem(s) (at most ${Math.round(rc.boxMs / 60000)} min).`)
+  // the tactic test is checked before it is trusted: it must close an easy truth and not an easy falsehood (once per run)
+  if (!state.batteryOk) {
+    for (const c of Q.CONTROLS) {
+      if ((await closes(c.script)) !== c.expect) {
+        status(`⭐ Rating skipped: the tactic test failed its own check (${c.name}), so its answers would mean nothing.`, "error")
+        return 0
+      }
+    }
+    state.batteryOk = true
+  }
+  const all = [...memory.entries.values()]
+  const targetProp = (() => {
+    const parts = Q.splitClosure(plainTheorem(theorem), "")
+    return parts ? Q.splitHeader(parts.header)?.prop || "" : ""
+  })()
+  const feats = Q.features(all.map((e) => ({ key: e.id, entry: e, runs: [] })), targetProp)
+  const featOf = new Map(all.map((e, i) => [e.id, feats[i]]))
+  const probes = new Map()
+  for (const e of todo) {
+    if (over()) break
+    const f = featOf.get(e.id)
+    if (f.duplicateOf) continue
+    const scripts = Q.probeScripts(e)
+    if (!scripts) continue
+    const cheap = await closes(scripts.cheap)
+    const library = cheap || over() ? false : await closes(scripts.library) // a cheap tactic already caps it at one star
+    probes.set(e.id, { cheap, library })
+  }
+  const draws = new Map(todo.map((e) => [e.id, []]))
+  for (let draw = 0; draw < rc.draws && !over(); draw++) {
+    const order = draw % 2 ? [...todo].reverse() : todo
+    for (let i = 0; i < order.length && !over(); i += 8) {
+      const batch = order.slice(i, i + 8).filter((e) => !featOf.get(e.id).duplicateOf)
+      if (!batch.length) continue
+      const prompt = Q.readingPrompt(batch.map((e) => ({ id: e.id, entry: e, features: featOf.get(e.id) })), { target: plainTheorem(theorem) })
+      const r = await spawnProverStream(
+        { prompt, mcpServers: [], model: ctx.model, maxTurns: 3, timeoutMs: Math.max(60_000, rc.boxMs - (Date.now() - t0)), getDeadline: ctx.getDeadline, stage: "⭐", metrics: ctx.metrics, signal: ctx.signal, searchBudget: 0, cwd: state.scratch || undefined, isolate: true },
+        { onObject: () => false, emit: ctx.emit },
+      )
+      for (const g of Q.parseReading(r?.finalText)) if (draws.has(g.id)) draws.get(g.id).push(g)
+    }
+  }
+  let rated = 0
+  for (const e of todo) {
+    const f = featOf.get(e.id)
+    const reading = Q.summariseReading(draws.get(e.id))
+    const verdict = Q.stars(f, probes.get(e.id) || null, reading)
+    const q = Q.toQuality(f, probes.get(e.id) || null, reading, verdict)
+    if (q && memory.setQuality(e.id, q)) rated++
+  }
+  status(`⭐ Rated ${rated} of ${todo.length} theorem(s); ${todo.length - rated} wait for the next sleep.`)
+  return rated
 }
 
 async function proveControlMemory(theorem, ctx, opts = {}) {

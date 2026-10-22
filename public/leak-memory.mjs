@@ -54,7 +54,7 @@ export const VARIANTS = {
     tools: ["memory_recall", "memory_list", "memory_nominate"],
     episodic: 0,
     augmentSearch: false,
-    sleep: { everyMs: 60 * 60_000, minNew: 6, timeboxMs: 10 * 60_000 },
+    sleep: { everyMs: 60 * 60_000, minNew: 6, timeboxMs: 10 * 60_000, rate: { boxMs: 8 * 60_000, max: 24, draws: 2 } },
   },
 }
 // The same four variants again with Leak II (Pantograph: init_proof / apply_tactic) added to the agent's tools, the way Control IV adds it to
@@ -498,6 +498,7 @@ export class Memory {
         subsumes: Array.isArray(e.subsumes) ? e.subsumes : [],
         subsumedBy: e.subsumedBy || null,
         hits: Number(e.hits) || 0,
+        quality: e.quality && typeof e.quality === "object" ? e.quality : null,
         loaded: true,
       })
     }
@@ -519,9 +520,25 @@ export class Memory {
       subsumes: e.subsumes || [],
       subsumedBy: e.subsumedBy || null,
       hits: e.hits || 0,
+      quality: e.quality || null,
       variant: this.variant,
       targetId: this.targetId,
     }
+  }
+
+  // A rating made by the sleep stage (public/leak-quality.mjs). It is saved like any other change to an entry: the page persists the update frame.
+  setQuality(id, quality) {
+    const e = this.entries.get(String(id))
+    if (!e || !quality) return false
+    e.quality = quality
+    this.stats.rated = (this.stats.rated || 0) + 1
+    this.emit({ type: "memory", op: "update", entry: this.publicEntry(e) })
+    return true
+  }
+
+  // the entries a sleep would rate: no rating yet, not a seed, not merged into a more general lemma
+  unrated() {
+    return [...this.entries.values()].filter((e) => !e.quality && e.origin !== "seed" && !e.subsumedBy)
   }
 
   // A script that Leak IV has just verified. Returns the entries that are new or shorter than what was stored.
@@ -585,6 +602,7 @@ export class Memory {
         subsumes: meta.subsumes || [],
         subsumedBy: prior?.subsumedBy || null,
         hits: prior?.hits || 0,
+        quality: prior?.quality || null, // the same statement with a shorter proof is the same theorem: keep its rating
       }
       if (prior && prior.closure.length <= closure.length) continue // keep the shorter proof
       if (!prior && this.entries.size >= MAX_ENTRIES) continue
@@ -816,10 +834,17 @@ export function memoryRules(variantKey, { envHint = "", pantograph } = {}) {
 }
 
 // ---- the sleep stage (Lucid) ----------------------------------------------------------------------------------
+// theorems saved since the last sleep that a consolidation could work on (what the sleep prompt is about)
+export function freshCount(memory, state) {
+  return [...memory.entries.values()].filter((e) => !e.subsumedBy && e.origin !== "abstracted" && (e.savedAt || "") > (state.lastSleepIso || "")).length
+}
+
 export function sleepDue(memory, state, cfg, now = Date.now()) {
   if (!cfg) return false
   const fresh = [...memory.entries.values()].filter((e) => !e.subsumedBy && e.origin !== "abstracted" && (e.savedAt || "") > (state.lastSleepIso || "")).length
-  return fresh >= cfg.minNew && now - (state.lastSleepAt || 0) >= cfg.everyMs
+  // a sleep is also due when enough theorems are waiting for a rating (theorems saved by earlier runs, or merged lemmas the last sleep made)
+  const waiting = cfg.rate ? memory.unrated().length : 0
+  return (fresh >= cfg.minNew || waiting >= cfg.minNew) && now - (state.lastSleepAt || 0) >= cfg.everyMs
 }
 
 export function sleepPrompt(memory, target, { maxEntries = 40, maxChars = 14000 } = {}) {

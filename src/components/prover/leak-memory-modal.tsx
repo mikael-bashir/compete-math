@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import type { MemoryEntry } from '@/lib/prover/memory-client';
-import { qualityOf, rankedAt, ratedSummary } from '@/lib/prover/entry-quality';
+import { ratingOf } from '@/lib/prover/entry-quality';
 import { StarRating } from './star-rating';
 
 interface Props {
@@ -43,9 +43,9 @@ export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, load
   const nominated = entries.filter((e) => e.nominated).length;
   const visible = entries.filter((e) => !e.subsumedBy || e.nominated);
   // best first puts the highest-rated theorems on top (unrated ones last); otherwise the order the account saved them in
-  const shown = bestFirst ? [...visible].sort((a, b) => (qualityOf(targetId, b.id)?.s ?? 0) - (qualityOf(targetId, a.id)?.s ?? 0)) : visible;
-  const rated = ratedSummary(targetId, shown.map((e) => e.id));
-  const ratedOn = rankedAt(targetId);
+  const shown = bestFirst ? [...visible].sort((a, b) => (ratingOf(targetId, b)?.s ?? 0) - (ratingOf(targetId, a)?.s ?? 0)) : visible;
+  const rated = shown.filter((e) => ratingOf(targetId, e)).length;
+  const ratedOn = rated > 0;
   const merged = entries.length - visible.length;
 
   return (
@@ -66,7 +66,7 @@ export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, load
           <DialogDescription>
             Verified on Leak IV during your runs. Only your account can see these.{' '}
             {ratedOn
-              ? `Stars say how much each one adds (${rated.rated} of ${rated.total} rated, ranked ${ratedOn}); hover one to see what it means. `
+              ? `Stars say how much each one adds (${rated} of ${shown.length} rated; Lucid rates new theorems as it sleeps). Hover one to see what it means. `
               : ''}
             {nominated >= minNominated
               ? `${nominated} nominated, enough for a Tengoku audit.`
@@ -135,11 +135,11 @@ export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, load
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         {(() => {
-                          const q = qualityOf(targetId, e.id);
+                          const q = ratingOf(targetId, e);
                           return q ? (
                             <StarRating stars={q.s} quality={q} />
                           ) : ratedOn ? (
-                            <span className="text-[10px] text-muted-foreground" title="Saved since this target was last ranked, so it has no rating yet">
+                            <span className="text-[10px] text-muted-foreground" title="Not rated yet: Lucid rates the theorems that have no rating when it next sleeps">
                               unrated
                             </span>
                           ) : null;

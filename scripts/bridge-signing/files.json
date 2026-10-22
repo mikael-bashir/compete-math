@@ -1,6 +1,22 @@
 [
-  { "url": "local-claude-bridge.mjs", "local": "claude-bridge.mjs" },
-  { "url": "leak-min-imports.mjs", "local": "leak-min-imports.mjs" },
-  { "url": "leak-memory.mjs", "local": "leak-memory.mjs" },
-  { "url": "leak-containment.mjs", "local": "leak-containment.mjs" }
+  {
+    "url": "local-claude-bridge.mjs",
+    "local": "claude-bridge.mjs"
+  },
+  {
+    "url": "leak-min-imports.mjs",
+    "local": "leak-min-imports.mjs"
+  },
+  {
+    "url": "leak-memory.mjs",
+    "local": "leak-memory.mjs"
+  },
+  {
+    "url": "leak-containment.mjs",
+    "local": "leak-containment.mjs"
+  },
+  {
+    "url": "leak-quality.mjs",
+    "local": "leak-quality.mjs"
+  }
 ]

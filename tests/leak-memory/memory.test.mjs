@@ -592,3 +592,79 @@ test("kernelEvalGuard refuses a kernel evaluation on a large numeral, and nothin
   assert.ok(KERNEL_EVAL_RE.test("by decide"))
   assert.ok(!KERNEL_EVAL_RE.test("by omega"))
 })
+
+// ---- ratings in the memory (the sleep stage rates what has no rating) ----
+import { VARIANTS as VARIANTS_Q, freshCount } from "../../public/leak-memory.mjs"
+import { needsRating, toQuality } from "../../public/leak-quality.mjs"
+
+const GOOD = "theorem rated_a (a b : ℕ) (h : a ≤ b) : a * a ≤ b * b := by\n  nlinarith [Nat.zero_le a]"
+const GOOD2 = "theorem rated_b (a b c : ℕ) (h : a ≤ b) : a * c ≤ b * c := by\n  exact Nat.mul_le_mul_right c h"
+
+test("setQuality attaches a rating, emits an update the page can save, and the entry is no longer waiting", () => {
+  const frames = []
+  const m = new Memory({ emit: (f) => frames.push(f) })
+  const [e] = m.addScript(GOOD, { attempt: 1 })
+  frames.length = 0
+  assert.deepEqual(m.unrated().map((x) => x.id), [e.id])
+  assert.equal(m.setQuality(e.id, { s: 3, u: 0, rv: 1 }), true)
+  assert.equal(frames.length, 1)
+  assert.deepEqual([frames[0].type, frames[0].op, frames[0].entry.id], ["memory", "update", e.id])
+  assert.deepEqual(frames[0].entry.quality, { s: 3, u: 0, rv: 1 })
+  assert.equal(m.unrated().length, 0)
+  assert.equal(m.stats.rated, 1)
+  assert.equal(m.setQuality("nope", { s: 3 }), false)
+  assert.equal(m.setQuality(e.id, null), false)
+})
+
+test("a rating comes back with the entry the page sends, survives a shorter proof of the same statement, and is in the saved record", () => {
+  const m = new Memory({})
+  const [e] = m.addScript(GOOD, { attempt: 1 })
+  m.setQuality(e.id, { s: 4, u: 2 })
+  const again = new Memory({})
+  again.load([m.publicEntry(m.entries.get(e.id))])
+  assert.deepEqual(again.entries.get(e.id).quality, { s: 4, u: 2 })
+  assert.deepEqual(again.publicEntry(again.entries.get(e.id)).quality, { s: 4, u: 2 })
+  // the same statement proved again, more briefly: the entry is replaced and keeps its rating
+  const shorter = GOOD.replace("nlinarith [Nat.zero_le a]", "Nat.mul_le_mul h h")
+  again.addScript(shorter, { attempt: 2 })
+  assert.deepEqual(again.entries.get(e.id).quality, { s: 4, u: 2 })
+  assert.equal(again.load([{ ...m.publicEntry(m.entries.get(e.id)), id: "ab".repeat(20), quality: "garbage" }]) > 0, true)
+  assert.equal(again.entries.get("ab".repeat(20)).quality, null, "a rating that is not an object is not taken")
+})
+
+test("unrated leaves out the project's seeds, rated entries and entries merged into a more general lemma", () => {
+  const m = new Memory({})
+  const [a] = m.addScript(GOOD, { attempt: 1 })
+  const [b] = m.addScript(GOOD2, { attempt: 1 })
+  m.addScript("theorem seed_c (a b : ℕ) (h : a ≤ b) : a + 1 ≤ b + 1 := by\n  omega", { origin: "seed", silent: true, keepTrivial: true })
+  assert.equal(m.unrated().length, 2)
+  m.setQuality(a.id, { s: 2, u: 0 })
+  assert.deepEqual(m.unrated().map((x) => x.id), [b.id])
+  m.entries.get(b.id).subsumedBy = a.id
+  assert.equal(m.unrated().length, 0)
+  assert.equal(needsRating({ origin: "verified" }), true)
+  assert.equal(needsRating({ origin: "seed" }), false)
+  assert.equal(needsRating({ origin: "verified", quality: { s: 1 } }), false)
+})
+
+test("Lucid sleeps when enough theorems wait for a rating, even with nothing fresh; the other variants have no sleep", () => {
+  const cfg = VARIANTS_Q["control-lucid"].sleep
+  assert.ok(cfg.rate && cfg.rate.max > 0 && cfg.rate.draws >= 1 && cfg.rate.boxMs > 0)
+  const m = new Memory({})
+  for (const s of [GOOD, GOOD2]) m.addScript(s, { attempt: 1 })
+  const state = { lastSleepAt: 0, lastSleepIso: new Date(Date.now() + 60_000).toISOString() } // nothing saved since the last sleep
+  assert.equal(freshCount(m, state), 0)
+  assert.equal(sleepDue(m, state, { ...cfg, minNew: 3 }, Date.now()), false, "two waiting is fewer than minNew")
+  assert.equal(sleepDue(m, state, { ...cfg, minNew: 2 }, Date.now()), true, "two waiting is enough")
+  assert.equal(sleepDue(m, state, { ...cfg, rate: undefined, minNew: 2 }, Date.now()), false, "a variant that does not rate sleeps only on fresh theorems")
+  for (const k of ["control-honoured", "control-flint", "control-paragon"]) assert.equal(VARIANTS_Q[k].sleep, null, k)
+})
+
+test("toQuality packs a rating as numbers and flags only, and nothing for an unrated entry", () => {
+  const f = { usedBy: 3, ground: true, duplicateOf: null, keystone: false }
+  const q = toQuality(f, { cheap: false, library: true }, { depth: 2.04, generality: 1, role: 0.5, kind: "numeric-instance", inMathlib: "yes", vacuous: "no" }, { stars: 2 }, new Date("2026-10-22T10:00:00Z"))
+  assert.deepEqual(q, { s: 2, u: 3, rv: 1, r: "2026-10-22", d: 2, g: 1, w: 0.5, k: "numeric-instance", l: 1, n: 1, m: 1 })
+  assert.equal(toQuality(f, null, null, { stars: null }), null)
+  assert.equal(toQuality(f, null, null, null), null)
+  assert.ok(!JSON.stringify(q).includes("says"), "no prose")
+})
