@@ -127,3 +127,80 @@ test('creating the table twice is harmless', async () => {
   await again.save('ada', 't', [entry(1)]);
   assert.equal((await s.list('ada', 't')).length, 1);
 });
+
+// ---- a full target makes room instead of refusing, and clearing a target puts things away without deleting them ----------------------------
+
+type RawRow = { entry_id: string; entry: Record<string, unknown> };
+const rawRows = async (raw: PGlite, user: string, target: string): Promise<RawRow[]> =>
+  (await raw.query<RawRow>('SELECT entry_id, entry FROM leak_memory WHERE username = $1 AND target_id = $2 ORDER BY entry_id', [user, target])).rows;
+
+test('a full target puts away what is merged first, then what is rated low, and skips a new theorem only when nothing can be put away', async () => {
+  const { raw, s } = await store({ perTarget: 3, perAccount: 100 });
+  const merged = entry(1, { subsumedBy: entry(9).id });
+  const low = entry(2, { quality: { s: 1, u: 0 } });
+  const fine = entry(3, { quality: { s: 4, u: 2 } });
+  assert.deepEqual(await s.save('ada', 't', [merged, low, fine]), { saved: 3, skipped: 0 });
+  assert.deepEqual(await s.save('ada', 't', [entry(4)]), { saved: 1, skipped: 0 }, 'full, so the merged one is put away to make room');
+  assert.deepEqual((await s.list('ada', 't')).map((e) => e.name).sort(), ['lemma_2', 'lemma_3', 'lemma_4']);
+  assert.deepEqual(await s.save('ada', 't', [entry(5)]), { saved: 1, skipped: 0 }, 'then the one rated a single star');
+  assert.deepEqual((await s.list('ada', 't')).map((e) => e.name).sort(), ['lemma_3', 'lemma_4', 'lemma_5']);
+  assert.deepEqual(await s.save('ada', 't', [entry(6), entry(7)]), { saved: 0, skipped: 2 }, 'nothing left that can be put away: skipped, as before');
+  // nothing was deleted: the two put away are still rows, as stubs
+  const rows = await rawRows(raw, 'ada', 't');
+  assert.equal(rows.length, 5);
+  const stub = rows.find((r: RawRow) => r.entry_id === merged.id)!.entry as { closure: string; statement: string; subsumedBy: string; archived: { why: string } };
+  assert.equal(stub.closure, '', 'the proof is dropped');
+  assert.equal(stub.statement, merged.statement, 'the statement stays');
+  assert.equal(stub.subsumedBy, merged.subsumedBy);
+  assert.equal(stub.archived.why, 'made room');
+  assert.equal((rows.find((r: RawRow) => r.entry_id === low.id)!.entry as { quality: { s: number } }).quality.s, 1, 'and so does the rating');
+});
+
+test('making room never takes a nominated theorem, the target\'s own proof, or a general lemma that stands in for others', async () => {
+  const { s } = await store({ perTarget: 3, perAccount: 100 });
+  const nominated = entry(1, { quality: { s: 1, u: 0 } });
+  const target = entry(2, { isTarget: true, quality: { s: 1, u: 0 } });
+  const general = entry(3, { origin: 'abstracted', subsumes: [entry(8).id], quality: { s: 2, u: 0 } });
+  await s.save('ada', 't', [nominated, target, general]);
+  assert.equal((await s.setNominated('ada', 't', nominated.id, true)).ok, true);
+  assert.deepEqual(await s.save('ada', 't', [entry(4)]), { saved: 0, skipped: 1 });
+  assert.equal((await s.list('ada', 't')).length, 3);
+});
+
+test('a put-away row is not listed and not counted, and the same statement saved again is live again', async () => {
+  const { s } = await store({ perTarget: 2, perAccount: 100 });
+  const old = entry(1, { subsumedBy: entry(9).id });
+  await s.save('ada', 't', [old, entry(2)]);
+  assert.equal((await s.save('ada', 't', [entry(3)])).saved, 1, 'the merged one is put away');
+  assert.deepEqual((await s.list('ada', 't')).map((e) => e.name).sort(), ['lemma_2', 'lemma_3']);
+  // the agent proves the put-away statement again: it comes back with its proof, and since the target is full again another row is put away
+  assert.deepEqual(await s.save('ada', 't', [entry(1, { quality: { s: 1, u: 0 } })]), { saved: 0, skipped: 1 }, 'nothing can be put away now, so it is skipped rather than refused silently');
+  assert.deepEqual(await s.save('ada', 't', [entry(2, { quality: { s: 1, u: 0 } })]), { saved: 1, skipped: 0 }, 'an update of a live row is never refused');
+  assert.deepEqual(await s.save('ada', 't', [entry(1)]), { saved: 1, skipped: 0 }, 'now lemma_2 is rated low, so it makes the room');
+  const live = (await s.list('ada', 't')).map((e) => e.name).sort();
+  assert.deepEqual(live, ['lemma_1', 'lemma_3']);
+  assert.match((await s.list('ada', 't')).find((e) => e.name === 'lemma_1')!.closure, /omega/, 'with its proof');
+});
+
+test('clearing a target puts everything away except the nominated theorems, deletes nothing, and touches no other target or account', async () => {
+  const { raw, s } = await store();
+  await s.save('ada', 't', [1, 2, 3, 4].map((n) => entry(n)));
+  await s.save('ada', 'other', [entry(5)]);
+  await s.save('bob', 't', [entry(1), entry(6)]);
+  await s.setNominated('ada', 't', entry(2).id, true);
+  assert.equal(await s.archiveAll('ada', 't'), 3);
+  assert.deepEqual((await s.list('ada', 't')).map((e) => e.name), ['lemma_2'], 'the nominated one stays');
+  assert.equal((await rawRows(raw, 'ada', 't')).length, 4, 'every row is still there');
+  assert.equal((await s.list('ada', 'other')).length, 1);
+  assert.equal((await s.list('bob', 't')).length, 2);
+  assert.equal(await s.archiveAll('ada', 't'), 0, 'clearing twice puts nothing more away');
+  // and a cleared library starts empty: new theorems are saved, and a put-away statement proved again is live again
+  assert.deepEqual(await s.save('ada', 't', [entry(1), entry(7)]), { saved: 2, skipped: 0 });
+  assert.deepEqual((await s.list('ada', 't')).map((e) => e.name).sort(), ['lemma_1', 'lemma_2', 'lemma_7']);
+});
+
+test('the limits are higher than they were, and count live rows only', async () => {
+  const core = await import('../../src/app/lib/leak-memory/memory-core');
+  assert.equal(core.MAX_ENTRIES_PER_TARGET, 1500, 'it was 600, and a full target refused new theorems without a word');
+  assert.equal(core.MAX_ENTRIES_PER_ACCOUNT, 6000);
+});

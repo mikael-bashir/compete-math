@@ -79,6 +79,15 @@ if (mode === "lose" && resumed) {
   process.stderr.write(`No conversation found with session ID: ${resumed}\n`)
   process.exit(1)
 }
+// FAKE_SEARCHES=n: the agent asks Leak I n times in the stretch before it stops (the bridge counts them for the reminder's Leak I check-in)
+for (let i = 0; i < Number(process.env.FAKE_SEARCHES || 0); i++) out({ type: "assistant", message: { content: [{ type: "tool_use", id: `fake_search_${i}`, name: "mcp__Leak_I__moogle_search", input: { concept: "x" } }] } })
+if (process.env.FAKE_MIDNOTE && (mode === "stubborn" || mode === "lose" || (mode === "giveup" && !resumed))) {
+  // the prompt asks for notes as the agent goes: this one wrote its NOTE/NEXT mid-stretch and ended on plain text
+  out({ type: "assistant", message: { content: [{ type: "text", text: "NOTE: the mid-stretch note.\nNEXT: the mid-stretch next." }] } })
+  out({ type: "assistant", message: { content: [{ type: "text", text: "Carrying on with that." }] } })
+  out({ type: "result", subtype: "success", is_error: false, result: "Carrying on with that.", total_cost_usd: 0.01, session_id: SESSION })
+  process.exit(0)
+}
 if (mode === "stubborn" || mode === "lose" || (mode === "giveup" && !resumed)) {
   out({ type: "assistant", message: { content: [{ type: "text", text: "Not done: this is an open problem.\nNOTE: the fake learned nothing yet.\nNEXT: fake next step, try the small case." }] } })
   out({ type: "result", subtype: "success", is_error: false, result: "Not done: this is an open problem.\nNOTE: the fake learned nothing yet.\nNEXT: fake next step, try the small case.", total_cost_usd: 0.01, session_id: SESSION })

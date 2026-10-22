@@ -16,3 +16,4 @@ export const listMemory = store.list;
 export const saveMemory = store.save;
 export const setNominated = store.setNominated;
 export const deleteMemory = store.remove;
+export const archiveMemory = store.archiveAll;

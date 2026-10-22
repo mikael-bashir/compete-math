@@ -6924,52 +6924,78 @@ ${answerSlotNote(theorem)}Theorem (its signature is immutable${hasAnswerSlot(the
 ${plainTheorem(theorem)}`
 }
 
-// The sleep stage of Control II Lucid: a short separate session whose only tool is Leak IV, asked to generalise clusters of
-// saved lemmas. Nothing it says is trusted: every candidate is re-verified here before it is added to the memory.
+// The sleep stage of Control II Lucid, "the dream": rate what has no rating, then merge groups of related theorems into general lemmas that
+// re-prove them. How long it lasts depends on how big the library is (M.dreamBudget: eighteen minutes for a small one, an hour from a
+// thousand theorems; the first dream of a run is no longer than the small one, because the agent has not begun and is waiting). Nothing it
+// says is trusted: every candidate is re-verified here, and a member is retired only if the verified script re-proves it.
 async function runSleepStage(M, memory, ctx, theorem, cfg, state) {
   const fresh = M.freshCount(memory, state) // before the clock below moves: what has been saved since the last sleep
-  state.lastSleepAt = Date.now()
+  const budget = M.dreamBudget(memory.size, { first: !state.slept })
+  const before = { visible: memory.size - memory.hiddenCount(), merged: memory.mergedCount(), wounded: memory.woundedCount(), abstracted: memory.stats.abstracted, rated: memory.stats.rated || 0 }
   state.lastSleepIso = new Date().toISOString()
   memory.stats.sleeps++
-  if (fresh >= cfg.sleep.minNew) await consolidate(M, memory, ctx, theorem, cfg, state)
-  // The second job of the sleep: rate the theorems that have no rating yet (public/leak-quality.mjs). A failure here never loses the consolidation.
+  state.slept = true
+  const t0 = Date.now()
   try {
-    await rateStage(memory, ctx, theorem, cfg, state)
-  } catch (e) {
-    ctx.emit({ type: "message-annotation", subtype: "error", thought: `⭐ Rating failed (${String(e?.message || e).slice(0, 160)}); the theorems stay unrated until the next sleep.` })
+    // merging first, so that nothing is spent rating a theorem that is about to be retired; then rating, with whatever time is left
+    if (fresh >= cfg.sleep.minNew || before.visible >= 2 * cfg.sleep.minNew) await consolidate(M, memory, ctx, theorem, cfg, state, budget.consolidateMs)
+    try {
+      const rateMs = Math.max(budget.rateMs, budget.totalMs - (Date.now() - t0)) // what merging did not use goes to rating
+      await rateStage(memory, ctx, theorem, cfg, state, { ...budget, rateMs, rateMax: Math.max(budget.rateMax, Math.floor((rateMs / 60_000) * M.DREAM.ratePerMin)) })
+    } catch (e) {
+      ctx.emit({ type: "message-annotation", subtype: "error", thought: `⭐ Rating failed (${String(e?.message || e).slice(0, 160)}); the theorems stay unrated until the next sleep.` })
+    }
+  } finally {
+    state.lastSleepAt = Date.now() // the hour between dreams runs from the end of this one, not from its start
   }
+  const after = { visible: memory.size - memory.hiddenCount(), merged: memory.mergedCount(), wounded: memory.woundedCount() }
+  ctx.emit({
+    type: "message-annotation",
+    subtype: "status",
+    thought: `🌙 Dream done in ${Math.max(1, Math.round((Date.now() - t0) / 60000))} min: rated ${(memory.stats.rated || 0) - before.rated}, merged ${after.merged - before.merged} theorem(s) into ${memory.stats.abstracted - before.abstracted} general lemma(s), put away ${after.wounded - before.wounded} rated one or two stars. The agent now sees ${after.visible} of ${memory.size} (${after.merged} merged, ${after.wounded} rated low).`,
+  })
 }
 
-async function consolidate(M, memory, ctx, theorem, cfg, state) {
+async function consolidate(M, memory, ctx, theorem, cfg, state, boxMs) {
   const verifyOnly = (ctx.mcpServers || []).filter((s) => s?.url === ctx.verifyUrl)
-  ctx.emit({ type: "message-annotation", subtype: "status", thought: `🌙 Sleep: consolidating ${memory.size} saved theorem(s) into more general lemmas (at most ${Math.round(cfg.sleep.timeboxMs / 60000)} min).` })
-  const sleepText = M.sleepPrompt(memory, theorem)
-  ctx.emit({ type: "prompt", kind: "followup", prompt: `[${cfg.name} · sleep stage: a separate short session whose only tool is Leak IV]\n\n${sleepText}`, model: ctx.model || null })
-  const r = await spawnProverStream(
-    {
-      prompt: sleepText,
-      mcpServers: verifyOnly,
-      model: ctx.model,
-      maxTurns: 0,
-      timeoutMs: cfg.sleep.timeboxMs,
-      getDeadline: ctx.getDeadline,
-      stage: "🌙",
-      metrics: ctx.metrics,
-      signal: ctx.signal,
-      searchBudget: 0,
-      cwd: state.scratch || undefined,
-      isolate: true,
-    },
-    { onObject: () => false, emit: ctx.emit },
-  )
+  const t0 = Date.now()
+  const over = () => Date.now() - t0 > boxMs || ctx.signal?.aborted || deadlinePassed(ctx)
+  state.seenClusters ??= new Set()
+  const clusters = M.dreamClusters(memory, { skip: state.seenClusters })
+  ctx.emit({ type: "message-annotation", subtype: "status", thought: `🌙 Dream: looking for theorems to merge among ${memory.size - memory.hiddenCount()} the agent sees (${clusters.length} related group(s), at most ${Math.round(boxMs / 60000)} min).` })
   let kept = 0
-  for (const c of M.parseSleep(r?.finalText)) {
-    if (ctx.signal?.aborted || deadlinePassed(ctx)) break
-    const v = await verifyViaDaemon(c.script, ctx.verifyUrl, { timeoutMs: ctx.verifyTimeoutMs })
-    if (!(v.ok && isHoleFreeProof(parseVerifyOutput(v.text)))) continue
-    kept += memory.addAbstract(c.script, M.resolveSubsumes(memory, c.subsumes), { attempt: state.attempt }).length
+  let studied = 0
+  for (const cluster of clusters) {
+    if (over() || boxMs - (Date.now() - t0) < 90_000) break
+    state.seenClusters.add(cluster.key) // the same members would get the same answer next time
+    studied++
+    const sleepText = M.sleepPrompt(cluster.members, theorem)
+    ctx.emit({ type: "prompt", kind: "followup", prompt: `[${cfg.name} · sleep stage, group ${studied} of ${clusters.length}: a separate short session whose only tool is Leak IV]\n\n${sleepText}`, model: ctx.model || null })
+    const r = await spawnProverStream(
+      {
+        prompt: sleepText,
+        mcpServers: verifyOnly,
+        model: ctx.model,
+        maxTurns: 0,
+        timeoutMs: Math.min(8 * 60_000, Math.max(60_000, boxMs - (Date.now() - t0))),
+        getDeadline: ctx.getDeadline,
+        stage: "🌙",
+        metrics: ctx.metrics,
+        signal: ctx.signal,
+        searchBudget: 0,
+        cwd: state.scratch || undefined,
+        isolate: true,
+      },
+      { onObject: () => false, emit: ctx.emit },
+    )
+    for (const c of M.parseSleep(r?.finalText)) {
+      if (ctx.signal?.aborted || deadlinePassed(ctx)) break
+      const v = await verifyViaDaemon(c.script, ctx.verifyUrl, { timeoutMs: ctx.verifyTimeoutMs })
+      if (!(v.ok && isHoleFreeProof(parseVerifyOutput(v.text)))) continue
+      kept += memory.addAbstract(c.script, M.resolveSubsumes(memory, c.subsumes), { attempt: state.attempt, strict: true }).length
+    }
   }
-  ctx.emit({ type: "message-annotation", subtype: "status", thought: `🌙 Sleep done: ${kept} abstract lemma(s) added (each re-verified).` })
+  ctx.emit({ type: "message-annotation", subtype: "status", thought: `🌙 Dream: ${studied} group(s) studied, ${kept} general lemma(s) added (each re-verified, each re-proving at least ${M.MIN_RETIRED} theorems it retired).` })
 }
 
 // ---- rating: the second job of Lucid's sleep ----------------------------------------------------------------------------------------
@@ -6988,8 +7014,8 @@ async function qualityModule() {
   return _qualityModule
 }
 
-async function rateStage(memory, ctx, theorem, cfg, state) {
-  const rc = cfg.sleep.rate
+async function rateStage(memory, ctx, theorem, cfg, state, budget = null) {
+  const rc = cfg.sleep.rate && budget ? { ...cfg.sleep.rate, boxMs: budget.rateMs, max: budget.rateMax } : cfg.sleep.rate
   if (!rc) return 0
   const todo = memory.unrated().sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || ""))).slice(0, rc.max)
   if (!todo.length) return 0
@@ -7027,26 +7053,28 @@ async function rateStage(memory, ctx, theorem, cfg, state) {
   for (const e of todo) {
     if (over()) break
     const f = featOf.get(e.id)
-    if (f.duplicateOf) continue
+    if (f.duplicateOf || f.ground) continue // already capped by what the entry itself shows: two questions to the verifier would not change where it ends up
     const scripts = Q.probeScripts(e)
     if (!scripts) continue
     const cheap = await closes(scripts.cheap)
     const library = cheap || over() ? false : await closes(scripts.library) // a cheap tactic already caps it at one star
     probes.set(e.id, { cheap, library })
   }
+  // The independent draws of one batch of twelve are asked at the same time (they are model calls, not verifier calls), the second in the
+  // reverse order so that position does not decide a rating: twice as fast as asking them one after the other.
   const draws = new Map(todo.map((e) => [e.id, []]))
-  for (let draw = 0; draw < rc.draws && !over(); draw++) {
-    const order = draw % 2 ? [...todo].reverse() : todo
-    for (let i = 0; i < order.length && !over(); i += 8) {
-      const batch = order.slice(i, i + 8).filter((e) => !featOf.get(e.id).duplicateOf)
-      if (!batch.length) continue
-      const prompt = Q.readingPrompt(batch.map((e) => ({ id: e.id, entry: e, features: featOf.get(e.id) })), { target: plainTheorem(theorem) })
-      const r = await spawnProverStream(
+  for (let i = 0; i < todo.length && !over(); i += 12) {
+    const batch = todo.slice(i, i + 12).filter((e) => !featOf.get(e.id).duplicateOf)
+    if (!batch.length) continue
+    const asked = Array.from({ length: rc.draws }, (_, draw) => {
+      const items = draw % 2 ? [...batch].reverse() : batch
+      const prompt = Q.readingPrompt(items.map((e) => ({ id: e.id, entry: e, features: featOf.get(e.id) })), { target: plainTheorem(theorem) })
+      return spawnProverStream(
         { prompt, mcpServers: [], model: ctx.model, maxTurns: 3, timeoutMs: Math.max(60_000, rc.boxMs - (Date.now() - t0)), getDeadline: ctx.getDeadline, stage: "⭐", metrics: ctx.metrics, signal: ctx.signal, searchBudget: 0, cwd: state.scratch || undefined, isolate: true },
         { onObject: () => false, emit: ctx.emit },
       )
-      for (const g of Q.parseReading(r?.finalText)) if (draws.has(g.id)) draws.get(g.id).push(g)
-    }
+    })
+    for (const r of await Promise.all(asked)) for (const g of Q.parseReading(r?.finalText)) if (draws.has(g.id)) draws.get(g.id).push(g)
   }
   let rated = 0
   for (const e of todo) {
@@ -7135,6 +7163,11 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   let lastAttemptMs = 0
   let lastNote = null // the agent's own NOTE/NEXT from the end of its last stretch, handed back when the session resumes
   let lastSaidText = "" // the agent's last text block, in case the CLI's result frame is empty
+  let midNote = null // a NOTE/NEXT the agent wrote in the middle of a stretch and then carried on past: the prompt asks for notes as it goes
+  let reminders = 0 // every reminder so far, so the questions they carry rotate even when the library does not change size
+  const runStartedAt = Date.now()
+  const leakI = { calls: 0, lastAt: 0 } // searches of Tengoku this run: what the reminders say about Leak I comes from here
+  const leakIStats = () => ({ calls: leakI.calls, sinceMs: Date.now() - (leakI.lastAt || runStartedAt) })
   const toolIds = [...allowedServers.flatMap((s) => (Array.isArray(s.tools) ? s.tools : []).map((t) => `mcp__${String(s.name).replace(/[^a-zA-Z0-9_]/g, "_")}__${typeof t === "string" ? t : t?.name}`)), ...cfg.tools.map((t) => `mcp__memory__${t}`)].filter((x) => !x.endsWith("__undefined") && !/__tengoku_sync$/.test(x))
   // tengoku_sync moves a shared server onto a newer tree and restarts it: never the agent's call
   const syncTools = allowedServers.map((s) => `mcp__${String(s.name).replace(/[^a-zA-Z0-9_]/g, "_")}__tengoku_sync`)
@@ -7175,6 +7208,8 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
           pantograph: allowPantograph && !!pantographUrl,
           episodic: cfg.episodic ? M.episodicBlock(memory, cfg.episodic) : "",
           guide: guideForReminder(),
+          leakI: leakIStats(),
+          turn: reminders++,
         })
       : controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint, V)
     // what the agent is really told, for the console and the admin log (the frame sent when the run opens cannot know the memory yet)
@@ -7222,7 +7257,14 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
             if (o?.type === "assistant" && Array.isArray(o.message?.content)) {
               for (const c of o.message.content) {
                 if (c?.type === "tool_use" && c.id && String(c.name || "").endsWith("verify_full_script") && typeof c.input?.script === "string") pendingVerify.set(c.id, c.input.script)
-                if (c?.type === "text" && typeof c.text === "string" && c.text.trim()) lastSaidText = c.text
+                if (c?.type === "text" && typeof c.text === "string" && c.text.trim()) {
+                  lastSaidText = c.text
+                  midNote = M.extractNote(c.text) || midNote
+                }
+                if (c?.type === "tool_use" && /(?:loogle|moogle)_search$/.test(String(c.name || ""))) {
+                  leakI.calls++
+                  leakI.lastAt = Date.now()
+                }
               }
             } else if (o?.type === "user" && Array.isArray(o.message?.content)) {
               for (const c of o.message.content) {
@@ -7245,18 +7287,20 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     // An agent that stops within minutes, with no verified proof, while the clock is running is spoken to in the same conversation (so
     // it keeps what it learned) instead of being started afresh: an overnight run had about seventy attempts of one to five minutes each.
     const t0 = Date.now()
+    midNote = null
     let r = await session(attemptPrompt, sessionId || undefined)
-    lastNote = M.extractNote(r?.finalText) || M.extractNote(lastSaidText) || lastNote
+    lastNote = M.extractNote(r?.finalText) || M.extractNote(lastSaidText) || midNote || lastNote
     let nudges = 0
     while (!gate.verifiedScript && !ctx.signal?.aborted && !deadlinePassed(ctx) && nudges < maxNudges && r?.sessionId && !r.timedOut && !r.stopped && Date.now() - t0 < minAttemptMs) {
       nudges++
       memory.stats.nudges++
       const elapsed = Date.now() - t0
       ctx.emit({ type: "message-annotation", subtype: "status", thought: `↩️ The agent stopped after ${Math.max(1, Math.round(elapsed / 60000))} minute(s) without a verified proof: continuing the same conversation (${nudges} of ${maxNudges}).` })
-      const nudgeText = V.nudge({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl, note: lastNote, toolIds, guide: guideForReminder() })
+      const nudgeText = V.nudge({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl, note: lastNote, toolIds, guide: guideForReminder(), leakI: leakIStats(), turn: reminders++ })
       ctx.emit({ type: "prompt", kind: "followup", prompt: `[${memoryHeader} · reminder ${nudges} of ${maxNudges} · same session]\n\n${nudgeText}`, model: ctx.model || null })
+      midNote = null
       r = await session(nudgeText, r.sessionId)
-      lastNote = M.extractNote(r?.finalText) || M.extractNote(lastSaidText) || lastNote
+      lastNote = M.extractNote(r?.finalText) || M.extractNote(lastSaidText) || midNote || lastNote
     }
     // The session goes on only if it can be resumed. A resume the CLI refused (no conversation under that id: no session id comes back and
     // nothing was said) ends it: the next attempt opens a new conversation. Only then are the jobs it started ended; while the session

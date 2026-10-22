@@ -27,6 +27,7 @@ interface Props {
   minNominated: number;
   onNominate: (id: string, on: boolean) => void;
   onDelete: (id: string) => void;
+  onClear: () => void;
 }
 
 const when = (iso: string) => {
@@ -36,8 +37,9 @@ const when = (iso: string) => {
 
 // Every theorem the signed-in account's runs saved for the selected target, with the nomination that decides what the
 // Tengoku audit will look at. The list is the account's own: the API filters by username.
-export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, loading, stats, maxNominated, minNominated, onNominate, onDelete }: Props) {
+export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, loading, stats, maxNominated, minNominated, onNominate, onDelete, onClear }: Props) {
   const [open, setOpen] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [bestFirst, setBestFirst] = useState(true);
   const nominated = entries.filter((e) => e.nominated).length;
@@ -92,6 +94,24 @@ export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, load
               title="Switch between the highest-rated first and the order the theorems were saved in"
             >
               {bestFirst ? 'Best first' : 'In saved order'}
+            </button>
+          )}
+          {signedIn && entries.some((e) => !e.nominated) && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!confirmClear) {
+                  setConfirmClear(true);
+                  return;
+                }
+                setConfirmClear(false);
+                onClear();
+              }}
+              onBlur={() => setConfirmClear(false)}
+              className={`inline-flex h-6 items-center gap-1 rounded-md border px-2 text-[10px] transition-colors hover:bg-muted [&_svg]:size-3 ${confirmClear ? 'border-red-500/60 text-red-600 dark:text-red-400' : ''}`}
+              title="Start this target with an empty library. Nothing is deleted: every theorem except the nominated ones is put away (its statement and rating are kept, its proof is dropped), and proving the same statement again brings it back."
+            >
+              <Trash2 /> {confirmClear ? 'Click again to clear' : 'Clear library'}
             </button>
           )}
           {signedIn && nominated >= minNominated && (
