@@ -1,7 +1,7 @@
 // The ranking rules, read from fixtures shaped like real banked entries. Nothing here touches the network.
 import test from "node:test"
 import assert from "node:assert/strict"
-import { declaredNames, distribution, features, isGround, normalise, probeScripts, proofShape, splitClosure, splitHeader, stars, summariseReading } from "../../tools/leak-rank/rank-core.mjs"
+import { CONTROLS, QUIET, declaredNames, distribution, features, isGround, normalise, probeScripts, proofShape, splitClosure, splitHeader, stars, summariseReading } from "../../tools/leak-rank/rank-core.mjs"
 import { KINDS, parseReading, readingPrompt } from "../../tools/leak-rank/reading.mjs"
 import { reportCsv, reportHtml, reportMd, starText } from "../../tools/leak-rank/report.mjs"
 
@@ -61,6 +61,8 @@ test("probeScripts keeps the helpers and the statement and swaps the proof for a
   assert.ok(s.cheap.startsWith("import Mathlib\n"))
   assert.ok(s.cheap.includes("theorem near_neg_mod") && s.cheap.includes("theorem cb_val"))
   assert.ok(s.cheap.trimEnd().endsWith("first | decide | simp | omega | norm_num | aesop | positivity"))
+  assert.ok(s.cheap.includes(QUIET + "open Nat in"), "the unreachable-tactic warnings of `first` are switched off for the probed declaration, or Leak IV would call every probe a failure")
+  assert.ok(s.library.includes(QUIET), "harmless for exact?, and one place builds both")
   assert.ok(s.library.trimEnd().endsWith(":= by\n  exact?"))
   assert.ok(!s.cheap.includes("have := near_neg_mod"), "the original proof is gone")
 })
@@ -140,4 +142,10 @@ test("the report sorts by stars, says why, and the CSV quotes what needs quoting
   assert.ok(md.includes("| ★★★★★ | 1 |") && md.includes("| ★☆☆☆☆ | 1 |"))
   const html = reportHtml(rows, { target: "t", title: "T <b>" })
   assert.ok(html.indexOf("strong, with comma") < html.indexOf("weak") && html.includes("T &lt;b&gt;"))
+})
+
+test("the controls the runner checks before it trusts the battery: a truth and a falsehood for each of the two tactics", () => {
+  assert.deepEqual(CONTROLS.map((c) => c.expect), [true, false, true, false])
+  assert.ok(CONTROLS[0].script.includes(QUIET) && CONTROLS[0].script.includes("first | decide"))
+  assert.ok(CONTROLS[3].script.includes("exact?"))
 })

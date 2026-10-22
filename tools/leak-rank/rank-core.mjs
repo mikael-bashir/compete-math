@@ -131,11 +131,14 @@ export function features(entries, target = "") {
 
 // the two questions put to the verifier about one entry's statement: the closure with its proof replaced by a tactic
 export const CHEAP = "first | decide | simp | omega | norm_num | aesop | positivity"
+// `first` leaves its later alternatives unexecuted, and Lean's linter says so in a warning; Leak IV counts a warning as a failed compile, so
+// without this line the battery could never succeed (the first full run found nothing cheap in 566 entries because of exactly that)
+export const QUIET = "set_option linter.unreachableTactic false in\nset_option linter.unusedTactic false in\n"
 export function probeScripts(entry) {
   const parts = splitClosure(entry.closure, entry.name)
   if (!parts) return null
   const build = (tactic) => {
-    const body = `${parts.helpers}${parts.header} := by\n  ${tactic}\n`
+    const body = `${parts.helpers}${QUIET}${parts.header} := by\n  ${tactic}\n`
     return /^\s*import\s/m.test(body) ? body : `import Mathlib\n${body}`
   }
   return { cheap: build(CHEAP), library: build("exact?") }
@@ -201,3 +204,11 @@ export function distribution(rows) {
   for (const r of rows) d[r.stars == null ? "unrated" : r.stars]++
   return d
 }
+
+// the battery is checked before it is trusted: it must close an easy truth and not an easy falsehood, with each of the two tactics used
+export const CONTROLS = [
+  { name: "cheap closes a truth", script: `import Mathlib\n${QUIET}theorem c1 : 2 + 2 = 4 := by\n  ${CHEAP}\n`, expect: true },
+  { name: "cheap does not close a falsehood", script: `import Mathlib\n${QUIET}theorem c2 : 2 + 2 = 5 := by\n  ${CHEAP}\n`, expect: false },
+  { name: "exact? closes a truth", script: "import Mathlib\ntheorem c3 (a b : ℕ) : a + b = b + a := by\n  exact?\n", expect: true },
+  { name: "exact? does not close a falsehood", script: "import Mathlib\ntheorem c4 (a b : ℕ) : a + b = b + b := by\n  exact?\n", expect: false },
+]

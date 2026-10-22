@@ -15,7 +15,7 @@ import { scrubbedEnv } from "../../public/leak-containment.mjs"
 import { connect } from "../leak-vet/iv-client.mjs"
 import { splitStatement } from "../leak-vet/vet-core.mjs"
 import { loadEntries } from "./load.mjs"
-import { distribution, features, probeScripts, stars, summariseReading } from "./rank-core.mjs"
+import { CONTROLS, distribution, features, probeScripts, stars, summariseReading } from "./rank-core.mjs"
 import { readingPrompt, parseReading } from "./reading.mjs"
 import { reportCsv, reportHtml, reportMd } from "./report.mjs"
 
@@ -59,6 +59,14 @@ async function runProbes() {
         if (!h.busy) return
       } catch { /* an unreachable health endpoint is not a reason to stop */ }
       await sleep(5000)
+    }
+  }
+  // a battery that cannot close a truth (or closes a falsehood) says nothing about any entry: stop before spending an hour on it
+  for (const c of CONTROLS) {
+    const o = await iv.verify(c.script, `control: ${c.name}`)
+    if (Boolean(o.ok) !== c.expect) {
+      console.error(`CONTROL FAILED: ${c.name} (got ${o.ok}). ${(o.text || "").slice(0, 300)}`)
+      process.exit(1)
     }
   }
   let n = 0
