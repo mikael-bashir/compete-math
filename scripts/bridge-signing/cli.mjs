@@ -12,7 +12,7 @@ import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { fingerprint, manifestId, manifestText, newKeyPair, privateKeyB64, publicKeyB64, signManifest, verifyManifest } from "./core.mjs"
 
-const SECRET = "LEAK_BRIDGE_SIGNING_KEY"
+const KEY_ENV = "LEAK_BRIDGE_SIGNING_KEY"
 const [cmd, ...rest] = process.argv.slice(2)
 const arg = (name) => {
   const i = rest.indexOf(name)
@@ -30,18 +30,18 @@ if (cmd === "init") {
   const repo = arg("--repo") || process.env.GITHUB_REPOSITORY || "mikael-bashir/compete-math"
   const pair = newKeyPair()
   // the private key goes to the secret through stdin and nowhere else
-  const r = spawnSync("gh", ["secret", "set", SECRET, "--repo", repo], { input: privateKeyB64(pair), encoding: "utf8" })
+  const r = spawnSync("gh", ["secret", "set", KEY_ENV, "--repo", repo], { input: privateKeyB64(pair), encoding: "utf8" })
   if (r.status !== 0) die(`could not store the secret (is gh installed and logged in with access to ${repo}?):\n${r.stderr || r.stdout}`)
   const pub = publicKeyB64(pair)
   writeFileSync(PUB, pub + "\n")
-  console.log(`The private key is stored as the secret ${SECRET} of ${repo}. It is not on this machine and cannot be read back.`)
+  console.log(`The private key is stored as the secret ${KEY_ENV} of ${repo}. It is not on this machine and cannot be read back.`)
   console.log(`The public key is in public/bridge-signing.pub. Its fingerprint (publish this, e.g. in the README):\n  ${fingerprint(pub)}`)
   console.log("Commit public/bridge-signing.pub and merge it: the sign-bridge workflow then signs the current bridge files.")
 } else if (cmd === "sign") {
   const out = arg("--out")
   if (!out) die("sign needs --out DIR")
-  const priv = process.env[SECRET]
-  if (!priv) die(`${SECRET} is not set`)
+  const priv = process.env[KEY_ENV]
+  if (!priv) die(`${KEY_ENV} is not set`)
   if (!existsSync(PUB)) die("public/bridge-signing.pub is missing: run `init` first")
   const pub = readFileSync(PUB, "utf8").trim()
   const text = manifestText(root)
