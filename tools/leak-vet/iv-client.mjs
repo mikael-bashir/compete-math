@@ -5,10 +5,12 @@ import { outcome, takeEvents } from "./vet-core.mjs"
 export async function connect(url, { timeoutMs = 240000, quiet = false } = {}) {
   const res = await fetch(url, { headers: { accept: "text/event-stream" } })
   const pending = new Map()
+  let dead = false
   let endpoint = null
   let ready
   const gotEndpoint = new Promise((r) => (ready = r))
   ;(async () => {
+    try {
     const dec = new TextDecoder()
     let buf = ""
     for await (const chunk of res.body) {
@@ -26,15 +28,20 @@ export async function connect(url, { timeoutMs = 240000, quiet = false } = {}) {
         }
       }
     }
+    } catch { /* the stream dropped */ }
+    dead = true
+    for (const fail of pending.values()) fail({ error: { message: "the connection to the verifier dropped" } })
   })()
   await gotEndpoint
   let id = 0
   const call = (method, params) =>
     new Promise(async (resolve, reject) => {
+      if (dead) return reject(new Error("the connection to the verifier dropped"))
       const myId = ++id
       const timer = setTimeout(() => reject(new Error(`${method} timed out after ${timeoutMs / 1000}s`)), timeoutMs)
       pending.set(myId, (m) => {
         clearTimeout(timer)
+        if (m.error && !m.result) return reject(new Error(m.error.message || "error"))
         resolve(m)
       })
       await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: myId, method, params }) })
@@ -42,6 +49,7 @@ export async function connect(url, { timeoutMs = 240000, quiet = false } = {}) {
   await call("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "leak-client", version: "1" } })
   await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) })
   return {
+    isDead: () => dead,
     verify: async (script, label = "") => {
       const t0 = Date.now()
       try {

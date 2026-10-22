@@ -47,8 +47,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // ---- probes -------------------------------------------------------------------------------------------------------------------------
 const probeFile = join(outDir, "probes.jsonl")
 async function runProbes() {
-  const done = new Set(readCache(probeFile).map((r) => `${r.id}|${r.kind}`))
-  const iv = await connect(IV, { timeoutMs: 240000, quiet: true })
+  // an answer the verifier never gave is asked again on the next run
+  const done = new Set(readCache(probeFile).filter((r) => !r.noAnswer).map((r) => `${r.id}|${r.kind}`))
+  let iv = await connect(IV, { timeoutMs: 240000, quiet: true })
   const health = IV.replace(/\/sse$/, "/health")
   // Leak IV is shared: wait while it is busy with someone else's run, but not for ever
   const polite = async () => {
@@ -68,7 +69,12 @@ async function runProbes() {
     for (const kind of ["cheap", "library"]) {
       if (done.has(`${e.id}|${kind}`)) continue
       await polite()
-      const o = await iv.verify(scripts[kind], `${e.entry.name}/${kind}`)
+      let o = await iv.verify(scripts[kind], `${e.entry.name}/${kind}`)
+      if (o.noAnswer && iv.isDead()) {
+        // the long-lived connection dropped: open a new one and ask again once
+        iv = await connect(IV, { timeoutMs: 240000, quiet: true })
+        o = await iv.verify(scripts[kind], `${e.entry.name}/${kind}`)
+      }
       appendFileSync(probeFile, JSON.stringify({ id: e.id, kind, ok: Boolean(o.ok), noAnswer: Boolean(o.noAnswer), error: (o.errors || [])[0] || "" }) + "\n")
       if (++n % 25 === 0) console.error(`  probes: ${n} answers this run`)
       await sleep(300)
