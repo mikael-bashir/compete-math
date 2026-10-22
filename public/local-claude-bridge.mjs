@@ -6857,6 +6857,11 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   const seeds = (Array.isArray(opts?.seeds) ? opts.seeds : []).filter((x) => typeof x === "string" && x.length < 20000).slice(0, 20)
   for (const seedScript of seeds) memory.addScript(seedScript, { origin: "seed", silent: true, keepTrivial: true })
   const loaded = memory.size
+  // The target's written line of attack (options.guide). It is NOT in the opening prompt: only a resumed attempt and a reminder after a
+  // short stretch carry it, because that is when the agent is being asked to keep going. A guide that is malformed or too long is not used.
+  const guideObj = M.cleanGuide?.(opts?.guide) || null
+  const guideText = guideObj ? M.renderGuide(guideObj, { withLean: seeds.length > 0 }) : ""
+  if (opts?.guide && !guideText) ctx.emit({ type: "message-annotation", subtype: "status", thought: "🧭 The target's guide was not used (malformed, or too long to hand over at every reminder)." })
   const sig = theoremSignature(theorem)
   ctx.memoryRun = { variant: variantKey, voice: V.key, memory, sessionMode: "persistent", attempts: 0, resumes: 0, freshStarts: 0, guards: { kernel_eval_refused: 0 } } // read when the run ends, for its record
   const pantographUrl = resolvePantographUrl(ctx.mcpServers)
@@ -6931,6 +6936,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
           toolIds,
           pantograph: allowPantograph && !!pantographUrl,
           episodic: cfg.episodic ? M.episodicBlock(memory, cfg.episodic) : "",
+          guide: guideText,
         })
       : controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint, V)
     // what the agent is really told, for the console and the admin log (the frame sent when the run opens cannot know the memory yet)
@@ -7009,7 +7015,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       memory.stats.nudges++
       const elapsed = Date.now() - t0
       ctx.emit({ type: "message-annotation", subtype: "status", thought: `↩️ The agent stopped after ${Math.max(1, Math.round(elapsed / 60000))} minute(s) without a verified proof: continuing the same conversation (${nudges} of ${maxNudges}).` })
-      const nudgeText = V.nudge({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl, note: lastNote, toolIds })
+      const nudgeText = V.nudge({ elapsedMs: elapsed, libraryCount: memory.size, nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl, note: lastNote, toolIds, guide: guideText })
       ctx.emit({ type: "prompt", kind: "followup", prompt: `[${memoryHeader} · reminder ${nudges} of ${maxNudges} · same session]\n\n${nudgeText}`, model: ctx.model || null })
       r = await session(nudgeText, r.sessionId)
       lastNote = M.extractNote(r?.finalText) || M.extractNote(lastSaidText) || lastNote

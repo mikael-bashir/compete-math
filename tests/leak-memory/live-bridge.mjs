@@ -505,6 +505,81 @@ const check = async (name, fn) => {
   })
   b.stop()
 }
+// ---- a target's guide (its written line of attack): only when the agent is reminded to keep going ----
+const GUIDE = {
+  intro: "GUIDE-INTRO.",
+  notation: "GUIDE-NOTATION.",
+  steps: [
+    { id: "G1", tag: "holds", title: "Alpha", says: "GUIDE-SAYS-ONE.", why: "GUIDE-WHY-ONE.", lean: ["guide_seed_lemma"] },
+    { id: "G2", tag: "hole", title: "Beta", says: "GUIDE-SAYS-TWO.", why: "GUIDE-WHY-TWO.", fill: "GUIDE-FILL-TWO." },
+  ],
+  next: ["GUIDE-MOVE-ONE."],
+}
+const GUIDE_SEED = "theorem guide_seed_lemma : 2 + 2 = 4 := by\n  norm_num"
+{
+  const b = await startBridge({ FAKE_MODE: "giveup" })
+  await check("the guide is not in the opening prompt; the reminder after a short stretch carries it, with the Lean names the seeds make true", async () => {
+    const f = await b.frames("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 2, guide: GUIDE, seeds: [GUIDE_SEED] })
+    const calls = b.calls()
+    assert.equal(calls[0].resume, null)
+    assert.doesNotMatch(calls[0].promptFull, /GUIDE-|A LINE OF ATTACK/, "the opening prompt is the question and the agent's own ideas")
+    assert.doesNotMatch(calls[0].appendSystem || "", /GUIDE-|A LINE OF ATTACK/)
+    assert.equal(calls[1].resume, calls[0].session)
+    for (const s of ["A LINE OF ATTACK", "NOTATION. GUIDE-NOTATION.", "G1 [holds] Alpha. GUIDE-SAYS-ONE. Why: GUIDE-WHY-ONE.", "Lean (in your library): guide_seed_lemma.", "G2 [hole] Beta. GUIDE-SAYS-TWO.", "What is settled, and what to try: GUIDE-FILL-TWO.", "MOVES THIS SUGGESTS. 1. GUIDE-MOVE-ONE."]) assert.ok(calls[1].promptFull.includes(s), `the reminder lacks: ${s}`)
+    const prompts = f.filter((x) => x.type === "prompt")
+    assert.ok(prompts.filter((x) => x.kind !== "followup").every((x) => !/GUIDE-/.test(x.prompt)), "the console's opening prompt has no guide")
+    assert.ok(prompts.filter((x) => x.kind === "followup").some((x) => /GUIDE-SAYS-ONE/.test(x.prompt)), "the console shows the reminder with the guide")
+    assert.equal(done(f)?.verified, true)
+  })
+  await check("a run started without the target's seeds gets the steps but not the Lean names that would not exist in its library", async () => {
+    const before = b.calls().length
+    await b.frames("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 2, guide: GUIDE })
+    const c = b.calls()[before + 1]
+    assert.match(c.promptFull, /G1 \[holds\] Alpha\. GUIDE-SAYS-ONE\./)
+    assert.doesNotMatch(c.promptFull, /guide_seed_lemma|Lean \(in your library\)|Lean names under a step/)
+  })
+  await check("a malformed guide is not used, and the run says so", async () => {
+    const before = b.calls().length
+    const f = await b.frames("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 2, guide: { steps: "nonsense" } })
+    assert.doesNotMatch(b.calls()[before + 1].promptFull, /A LINE OF ATTACK/)
+    assert.ok(texts(f).some((t) => /target's guide was not used/.test(t)), texts(f).join(" | "))
+  })
+  b.stop()
+}
+{
+  const b = await startBridge({ FAKE_MODE: "stubborn" })
+  await check("every reminder and every resumed attempt carries the guide, once; the opening prompt never does", async () => {
+    const ctl = new AbortController()
+    const p = b.post("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 2, guide: GUIDE, seeds: [GUIDE_SEED] }, { signal: ctl.signal }).then((r) => r.text()).catch(() => "")
+    for (let i = 0; i < 100 && b.calls().length < 4; i++) await new Promise((r) => setTimeout(r, 100))
+    ctl.abort()
+    await p
+    const calls = b.calls()
+    assert.ok(calls.length >= 4, `only ${calls.length} CLI calls`)
+    assert.doesNotMatch(calls[0].promptFull, /GUIDE-/, "the opening prompt")
+    for (const i of [1, 2, 3]) {
+      assert.match(calls[i].promptFull, /GUIDE-SAYS-TWO/, `call ${i} (${i < 3 ? "a reminder" : "the next resumed attempt"}) lacks the guide`)
+      assert.equal(calls[i].promptFull.split("A LINE OF ATTACK").length - 1, 1, `call ${i}: the guide appears once`)
+    }
+  })
+  b.stop()
+}
+{
+  const b = await startBridge({ FAKE_MODE: "lose" })
+  await check("a session that cannot be resumed starts a new conversation with the opening prompt, which has no guide: that is not a reminder", async () => {
+    const ctl = new AbortController()
+    const p = b.post("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 1, guide: GUIDE, seeds: [GUIDE_SEED] }, { signal: ctl.signal }).then((r) => r.text()).catch(() => "")
+    for (let i = 0; i < 100 && b.calls().length < 3; i++) await new Promise((r) => setTimeout(r, 100))
+    ctl.abort()
+    await p
+    const calls = b.calls()
+    assert.deepEqual(calls.slice(0, 3).map((c) => c.resume !== null), [false, true, false])
+    assert.match(calls[1].promptFull, /GUIDE-SAYS-TWO/, "the reminder before it had the guide")
+    assert.match(calls[2].promptFull, /could not be resumed/)
+    assert.doesNotMatch(calls[2].promptFull, /GUIDE-|A LINE OF ATTACK/)
+  })
+  b.stop()
+}
 {
   const b = await startBridge({ FAKE_MODE: "stubborn" })
   await check("an agent that never works gets at most maxNudges reminders per attempt, then the next attempt resumes the SAME session", async () => {
