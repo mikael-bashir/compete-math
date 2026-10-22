@@ -1,0 +1,46 @@
+name: sign-bridge
+
+# Signs the Leak bridge. The setup command on the Leak page checks the files it downloads against a signature made here and published on the
+# `bridge-signatures` branch, so a website that is compromised, and could change the page, the files and their hashes together, still cannot make a
+# command that passes. The private key exists only as the secret LEAK_BRIDGE_SIGNING_KEY (made once by `node scripts/bridge-signing/cli.mjs init`),
+# is not readable from any pull request, and is used by this one step. See docs/leak-bridge-signing.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "public/local-claude-bridge.mjs"
+      - "public/leak-min-imports.mjs"
+      - "public/leak-memory.mjs"
+      - "public/leak-containment.mjs"
+      - "public/bridge-signing.pub"
+      - "scripts/bridge-signing/**"
+      - ".github/workflows/sign-bridge.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: sign-bridge
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # pushes the signature to the bridge-signatures branch, nothing else
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Sign the manifest of the bridge files
+        if: hashFiles('public/bridge-signing.pub') != '' # no key set up yet (cli.mjs init): nothing to sign, and no red run on main
+        env:
+          LEAK_BRIDGE_SIGNING_KEY: ${{ secrets.LEAK_BRIDGE_SIGNING_KEY }}
+        run: node scripts/bridge-signing/cli.mjs sign --out "$RUNNER_TEMP/sig"
+      - name: Publish the signature on the bridge-signatures branch
+        if: hashFiles('public/bridge-signing.pub') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: SIG_REMOTE_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" sh scripts/bridge-signing/publish.sh "$RUNNER_TEMP/sig"

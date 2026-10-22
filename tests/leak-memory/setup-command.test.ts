@@ -44,8 +44,8 @@ test('without hashes the command still works but has no check, and without a tok
 // the part of the command between the last download and the bridge, run in a directory that holds the files as they were saved
 const verifyPart = () => {
   const i = cmd.indexOf("printf '%s");
-  const j = cmd.indexOf(' && ', i);
-  return cmd.slice(i, j);
+  const end = 'shasum -a 256 -c bridge.sha256';
+  return cmd.slice(i, cmd.indexOf(end, i) + end.length);
 };
 const saved = () => {
   const dir = mkdtempSync(join(tmpdir(), 'bridge-check-'));

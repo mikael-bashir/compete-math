@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { buildSetupCommand, type BridgeHashes } from '@/lib/leak/bridge-files';
+import { buildSetupCommand, type BridgeHashes, type BridgeSigning } from '@/lib/leak/bridge-files';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -269,11 +269,18 @@ export function LocalClaudeAgentManagement({
   } catch {
     /* no hashes: the command is built without the check */
   }
+  let bridgeSigning: BridgeSigning | null = null;
+  try {
+    bridgeSigning = JSON.parse(process.env.NEXT_PUBLIC_BRIDGE_SIGNING || 'null');
+  } catch {
+    /* no key: the command carries the hash check only */
+  }
   const setupCommand = buildSetupCommand({
     origin: origin || '',
     token: connection.token || '',
     port: bridgePort,
     hashes: bridgeHashes,
+    signing: bridgeSigning,
   });
 
   const copyLeakIvCommand = async () => {
