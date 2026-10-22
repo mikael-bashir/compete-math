@@ -13,6 +13,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import type { MemoryEntry } from '@/lib/prover/memory-client';
+import { qualityOf, rankedAt, ratedSummary } from '@/lib/prover/entry-quality';
+import { StarRating } from './star-rating';
 
 interface Props {
   targetId: string;
@@ -37,9 +39,14 @@ const when = (iso: string) => {
 export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, loading, stats, maxNominated, minNominated, onNominate, onDelete }: Props) {
   const [open, setOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [bestFirst, setBestFirst] = useState(true);
   const nominated = entries.filter((e) => e.nominated).length;
-  const shown = entries.filter((e) => !e.subsumedBy || e.nominated);
-  const merged = entries.length - shown.length;
+  const visible = entries.filter((e) => !e.subsumedBy || e.nominated);
+  // best first puts the highest-rated theorems on top (unrated ones last); otherwise the order the account saved them in
+  const shown = bestFirst ? [...visible].sort((a, b) => (qualityOf(targetId, b.id)?.s ?? 0) - (qualityOf(targetId, a.id)?.s ?? 0)) : visible;
+  const rated = ratedSummary(targetId, shown.map((e) => e.id));
+  const ratedOn = rankedAt(targetId);
+  const merged = entries.length - visible.length;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -58,6 +65,9 @@ export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, load
           <DialogTitle>Saved theorems · {targetTitle}</DialogTitle>
           <DialogDescription>
             Verified on Leak IV during your runs. Only your account can see these.{' '}
+            {ratedOn
+              ? `Stars say how much each one adds (${rated.rated} of ${rated.total} rated, ranked ${ratedOn}); hover one to see what it means. `
+              : ''}
             {nominated >= minNominated
               ? `${nominated} nominated, enough for a Tengoku audit.`
               : `Nominate ${minNominated}–${maxNominated} to put them forward for the Tengoku audit (${nominated} so far).`}
@@ -74,6 +84,16 @@ export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, load
         )}
 
         <div className="flex items-center justify-end gap-2">
+          {ratedOn && (
+            <button
+              type="button"
+              onClick={() => setBestFirst((v) => !v)}
+              className="inline-flex h-6 items-center rounded-md border px-2 text-[10px] transition-colors hover:bg-muted"
+              title="Switch between the highest-rated first and the order the theorems were saved in"
+            >
+              {bestFirst ? 'Best first' : 'In saved order'}
+            </button>
+          )}
           {signedIn && nominated >= minNominated && (
             <a
               href={`/api/leak/memory/bundle?target=${encodeURIComponent(targetId)}`}
@@ -114,6 +134,16 @@ export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, load
                     </button>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
+                        {(() => {
+                          const q = qualityOf(targetId, e.id);
+                          return q ? (
+                            <StarRating stars={q.s} quality={q} />
+                          ) : ratedOn ? (
+                            <span className="text-[10px] text-muted-foreground" title="Saved since this target was last ranked, so it has no rating yet">
+                              unrated
+                            </span>
+                          ) : null;
+                        })()}
                         <span className="truncate font-mono text-xs font-medium">{e.name}</span>
                         {e.isTarget && <span className="rounded bg-emerald-500/15 px-1 text-[10px] text-emerald-600 dark:text-emerald-400">target</span>}
                         {e.origin !== 'verified' && <span className="rounded bg-violet-500/15 px-1 text-[10px] text-violet-600 dark:text-violet-400">{e.origin}</span>}

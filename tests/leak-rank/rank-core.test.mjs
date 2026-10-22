@@ -149,3 +149,14 @@ test("the controls the runner checks before it trusts the battery: a truth and a
   assert.ok(CONTROLS[0].script.includes(QUIET) && CONTROLS[0].script.includes("first | decide"))
   assert.ok(CONTROLS[3].script.includes("exact?"))
 })
+
+import { exportQuality } from "../../tools/leak-rank/report.mjs"
+test("exportQuality keeps numbers and flags keyed by the entry id, and leaves out names, statements and prose", () => {
+  const row = (entryId, stars, over = {}) => ({ entryId, name: "secret_name", statement: "theorem secret : P", stars, features: { usedBy: 2, ground: false, duplicateOf: null, keystone: false }, probes: { cheap: false, library: false }, reading: { depth: 3.04, generality: 2.96, role: 2, kind: "general-lemma", inMathlib: "no", vacuous: "no", says: "a sentence about the lemma" }, ...over })
+  const out = exportQuality([row("a".repeat(40), 3), row("b".repeat(40), 1, { probes: { cheap: true, library: false }, features: { usedBy: 0, ground: true, duplicateOf: null, keystone: false } }), row("c".repeat(40), null), { ...row("d", 2), entryId: "" }], { targetId: "t", rankedAt: "2026-10-22" })
+  assert.equal(out.count, 2, "an unrated entry and one without an id are left out")
+  assert.deepEqual(out.entries["a".repeat(40)], { s: 3, u: 2, d: 3, g: 3, w: 2, k: "general-lemma" })
+  assert.deepEqual(out.entries["b".repeat(40)], { s: 1, u: 0, d: 3, g: 3, w: 2, k: "general-lemma", c: 1, n: 1 })
+  const text = JSON.stringify(out)
+  for (const w of ["secret", "sentence", "theorem"]) assert.ok(!text.includes(w), w)
+})

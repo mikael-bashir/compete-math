@@ -7,6 +7,8 @@ pnpm rank:bank -- --probes --read        # collect (cached, safe to stop and rer
 node tools/leak-rank/rank.mjs            # just rewrite the report from what has been collected
 ```
 
+`--export` also writes `src/data/leak-quality/<target>.json`, the file the app reads to show stars in the saved-theorems modal: numbers and flags keyed by entry id, no theorem text, so it can be committed. Rerun it (probes and reading are cached, so only new entries cost anything) after a long run to rate the new theorems; entries saved since the last ranking show as "unrated" until then.
+
 Output goes to `~/.leak-runs/.quality/<target>/`: `ranking.html` (sorted, with the reason under each name), `ranking.csv` (everything), `ranking.md` (the distribution and the best fifteen).
 
 ## Where the stars come from
