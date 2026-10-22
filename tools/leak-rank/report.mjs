@@ -74,3 +74,29 @@ export function reportHtml(rows, { target, title }) {
 ${body}
 </tbody></table>`
 }
+
+// What the app needs to show a rating: numbers and flags keyed by the entry's own id (the sha1 of its statement), and no theorem text, no
+// name and no prose, so that it can sit in a public repository next to a target whose lemmas are not published. The app explains the rungs.
+export function exportQuality(rows, { targetId, rankedAt, draws = 2, method = "features, two Leak IV probes and a model reading" }) {
+  const entries = {}
+  for (const r of rows) {
+    if (!r.entryId || r.stars == null) continue
+    const rd = r.reading
+    const e = { s: r.stars, u: r.features.usedBy }
+    if (rd) {
+      e.d = Number(rd.depth.toFixed(1))
+      e.g = Number(rd.generality.toFixed(1))
+      e.w = Number(rd.role.toFixed(1))
+      e.k = rd.kind
+    }
+    if (r.probes?.cheap) e.c = 1
+    if (r.probes?.library) e.l = 1
+    if (r.features.ground) e.n = 1
+    if (rd?.inMathlib === "yes") e.m = 1
+    if (rd?.vacuous === "likely") e.v = 1
+    if (r.features.duplicateOf) e.x = 1
+    if (r.features.keystone) e.t = 1
+    entries[r.entryId] = e
+  }
+  return { targetId, rankedAt, draws, method, count: Object.keys(entries).length, entries }
+}
