@@ -20,12 +20,14 @@ export function manifestText(root, files = bridgeFiles(root)) {
 
 export const manifestId = (text) => createHash("sha256").update(text).digest("hex")
 
+// A key pair is one Ed25519 key object; the two halves are exported by separate functions, so that code that prints the public half never has the
+// private half in reach.
+export const newKeyPair = () => generateKeyPairSync("ed25519")
+export const publicKeyB64 = (pair) => pair.publicKey.export({ format: "der", type: "spki" }).toString("base64")
+export const privateKeyB64 = (pair) => pair.privateKey.export({ format: "der", type: "pkcs8" }).toString("base64")
 export function generateKey() {
-  const { publicKey, privateKey } = generateKeyPairSync("ed25519")
-  return {
-    publicKey: publicKey.export({ format: "der", type: "spki" }).toString("base64"),
-    privateKey: privateKey.export({ format: "der", type: "pkcs8" }).toString("base64"),
-  }
+  const pair = newKeyPair()
+  return { publicKey: publicKeyB64(pair), privateKey: privateKeyB64(pair) }
 }
 
 export const fingerprint = (publicKeyB64) => createHash("sha256").update(Buffer.from(publicKeyB64, "base64")).digest("hex")
