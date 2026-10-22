@@ -7,6 +7,7 @@ import { NameIndex } from './names';
 import { LiveInterpreter, type ProverEventLike, type UniverseSink, type Vec3 } from './events';
 import { FINALE, igniteTime, lineageSummary, traceLineage, type Lineage } from './lineage';
 import { STAR_FLUX_EXPONENT, emptySky, fadeOf, libRadius, linkBrightness, pairKey, seedGain, strongestLinks } from './lighting';
+import { NOVA, flashEnvelope, novaView, shakeOffset, shouldFire, sparks as novaSparks } from './nova';
 
 export interface UniverseData {
   meta: UniverseMeta;
@@ -20,6 +21,8 @@ export interface UniverseOptions {
   mode?: 'replay' | 'live';
   /** Grips in the bottom corners that let the reader drag the universe taller (default on; off when it already fills the window). */
   resizable?: boolean;
+  /** The target's star goes off (the finale; nova.ts). `x` and `y` are where, in the window's CSS pixels, so the page can flash around it. */
+  onNova?: (at: { x: number; y: number }) => void;
 }
 
 interface Ev extends UniverseEvent {
@@ -151,18 +154,33 @@ out vec2 v_uv; void main(){ vec2 p = vec2(float((gl_VertexID<<1)&2), float(gl_Ve
 // Stars are summed in linear light, then compressed: a crowd of stars is a bright patch of the galaxy's own colour, not a white block.
 // Under them sits a faint ember/tan haze that drifts as the camera turns - the landing page's nebula floor on an olive-black sky.
 const TONE_FS = `#version 300 es
-precision highp float; uniform sampler2D u_tex; uniform float u_exposure, u_aspect; uniform vec2 u_cam; in vec2 v_uv; out vec4 o;
+precision highp float; uniform sampler2D u_tex; uniform float u_exposure, u_aspect, u_flash; uniform vec2 u_cam, u_novaC; uniform vec4 u_nova, u_nova2; in vec2 v_uv; out vec4 o;
 float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h21(i),h21(i+vec2(1.0,0.0)),f.x), mix(h21(i+vec2(0.0,1.0)),h21(i+vec2(1.0,1.0)),f.x), f.y); }
+float sq(float x){ return x*x; }
 void main(){
-  vec3 c = texture(u_tex, v_uv).rgb; float L = dot(c, vec3(0.2126,0.7152,0.0722)) + 1e-5; float k = L*u_exposure; float m = 1.0 - exp(-k);
+  // the supernova's wave (nova.ts): a thin front and a fainter ripple around the star that went off, in screen heights. It bends the sky toward
+  // its front like a lens and adds its own light. u_nova = (radius, half-width, brightness, 0). With no star going off the radius is far away and
+  // the brightness 0, so it draws nothing; zoomed out, nova.ts has already faded it to nothing.
+  vec2 pc = (v_uv - u_novaC) * vec2(u_aspect, 1.0);
+  float dn = length(pc);
+  vec2 dirn = pc / max(dn, 1e-5);
+  float g1 = exp(-sq((dn - u_nova.x) / u_nova.y)) * u_nova.z;
+  float g2 = exp(-sq((dn - u_nova2.x) / u_nova2.y)) * u_nova2.z;
+  vec2 uv = v_uv - dirn / vec2(u_aspect, 1.0) * (g1 * u_nova.y * 0.9 + g2 * u_nova2.y * 0.5);
+  vec3 c = texture(u_tex, uv).rgb;
+  float behind = smoothstep(u_nova.x, u_nova.x * 0.15, dn) * u_nova.z;
+  c += vec3(1.0, 0.78, 0.5) * (g1 * 1.8 + behind * 0.12) + vec3(0.7, 0.85, 1.0) * g2;
+  float L = dot(c, vec3(0.2126,0.7152,0.0722)) + 1e-5; float k = L*u_exposure; float m = 1.0 - exp(-k);
   vec3 col = c*(m/L); col = mix(col, vec3(m), smoothstep(2.0,8.0,k)*0.2);
   vec2 q = v_uv-0.5; float vig = 1.0 - dot(q,q)*0.55;
   vec2 p = q*vec2(u_aspect,1.0)*1.7 + u_cam*0.75;
   float n = vn(p*1.3)*0.6 + vn(p*2.9+17.0)*0.4;
   float gate = smoothstep(0.42,0.78, vn(p*0.45+3.0));
   vec3 haze = mix(vec3(0.30,0.09,0.045), vec3(0.85,0.55,0.28), n)*gate*(0.002+0.009*n*n);
-  o = vec4(pow(col, vec3(0.92)) + (vec3(0.022,0.024,0.014)+haze)*vig, 1.0); }`;
+  // the flash: light, not matter, so it reaches the whole picture at once, brightest at the star
+  vec3 flash = vec3(1.0, 0.96, 0.88) * u_flash * (0.5 + 1.1 * exp(-dn * 2.2) + 1.6 * exp(-dn * 12.0));
+  o = vec4(pow(col, vec3(0.92)) + (vec3(0.022,0.024,0.014)+haze)*vig + flash, 1.0); }`;
 const LINE_VS = `#version 300 es
 precision highp float; in vec3 a_pos; in vec4 a_col; uniform mat4 u_vp; out vec4 v_col;
 void main(){ gl_Position = u_vp*vec4(a_pos,1.0); v_col = a_col; }`;
@@ -302,6 +320,11 @@ export class Universe implements UniverseSink {
   private finaleText = '';
   private finaleFa = -1;
   private finBox: { c: Vec3; r: number } | null = null;
+  // the supernova (nova.ts): the previous frame's seconds since the star was born (to see it go off), where it went off on the canvas (uv),
+  // and whether the reader asked for less motion: then there is no shake and no flash, only the wave
+  private prevBorn = -1;
+  private novaUV: [number, number] = [0.5, 0.5];
+  private readonly calm: boolean = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // hud
   private readonly el: Record<string, HTMLElement> = {};
@@ -457,6 +480,17 @@ export class Universe implements UniverseSink {
     if (op === 'save' && size === undefined) this.memSize++;
     this.interp?.memory(op, size, entry);
     if (size !== undefined) this.memSize = size;
+  }
+
+  /** Replay: jump to just before the proof closes and play on, so the finale runs: the target is born about two seconds later. */
+  jumpToFinale(): void {
+    if (this.mode !== 'replay' || !this.run?.ok || !this.evs.length) return;
+    const closes = this.evs[this.evs.length - 1].ds + 2.5;
+    this.T = Math.max(0, closes - 1.0);
+    this.playing = true;
+    this.el.play.textContent = '⏸';
+    (this.el.follow as HTMLInputElement).checked = true;
+    this.freeUntil = 0;
   }
 
   /** Jump a replay to a fraction (0..1) of its length. */
@@ -637,7 +671,9 @@ export class Universe implements UniverseSink {
       e.chain = e.used && e.used.length > 1 ? this.chainOf(e.used.slice(0, 18)) : [];
       return e;
     });
-    const span = (own.length ? own[own.length - 1].ds : 0) + 6;
+    // a replay of a proof runs on through the finale: the proof closes 2.5 s after the last event, the star is born FINALE.stillness later,
+    // and the ending is read out FINALE.settle seconds after the close (it used to loop 3.5 s into it)
+    const span = (own.length ? own[own.length - 1].ds : 0) + (run.ok ? 2.5 + FINALE.settle + 1 : 6);
     this.evs = own;
     this.dur = span;
     this.home = null;
@@ -651,6 +687,7 @@ export class Universe implements UniverseSink {
     this.heatAt = -1e9;
     this.probe = this.home ?? [0, 0, 0];
     (this.el.seek as HTMLInputElement).value = String((this.T / this.dur) * 1000);
+    (this.el.finale as HTMLButtonElement).disabled = !run.ok; // only a run that ended in a proof has a finale
   }
 
   // ---------- HUD ----------
@@ -669,6 +706,7 @@ export class Universe implements UniverseSink {
           <div class="tku-bar" data-k="bar" role="group" aria-label="Universe controls">
             <button data-k="live">Live</button><button data-k="replay">Replay</button>
             <button data-k="play" class="tku-replay-only" aria-label="Play or pause">⏸</button>
+            <button data-k="finale" class="tku-replay-only" aria-label="Jump to the proof closing" title="Jump to the finale: the proof closes and the target is born">⏭ finale</button>
             <select data-k="run" class="tku-run tku-replay-only" aria-label="Replay run"></select>
             <input data-k="seek" class="tku-seek tku-replay-only" type="range" min="0" max="1000" value="0" aria-label="Timeline">
             <span class="tku-time tku-replay-only" data-k="time">0:00</span>
@@ -702,6 +740,7 @@ export class Universe implements UniverseSink {
       this.el.play.textContent = this.playing ? '⏸' : '▶';
     });
     on(this.el.speed, 'change', () => (this.speed = +(this.el.speed as HTMLSelectElement).value));
+    on(this.el.finale, 'click', () => this.jumpToFinale());
     on(this.el.seek, 'input', () => (this.T = (+(this.el.seek as HTMLInputElement).value / 1000) * this.dur));
     on(this.el.quality, 'change', () => {
       this.drawFrac = +(this.el.quality as HTMLSelectElement).value;
@@ -866,6 +905,8 @@ export class Universe implements UniverseSink {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, this.W, this.H, 0, gl.RGBA, gl.HALF_FLOAT, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.hdr.fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.hdr.tex, 0);
     const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
@@ -1431,6 +1472,16 @@ export class Universe implements UniverseSink {
       if (born < 2) this.G(H, gold, (1 - born / 2) * 0.9, 1000 + 12 + 90 * (born / 2));
       const ping = (simT % 5) / 5;
       if (born > 3) this.G(H, gold, (1 - ping) * 0.4, 1000 + 20 + 70 * ping);
+      // the supernova's debris: pinpoints leaving the star, cooling from white to ember (nova.ts). A glow sprite's size is in units of the
+      // zoom, so a few pixels is asked for in pixels and converted
+      const nb = this.novaBorn(fa);
+      if (nb > 0) {
+        const psx = (this.DPR * (this.H / 900) * 2.1 * 0.97) / this.dist;
+        for (const sp of novaSparks(nb)) {
+          const col: Rgb = [1.0, 0.55 + 0.4 * sp.hot, 0.25 + 0.55 * sp.hot];
+          this.G([H[0] + sp.dx, H[1] + sp.dy, H[2]], col, sp.alpha * 0.9, (sp.size * this.DPR) / (psx * 7));
+        }
+      }
     }
     if (!L || !L.nodes.length) {
       this.finBox = { c: H, r: 0.25 };
@@ -1616,6 +1667,12 @@ export class Universe implements UniverseSink {
   }
 
   // ---------- frame ----------
+  /** Seconds since the target's star was born, on the clock of the person watching: a replay at 5x runs the finale five times faster, the flash does not. Negative before. */
+  private novaBorn(fa: number): number {
+    if (fa < 0) return -1;
+    return (fa - FINALE.stillness) / (this.mode === 'replay' ? Math.max(1, this.speed) : 1);
+  }
+
   private updateCam(dt: number): void {
     const follow = (this.el.follow as HTMLInputElement).checked && performance.now() > this.freeUntil;
     if (follow) {
@@ -1627,6 +1684,13 @@ export class Universe implements UniverseSink {
     const sx = 2 / (this.dist * (this.W / this.H));
     const sy = 2 / this.dist;
     this.VP = [sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, -0.01, 0, -this.target[0] * sx, -this.target[1] * sy, 0, 1];
+    // the supernova shakes the view: a rough, decaying jitter that is a function of the time since the star was born (nova.ts)
+    const born = this.novaBorn(this.finaleFa);
+    if (born > 0 && !this.calm) {
+      const [jx, jy] = shakeOffset(born);
+      this.VP[12] += 2 * jx * (this.H / this.W);
+      this.VP[13] += 2 * jy;
+    }
   }
 
   // ---------- performance ----------
@@ -1691,6 +1755,14 @@ export class Universe implements UniverseSink {
     this.simulate();
     this.dimNow += (this.dimTarget - this.dimNow) * (1 - Math.exp(-dt * 3));
     this.updateCam(dt);
+    const born = this.novaBorn(this.finaleFa);
+    const nova = born > 0 ? novaView(born, this.dist, this.H) : null;
+    if (this.home) this.novaUV = [(this.VP[0] * this.home[0] + this.VP[12]) * 0.5 + 0.5, (this.VP[5] * this.home[1] + this.VP[13]) * 0.5 + 0.5];
+    if (this.opts.onNova && shouldFire(this.prevBorn, born, this.mode === 'live' || this.playing)) {
+      const r = this.canvas.getBoundingClientRect();
+      this.opts.onNova({ x: r.left + this.novaUV[0] * r.width, y: r.top + (1 - this.novaUV[1]) * r.height });
+    }
+    this.prevBorn = born;
 
     const gl = this.gl;
     const hdr = this.hdr;
@@ -1765,6 +1837,10 @@ export class Universe implements UniverseSink {
       gl.uniform1f(this.u(this.progTone, 'u_exposure'), 1.9);
       gl.uniform1f(this.u(this.progTone, 'u_aspect'), this.W / this.H);
       gl.uniform2f(this.u(this.progTone, 'u_cam'), this.target[0] * 0.5, this.target[1] * 0.5);
+      gl.uniform2f(this.u(this.progTone, 'u_novaC'), this.novaUV[0], this.novaUV[1]);
+      gl.uniform4f(this.u(this.progTone, 'u_nova'), nova ? nova.ring : -10, nova ? nova.width : 1, nova ? nova.k : 0, 0);
+      gl.uniform4f(this.u(this.progTone, 'u_nova2'), nova ? nova.ring2 : -10, nova ? Math.max(1.5 / this.H, nova.ring2 * 0.04) : 1, nova ? nova.k2 : 0, 0);
+      gl.uniform1f(this.u(this.progTone, 'u_flash'), this.calm ? 0 : flashEnvelope(born) * NOVA.flashPeak);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.enable(gl.BLEND);
     }

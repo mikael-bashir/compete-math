@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { UNIVERSE_LEGEND, UNIVERSE_NOTES } from '@/lib/universe/legend';
 import { subscribeLive } from '@/lib/universe/live-bus';
+import { flashPage } from '@/lib/universe/page-flash';
 import type { Universe } from '@/lib/universe/engine';
 
 type State = 'idle' | 'loading' | 'ready' | 'error';
@@ -37,7 +38,8 @@ export function LeakUniverse() {
       });
       if (!host.current) return;
       universe.current?.destroy();
-      universe.current = new Engine(host.current, data, { mode: 'live' });
+      // when the target's star goes off, light reaches the whole page for a moment: the navbar, the strip, the footer and this frame too
+      universe.current = new Engine(host.current, data, { mode: 'live', onNova: flashPage });
       setCount(data.meta.n);
       setState('ready');
     } catch (e) {
