@@ -115,6 +115,67 @@ export function extractNote(text) {
   return note || next ? { note, next } : null
 }
 
+// ---- a target's line of attack (its "guide") -------------------------------------------------------------------
+// A target may carry a written line of attack: a chain of steps, each saying what it claims and why it follows (or might), with the
+// steps that are not yet established marked and filled as far as they can be. The harness never puts it in the OPENING prompt: the
+// agent starts from the question and its own ideas. It is put in front of the agent only when the agent is reminded to keep going (a
+// resumed attempt, or a reminder after a short stretch), because that is when a plan is wanted. `cleanGuide` is what the bridge runs
+// on whatever arrives in options.guide; `renderGuide` is the text that goes into the reminders (the same for both voices).
+export const GUIDE_TAGS = ["holds", "repaired", "hole"]
+export const GUIDE_MAX_CHARS = 9000
+const GUIDE_MAX_STEPS = 24
+const guideStr = (v, max) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "")
+
+export function cleanGuide(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const steps = (Array.isArray(raw.steps) ? raw.steps : [])
+    .slice(0, GUIDE_MAX_STEPS)
+    .map((s) => {
+      if (!s || typeof s !== "object") return null
+      const says = guideStr(s.says, 1400)
+      if (!says) return null
+      return {
+        id: guideStr(s.id, 12),
+        tag: GUIDE_TAGS.includes(s.tag) ? s.tag : "holds",
+        title: guideStr(s.title, 80),
+        says,
+        why: guideStr(s.why, 1400),
+        fill: guideStr(s.fill, 2200),
+        lean: (Array.isArray(s.lean) ? s.lean : []).filter((x) => typeof x === "string" && /^[A-Za-z0-9_'.]{1,80}$/.test(x)).slice(0, 8),
+      }
+    })
+    .filter(Boolean)
+  if (!steps.length) return null
+  const g = {
+    intro: guideStr(raw.intro, 1800),
+    notation: guideStr(raw.notation, 1200),
+    steps,
+    next: (Array.isArray(raw.next) ? raw.next : []).map((x) => guideStr(x, 700)).filter(Boolean).slice(0, 6),
+  }
+  return renderGuide(g).length <= GUIDE_MAX_CHARS ? g : null // too long to hand over at every reminder: not used at all, never cut in the middle
+}
+
+const GUIDE_LEGEND = `A LINE OF ATTACK, written out step by step, for when you pick the work back up. It is a plan to use, repair or leave, not a proof and not an instruction. Each step says what it claims and why it follows. [holds]: it follows from the steps before it. [repaired]: the step as first written fails; this is the version that holds. [hole]: claimed, but the reasoning given does not establish it, so the step says what is already settled and what to try.`
+const GUIDE_LEAN_LEGEND = ` Lean names under a step are verified theorems that are already in your library.`
+
+// withLean: the steps name theorems that are among the target's seeds. When the run was started without the seeds those names are not
+// in the library, so they are left out (and so is the sentence that explains them).
+export function renderGuide(g, { withLean = true } = {}) {
+  if (!g || !Array.isArray(g.steps) || !g.steps.length) return ""
+  const lean = withLean && g.steps.some((s) => s.lean?.length)
+  const out = [`${GUIDE_LEGEND}${lean ? GUIDE_LEAN_LEGEND : ""}${g.intro ? ` ${g.intro}` : ""}`]
+  if (g.notation) out.push(`NOTATION. ${g.notation}`)
+  for (const s of g.steps) {
+    const parts = [`${s.id ? `${s.id} ` : ""}[${s.tag}] ${s.title ? `${s.title}. ` : ""}${s.says}`]
+    if (s.why) parts.push(`Why: ${s.why}`)
+    if (s.fill) parts.push(`${s.tag === "hole" ? "What is settled, and what to try" : "Note"}: ${s.fill}`)
+    if (withLean && s.lean?.length) parts.push(`Lean (in your library): ${s.lean.join(", ")}.`)
+    out.push(parts.join(" "))
+  }
+  if (g.next?.length) out.push(`MOVES THIS SUGGESTS. ${g.next.map((x, i) => `${i + 1}. ${x}`).join(" ")}`)
+  return out.join("\n\n")
+}
+
 const order = {
   key: "order",
   mandate: `STANDING ORDER FROM THE OPERATOR OF THIS RUN. This is not a suggestion.
@@ -156,7 +217,7 @@ Persistence is not permission to cheat. No sorry, no new axioms, and no change t
   systemRule: `NO BRUTE FORCE (this overrides anything below that calls numeric experiments unrestricted). Do not run brute-force checks: no scanning a range of integers for a witness or a counterexample, no sieving or factoring over a growing bound, no enumerating cases for larger and larger parameters. No computation you start may run for more than 5 minutes, and if you expect one to, do not start it. Someone has almost certainly run the same check already and got nothing to show for it. Your work on this target is building verified mathematics with Leak and Tengoku, not computing.
 
 NO NETWORK beyond the Leak servers, and nothing is installed: curl, wget, pip, npm, brew, git clone and the like are blocked before they run. Nothing written elsewhere about this problem is part of this run.`,
-  continue({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", pantograph = false, note = null, rng = Math.random } = {}) {
+  continue({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", pantograph = false, note = null, guide = "", rng = Math.random } = {}) {
     const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
     const lines = [
       `ORDER: KEEP GOING. You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified proof of the target, and that is not accepted. The run's clock has not ended, so this is attempt ${attempt} of the SAME session: this conversation continues, and everything you tried and learned is still yours. That the target is open is the reason this run exists; it is not a reason to stop, and neither is a feeling that it is impossible.`,
@@ -167,10 +228,11 @@ NO NETWORK beyond the Leak servers, and nothing is installed: curl, wget, pip, n
     if (toolIds.length) lines.push(`If a tool you used before is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}`)
     if (rng() < HOUSEKEEPING_CHANCE) lines.push(HOUSEKEEPING_LINE)
     lines.push(this.persist({ pantograph }))
+    if (guide) lines.push(guide)
     lines.push("Review what this session has already established, choose ONE concrete next claim (the target, a lemma it needs, foundational material you expect to pay off, a special case, a generalisation of a verified theorem, or a bridge that lifts the target into a setting you know), and verify it with verify_full_script within your next few steps. A verified lemma is progress; an unverified conclusion is not.")
     return `${lines.join("\n\n")}\n${episodic || ""}`
   },
-  nudge({ elapsedMs, libraryCount = 0, nudge = 1, of = 2, pantograph = false } = {}) {
+  nudge({ elapsedMs, libraryCount = 0, nudge = 1, of = 2, pantograph = false, guide = "" } = {}) {
     const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
     return `ORDER: DO NOT STOP. You stopped after ${min} minute${min === 1 ? "" : "s"} without a verified theorem. The run's clock has not ended, so that is not accepted (reminder ${nudge} of ${of}). That the target is open is the reason this run exists; it is not a reason to stop, and neither is a feeling that it is impossible.
 
@@ -180,7 +242,7 @@ Do this now, in this order:
 3. When it compiles, it is saved automatically; then choose the next claim.
 
 ${this.persist({ pantograph })}
-
+${guide ? `\n${guide}\n` : ""}
 An unverified conclusion is not a result. A verified lemma is.`
   },
 }
@@ -225,7 +287,7 @@ ${HONESTY}`
   systemRule: `OUR INSTRUMENT IS PROOF, NOT SEARCH (this overrides anything below that calls numeric experiments unrestricted). Do not run brute-force checks: no scanning a range of integers for a witness or a counterexample, no sieving or factoring over a growing bound, no enumerating cases for larger and larger parameters. No computation you start may run for more than 5 minutes, and if you expect one to, do not start it. A search like that has very likely been done, and it leaves nothing a proof can use. Your work here is understanding, recorded as verified Lean.
 
 NO NETWORK beyond the Leak servers, and nothing is installed: curl, wget, pip, npm, brew, git clone and the like are blocked before they run. Nothing written elsewhere about this problem is part of this run, and the question's reputation is not an input: it is simply yours.`,
-  continue({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", pantograph = false, note = null, rng = Math.random } = {}) {
+  continue({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", pantograph = false, note = null, guide = "", rng = Math.random } = {}) {
     const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
     const lines = [`Welcome back. The last stretch ran ${min} minute${min === 1 ? "" : "s"}; the library holds ${libraryCount} verified theorem(s). This is the same session (attempt ${attempt}), so everything you worked out is still yours.`]
     if (note?.note || note?.next) lines.push(`Your last lab note:\nNOTE: ${note.note || "(none)"}\nNEXT: ${note.next || "(none)"}\n\nTake up NEXT.`)
@@ -235,13 +297,14 @@ NO NETWORK beyond the Leak servers, and nothing is installed: curl, wget, pip, n
     if (toolIds.length) lines.push(`If a tool you used before is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}`)
     if (rng() < HOUSEKEEPING_CHANCE) lines.push(HOUSEKEEPING_LINE)
     lines.push(`A question for this stretch, in case it is useful: ${curiosityPrompt(attempt)}${pantograph ? " (Leak II can show you the live goal if a step is unclear.)" : ""}`)
+    if (guide) lines.push(guide)
     lines.push("Verify something within your first few steps, and close the stretch, as always, with NOTE: and NEXT:.")
     return `${lines.join("\n\n")}\n${episodic || ""}`
   },
-  nudge({ elapsedMs, libraryCount = 0, nudge = 1, of = 2, pantograph = false, note = null, toolIds = [] } = {}) {
+  nudge({ elapsedMs, libraryCount = 0, nudge = 1, of = 2, pantograph = false, note = null, toolIds = [], guide = "" } = {}) {
     const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
     const reload = toolIds.length ? ` (If a tool is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}.)` : ""
-    return `That was a short stretch (${min} minute${min === 1 ? "" : "s"}, nothing new verified), and the library holds ${libraryCount} theorem(s).${note?.next ? ` Your NEXT was: ${note.next}` : ""} Before closing the notebook again, answer one question with the compiler: ${curiosityPrompt(nudge * 5 + libraryCount)} State it in Lean, verify_full_script it${pantograph ? " (or step it through Leak II first if the goal is unclear)" : ""}, and then write NOTE: and NEXT:.${reload} A verified lemma, or a verified counterexample, is a good place to pause; an announcement that the problem cannot be done is not, because it is not something we know.`
+    return `That was a short stretch (${min} minute${min === 1 ? "" : "s"}, nothing new verified), and the library holds ${libraryCount} theorem(s).${note?.next ? ` Your NEXT was: ${note.next}` : ""} Before closing the notebook again, answer one question with the compiler: ${curiosityPrompt(nudge * 5 + libraryCount)} State it in Lean, verify_full_script it${pantograph ? " (or step it through Leak II first if the goal is unclear)" : ""}, and then write NOTE: and NEXT:.${reload} A verified lemma, or a verified counterexample, is a good place to pause; an announcement that the problem cannot be done is not, because it is not something we know.${guide ? `\n\n${guide}` : ""}`
   },
 }
 

@@ -261,6 +261,7 @@ export function ProverPlayground() {
           question: usesMemory && target ? target.question : undefined,
           memoryEntries: usesMemory && target ? packMemory(memoryRef.current) : undefined,
           seeds: usesMemory && target && useSeeds ? target.seeds : undefined,
+          guide: usesMemory && target ? target.guide : undefined,
           onMemory: usesMemory ? onMemoryFrame : undefined,
           maxIters: isArchitectStrategy(strategy) ? maxIters : undefined,
           onRunId: ({ runId, deadlineMs, budgetMs }) => {

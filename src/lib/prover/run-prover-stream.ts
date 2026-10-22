@@ -87,6 +87,9 @@ interface RunOpts {
   memoryEntries?: unknown[];
   // The target's own vetted lemmas (scripts). They are in the run's library but are never saved to the account.
   seeds?: string[];
+  // The target's written line of attack (LeakGuide in src/data/leak-targets). The bridge keeps it out of the opening prompt and
+  // hands it over only when the agent is reminded to keep going.
+  guide?: object;
   maxCostUsd?: number;
   // Fires for every `memory` frame the bridge emits (save / update / nominate / stats). The caller persists them.
   onMemory?: (frame: MemoryFrame) => void;
@@ -271,6 +274,7 @@ export async function runProverStream(opts: RunOpts): Promise<ProverOutcome> {
             ? { memory: { entries: opts.memoryEntries } }
             : {}),
           ...(opts.seeds?.length ? { seeds: opts.seeds } : {}),
+          ...(opts.guide ? { guide: opts.guide } : {}),
         },
       }),
       signal,

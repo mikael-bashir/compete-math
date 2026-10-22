@@ -1,0 +1,172 @@
+{
+  "id": "collatz",
+  "title": "Collatz · the 3n+1 map",
+  "short": "Collatz",
+  "kind": "open-problem",
+  "status": "open",
+  "statement": "theorem collatz_conjecture : ∀ n : ℕ, 0 < n → ∃ m : ℕ, (fun k : ℕ => if Even k then k / 2 else 3 * k + 1)^[m] n = 1 := by\n  sorry",
+  "question": "yes-no",
+  "informal": "Start from any positive integer; if it is even halve it, if it is odd triple it and add one. Does every start eventually reach 1?",
+  "direction": "open either way: prove the statement (checked by computer far beyond any hand search, no proof known) or prove its negation (a start that never reaches 1: a diverging orbit or a cycle that avoids 1); both are accepted",
+  "provenance": {
+    "formalConjectures": {
+      "repo": "google-deepmind/formal-conjectures",
+      "file": "FormalConjectures/Wikipedia/CollatzConjecture.lean",
+      "upstreamCommit": "6fbb54f",
+      "upstreamForm": "def collatzStep (n : ℕ) : ℕ := if Even n then n / 2 else 3 * n + 1; theorem collatz_conjecture (n : ℕ) (hn : n > 0) : ∃ m, collatzStep^[m] n = 1",
+      "usedHere": "the same proposition in the closed form a target needs: the binders moved behind the colon and `collatzStep` written out as a lambda (the seed step_is_collatzStep proves the lambda is `collatzStep` by rfl)",
+      "tag": "research open"
+    },
+    "erdosproblems": {
+      "url": "https://www.erdosproblems.com/1135",
+      "note": "referenced by the formal-conjectures file; the marking there was not read for this entry"
+    },
+    "oeis": {
+      "id": "A006577",
+      "note": "number of steps to reach 1; a(27) = 111 (kernel-checked in the seeds)"
+    },
+    "guide": {
+      "source": "the argument published at https://collatzconjecture.org/collatz-conjecture-proof (descent-cycle-exclusion-proof.pdf, 2025-05-28), read step by step on 2026-10-22",
+      "what": "the chain G1-G12 keeps that argument's structure (slots, the anchor drop, the potential, the finiteness and low-slot steps, the cycle step); G1-G7 are exact and verified in Lean; G8 and G10 repair what fails as written; G9, G11 and G12 mark where the argument asserts more than it shows, with what is settled and what to try",
+      "shown": "to the agent only when it is reminded to keep going (a resumed attempt, a reminder after a short stretch), never in the opening prompt (docs/leak-memory.md)"
+    }
+  },
+  "checks": {
+    "compiledOn": "Leak IV, only the expected sorry warning",
+    "comparisonLemmas": [
+      "the statement's anonymous step function is formal-conjectures' collatzStep (rfl)",
+      "collatzStep^[111] 27 = 1 (OEIS A006577: 111 steps for 27), by decide +kernel",
+      "anchor_drop, slot_drop_block, round_formula, stopping_time_reduction: the exact steps of the guide, proved on Leak IV",
+      "slot_two_round / slot_two_round_grows / 59 -> 67: a slot-2 round ends above its start, the fact the guide's repair of the low-slot step rests on"
+    ],
+    "checkedAt": "2026-10-22"
+  },
+  "seeds": [
+    "/-- formal-conjectures' step function (FormalConjectures/Wikipedia/CollatzConjecture.lean). -/\ndef collatzStep (n : ℕ) : ℕ :=\n  if Even n then n / 2 else 3 * n + 1\n\n/-- The statement's anonymous step is exactly that `collatzStep`, so the two forms of the statement are the same proposition. -/\ntheorem step_is_collatzStep : (fun k : ℕ => if Even k then k / 2 else 3 * k + 1) = collatzStep := rfl\n\n/-- 27 reaches 1 after 111 steps (the standard check of the orbit of 27). -/\ntheorem collatz_27 : collatzStep^[111] 27 = 1 := by\n  decide +kernel\n\n/-- Anchor drop: an odd number 4k+1 falls to 3k+1 in three steps (4k+1 → 12k+4 → 6k+2 → 3k+1). -/\ntheorem anchor_drop (k : ℕ) : collatzStep^[3] (4 * k + 1) = 3 * k + 1 := by\n  have h1 : collatzStep (4 * k + 1) = 12 * k + 4 := by\n    have hne : ¬ Even (4 * k + 1) := by rw [Nat.even_iff]; omega\n    unfold collatzStep\n    simp [hne]\n    omega\n  have h2 : collatzStep (12 * k + 4) = 6 * k + 2 := by\n    have he : Even (12 * k + 4) := by rw [Nat.even_iff]; omega\n    unfold collatzStep\n    simp [he]\n    omega\n  have h3 : collatzStep (6 * k + 2) = 3 * k + 1 := by\n    have he : Even (6 * k + 2) := by rw [Nat.even_iff]; omega\n    unfold collatzStep\n    simp [he]\n    omega\n  show collatzStep (collatzStep (collatzStep (4 * k + 1))) = 3 * k + 1\n  rw [h1, h2, h3]\n\n/-- Slot drop: if n + 1 = 2^(t+1) * m with m odd and t ≥ 1, two steps (3n+1, then halve) give 2^t * (3m) - 1: the number is about 3/2 times larger and has one trailing 1-bit fewer. -/\ntheorem slot_drop_block (t m : ℕ) (hm : m % 2 = 1) (ht : 1 ≤ t) :\n    collatzStep^[2] (2 ^ (t + 1) * m - 1) = 2 ^ t * (3 * m) - 1 := by\n  have hP : 2 ≤ 2 ^ t * m := by\n    have h2 : 2 ≤ 2 ^ t := by\n      calc 2 = 2 ^ 1 := by norm_num\n        _ ≤ 2 ^ t := Nat.pow_le_pow_right (by norm_num) ht\n    have hm1 : 1 ≤ m := by omega\n    nlinarith\n  have e1 : 2 ^ (t + 1) * m = 2 * (2 ^ t * m) := by ring\n  have e2 : 2 ^ t * (3 * m) = 3 * (2 ^ t * m) := by ring\n  rw [e1, e2]\n  generalize 2 ^ t * m = P at hP ⊢\n  show collatzStep (collatzStep (2 * P - 1)) = 3 * P - 1\n  have h1 : collatzStep (2 * P - 1) = 6 * P - 2 := by\n    have hne : ¬ Even (2 * P - 1) := by rw [Nat.even_iff]; omega\n    unfold collatzStep\n    simp [hne]\n    omega\n  have h2 : collatzStep (6 * P - 2) = 3 * P - 1 := by\n    have he : Even (6 * P - 2) := by rw [Nat.even_iff]; omega\n    unfold collatzStep\n    simp [he]\n    omega\n  rw [h1, h2]\n\n/-- The round formula: if n + 1 = 2^s * m with m odd (s trailing 1-bits), then after 2s+1 steps the orbit is at (3^s * m - 1) / 2.\n(s-1 slot-drop blocks, then the anchor drop. In the coordinate N = n + 1, N = 2^s m goes to 3^s m / 2 up to the last halving.) -/\ntheorem round_formula (s m : ℕ) (hm : m % 2 = 1) (hs : 1 ≤ s) :\n    collatzStep^[2 * s + 1] (2 ^ s * m - 1) = (3 ^ s * m - 1) / 2 := by\n  induction s generalizing m with\n  | zero => omega\n  | succ s ih =>\n    rcases Nat.eq_zero_or_pos s with h0 | hpos\n    · subst h0\n      obtain ⟨k, rfl⟩ : ∃ k, m = 2 * k + 1 := ⟨m / 2, by omega⟩\n      have h := anchor_drop k\n      have e : 2 ^ (0 + 1) * (2 * k + 1) - 1 = 4 * k + 1 := by norm_num; omega\n      rw [e]\n      have e2 : (3 ^ (0 + 1) * (2 * k + 1) - 1) / 2 = 3 * k + 1 := by norm_num; omega\n      rw [e2]\n      simpa using h\n    · have hblock := slot_drop_block s m hm hpos\n      have hm3 : (3 * m) % 2 = 1 := by omega\n      have h := ih (3 * m) hm3 hpos\n      have e : 2 * (s + 1) + 1 = (2 * s + 1) + 2 := by ring\n      rw [e, Function.iterate_add_apply, hblock, h]\n      have e3 : 3 ^ s * (3 * m) = 3 ^ (s + 1) * m := by ring\n      rw [e3]\n\n/-- Positivity is preserved, so an orbit never leaves the positive integers. -/\ntheorem collatzStep_pos {n : ℕ} (h : 0 < n) : 0 < collatzStep n := by\n  unfold collatzStep\n  split_ifs with he\n  · obtain ⟨r, hr⟩ := he\n    omega\n  · omega\n\ntheorem iterate_pos {n : ℕ} (h : 0 < n) (k : ℕ) : 0 < collatzStep^[k] n := by\n  induction k with\n  | zero => simpa using h\n  | succ k ih =>\n    rw [Function.iterate_succ_apply']\n    exact collatzStep_pos ih\n\n/-- The reduction to stopping times: if every n > 1 has some k with collatzStep^[k] n < n, then every positive n reaches 1. (Strong induction on n.) -/\ntheorem stopping_time_reduction\n    (h : ∀ n : ℕ, 1 < n → ∃ k : ℕ, collatzStep^[k] n < n) :\n    ∀ n : ℕ, 0 < n → ∃ m : ℕ, collatzStep^[m] n = 1 := by\n  intro n\n  induction n using Nat.strong_induction_on with\n  | _ n ih =>\n    intro hn\n    rcases Nat.lt_or_ge 1 n with h1 | h1\n    · obtain ⟨k, hk⟩ := h n h1\n      obtain ⟨j, hj⟩ := ih _ hk (iterate_pos hn k)\n      exact ⟨j + k, by rw [Function.iterate_add_apply]; exact hj⟩\n    · have : n = 1 := by omega\n      exact ⟨0, by simp [this]⟩\n\n/-- A slot-2 round (n ≡ 3 mod 8, i.e. n + 1 = 4m with m odd) ends after 5 steps at (9n+5)/8. -/\ntheorem slot_two_round (n : ℕ) (h : n % 8 = 3) : collatzStep^[5] n = (9 * n + 5) / 8 := by\n  have hm : ((n + 1) / 4) % 2 = 1 := by omega\n  have key := round_formula 2 ((n + 1) / 4) hm (by norm_num)\n  have e1 : 2 ^ 2 * ((n + 1) / 4) - 1 = n := by\n    norm_num\n    omega\n  have e2 : (3 ^ 2 * ((n + 1) / 4) - 1) / 2 = (9 * n + 5) / 8 := by\n    norm_num\n    omega\n  rw [e1, e2] at key\n  simpa using key\n\n/-- So the first five steps of a slot-2 round always end ABOVE the start; the round shrinks overall only if the landing is even and halves further. Example: 59 → 67. -/\ntheorem slot_two_round_grows (n : ℕ) (h : n % 8 = 3) : n < collatzStep^[5] n := by\n  rw [slot_two_round n h]\n  omega\n\ntheorem grows_59 : collatzStep^[5] 59 = 67 := by\n  decide +kernel\n"
+  ],
+  "seedsNote": "Everything in the seed compiles on Leak IV with no sorry and no warning (checked 2026-10-22). They are in a run's library for the memory variants but are never saved to an account and cannot be nominated. scripts/verify-target-seeds.mjs re-checks them.",
+  "guide": {
+    "intro": "The map is C; the statement says every positive integer reaches 1. This chain reads an orbit as a sequence of rounds, each paid for out of a finite supply of fuel (the slot), and was written by someone else (\"the source\" below means that argument). Its first steps are exact computations, verified in Lean; the later ones are where it needs work.",
+    "notation": "C n = if Even n then n / 2 else 3 * n + 1 (collatzStep in Lean). For odd n write n + 1 = 2^s * m with m odd: s >= 1 is the slot of n, its number of trailing 1-bits (so n ≡ 1 mod 4 is slot 1). Sizes are compared through log. C^[k] is k-fold iteration. T n = n / 2 if n is even, (3 * n + 1) / 2 if n is odd (the odd step with its halving merged).",
+    "steps": [
+      {
+        "id": "G1",
+        "tag": "holds",
+        "title": "Reduction to falling below the start",
+        "says": "The statement follows from: every n > 1 has some k with C^[k] n < n. An even n > 1 does this at once (k = 1), so it is a claim about odd n > 1.",
+        "why": "Strong induction on n: an orbit that falls below n lands on a smaller positive number, which reaches 1 by the induction hypothesis (the map keeps numbers positive).",
+        "lean": [
+          "stopping_time_reduction",
+          "iterate_pos",
+          "collatzStep_pos"
+        ]
+      },
+      {
+        "id": "G2",
+        "tag": "holds",
+        "title": "Slots",
+        "says": "Every odd n is 2^s * m - 1 with m odd and s >= 1, uniquely. s counts the trailing 1-bits of n.",
+        "why": "n + 1 is even; split off its power of 2."
+      },
+      {
+        "id": "G3",
+        "tag": "holds",
+        "title": "Slot-drop block",
+        "says": "If s >= 2, the two steps n -> 3n+1 -> (3n+1)/2 give 2^(s-1) * (3m) - 1: odd, the same m, slot s - 1, about 3/2 times larger.",
+        "why": "3n + 1 = 3 * 2^s * m - 2; halve once. In the coordinate N = n + 1 a block is N -> 3N/2. (Lean states it with t = s - 1.)",
+        "lean": [
+          "slot_drop_block"
+        ]
+      },
+      {
+        "id": "G4",
+        "tag": "holds",
+        "title": "Anchor",
+        "says": "Repeating G3, after s - 1 blocks the orbit is at a = 2 * 3^(s-1) * m - 1, which is ≡ 1 mod 4 (slot 1). So growth by blocks lasts at most s - 1 steps in a row: the slot is a finite supply of growth.",
+        "why": "Each block lowers the slot by exactly one, and G3 needs s >= 2."
+      },
+      {
+        "id": "G5",
+        "tag": "holds",
+        "title": "Anchor drop",
+        "says": "An anchor a = 4k + 1 (k >= 1) satisfies C^[3] a = 3k + 1 < a.",
+        "why": "4k+1 -> 12k+4 -> 6k+2 -> 3k+1. It falls below the anchor, not below the number the round started from.",
+        "lean": [
+          "anchor_drop"
+        ]
+      },
+      {
+        "id": "G6",
+        "tag": "holds",
+        "title": "Round formula",
+        "says": "If n + 1 = 2^s * m with m odd, then C^[2s+1] n = (3^s * m - 1) / 2: s - 1 blocks, then the anchor drop. Call this a round. Its end y may be even: write y = 2^e * y' with y' odd, and call y' the next landing, with its own slot s'. An orbit is a sequence of rounds (s_i, e_i). The number 1 is the fixed point (s = 1, m = 1).",
+        "why": "Induction on s: a block turns (s, m) into (s-1, 3m), and s = 1 is G5 with m = 2k + 1.",
+        "lean": [
+          "round_formula"
+        ]
+      },
+      {
+        "id": "G7",
+        "tag": "holds",
+        "title": "Log book of a round",
+        "says": "To first order the next landing is n * 3^s / 2^(s+1+e), so a round changes log size by s*log(3/2) - (1+e)*log 2: it shrinks when s < 1.71 * (1+e). So s = 1 always shrinks (x3/4, then /2^e); s = 2 with e = 0 grows (x9/8); s = 2 with e >= 1 shrinks; s = 3 with e = 0 grows (x27/16).",
+        "why": "G6 with logs; the -1 terms are lower order.",
+        "fill": "Everything the argument needs is a statement about the pairs (s_i, e_i). They are read off the binary digits of the numbers the orbit lands on. The first five steps of any slot-2 round already end above the start (59 -> 67).",
+        "lean": [
+          "slot_two_round",
+          "slot_two_round_grows",
+          "grows_59"
+        ]
+      },
+      {
+        "id": "G8",
+        "tag": "repaired",
+        "title": "The potential",
+        "says": "Phi(n) = log n + gamma * s(n), with s = 0 for even n and log(3/2) < gamma < log 2 (the source uses gamma = log 1.7, about 0.531). The slot is fuel, and one unit of fuel is worth gamma of size. A block raises log n by about log(3/2) and spends one unit, so Phi changes by about log(3/2) - gamma = -0.125 < 0. Also Phi >= 0.",
+        "why": "G3. The source writes Phi = log n - gamma * nu2(n) and never defines nu2; with either valuation that Phi rises across a block (23 -> 35: +0.42 or +0.95), so the + sign with the slot is the reading under which its numbers hold.",
+        "fill": "Phi(end) - Phi(start) = log(end/start) + gamma * (s_end - s_start), and s <= log2(n+1), so log n <= Phi <= about 1.77 * log(n+1). Phi is size plus bookkeeping; it carries no information beyond G7."
+      },
+      {
+        "id": "G9",
+        "tag": "hole",
+        "title": "Finite fuel",
+        "says": "Along every orbit, landings with slot >= 3 occur only finitely often.",
+        "why": "The source argues: each such landing is followed by a block, each block lowers Phi by about 0.125, Phi >= 0, so only finitely many blocks. That counts withdrawals only. Every round also refills: the anchor drop changes size by log(3/4) and the next landing brings gamma*(s'-1) of fuel back, so a round changes Phi by about -0.125*(s-1) - 0.288 + 0.531*(s'-1) - 0.693*e, and Phi does not fall on every round (41 -> 31 raises it from 4.24 to 6.09).",
+        "fill": "Needed: (RF) from every odd n > 1 some prefix of rounds ends below n; i.e. the fuel the landings supply does not outrun what the rounds use. Settled: (a) a pattern of k rounds (s_i, e_i) is exactly a condition on n modulo 2^K, K = sum of (s_i+1+e_i): the first K halving steps depend only on n mod 2^K, one pattern per residue class. A growing pattern needs the digits of n to cooperate for many rounds, and the classes mod 2^K with at least 0.631*K odd steps (not yet fallen) are only about 2^(-0.049*K) of all. (b) That covers almost all n, and only the first K (about log2 n) halving steps; what one given n does after that is not governed by the count. To try: formalise (a) (T^K n = (3^j n + c)/2^K), and look for a statement about consecutive landings, which (s', e') can follow (s, e), that survives the carries."
+      },
+      {
+        "id": "G10",
+        "tag": "repaired",
+        "title": "Low slots",
+        "says": "The source says: after the last landing with slot >= 3 the orbit alternates between slots 2 and 1, and each cycle multiplies size by at most 3/4 or lowers Phi. Repaired: rounds with s = 1, or s = 2 and e >= 1, shrink; a round with s = 2 and e = 0 grows by 9/8 (n -> (9n+5)/8 for n ≡ 3 mod 8; 59 -> 67) and refills the fuel to slot 2, so Phi rises across it. A slot-1 landing may also land on slot 1 again or on an even number.",
+        "why": "G6 and G7: (9n+5)/8 > n. The source treats the block and the anchor drop as separate cases and forgets the refill at the drop.",
+        "fill": "Settled (to prove in Lean; checked for n < 2^21): n_1 = (9n+5)/8 gives n_1 + 5 = (9/8)(n+5), so k consecutive rounds with s = 2, e = 0 force 8^k | n + 5: the run has at most log8(n+5) rounds and multiplies by at most (9/8)^k <= (n+5)^0.057 (longest run below 2^21: 6). To try: does the same count show that an orbit that never lands above slot 2 is the orbit of 1? The source's low-slot step needs that once G9 is granted.",
+        "lean": [
+          "slot_two_round",
+          "slot_two_round_grows"
+        ]
+      },
+      {
+        "id": "G11",
+        "tag": "hole",
+        "title": "Cycles",
+        "says": "The source says: Phi decreases around every low-slot cycle, so there is no non-trivial cycle.",
+        "why": "As written it rests on G9 and G10, and G10 fails as stated: rounds can grow, so Phi need not fall around a cycle. A cycle with j odd and h halving steps per period obeys n_0*(2^h - 3^j) = a positive sum, so 2^h > 3^j and its mean landing slot is below the G7 threshold: consistent, not contradictory.",
+        "fill": "Excluding a cycle needs control of the landings (RF) or the cycle equation with the digit count of G9(a); the source has neither. To try: for a cycle of L rounds write (s_i, e_i), the cycle equation and n_0 modulo 2^K (K = sum of (s_i+1+e_i)), and ask what they force on n_0."
+      },
+      {
+        "id": "G12",
+        "tag": "hole",
+        "title": "Close",
+        "says": "If (RF) holds, every odd n > 1 falls below itself and by G1 every positive n reaches 1. The source closes the same way (below 16 every n reaches 1 by a finite check; no other cycle).",
+        "why": "G1 plus RF. The whole chain reduces to (RF): it reads the statement through rounds and fuel, and (RF) is the step it has not yet established.",
+        "fill": "To try: the moves below; they all aim at (RF)."
+      }
+    ],
+    "next": [
+      "Prove G9(a) in Lean: the first K steps of an orbit depend only on n mod 2^K, with T^K n = (3^j n + c) / 2^K, and count the classes with j >= 0.631*K.",
+      "Prove the run bound of G10, then ask the same question of every fixed pattern: which patterns can repeat, and how many digits do they cost?",
+      "Work out the round map on residue classes by lemma, not by scanning: which (e, s') can follow (s, m mod 2^r)? State the first claim about consecutive landings that is both true and enough."
+    ]
+  }
+}
