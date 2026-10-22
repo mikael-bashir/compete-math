@@ -23,8 +23,6 @@ import { ProverConsole } from '@/components/prover/prover-console';
 import type { ProverEvent, ProverOutcome } from '@/lib/prover/types';
 import { LEAK_TARGETS, findLeakTarget } from '@/data/leak-targets';
 import { LeakMemoryModal } from '@/components/prover/leak-memory-modal';
-import { ProofSupernova } from '@/components/prover/supernova/proof-supernova';
-import { theoremNameOf, useProofCelebration } from '@/components/prover/supernova/use-proof-celebration';
 import { backfillQuality } from '@/lib/prover/entry-quality';
 import {
   MEMORY_VARIANTS,
@@ -71,9 +69,6 @@ export function ProverPlayground() {
   const [events, setEvents] = useState<ProverEvent[]>([]);
   const [running, setRunning] = useState(false);
   const [outcome, setOutcome] = useState<ProverOutcome | null>(null);
-  // A proof landing plays the supernova once: the first `verified` event, or an outcome that says so (events clear when a run starts).
-  const proved = !!outcome?.verified || events.some((e) => e.kind === 'verified');
-  const celebration = useProofCelebration(proved);
   // Decomposition mode drives the /prove-tree orchestrator: prove-or-split, so a
   // stalled goal is broken into verified sub-lemmas instead of looping forever.
   const [decompose, setDecompose] = useState(true);
@@ -659,8 +654,6 @@ export function ProverPlayground() {
           </div>
         </div>
       )}
-
-      <ProofSupernova playId={celebration.playId} title={theoremNameOf(problem)} />
     </div>
   );
 }
