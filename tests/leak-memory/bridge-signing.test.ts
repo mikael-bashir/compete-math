@@ -5,7 +5,6 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-// @ts-expect-error plain .mjs without types
 import { fingerprint, generateKey, manifestId, manifestText, signManifest, verifyManifest } from '../../scripts/bridge-signing/core.mjs';
 import { BRIDGE_FILES, buildSetupCommand, manifestLines } from '../../src/lib/leak/bridge-files';
 import { bridgeManifest, bridgeSigning } from '../../src/lib/leak/bridge-manifest';
@@ -128,7 +127,7 @@ function checkout() {
   return root;
 }
 const cli = (root: string, args: string[], env: Record<string, string> = {}) =>
-  spawnSync(process.execPath, [join(ROOT, 'scripts/bridge-signing/cli.mjs'), ...args, '--root', root], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', ...env } });
+  spawnSync(process.execPath, [join(ROOT, 'scripts/bridge-signing/cli.mjs'), ...args, '--root', root], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', ...env } as unknown as NodeJS.ProcessEnv });
 
 test('cli: sign writes <manifest id>.sig, which verify accepts, and a changed file then fails verify', () => {
   const root = checkout();
@@ -175,7 +174,7 @@ test('cli: init puts the private key into the repository secret through gh and n
   const seen = join(bin, 'stdin.txt');
   const args = join(bin, 'args.txt');
   writeFileSync(join(bin, 'gh'), `#!/bin/sh\necho "$@" > '${args}'\ncat > '${seen}'\n`, { mode: 0o755 });
-  const r = spawnSync(process.execPath, [join(ROOT, 'scripts/bridge-signing/cli.mjs'), 'init', '--root', root, '--repo', 'o/r'], { encoding: 'utf8', env: { PATH: `${bin}:${process.env.PATH ?? ''}` } });
+  const r = spawnSync(process.execPath, [join(ROOT, 'scripts/bridge-signing/cli.mjs'), 'init', '--root', root, '--repo', 'o/r'], { encoding: 'utf8', env: { PATH: `${bin}:${process.env.PATH ?? ''}` } as unknown as NodeJS.ProcessEnv });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(readFileSync(args, 'utf8').trim(), 'secret set LEAK_BRIDGE_SIGNING_KEY --repo o/r');
   const priv = readFileSync(seen, 'utf8');
@@ -193,7 +192,7 @@ test('cli: init stops, and writes no public key, when the secret cannot be store
   const root = checkout();
   const bin = mkdtempSync(join(tmpdir(), 'fake-gh-'));
   writeFileSync(join(bin, 'gh'), '#!/bin/sh\necho denied >&2\nexit 1\n', { mode: 0o755 });
-  const r = spawnSync(process.execPath, [join(ROOT, 'scripts/bridge-signing/cli.mjs'), 'init', '--root', root], { encoding: 'utf8', env: { PATH: `${bin}:${process.env.PATH ?? ''}` } });
+  const r = spawnSync(process.execPath, [join(ROOT, 'scripts/bridge-signing/cli.mjs'), 'init', '--root', root], { encoding: 'utf8', env: { PATH: `${bin}:${process.env.PATH ?? ''}` } as unknown as NodeJS.ProcessEnv });
   assert.notEqual(r.status, 0);
   assert.equal(existsSync(join(root, 'public/bridge-signing.pub')), false, 'a public key whose private half is nowhere would make every command fail');
   rmSync(root, { recursive: true, force: true });
@@ -207,7 +206,7 @@ function bare() {
   return dir;
 }
 const publish = (remote: string, sigDir: string) =>
-  spawnSync('sh', [join(ROOT, 'scripts/bridge-signing/publish.sh'), sigDir], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', HOME: tmpdir(), SIG_REMOTE_URL: `file://${remote}`, GIT_CONFIG_GLOBAL: '/dev/null' } });
+  spawnSync('sh', [join(ROOT, 'scripts/bridge-signing/publish.sh'), sigDir], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', HOME: tmpdir(), SIG_REMOTE_URL: `file://${remote}`, GIT_CONFIG_GLOBAL: '/dev/null' } as unknown as NodeJS.ProcessEnv });
 const branchFiles = (remote: string) => spawnSync('git', ['--git-dir', remote, 'ls-tree', '--name-only', 'bridge-signatures'], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
 
 test('publish: creates the branch the first time, keeps earlier signatures, adds new ones, and does nothing for one already there', () => {
