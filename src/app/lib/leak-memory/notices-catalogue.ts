@@ -107,7 +107,7 @@ export const CATALOGUE: Record<string, CatalogueEntry> = {
   'review.return.naming': {
     title: 'A reviewer sent it back: the name',
     meaning: 'A code owner returned this theorem because its name does not follow the Mathlib conventions.',
-    action: 'Name it by what it says: snake_case, subject first, with the usual _of_, _iff_, _eq_, _le_ pieces. ' + REVISE,
+    action: 'Rename it by what it says: snake_case, subject first, with the usual _of_, _iff_, _eq_, _le_ pieces. Verify it on Leak IV under the new name and save it again; a returned theorem is offered again only when its text changed, and a new name is a change.',
   },
   'review.return.docs': {
     title: 'A reviewer sent it back: the docstring',
