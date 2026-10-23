@@ -35,6 +35,7 @@ export const getShare = kept.getShare;
 export const setShare = kept.setShare;
 export const intakeCandidates = kept.candidates;
 export const markSubmitted = kept.markSubmitted;
+export const applyReviews = kept.reviewAll;
 export const setNominated = store.setNominated;
 export const deleteMemory = store.remove;
 export const archiveMemory = store.archiveAll;

@@ -87,6 +87,53 @@ export const CATALOGUE: Record<string, CatalogueEntry> = {
     meaning: 'A check on the pull request failed. The log is on the pull request.',
     action: 'Nothing for you to do mid-run; the account is told.',
   },
+  // A code owner's decision on single theorems of an opened pull request (the line `studied: return|reject <id> <code>`; docs/leak-notices.md). `return`: the author may come back with
+  // a better one (offered again only when its text changed); `reject`: not shipped, and not offered again. The owner's own words are the notice's detail, shown to the account only.
+  'review.return.merit': {
+    title: 'A reviewer sent it back: no reason for it to exist',
+    meaning: 'A code owner returned this theorem: nothing in Tengoku would use it, it does not generalise anything already there, and it is not a result someone would look up.',
+    action: 'Make it more general (fewer hypotheses, an arbitrary ring or order instead of one type, a variable instead of a numeral), or show a use: prove a second theorem of this target from it and save both. ' + REVISE,
+  },
+  'review.return.duplicate': {
+    title: 'A reviewer sent it back: it repeats the library',
+    meaning: 'A code owner returned this theorem: it is the same as, or a special case of, something already in Tengoku or in its bundle.',
+    action: 'It repeats something in the library; find what it adds. Check the existing theorem with the Leak I search and keep this one only if you can state something that one does not. ' + REVISE,
+  },
+  'review.return.general': {
+    title: 'A reviewer sent it back: state it more generally',
+    meaning: 'A code owner returned this theorem: a hypothesis is never used, a numeral could be a variable, or a concrete type could be a type class.',
+    action: 'Drop the hypotheses the proof never uses, replace numerals by variables, state it for a type class instead of one type, and check that the proof survives. ' + REVISE,
+  },
+  'review.return.naming': {
+    title: 'A reviewer sent it back: the name',
+    meaning: 'A code owner returned this theorem because its name does not follow the Mathlib conventions.',
+    action: 'Rename it by what it says: snake_case, subject first, with the usual _of_, _iff_, _eq_, _le_ pieces. Verify it on Leak IV under the new name and save it again; a returned theorem is offered again only when its text changed, and a new name is a change.',
+  },
+  'review.return.docs': {
+    title: 'A reviewer sent it back: the docstring',
+    meaning: 'A code owner returned this theorem because its docstring is missing or does not say in words what the statement means.',
+    action: 'Give the theorem a docstring that says in words what it means, not a restatement of the formal text. ' + REVISE,
+  },
+  'review.reject.hygiene': {
+    title: 'Rejected: it uses something the library does not allow',
+    meaning: 'A code owner rejected this theorem: it relies on something that must never enter the library (an axiom, sorry, native_decide, unsafe or implemented_by code, a command that runs code).',
+    action: 'This theorem is not shipped and this statement is not offered again. Do not save another proof of it; spend the effort on other theorems of the target.',
+  },
+  'review.reject.scope': {
+    title: 'Rejected: it reaches outside its place',
+    meaning: 'A code owner rejected this theorem: it touches more than its own module and the files of its bundle.',
+    action: 'Nothing for you to do: the files are written by the intake, not by the prover. This statement is not offered again.',
+  },
+  'review.reject.report': {
+    title: 'Rejected: its record does not add up',
+    meaning: 'A code owner rejected this theorem: the manifest, the report and the module disagree about it.',
+    action: 'Nothing for you to do mid-run; the account is told. This statement is not offered again.',
+  },
+  'review.superseded': {
+    title: 'The pull request was closed; the rest goes on',
+    meaning: 'A code owner decided on some theorems of this bundle, so the pull request was closed (a bundle cannot lose a theorem while it is open). The theorems nobody decided on are bundled again, in a new pull request, at the next round.',
+    action: '',
+  },
   'bar.merit': {
     title: 'No sign it is useful or general',
     meaning: 'Nothing in Tengoku uses a result of this shape, it does not generalise anything already there, and it is not rated five stars: the bar asks for one of the three.',
@@ -178,6 +225,10 @@ const BY_PREFIX: Record<string, CatalogueEntry> = {
   review: { title: 'Review', meaning: 'A reviewer acted on the pull request.', action: '' },
 };
 const GENERIC: CatalogueEntry = { title: 'Notice', meaning: 'Something happened to a submission.', action: '' };
+
+/** the codes of a code owner's decision on a theorem (the grammar of `studied: return|reject <id> <code>`): the catalogue has words for each as `review.return.<code>` / `review.reject.<code>` */
+export const RETURN_CODES: readonly string[] = ['merit', 'duplicate', 'general', 'naming', 'docs'];
+export const REJECT_CODES: readonly string[] = ['hygiene', 'scope', 'report'];
 
 export const CODE = /^[a-z][a-z0-9_]{0,30}(\.[a-z0-9_]{1,40}){0,2}$/;
 

@@ -18,12 +18,35 @@ already use; off unless `LEAK_INTAKE_ENABLED=1`; only accounts in `LEAK_INTAKE_A
 ```json
 { "events": [ { "username": "ada", "target": "collatz", "kind": "returned", "code": "bar.merit", "ids": ["<entry id>"], "names": ["lemma_one"], "detail": "the reviewer's words" } ],
   "prs":    [ { "username": "ada", "target": "collatz", "number": 12, "url": "https://github.com/competemath/tengoku/pull/12",
-                "events": [ { "kind": "submitted", "code": "pr.opened", "ids": ["..."] }, { "kind": "gate_failed", "code": "gate.isnad" } ] } ] }
+                "events": [ { "kind": "submitted", "code": "pr.opened", "ids": ["..."] }, { "kind": "gate_failed", "code": "gate.isnad" } ] } ],
+  "reviews": [ { "username": "ada", "target": "collatz", "bundle": "<sha-256 of the bundle>", "returned": [ { "id": "...", "code": "merit" } ], "rejected": [], "accepted": ["..."] } ] }
 ```
 
 `events` are outcomes that belong to no pull request (a theorem the bar returned before one was opened). Each of `prs` is the **current** state of a pull request: the notices it lists are written, the ones it
-had before and does not list any more are *answered* (state `resolved`), and a merged or closed pull request answers all its waiting notices. A theorem submitted again answers the verdicts it had before.
+had before and does not list any more are *answered* (state `resolved`), and a merged or closed pull request answers all its waiting notices. A theorem submitted again answers the verdicts it had before (the intake reports each opened pull request as a loose `submitted` event too, which is what triggers it).
 Re-reporting the same thing changes nothing the account did: an ignored notice stays ignored.
+
+## A code owner's decisions on single theorems
+
+A bundle is one pull request whose attestation covers all of it, so a theorem cannot leave an open pull request. A **code owner** of Tengoku decides on single theorems with a line in a comment on the pull
+request, `studied: return|reject <first 8 characters of the id> <code> [words]` (the grammar, who counts and what does not: `memory-intake/README.md` in `competemath/emissary-archangel`). The codes:
+
+| Verdict | Codes | Meaning for the author |
+|---|---|---|
+| `return` | `merit` `duplicate` `general` `naming` `docs` | not accepted as it is; the author may come back with a better one |
+| `reject` | `hygiene` `scope` `report` | not shipped, and this statement is not offered again |
+
+What the site does with them (`kept-core.ts` `review`, `reviewAll`; the intake posts `reviews` beside `prs`):
+
+* **Notices.** One per verdict and code and pull request (`review.return.merit`, `review.reject.hygiene`, ...), with the catalogue's words and "what to do" for the driver; the owner's own words after
+  the code are the notice's `detail` (the account reads them, the driver never does). When the owner changes a decision the earlier notice is answered.
+* **Held.** The decided theorems stay marked as submitted in their bundle and get the verdict (`review_state`, `review_code`), so they are not offered. A **rejected** one is final: its id is the hash of its
+  statement, so the same statement is not offered again. A **returned** one comes back when its text changes (name, statement or proof): the next save of the theorem replaces the held copy, clears the verdict
+  and the theorem is a candidate again with the evidence of that save. (A theorem that is only waiting in an open pull request is never replaced: what was judged is what the intake saw.)
+* **Freed.** When the intake has closed the pull request (it does, with a comment, in its next run), the theorems nobody decided on (`accepted`) are marked not submitted again, so the next bundle takes
+  them, in a new pull request (`review.superseded` tells the account; the driver is told nothing to do). When they are put forward again the notice is answered.
+* **Guarded by the bundle.** A report names the bundle the theorems were submitted in; one about a bundle a theorem is no longer in (it was freed and bundled again) changes nothing, so the intake can send
+  the same report every thirty minutes.
 
 ## What the account can do (all in the modal, all its own)
 
@@ -55,6 +78,12 @@ Re-reporting the same thing changes nothing the account did: an ignored notice s
 A reviewer's or a check's own words (`detail`) are shown to the account, escaped, and **never** to the driver: the driver reads the catalogue's sentences, the theorem names (letters, digits, `_.'!?`
 only) and the account's own note. A pull request link is accepted only if it is a Tengoku pull request.
 
+## Adding a target so its theorems reach Tengoku
+
+Add `src/data/leak-targets/<id>.json` and list it in `src/data/leak-targets/index.ts`; the id is lower case words joined by single hyphens and **starts with a letter** (`erdos-396`), and never changes. Nothing is to be
+registered in Tengoku or in the intake. Only accounts in `LEAK_INTAKE_ACCOUNTS` that ticked "share" send theorems; the details and a rehearsal are in `memory-intake/README.md` of `competemath/emissary-archangel`
+("Adding a target").
+
 ## Not built
 
-The intake job that sends the events (`competemath/emissary-archangel`); notifications outside the page (mail, push); per-notice snooze.
+Notifications outside the page (mail, push); per-notice snooze.

@@ -296,6 +296,17 @@ export function noticesStore(db: SqlTag) {
         ORDER BY updated_at DESC OFFSET ${MAX_NOTICES_PER_ACCOUNT})`;
   };
 
+  // A theorem sent back, revised and put forward again: the earlier verdicts on its ids (a bar return, a reviewer's return, a failed check, a pull request that was closed and
+  // the others of its bundle that were freed) are answered. `prNumber`: the pull request it is in now, whose own notices are left alone.
+  const answerEarlier = async (username: string, target: string, prNumber: number | null, ids: string[]): Promise<number> => {
+    if (!ids.length) return 0;
+    const { rows } = await db`
+      UPDATE leak_intake_notice SET state = 'resolved', updated_at = NOW()
+      WHERE username = ${username} AND target_id = ${target} AND state = 'open' AND kind IN ('returned', 'rejected', 'changes_requested', 'gate_failed', 'closed')
+        AND pr_number IS DISTINCT FROM ${prNumber} AND ids ?| ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)) RETURNING id`;
+    return rows.length;
+  };
+
   // Outcomes that belong to no pull request (a theorem the bar returned or rejected before any was opened) and the pull requests' own state.
   // `accounts`: who may be written about (the intake's allow-list); an event for anyone else is dropped.
   const ingest = async (input: { events?: unknown[]; prs?: PrReport[] }, accounts?: Set<string>): Promise<{ written: number; resolved: number; dropped: number }> => {
@@ -314,14 +325,7 @@ export function noticesStore(db: SqlTag) {
       await upsert(e);
       touched.add(e.username);
       written++;
-      // a theorem sent back and then submitted again: the earlier verdicts on its ids are answered
-      if (e.kind === 'submitted' && e.ids.length) {
-        const { rows } = await db`
-          UPDATE leak_intake_notice SET state = 'resolved', updated_at = NOW()
-          WHERE username = ${e.username} AND target_id = ${e.target} AND state = 'open' AND kind IN ('returned', 'rejected', 'changes_requested', 'gate_failed')
-            AND pr_number IS DISTINCT FROM ${e.prNumber} AND ids ?| ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(e.ids)}::jsonb)) RETURNING id`;
-        resolved += rows.length;
-      }
+      if (e.kind === 'submitted') resolved += await answerEarlier(e.username, e.target, e.prNumber, e.ids);
     }
     for (const pr of (input.prs ?? []).slice(0, 100)) {
       if (!pr || typeof pr.username !== 'string' || typeof pr.target !== 'string' || !Number.isInteger(pr.number) || !PR_URL.test(String(pr.url))) {
@@ -345,11 +349,13 @@ export function noticesStore(db: SqlTag) {
         if (e.kind === 'merged' || e.kind === 'closed') terminal = true;
       }
       touched.add(pr.username);
-      // what the pull request no longer has is answered; a merged or closed one answers everything it had (its own terminal notice stays open)
+      // what the pull request no longer has is answered; a merged or closed one answers everything it had (its own terminal notice stays open). A code owner's decision on a theorem
+      // (`review.return.*`, `review.reject.*`) is one of the things a pull request has: when the owner changes it, the earlier one is answered.
       const { rows } = await db`
         UPDATE leak_intake_notice SET state = 'resolved', updated_at = NOW()
         WHERE username = ${pr.username} AND target_id = ${pr.target} AND pr_number = ${pr.number} AND state = 'open'
-          AND id NOT IN (SELECT jsonb_array_elements_text(${JSON.stringify(keep)}::jsonb)) AND kind IN ('submitted', 'gate_failed', 'changes_requested')
+          AND id NOT IN (SELECT jsonb_array_elements_text(${JSON.stringify(keep)}::jsonb))
+          AND (kind IN ('submitted', 'gate_failed', 'changes_requested') OR (kind IN ('returned', 'rejected') AND code LIKE 'review.%'))
         RETURNING id`;
       resolved += rows.length;
       if (terminal) {

@@ -1,6 +1,7 @@
 import type { SqlTag } from '../db/sql-tag';
 import { cleanEntry, type MemoryEntry } from './memory-core';
 import { cleanHarness, type Evidence, type HarnessClaim } from './harness';
+import { REJECT_CODES, RETURN_CODES } from './notices-catalogue';
 
 // The kept tier: a copy of every theorem a run's sleep stage rated KEEP_AT stars or more, made the moment its rating is saved and never
 // touched by what happens to the working library afterwards (a cleared library, an eviction, a merge). It is also the intake's queue: an
@@ -25,6 +26,44 @@ export const MAX_KEPT_PER_ACCOUNT = 1500;
  */
 export const intakeAccounts = (env: Record<string, string | undefined> = process.env): Set<string> =>
   new Set((env.LEAK_INTAKE_ACCOUNTS ?? '').split(',').map((s) => s.trim()).filter(Boolean));
+
+/** What a code owner decided on a submitted theorem (the intake's reports, `review`): returned (the author may come back with a better one) or rejected (never offered again). */
+export type ReviewState = 'returned' | 'rejected';
+
+/** One pull request's decisions, as the intake reports them: hold the decided theorems of the bundle, and free the others once the pull request is closed. */
+export interface Review {
+  username: string;
+  target: string;
+  /** the bundle (sha-256) the theorems were submitted in: a report about any other bundle changes nothing */
+  bundle: string;
+  returned: { id: string; code: string }[];
+  rejected: { id: string; code: string }[];
+  accepted: string[];
+}
+
+const HEXID = /^[0-9a-f]{8,64}$/;
+const TARGET_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+/** One review, or null when it is not a well-formed one. An item with a code the grammar does not have, or an id that is not hex, is dropped; the rest stands. */
+export function cleanReview(raw: unknown): Review | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.username !== 'string' || !r.username || r.username.length > 100) return null;
+  if (typeof r.target !== 'string' || !TARGET_ID.test(r.target)) return null;
+  if (typeof r.bundle !== 'string' || !/^[0-9a-f]{64}$/.test(r.bundle)) return null;
+  const items = (v: unknown, codes: readonly string[]) =>
+    Array.isArray(v)
+      ? v
+          .filter((x): x is { id: string; code: string } => !!x && typeof x === 'object' && typeof (x as { id?: unknown }).id === 'string' && HEXID.test((x as { id: string }).id) && typeof (x as { code?: unknown }).code === 'string' && codes.includes((x as { code: string }).code))
+          .map((x) => ({ id: x.id, code: x.code }))
+          .slice(0, 10)
+      : [];
+  const accepted = Array.isArray(r.accepted) ? r.accepted.filter((x): x is string => typeof x === 'string' && HEXID.test(x)).slice(0, 10) : [];
+  return { username: r.username, target: r.target, bundle: r.bundle, returned: items(r.returned, RETURN_CODES), rejected: items(r.rejected, REJECT_CODES), accepted };
+}
+
+/** the text of a theorem as a reviewer saw it: a returned theorem comes back when this changed (the id is the hash of the statement only, so a better proof keeps its id) */
+const textOf = (e: { name?: unknown; statement?: unknown; closure?: unknown }): string => JSON.stringify([e.name, e.statement, e.closure]);
 
 /** a kept theorem with what the server saw of the harness when it was kept (harness.ts) */
 export type KeptCandidate = MemoryEntry & { evidence: Evidence };
@@ -55,6 +94,10 @@ export function keptStore(db: SqlTag, limits: Partial<{ perTarget: number; perAc
           PRIMARY KEY (username, target_id, entry_id)
         )`;
       await db`ALTER TABLE leak_memory_kept ADD COLUMN IF NOT EXISTS evidence JSONB`;
+      // a code owner's decision on a submitted theorem (see `review`): returned or rejected, with the code, and when
+      await db`ALTER TABLE leak_memory_kept ADD COLUMN IF NOT EXISTS review_state TEXT`;
+      await db`ALTER TABLE leak_memory_kept ADD COLUMN IF NOT EXISTS review_code TEXT`;
+      await db`ALTER TABLE leak_memory_kept ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ`;
       await db`CREATE INDEX IF NOT EXISTS idx_leak_memory_kept_queue ON leak_memory_kept(submitted_at, username, target_id)`;
       await db`
         CREATE TABLE IF NOT EXISTS leak_memory_share (
@@ -86,9 +129,20 @@ export function keptStore(db: SqlTag, limits: Partial<{ perTarget: number; perAc
     let written = 0;
     for (const { e, claim } of worth) {
       const evidence = evaluate ? evaluate(claim) : null;
-      const { rows: ex } = await db`SELECT submitted_at FROM leak_memory_kept WHERE username = ${username} AND target_id = ${targetId} AND entry_id = ${e.id}`;
+      const { rows: ex } = await db`SELECT submitted_at, review_state, entry FROM leak_memory_kept WHERE username = ${username} AND target_id = ${targetId} AND entry_id = ${e.id}`;
       const isNew = ex.length === 0;
-      if (!isNew && ex[0].submitted_at) continue;
+      if (!isNew && ex[0].submitted_at) {
+        // A theorem a code owner RETURNED comes back when its text changed (name, statement or proof): the new copy replaces the held one and is a candidate again, with the evidence of
+        // this save. One the owner rejected, or one that is merely waiting in an open pull request, is never replaced: what the intake saw is what was judged.
+        if (ex[0].review_state === 'returned' && textOf(ex[0].entry as Record<string, unknown>) !== textOf(e)) {
+          const { rows: back } = await db`
+            UPDATE leak_memory_kept SET entry = ${JSON.stringify({ ...e, nominated: false })}::jsonb, stars = ${e.quality!.s}, evidence = ${evidence ? JSON.stringify(evidence) : null}::jsonb,
+              kept_at = NOW(), submitted_at = NULL, bundle = NULL, review_state = NULL, review_code = NULL, reviewed_at = NULL
+            WHERE username = ${username} AND target_id = ${targetId} AND entry_id = ${e.id} AND review_state = 'returned' RETURNING entry_id`;
+          written += back.length;
+        }
+        continue;
+      }
       if (isNew && (here >= lim.perTarget || total >= lim.perAccount)) continue;
       await db`
         INSERT INTO leak_memory_kept (username, target_id, entry_id, entry, stars, evidence)
@@ -174,5 +228,48 @@ export function keptStore(db: SqlTag, limits: Partial<{ perTarget: number; perAc
     return n;
   };
 
-  return { ensure, keep, summary, getShare, setShare, candidates, markSubmitted };
+  // A code owner's decisions on the theorems of a pull request (the intake reports them; `Review`). The decided theorems of that bundle are HELD: a rejected one is never offered
+  // again, a returned one only when its text changes (`keep`). Once the pull request is closed the others of the bundle (`accepted`) are FREED: marked not submitted again, so the
+  // next bundle takes them. Everything is guarded by the bundle the report names: a report about a bundle a theorem is no longer in (it was freed and bundled again, or the intake
+  // reports an old pull request twice) changes nothing, so the call can be repeated as often as the reporter likes.
+  const review = async (r: Review): Promise<{ held: number; freed: number }> => {
+    await ensure();
+    let held = 0;
+    let freed = 0;
+    for (const [state, list] of [['returned', r.returned], ['rejected', r.rejected]] as const) {
+      for (const d of list) {
+        const { rows } = await db`
+          UPDATE leak_memory_kept SET review_state = ${state}, review_code = ${d.code}, reviewed_at = NOW()
+          WHERE username = ${r.username} AND target_id = ${r.target} AND entry_id = ${d.id} AND bundle = ${r.bundle} AND submitted_at IS NOT NULL RETURNING entry_id`;
+        held += rows.length;
+      }
+    }
+    for (const id of r.accepted) {
+      const { rows } = await db`
+        UPDATE leak_memory_kept SET submitted_at = NULL, bundle = NULL
+        WHERE username = ${r.username} AND target_id = ${r.target} AND entry_id = ${id} AND bundle = ${r.bundle} AND review_state IS NULL RETURNING entry_id`;
+      freed += rows.length;
+    }
+    return { held, freed };
+  };
+
+  /** The reviews of one call of the intake: cleaned, only for accounts the owner lists, each applied. */
+  const reviewAll = async (raw: unknown[], accounts: Set<string>): Promise<{ held: number; freed: number; dropped: number }> => {
+    let held = 0;
+    let freed = 0;
+    let dropped = 0;
+    for (const x of raw.slice(0, 100)) {
+      const r = cleanReview(x);
+      if (!r || !accounts.has(r.username)) {
+        dropped++;
+        continue;
+      }
+      const o = await review(r);
+      held += o.held;
+      freed += o.freed;
+    }
+    return { held, freed, dropped };
+  };
+
+  return { ensure, keep, summary, getShare, setShare, candidates, markSubmitted, review, reviewAll };
 }

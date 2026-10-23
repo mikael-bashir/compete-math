@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
-import { KEEP_AT, MAX_PER_BUNDLE, intakeAccounts, keptStore } from '../../src/app/lib/leak-memory/kept-core';
+import { KEEP_AT, MAX_PER_BUNDLE, cleanReview, intakeAccounts, keptStore } from '../../src/app/lib/leak-memory/kept-core';
 import type { Evidence, HarnessClaim } from '../../src/app/lib/leak-memory/harness';
 import { leakMemoryStore } from '../../src/app/lib/leak-memory/memory-core';
 import { asSqlTag } from '../helpers/pglite';
@@ -223,4 +223,118 @@ test('the evaluator sees what the client claimed, cleaned, and nothing the clien
   assert.equal(seen.length, 3);
   assert.equal(seen[1], null);
   assert.equal(seen[2], null);
+});
+
+// ---- a code owner's decisions on a submitted bundle ----------------------------------------------------------------------------------------
+
+const B1 = '1'.repeat(64);
+const B2 = '2'.repeat(64);
+const idOf = (n: number) => entry(n, 4).id;
+
+/** theorems 1, 2, 3 of ada's target `t`, kept, shared and put into the bundle B1 */
+async function submitted(k: Awaited<ReturnType<typeof setup>>['k']) {
+  await k.keep('ada', 't', [entry(1, 4), entry(2, 4), entry(3, 5)]);
+  await k.setShare('ada', true);
+  assert.equal(await k.markSubmitted('ada', 't', [idOf(1), idOf(2), idOf(3)], B1), 3);
+}
+const review = (over: Record<string, unknown> = {}) => ({ username: 'ada', target: 't', bundle: B1, returned: [], rejected: [], accepted: [], ...over }) as Parameters<ReturnType<typeof keptStore>['review']>[0];
+const rowOf = async (raw: Awaited<ReturnType<typeof setup>>['raw'], n: number) =>
+  (await raw.query<{ submitted_at: string | null; bundle: string | null; review_state: string | null; review_code: string | null }>(
+    'SELECT submitted_at, bundle, review_state, review_code FROM leak_memory_kept WHERE entry_id = $1', [idOf(n)])).rows[0];
+
+test('a review holds the decided theorems and frees the others, and only the others', async () => {
+  const { raw, k } = await setup();
+  await submitted(k);
+  const r = await k.review(review({ returned: [{ id: idOf(1), code: 'merit' }], rejected: [{ id: idOf(2), code: 'hygiene' }], accepted: [idOf(3)] }));
+  assert.deepEqual(r, { held: 2, freed: 1 });
+  assert.deepEqual([await rowOf(raw, 1), await rowOf(raw, 2)].map((x) => [x.review_state, x.review_code, x.bundle !== null, x.submitted_at !== null]), [['returned', 'merit', true, true], ['rejected', 'hygiene', true, true]], 'held: still marked, with the verdict');
+  assert.deepEqual(await rowOf(raw, 3), { submitted_at: null, bundle: null, review_state: null, review_code: null }, 'freed: waiting again');
+  // the decided theorems are not offered, the freed one is
+  assert.deepEqual((await k.candidates(20, ALLOW))[0].entries.map((e) => e.name), ['lemma_3']);
+});
+
+test('a decided theorem is never freed, even when a report names it as accepted', async () => {
+  const { raw, k } = await setup();
+  await submitted(k);
+  await k.review(review({ returned: [{ id: idOf(1), code: 'merit' }] }));
+  assert.equal((await k.review(review({ accepted: [idOf(1), idOf(2)] }))).freed, 1, 'only the undecided one');
+  assert.equal((await rowOf(raw, 1)).review_state, 'returned');
+});
+
+test('a report is about one bundle: another bundle, another account or the same report again changes nothing', async () => {
+  const { raw, k } = await setup();
+  await submitted(k);
+  const dud = [
+    review({ bundle: B2, returned: [{ id: idOf(1), code: 'merit' }], accepted: [idOf(3)] }), // a bundle they are not in
+    review({ username: 'bob', returned: [{ id: idOf(1), code: 'merit' }], accepted: [idOf(3)] }), // someone else's rows
+    review({ target: 'other', returned: [{ id: idOf(1), code: 'merit' }], accepted: [idOf(3)] }),
+  ];
+  for (const d of dud) assert.deepEqual(await k.review(d), { held: 0, freed: 0 });
+  assert.deepEqual((await rowOf(raw, 1)).review_state, null);
+  const real = review({ returned: [{ id: idOf(1), code: 'merit' }], accepted: [idOf(3)] });
+  assert.deepEqual(await k.review(real), { held: 1, freed: 1 });
+  assert.deepEqual(await k.review(real), { held: 1, freed: 0 }, 'again: the freed one is already free, the verdict is the same');
+  // the freed theorem goes into a new bundle; the old pull request is reported once more: it must not free it from there
+  assert.equal(await k.markSubmitted('ada', 't', [idOf(3)], B2), 1);
+  assert.deepEqual(await k.review(real), { held: 1, freed: 0 });
+  assert.equal((await rowOf(raw, 3)).bundle, B2);
+});
+
+test('the latest decision of a held theorem is the one that stands', async () => {
+  const { raw, k } = await setup();
+  await submitted(k);
+  await k.review(review({ returned: [{ id: idOf(1), code: 'merit' }] }));
+  await k.review(review({ rejected: [{ id: idOf(1), code: 'scope' }] }));
+  assert.deepEqual([(await rowOf(raw, 1)).review_state, (await rowOf(raw, 1)).review_code], ['rejected', 'scope']);
+});
+
+test('a returned theorem comes back when its text changed; a rejected one, an unchanged one and one still waiting in a pull request do not', async () => {
+  const { raw, k } = await setup();
+  await submitted(k);
+  await k.review(review({ returned: [{ id: idOf(1), code: 'merit' }, { id: idOf(2), code: 'naming' }], rejected: [{ id: idOf(3), code: 'hygiene' }] }));
+  assert.deepEqual(await k.candidates(20, ALLOW), [], 'all three are held');
+  // the same text saved again (a rating written again): nothing comes back
+  assert.equal(await k.keep('ada', 't', [entry(1, 4), entry(2, 5), entry(3, 5)]), 0);
+  assert.deepEqual(await k.candidates(20, ALLOW), []);
+  // theorem 1: a better proof of the same statement (the id is the hash of the statement, so it is the same id)
+  assert.equal(await k.keep('ada', 't', [entry(1, 5, { closure: 'theorem lemma_1 (a : ℕ) : a + 1 = 1 + a := by\n  simp [Nat.add_comm]' })]), 1);
+  // theorem 2: only the name changed; theorem 3 (rejected): a new proof
+  assert.equal(await k.keep('ada', 't', [entry(2, 4, { name: 'add_two_comm' }), entry(3, 5, { closure: 'theorem lemma_3 (a : ℕ) : a + 3 = 3 + a := by\n  omega -- new' })]), 1);
+  const c = (await k.candidates(20, ALLOW))[0].entries;
+  assert.deepEqual(c.map((e) => e.name).sort(), ['add_two_comm', 'lemma_1']);
+  assert.match(c.find((e) => e.name === 'lemma_1')!.closure, /simp \[Nat\.add_comm\]/, 'the new text replaced the held one');
+  assert.deepEqual(await rowOf(raw, 1), { submitted_at: null, bundle: null, review_state: null, review_code: null }, 'and the verdict is cleared with it');
+  assert.equal((await rowOf(raw, 3)).review_state, 'rejected');
+  assert.match((await raw.query<{ entry: { closure: string } }>('SELECT entry FROM leak_memory_kept WHERE entry_id = $1', [idOf(3)])).rows[0].entry.closure, /omega\s*$/, 'a rejected theorem keeps the text that was judged');
+});
+
+test('a theorem waiting in an open pull request is not replaced by a later save (what was judged is what the intake saw)', async () => {
+  const { raw, k } = await setup();
+  await submitted(k);
+  assert.equal(await k.keep('ada', 't', [entry(1, 5, { closure: 'theorem lemma_1 (a : ℕ) : a + 1 = 1 + a := by\n  simp [Nat.add_comm]' })]), 0);
+  assert.equal((await rowOf(raw, 1)).bundle, B1);
+});
+
+test('cleanReview drops what the grammar does not have and keeps the rest', () => {
+  const good = { username: 'ada', target: 'erdos-396', bundle: B1, returned: [{ id: idOf(1), code: 'merit' }], rejected: [{ id: idOf(2), code: 'scope' }], accepted: [idOf(3)] };
+  assert.deepEqual(cleanReview(good), good);
+  for (const bad of [null, 'x', { ...good, username: '' }, { ...good, target: 'No Target' }, { ...good, bundle: 'abc' }, { ...good, bundle: 'G'.repeat(64) }]) assert.equal(cleanReview(bad), null, JSON.stringify(bad));
+  const r = cleanReview({
+    ...good,
+    returned: [{ id: idOf(1), code: 'hygiene' }, { id: idOf(1), code: 'nonsense' }, { id: 'zz', code: 'merit' }, { id: idOf(4), code: 'docs' }, 'x', null], // a reject code in a return, an unknown code, a bad id
+    rejected: [{ id: idOf(2), code: 'merit' }, { id: idOf(5), code: 'report' }],
+    accepted: [idOf(3), 'not hex', 7],
+  })!;
+  assert.deepEqual(r.returned, [{ id: idOf(4), code: 'docs' }]);
+  assert.deepEqual(r.rejected, [{ id: idOf(5), code: 'report' }]);
+  assert.deepEqual(r.accepted, [idOf(3)]);
+  assert.equal(cleanReview({ ...good, returned: Array.from({ length: 30 }, () => ({ id: idOf(1), code: 'merit' })) })!.returned.length, 10, 'a bundle has at most ten theorems');
+});
+
+test('reviewAll applies the reviews of the accounts the owner lists and drops the rest', async () => {
+  const { k } = await setup();
+  await submitted(k);
+  const out = await k.reviewAll([review({ returned: [{ id: idOf(1), code: 'merit' }] }), review({ username: 'mallory', returned: [{ id: idOf(2), code: 'merit' }] }), { junk: true }], new Set(['ada']));
+  assert.deepEqual(out, { held: 1, freed: 0, dropped: 2 });
+  assert.deepEqual(await k.reviewAll([review({ accepted: [idOf(3)] })], new Set()), { held: 0, freed: 0, dropped: 1 }, 'no list: nobody');
 });
