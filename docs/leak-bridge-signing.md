@@ -35,6 +35,10 @@ The secret is available only to the `sign-bridge` workflow, which runs on pushes
 
 **Between merging a bridge change and its signature.** The page is built before the workflow has signed, and the signature takes a minute or two to appear (GitHub's raw file cache can add a few minutes). Until it does, the command fails at the signature fetch and the bridge does not start. That is the safe failure.
 
+## What else the signature is for
+
+A run says which build it ran (the manifest id) with every theorem it saves, and the memory intake accepts a build that is the deploy's own or that the project's key signed (docs/leak-memory.md, "Evidence that a theorem came from the harness"). Without a key only the current deploy's build is known; with one, every build ever signed stays known, so a run on an older bridge is still accepted.
+
 ## What this does not cover
 
 - Whoever holds repository write access can change the workflow or the secret's use. The key protects against a compromised website or CDN, not against a compromised repository or GitHub account.

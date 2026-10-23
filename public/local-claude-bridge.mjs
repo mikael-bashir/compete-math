@@ -22,7 +22,8 @@ import { spawn, execFile, execFileSync } from "node:child_process"
 import { randomBytes, timingSafeEqual, randomUUID, createHash } from "node:crypto"
 import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, appendFileSync, rmSync, realpathSync, existsSync } from "node:fs"
 import { tmpdir, homedir } from "node:os"
-import { join, basename, isAbsolute } from "node:path"
+import { join, basename, isAbsolute, dirname } from "node:path"
+import { fileURLToPath } from "node:url"
 
 // --- Resilience: never let a dropped socket take down the whole bridge. -------
 // The relay connection and remote MCP servers (HF Spaces sleep, tunnels reset)
@@ -70,6 +71,19 @@ const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude"
 // when launching the bridge to label a batch of runs as belonging to a
 // particular experiment/fix version, so before/after data isn't conflated.
 const BRIDGE_BUILD = process.env.BRIDGE_BUILD_TAG || null
+// Which build of the harness this is: the manifest the signed bridge files make (scripts/bridge-signing: "<sha256>  <name>" per file, in this order, the bridge
+// itself under the name the setup command gives it). A run says so with everything it saves, so the intake can tell a published, signed build from anything
+// else (app/lib/leak-memory/harness.ts). null when a file is missing (a partial copy).
+const HARNESS_FILES = ["claude-bridge.mjs", "leak-min-imports.mjs", "leak-memory.mjs", "leak-containment.mjs", "leak-quality.mjs"] // = scripts/bridge-signing/files.json, `local`
+const HARNESS_BUILD = (() => {
+  try {
+    const self = fileURLToPath(import.meta.url)
+    const text = HARNESS_FILES.map((f, i) => `${createHash("sha256").update(readFileSync(i === 0 ? self : join(dirname(self), f))).digest("hex")}  ${f}\n`).join("")
+    return { id: createHash("sha256").update(text).digest("hex"), text }
+  } catch {
+    return null
+  }
+})()
 // When the proof gate confirms mid-stream we interrupt the CLI (SIGINT) so it
 // flushes its final `result` frame — the sole carrier of total_cost_usd. This is
 // the grace window before we hard-kill a CLI that didn't exit after flushing.
@@ -7111,7 +7125,27 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   }
   const V = M.voiceFor(opts?.voice) // how the harness speaks to the agent (options.voice; "curious" unless asked otherwise)
   ctx.stage = "🧠"
-  const memory = new M.Memory({ targetId: ctx.targetId, variant: variantKey, emit: ctx.emit })
+  // What this run says about itself with every theorem it saves (app/lib/leak-memory/harness.ts): the server's ticket for the run, which build this is,
+  // and counters. The server judges them against its own clock; nothing here is a proof.
+  const harnessT0 = Date.now()
+  const harnessCounts = { verifyOk: 0, verifyFail: 0 }
+  const runTicket = typeof opts?.runTicket === "string" && opts.runTicket.length <= 1000 ? opts.runTicket : ""
+  const memory = new M.Memory({
+    targetId: ctx.targetId,
+    variant: variantKey,
+    emit: ctx.emit,
+    harness: () => ({
+      ...(runTicket ? { ticket: runTicket } : {}),
+      ...(HARNESS_BUILD ? { build: HARNESS_BUILD } : {}),
+      receipt: { seconds: Math.round((Date.now() - harnessT0) / 1000), verifyOk: harnessCounts.verifyOk, verifyFail: harnessCounts.verifyFail, ...(() => {
+          try {
+            return { searches: leakI.calls, attempts: attempt }
+          } catch {
+            return { searches: 0, attempts: 0 } // asked before the run's own state exists
+          }
+        })(), model: String(ctx.model || "").slice(0, 80), strategy: variantKey },
+    }),
+  })
   memory.load(Array.isArray(opts?.memory?.entries) ? opts.memory.entries.slice(0, M.MAX_ENTRIES) : [])
   // The target's own vetted lemmas: in this run's library, never saved to an account and never nominated (origin "seed", silent).
   const seeds = (Array.isArray(opts?.seeds) ? opts.seeds : []).filter((x) => typeof x === "string" && x.length < 20000).slice(0, 20)
@@ -7285,7 +7319,10 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
                 const script = pendingVerify.get(c.tool_use_id)
                 lastAttempt = { script, result: t }
                 // Leak IV accepted this script with no error, no warning and no sorry: its theorems go to the memory.
-                if (verifyResultSucceeded(t)) memory.addScript(script, { attempt, isTarget: scriptProvesTarget(script, sig) })
+                if (verifyResultSucceeded(t)) {
+                  harnessCounts.verifyOk++
+                  memory.addScript(script, { attempt, isTarget: scriptProvesTarget(script, sig) })
+                } else harnessCounts.verifyFail++
               }
             }
           } catch {

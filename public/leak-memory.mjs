@@ -514,8 +514,9 @@ const STOP = new Set(["theorem", "lemma", "by", "the", "of", "and", "at", "fun",
 
 // ---- the memory -----------------------------------------------------------------------------------------------
 export class Memory {
-  constructor({ targetId = "", variant = "", emit = () => {}, now = () => Date.now(), maxEntries = MAX_ENTRIES } = {}) {
+  constructor({ targetId = "", variant = "", emit = () => {}, now = () => Date.now(), maxEntries = MAX_ENTRIES, harness = null } = {}) {
     this.max = maxEntries
+    this.harness = harness // what the run says about itself, attached to every saved or updated entry (the server reads it; see the bridge)
     this.targetId = targetId
     this.variant = variant
     this.emit = emit
@@ -612,6 +613,7 @@ export class Memory {
       quality: e.quality || null,
       variant: this.variant,
       targetId: this.targetId,
+      ...(this.harness ? { harness: this.harness() } : {}),
     }
   }
 

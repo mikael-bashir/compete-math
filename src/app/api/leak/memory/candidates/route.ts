@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authorizeIntake } from "@/app/lib/leak-memory/oidc";
 import { intakeCandidates, markSubmitted } from "@/app/lib/data/leak-memory";
 import { intakeAccounts } from "@/app/lib/leak-memory/kept-core";
+import { deployBuildVerifier } from "@/app/lib/leak-memory/harness";
 
 // The memory intake job's two calls (the workflow in competemath/emissary-archangel; see docs/leak-memory.md). Both need a GitHub Actions OIDC
 // token from that workflow (app/lib/leak-memory/oidc.ts) and both are off unless LEAK_INTAKE_ENABLED=1 on the host.
@@ -12,20 +13,30 @@ import { intakeAccounts } from "@/app/lib/leak-memory/kept-core";
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store" };
 const HEX = /^[0-9a-f]{8,64}$/;
+const checkBuild = deployBuildVerifier();
 const TARGET = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export async function GET(request: NextRequest) {
   const a = await authorizeIntake(request.headers.get("authorization"));
   if (!a.ok) return NextResponse.json({ error: a.status === 404 ? "Not found" : "Unauthorized" }, { status: a.status, headers: noStore });
   try {
-    const bundles = await intakeCandidates(Math.min(50, Math.max(1, Number(request.nextUrl.searchParams.get("limit")) || 20)), intakeAccounts());
+    // a theorem is offered only when its ticket and receipt passed when it was kept (the store) and the build it names is one the project published
+    const bundles = await intakeCandidates(
+      Math.min(50, Math.max(1, Number(request.nextUrl.searchParams.get("limit")) || 20)),
+      intakeAccounts(),
+      async (ev) => !!ev.build && (await checkBuild(ev.build)).ok,
+    );
     return NextResponse.json(
       {
         schema: "leak-memory-candidates/1",
         bundles: bundles.map((b) => ({
           author: b.username,
           target: b.target,
-          entries: b.entries.map(({ id, name, kind, statement, closure, origin, savedAt, attempt, isTarget, quality }) => ({ id, name, kind, statement, closure, origin, savedAt, attempt, isTarget, quality: quality ?? null })),
+          entries: b.entries.map(({ id, name, kind, statement, closure, origin, savedAt, attempt, isTarget, quality, evidence }) => ({
+            id, name, kind, statement, closure, origin, savedAt, attempt, isTarget, quality: quality ?? null,
+            // what the server saw of the harness when the theorem was kept: the intake job records it in the bundle's report (the producer's claims, not facts)
+            harness: { keptAt: evidence.at, ticketAgeMs: evidence.ticket.ageMs ?? null, receipt: evidence.receipt, buildId: evidence.build?.id ?? null },
+          })),
         })),
       },
       { headers: noStore },

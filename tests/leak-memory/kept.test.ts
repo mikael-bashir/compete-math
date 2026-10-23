@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
 import { KEEP_AT, MAX_PER_BUNDLE, intakeAccounts, keptStore } from '../../src/app/lib/leak-memory/kept-core';
+import type { Evidence, HarnessClaim } from '../../src/app/lib/leak-memory/harness';
 import { leakMemoryStore } from '../../src/app/lib/leak-memory/memory-core';
 import { asSqlTag } from '../helpers/pglite';
 
@@ -27,10 +28,21 @@ const entry = (n: number, stars: number | null, extra: Record<string, unknown> =
 const HASH = 'a'.repeat(64);
 const ALLOW = new Set(['ada', 'bob', 'a1', 'a2', 'a3']);
 
+// what the server saw of the harness with a theorem (harness.ts): good, or none; tests keep with good evidence unless they say otherwise
+const GOOD = (): Evidence => ({
+  at: '2026-10-23T10:00:00.000Z',
+  ticket: { ok: true, ageMs: 3_600_000 },
+  receipt: { ok: true, seconds: 3600, verifyOk: 60, verifyFail: 40, searches: 3, attempts: 4, model: 'm', strategy: 'control-lucid-iv' },
+  build: { id: 'a'.repeat(64), text: 'x' },
+});
+const NONE = (): Evidence => ({ at: '2026-10-23T10:00:00.000Z', ticket: { ok: false, reason: 'no ticket' }, receipt: { ok: false, reason: 'no receipt' }, build: null });
+
 async function setup(limits = {}) {
   const raw = new PGlite();
   const db = asSqlTag(raw);
-  return { raw, db, k: keptStore(db, limits), mem: leakMemoryStore(db) };
+  const k0 = keptStore(db, limits);
+  const k = { ...k0, keep: (u: string, t: string, e: unknown[], ev: ((c: HarnessClaim | null) => Evidence) | undefined = GOOD) => k0.keep(u, t, e, ev) };
+  return { raw, db, k, mem: leakMemoryStore(db) };
 }
 
 test(`only theorems rated ${KEEP_AT} stars or more are kept, and the target's own proof is one of them`, async () => {
@@ -153,4 +165,62 @@ test('the allow-list is read from the host setting: comma separated, trimmed, ex
   assert.deepEqual([...intakeAccounts({ LEAK_INTAKE_ACCOUNTS: '' })], []);
   assert.deepEqual([...intakeAccounts({ LEAK_INTAKE_ACCOUNTS: ' mikael , ,ada,' })].sort(), ['ada', 'mikael']);
   assert.equal(intakeAccounts({ LEAK_INTAKE_ACCOUNTS: 'mikael' }).has('Mikael'), false, 'case counts');
+});
+
+// ---- the harness evidence ------------------------------------------------------------------------------------------------------------------
+
+test('a theorem is offered to the intake only with a ticket and a receipt that passed; one without is kept all the same', async () => {
+  const { k } = await setup();
+  await k.keep('ada', 't', [entry(1, 5)], NONE);
+  await k.keep('ada', 't', [entry(2, 5)]);
+  await k.setShare('ada', true);
+  assert.deepEqual(await k.summary('ada', 't'), { kept: 2, submitted: 0 }, 'both are kept: nothing is lost for want of evidence');
+  const c = await k.candidates(20, ALLOW);
+  assert.deepEqual(c[0].entries.map((e) => e.name), ['lemma_2'], 'only the evidenced one is a candidate');
+  assert.equal(c[0].entries[0].evidence.ticket.ok, true);
+  assert.equal(c[0].entries[0].evidence.build?.id, 'a'.repeat(64));
+  // a half-good record is not good: the ticket without the receipt
+  const half = (): Evidence => ({ ...GOOD(), receipt: { ok: false, reason: 'too few verifications for a prover run' } });
+  await k.keep('ada', 't', [entry(3, 5)], half);
+  assert.equal((await k.candidates(20, ALLOW))[0].entries.length, 1);
+});
+
+test('the caller can refuse a candidate (an unknown build) and the cap counts only the accepted', async () => {
+  const { k } = await setup();
+  const many = Array.from({ length: 14 }, (_, i) => entry(i + 1, 4));
+  await k.keep('ada', 't', many);
+  await k.setShare('ada', true);
+  const refuseOdd = async (ev: Evidence) => ev.build?.id === 'a'.repeat(64) && ev.at === GOOD().at;
+  assert.equal((await k.candidates(20, ALLOW, refuseOdd))[0].entries.length, MAX_PER_BUNDLE);
+  assert.deepEqual(await k.candidates(20, ALLOW, async () => false), [], 'refused all: nothing offered');
+});
+
+test('a later save without good evidence never replaces evidence that was good, and a later good one replaces a bad', async () => {
+  const { raw, k } = await setup();
+  await k.keep('ada', 't', [entry(1, 4)]);
+  await k.keep('ada', 't', [entry(1, 5)], NONE); // e.g. a rating update from an older bridge
+  let row = (await raw.query<{ evidence: Evidence; stars: number }>('SELECT evidence, stars FROM leak_memory_kept')).rows[0];
+  assert.equal(row.stars, 5, 'the new rating is kept');
+  assert.equal(row.evidence.ticket.ok, true, 'the good evidence stays');
+  await k.keep('ada', 't', [entry(2, 4)], NONE);
+  await k.keep('ada', 't', [entry(2, 4)]);
+  row = (await raw.query<{ evidence: Evidence; stars: number }>("SELECT evidence, stars FROM leak_memory_kept WHERE entry_id = $1", [entry(2, 4).id])).rows[0];
+  assert.equal(row.evidence.ticket.ok, true, 'a good claim replaces a bad one');
+});
+
+test('the evaluator sees what the client claimed, cleaned, and nothing the client sent outside it reaches the row', async () => {
+  const { raw, k } = await setup();
+  const seen: (HarnessClaim | null)[] = [];
+  const spy = (c: HarnessClaim | null) => (seen.push(c), GOOD());
+  const e = { ...entry(1, 5), harness: { ticket: 'v1.abc.' + 'd'.repeat(30), receipt: { seconds: 4000, verifyOk: 5, verifyFail: 5, searches: 1, attempts: 2, model: 'm', strategy: 'control-lucid', extra: 'x'.repeat(5000) }, junk: 1 } };
+  await k.keep('ada', 't', [e], spy);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0]?.ticket, e.harness.ticket);
+  assert.ok(!('extra' in (seen[0]?.receipt ?? {})) && !('junk' in (seen[0] ?? {})), 'cleaned to the fields it may have');
+  const row = (await raw.query<{ entry: Record<string, unknown> }>('SELECT entry FROM leak_memory_kept')).rows[0];
+  assert.ok(!('harness' in row.entry), 'the theorem row holds the theorem, not the claim');
+  await k.keep('ada', 't', [entry(2, 5), { ...entry(3, 5), harness: 'not an object' }], spy);
+  assert.equal(seen.length, 3);
+  assert.equal(seen[1], null);
+  assert.equal(seen[2], null);
 });

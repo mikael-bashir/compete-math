@@ -85,6 +85,8 @@ interface RunOpts {
   // 'yes-no' when the target is a question: a proof of its negation settles it too (the bridge accepts either, and tells the agent so).
   question?: 'yes-no';
   memoryEntries?: unknown[];
+  // the server's ticket for this run (memory-client requestRunTicket): the bridge attaches it to what it saves, as evidence of the run's age
+  runTicket?: string;
   // The target's own vetted lemmas (scripts). They are in the run's library but are never saved to the account.
   seeds?: string[];
   // The target's written line of attack (LeakGuide in src/data/leak-targets). The bridge keeps it out of the opening prompt and
@@ -274,6 +276,7 @@ export async function runProverStream(opts: RunOpts): Promise<ProverOutcome> {
             ? { memory: { entries: opts.memoryEntries } }
             : {}),
           ...(opts.seeds?.length ? { seeds: opts.seeds } : {}),
+          ...(opts.runTicket ? { runTicket: opts.runTicket } : {}),
           ...(opts.guide ? { guide: opts.guide } : {}),
         },
       }),

@@ -12,6 +12,7 @@ import { startFakeLeak } from "./fake-leak.mjs"
 import { Memory, TEMPERAMENT_CARD } from "../../public/leak-memory.mjs"
 import { OLD, SLEEP_SCRIPT_STRICT } from "./overnight-fixture.mjs"
 import { deriveItem } from "../../tools/lrr-sync/core.mjs"
+import { manifestId, manifestText } from "../../scripts/bridge-signing/core.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const bridgePath = path.join(here, "../../public/local-claude-bridge.mjs")
@@ -727,6 +728,38 @@ const GUIDE_SEED = "theorem guide_seed_lemma : 2 + 2 = 4 := by\n  norm_num"
     assert.match(prompt, /`timeout` is not installed/)
     assert.match(prompt, /python3 is not installed/)
     assert.match(prompt, /moved to the background/)
+  })
+  b.stop()
+}
+
+// ---- what a run says about itself with the theorems it saves (src/app/lib/leak-memory/harness.ts judges it) ----
+{
+  const b = await startBridge({ FAKE_MODE: "ok" })
+  const root = path.join(here, "../..")
+  await check("what a run saves carries the server's ticket, the build's manifest (the one the signing script signs) and counters", async () => {
+    const ticket = "v1." + "a".repeat(40) + "." + "b".repeat(43)
+    const f = await b.frames("control-honoured", { memory: { entries: [] }, runTicket: ticket })
+    const saves = f.filter((x) => x.type === "memory" && x.op === "save")
+    assert.ok(saves.length >= 1, "the run saved a theorem")
+    for (const s of saves) {
+      const h = s.entry.harness
+      assert.equal(h.ticket, ticket)
+      assert.equal(h.build.text, manifestText(root), "the bridge's own files make the signed manifest")
+      assert.equal(h.build.id, manifestId(manifestText(root)))
+      assert.equal(h.receipt.strategy, "control-honoured")
+      assert.equal(typeof h.receipt.model, "string")
+      assert.ok(h.receipt.verifyOk >= 1 && h.receipt.verifyFail >= 0 && h.receipt.attempts >= 1 && h.receipt.seconds >= 0 && h.receipt.searches >= 0, JSON.stringify(h.receipt))
+    }
+    const last = saves[saves.length - 1].entry.harness.receipt
+    assert.ok(last.verifyOk >= saves[0].entry.harness.receipt.verifyOk, "the counters only grow")
+  })
+  await check("a run with no ticket, or one that is not a plausible size, sends none; the build and counters are still said", async () => {
+    for (const runTicket of [undefined, "x".repeat(2000), 12]) {
+      const f = await b.frames("control-honoured", { memory: { entries: [] }, ...(runTicket === undefined ? {} : { runTicket }) })
+      const h = f.find((x) => x.type === "memory" && x.op === "save").entry.harness
+      assert.ok(!("ticket" in h), `ticket ${String(runTicket).slice(0, 8)}`)
+      assert.ok(h.build.id && h.receipt)
+    }
   })
   b.stop()
 }

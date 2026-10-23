@@ -4,6 +4,7 @@ import { sql } from '@vercel/postgres';
 import type { SqlTag } from '../db/sql-tag';
 import { leakMemoryStore } from '../leak-memory/memory-core';
 import { keptStore } from '../leak-memory/kept-core';
+import { evaluateHarness } from '../leak-memory/harness';
 
 export { MAX_ENTRIES_PER_ACCOUNT, MAX_ENTRIES_PER_TARGET, MAX_NOMINATED, MIN_NOMINATED_FOR_AUDIT, cleanEntry } from '../leak-memory/memory-core';
 export type { MemoryEntry } from '../leak-memory/memory-core';
@@ -17,10 +18,12 @@ export const listMemory = store.list;
 // The kept tier (../leak-memory/kept-core.ts): a theorem rated four stars or more is copied there as it is saved, so nothing that later happens to
 // the working library can lose it. A failure to keep never fails the save.
 const kept = keptStore(sql as unknown as SqlTag);
+// the key the run tickets are signed with: its own setting, or the one the sessions already use
+export const ticketSecret = (env: Record<string, string | undefined> = process.env): string => env.LEAK_TICKET_SECRET || env.AUTH_SECRET || '';
 export const saveMemory: typeof store.save = async (username, targetId, raw) => {
   const r = await store.save(username, targetId, raw);
   try {
-    await kept.keep(username, targetId, raw);
+    await kept.keep(username, targetId, raw, (claim) => evaluateHarness(claim, { username, target: targetId, secret: ticketSecret() }));
   } catch (e) {
     console.error('[leak-memory] keep failed:', e);
   }

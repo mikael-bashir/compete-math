@@ -30,6 +30,7 @@ import {
   archiveMemory,
   deleteMemoryEntry,
   loadShare,
+  requestRunTicket,
   saveShare,
   type ShareState,
   isMemoryStrategy,
@@ -283,6 +284,8 @@ export function ProverPlayground() {
       pendingSave.current.clear();
       try {
         const mcpServers = await fetchProverMcpServers();
+        // the server's ticket for this run: evidence, kept with what the run saves, that it began when it says it did
+        const ticket = usesMemory && target && signedIn ? await requestRunTicket(target.id) : null;
         const out = await runProverStream({
           problem,
           mcpServers,
@@ -305,6 +308,7 @@ export function ProverPlayground() {
           question: usesMemory && target ? target.question : undefined,
           memoryEntries: usesMemory && target ? packMemory(memoryRef.current) : undefined,
           seeds: usesMemory && target && useSeeds ? target.seeds : undefined,
+          runTicket: ticket && ticket.ok ? ticket.data.ticket : undefined,
           guide: usesMemory && target ? target.guide : undefined,
           onMemory: usesMemory ? onMemoryFrame : undefined,
           maxIters: isArchitectStrategy(strategy) ? maxIters : undefined,
