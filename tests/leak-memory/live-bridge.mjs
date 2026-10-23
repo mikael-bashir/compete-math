@@ -779,6 +779,22 @@ const GUIDE_SEED = "theorem guide_seed_lemma : 2 + 2 = 4 := by\n  norm_num"
   b.stop()
 }
 
+// ---- a run that starts with a library it inherited works first: the first sleep is an interval after the start ----
+{
+  const m = new Memory({})
+  const olds = OLD.flatMap((s) => m.addScript(s, { attempt: 1 }))
+  const b = await startBridge({ FAKE_MODE: "ok", FAKE_LIST: "1" })
+  await check("lucid with an inherited library (all of it waiting to be rated and consolidated) starts the agent, not a sleep, and does not sleep during the first interval", async () => {
+    const f = await b.frames("control-lucid", { memory: { entries: olds.map((e) => ({ ...e })) }, sleepMinNew: 1 }) // sleepEveryMs left at its default (an hour)
+    assert.ok(b.calls().length >= 1, "the agent ran")
+    assert.ok(!b.calls().some((c) => /consolidation \("sleep"\) stage/.test(c.prompt)), "no sleep session was started")
+    assert.ok(!texts(f).some((t) => /Sleep/.test(t)), texts(f).join(" | "))
+    const touched = f.filter((x) => x.type === "memory" && x.op === "update" && (x.entry?.subsumedBy || x.entry?.quality))
+    assert.equal(touched.length, 0, "nothing was merged or rated before the agent had worked: " + JSON.stringify(touched.map((x) => x.entry?.name)))
+  })
+  b.stop()
+}
+
 // ---- the sleep stage on the run that went wrong ----
 {
   const m = new Memory({})

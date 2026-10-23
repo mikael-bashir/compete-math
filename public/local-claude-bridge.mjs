@@ -7229,7 +7229,8 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   const allowedServers = (ctx.mcpServers || []).filter((s) => s?.url && (allowPantograph || s.url !== pantographUrl))
   const handlers = M.makeHandlers(memory, variantKey)
   const augment = cfg.augmentSearch ? (toolName, args, text) => M.augmentSearchText(memory, queryOfArgs(args), text) : null
-  const sleepState = { lastSleepAt: 0, lastSleepIso: "", attempt: 0, scratch: null }
+  // the first sleep is one interval after the run starts: the agent works first, whatever the library it inherited
+  const sleepState = { lastSleepAt: Date.now(), lastSleepIso: "", attempt: 0, scratch: null }
   // Knobs that exist so the behaviour can be tested in seconds; the defaults are the real ones.
   const knob = (v, lo, hi, dflt) => (Number.isFinite(Number(v)) && v !== null && v !== "" ? Math.min(hi, Math.max(lo, Number(v))) : dflt)
   const minAttemptMs = knob(opts?.minAttemptMs, 0, 3_600_000, 8 * 60_000)
