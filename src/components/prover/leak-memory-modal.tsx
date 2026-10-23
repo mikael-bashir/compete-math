@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import type { MemoryEntry } from '@/lib/prover/memory-client';
+import type { MemoryEntry, ShareState } from '@/lib/prover/memory-client';
 import { ratingOf } from '@/lib/prover/entry-quality';
 import { StarRating } from './star-rating';
 
@@ -28,6 +28,9 @@ interface Props {
   onNominate: (id: string, on: boolean) => void;
   onDelete: (id: string) => void;
   onClear: () => void;
+  /** whether the account shares its kept (four-star and up) theorems with Tengoku's intake; absent: the control is not shown */
+  share?: ShareState | null;
+  onShare?: (on: boolean) => void;
 }
 
 const when = (iso: string) => {
@@ -37,7 +40,7 @@ const when = (iso: string) => {
 
 // Every theorem the signed-in account's runs saved for the selected target, with the nomination that decides what the
 // Tengoku audit will look at. The list is the account's own: the API filters by username.
-export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, loading, stats, maxNominated, minNominated, onNominate, onDelete, onClear }: Props) {
+export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, loading, stats, maxNominated, minNominated, onNominate, onDelete, onClear, share = null, onShare }: Props) {
   const [open, setOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -83,6 +86,18 @@ export function LeakMemoryModal({ targetId, targetTitle, entries, signedIn, load
             {stats.sleeps ? `, ${stats.sleeps} sleep pass(es) merged ${stats.abstracted ?? 0}` : ''}
             {stats.nudges ? `, ${stats.nudges} reminder(s) after the agent stopped early` : ''}.
           </p>
+        )}
+
+        {signedIn && share?.allowed && onShare && (
+          <label
+            className="flex items-start gap-2 rounded-md border p-2 text-[11px] text-muted-foreground"
+            title="Kept theorems are copies of the ones rated four stars or more; they are never lost when you clear or tidy the library. If you share them, Tengoku's memory intake may take them: every one is re-checked on the real tree, staged as tentative and approved by a person before anything is published. Off until you turn it on."
+          >
+            <input type="checkbox" checked={share.share} onChange={(e) => onShare(e.target.checked)} className="mt-0.5 size-3" />
+            <span>
+              Share my {share.keepAt}★ and better theorems with Tengoku&apos;s intake ({share.kept} kept{share.submitted ? `, ${share.submitted} submitted` : ''}). They are re-checked and reviewed before anything is published.
+            </span>
+          </label>
         )}
 
         <div className="flex items-center justify-end gap-2">

@@ -29,6 +29,9 @@ import {
   applyMemoryFrame,
   archiveMemory,
   deleteMemoryEntry,
+  loadShare,
+  saveShare,
+  type ShareState,
   isMemoryStrategy,
   loadMemory,
   packMemory,
@@ -97,6 +100,7 @@ export function ProverPlayground() {
   const [memory, setMemory] = useState<MemoryEntry[]>([]);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memoryStats, setMemoryStats] = useState<Record<string, number> | null>(null);
+  const [share, setShare] = useState<ShareState | null>(null);
   const [memoryLimits, setMemoryLimits] = useState({ maxNominated: 10, minNominatedForAudit: 3 });
   const pendingSave = useRef<Map<string, MemoryEntry>>(new Map());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,8 +121,12 @@ export function ProverPlayground() {
   useEffect(() => {
     setMemoryStats(null);
     setMemory([]);
+    setShare(null);
     if (!targetId || !signedIn) return;
     let live = true;
+    void loadShare(targetId).then((r) => {
+      if (live && r.ok) setShare(r.data);
+    });
     setMemoryLoading(true);
     loadMemory(targetId).then((r) => {
       if (!live) return;
@@ -149,6 +157,8 @@ export function ProverPlayground() {
       warnedFull.current = true;
       toast.warning(`Your library for this target is full: ${r.data.skipped} verified theorem(s) were not saved. The next sleep rates and merges the library to make room, or clear it from Saved theorems.`);
     }
+    // a saved rating of four stars or more is copied to the kept tier on the server: show the new count
+    if (r.ok && batch.some((e) => (e.quality?.s ?? 0) >= 4)) void loadShare(targetId).then((x) => x.ok && setShare(x.data));
     if (pendingSave.current.size) saveTimer.current = setTimeout(() => void flushSaves(), 1500);
   }, [targetId, signedIn]);
 
@@ -172,6 +182,19 @@ export function ProverPlayground() {
       }
     },
     [flushSaves, targetId, signedIn],
+  );
+
+  // The kept tier (four stars and better) is copied on the server as theorems are saved; sharing it with the intake is the account's choice.
+  const toggleShare = useCallback(
+    async (on: boolean) => {
+      setShare((s) => (s ? { ...s, share: on } : s));
+      const r = await saveShare(on);
+      if (!r.ok) {
+        setShare((s) => (s ? { ...s, share: !on } : s));
+        toast.error(`Could not change sharing (${r.error}).`);
+      }
+    },
+    [],
   );
 
   const nominate = useCallback(
@@ -538,6 +561,8 @@ export function ProverPlayground() {
             onNominate={nominate}
             onDelete={removeEntry}
             onClear={clearLibrary}
+            share={share}
+            onShare={toggleShare}
           />
         )}
         {/* The refinement-budget control lives on the console below, alongside the

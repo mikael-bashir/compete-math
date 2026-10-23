@@ -108,6 +108,17 @@ export const setMemoryNominated = (target: string, id: string, nominated: boolea
 // "Clear the library" for a target: everything but the nominated theorems is put away on the server (not deleted).
 export const archiveMemory = (target: string) =>
   call<{ archived: number }>(`/api/leak/memory?target=${encodeURIComponent(target)}&all=1`, { method: 'DELETE' });
+// Whether this account shares its kept theorems (rated `keepAt` stars or more) with Tengoku's memory intake, and how many it has kept for a target.
+export interface ShareState {
+  share: boolean;
+  /** whether the intake is open to this account (the owner lists the accounts on the host) */
+  allowed: boolean;
+  keepAt: number;
+  kept: number;
+  submitted: number;
+}
+export const loadShare = (target: string) => call<ShareState>(`/api/leak/memory/share?target=${encodeURIComponent(target)}`);
+export const saveShare = (share: boolean) => call<{ share: boolean }>('/api/leak/memory/share', { method: 'PUT', body: JSON.stringify({ share }) });
 
 export const deleteMemoryEntry = (target: string, id: string) =>
   call<{ deleted: boolean }>(`/api/leak/memory?target=${encodeURIComponent(target)}&id=${encodeURIComponent(id)}`, { method: 'DELETE' });

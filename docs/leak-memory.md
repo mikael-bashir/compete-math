@@ -85,6 +85,16 @@ The console says what happened: groups studied, general lemmas added, how many t
 ## Temperament
 
 The curious voice (the default) is written for a question that does not yield: the opening names the temperament (think in months, make things general, let small cases teach, hold claims loosely, change altitude when stuck, keep the library for a stranger) and what a good stretch looks like, and asks for lab notes as the agent goes, not as a goodbye. Every reminder (`continue` and `nudge`) carries a short `TEMPERAMENT_CARD` so this survives the CLI compacting a long conversation, a high-level question from `CURIOSITY_PROMPTS` (about what lasts, small cases, the angle of attack, Leak I; the bridge counts reminders so the question changes even when the library does not), and, when Leak I has not been used lately, a check-in with the run's own count (`leakICheckin`). A NOTE/NEXT written in the middle of a stretch is kept and handed back, even if the last message has none. None of the text calls the problem open, hard or unsolved.
+## The kept tier and the intake queue
+
+The first half of the autonomous intake (the rest is in competemath/emissary-archangel and competemath/tengoku-sandbox, not here).
+
+- **Kept.** When a theorem rated `KEEP_AT` (4) stars or more is saved, `saveMemory` also copies it, proof included, into `leak_memory_kept` (`src/app/lib/leak-memory/kept-core.ts`). The copy is never touched by what happens to the working library afterwards (a cleared library, an eviction, a merge), it is bounded per account (300 per target, 1500 in all, because the rating is a client's claim), and a theorem a bundle already holds is never rewritten.
+- **Sharing.** Off until the account turns it on (the checkbox in Saved theorems, `PUT /api/leak/memory/share`), and open only to the accounts listed in the host setting `LEAK_INTAKE_ACCOUNTS` (comma separated; empty means nobody; for now the owner's own account). Turning it off takes the waiting theorems out of the queue.
+- **Candidates.** `GET /api/leak/memory/candidates`: for each listed account that shares, one target at a time, up to ten kept, not yet submitted theorems, best rated first. `POST` with `{ marks: [{ username, target, ids, bundle }] }` records which went into which bundle (its sha-256), so they are not offered twice. Both need a GitHub Actions OIDC token from `.github/workflows/memory-intake.yml` on `main` in `competemath/emissary-archangel` (`oidc.ts` verifies GitHub's signature and the repository, workflow, ref, event and audience claims; there is no stored secret), and both answer 404 unless the host sets `LEAK_INTAKE_ENABLED=1`.
+- **What it does not do.** A candidate is a claim by a client. Nothing here makes a theorem trusted or publishes it: the intake job re-derives every field (compile on the real tree, allow-list lint, re-rating), opens a pull request labelled `studied` against Tengoku (sandbox first), and that pull request needs one code owner's approval or two independent contributors with write access.
+
+Host settings (owner only): `LEAK_INTAKE_ENABLED=1`, `LEAK_INTAKE_ACCOUNTS=<username>`; optionally `LEAK_INTAKE_REPOSITORY`, `LEAK_INTAKE_WORKFLOW`, `LEAK_INTAKE_AUDIENCE` (the defaults are in `oidc.ts`).
 
 ## Ratings (Lucid's second job when it sleeps)
 
