@@ -296,6 +296,7 @@ const ARCHITECT_DISALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Gr
 // scratchpad write through untouched.
 const AGENT_SHELLS_ENV = "LEAK_AGENT_SHELLS"
 const AGENT_BLOCKS_ENV = "LEAK_AGENT_BLOCKS"
+const AGENT_NOTICES_ENV = "LEAK_AGENT_NOTICES"
 const HOOK_DIR = mkdtempSync(join(tmpdir(), "leak-hook-"))
 const NO_LOCAL_LEAN_HOOK = join(HOOK_DIR, "no-local-lean.mjs")
 writeFileSync(
@@ -332,6 +333,33 @@ process.stdin.on("data", (d) => (s += d)).on("end", () => {
 })
 `,
 )
+// INTAKE NOTICES, DURING A LONG ATTEMPT. A memory run is one agent that can work for hours; what became of the theorems the account put forward (the
+// notices of competemath.com/leak) can change while it does. The page sends the new text to POST /notices; the bridge writes it, with its hash, to the file
+// the run's agents are given (LEAK_AGENT_NOTICES), and this PostToolUse hook gives the agent the text after its next tool call, once per hash: the hash of
+// what the agent last read is kept next to the file (`.seen`), and the bridge writes it too when it puts the text in a prompt. The hook never fails a tool
+// call and says nothing when there is nothing new.
+const NOTICES_HOOK = join(HOOK_DIR, "notices.mjs")
+writeFileSync(
+  NOTICES_HOOK,
+  `import { readFileSync, writeFileSync } from "node:fs"
+const f = process.env.${AGENT_NOTICES_ENV}
+process.stdin.resume()
+process.stdin.on("data", () => {}).on("end", () => {
+  if (!f) process.exit(0)
+  try {
+    const n = JSON.parse(readFileSync(f, "utf8"))
+    let seen = ""
+    try { seen = readFileSync(f + ".seen", "utf8").trim() } catch {}
+    if (n && typeof n.text === "string" && n.text && typeof n.hash === "string" && n.hash !== seen) {
+      writeFileSync(f + ".seen", n.hash)
+      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: "NEW INTAKE NOTICES (the account's review of your saved theorems changed while you worked):\\n" + n.text } }))
+    }
+  } catch {}
+  process.exit(0)
+})
+`,
+)
+
 // The hook is the wall; this is the sign on it. Without it the agent discovers
 // the block by walking into it — on fatex_006 that cost a `find /` across the
 // whole filesystem and several turns of dead-ended exploration before it gave
@@ -345,7 +373,10 @@ The same hook blocks network fetches and installs (curl, wget, ssh, pip, npm, br
 Everything else on the machine is yours and unrestricted — shell commands, scratch files, notes, numeric experiments. A local scratchpad is fine and often useful.`
 
 const NO_LOCAL_LEAN_SETTINGS = JSON.stringify({
-  hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: `node ${NO_LOCAL_LEAN_HOOK}` }] }] },
+  hooks: {
+    PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: `node ${NO_LOCAL_LEAN_HOOK}` }] }],
+    PostToolUse: [{ matcher: "*", hooks: [{ type: "command", command: `node ${NOTICES_HOOK}` }] }],
+  },
 })
 
 // An agent that runs alone for hours must not read or write the operator's own Claude Code state. The CLI keeps an "auto memory" per
@@ -3586,6 +3617,40 @@ function registerRun(budgetMs, maxIters = 0) {
   ACTIVE_RUNS.set(runId, st)
   return { runId, st }
 }
+// The intake notices of a run (the text competemath.com/leak builds from the account's notices and settings, with its hash). They live on the run state like
+// the deadline, so POST /notices can replace them mid-run; the file is what the agents' PostToolUse hook reads. Bounded: the text is the account's own
+// notices in the catalogue's words, never more than a few thousand characters.
+const NOTICES_MAX = 6000
+function cleanNotices(n) {
+  if (!n || typeof n !== "object") return null
+  const text = typeof n.text === "string" ? n.text.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, " ").slice(0, NOTICES_MAX).trim() : ""
+  const hash = typeof n.hash === "string" && /^[0-9a-f]{16}$/.test(n.hash) ? n.hash : ""
+  if (text && !hash) return null // text the page cannot vouch for with a hash is refused, not guessed at
+  return text ? { text, hash } : { text: "", hash: "" }
+}
+// the notices as the start of an attempt carries them: the text, marked delivered; "" when the run has none
+function noticesForPrompt(ctx) {
+  const n = ctx?.getNotices?.()
+  if (!n || !n.text) return ""
+  ctx.noticesDelivered?.(n.hash)
+  return n.text
+}
+const noticesFileFor = (runId) => join(HOOK_DIR, `notices-${String(runId).replace(/[^a-zA-Z0-9-]/g, "")}.json`)
+function setRunNotices(runId, st, n) {
+  const clean = cleanNotices(n)
+  if (!clean) return false
+  st.notices = clean
+  try {
+    writeFileSync(noticesFileFor(runId), JSON.stringify(clean))
+  } catch {}
+  return true
+}
+// the agent has been given this text in a prompt: the hook must not give it again
+function noticesDelivered(runId, hash) {
+  try {
+    writeFileSync(noticesFileFor(runId) + ".seen", hash)
+  } catch {}
+}
 // True once a governed run's wall-clock budget is spent (used to stop retrying).
 // ---- ACCOUNT QUOTA -------------------------------------------------------
 // When the Claude CLI is out of quota it does not fail — it returns, instantly,
@@ -3689,7 +3754,7 @@ function mapObjectToEvents(o, emit, stage, metrics) {
 // `onObject` (which returns true to stop the run early — e.g. goal closed), and
 // mirror activity into the console via `emit`. Shared by the node-prover and the
 // decomposer. Resolves when the process exits.
-function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, bridgeServerName, searchAugment, verifyGuard, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId, cwd, isolate, agentToken, holdGroup }, { onObject, emit }) {
+function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, bridgeServerName, searchAugment, verifyGuard, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId, cwd, isolate, agentToken, holdGroup, noticesFile }, { onObject, emit }) {
   return new Promise((resolve) => {
     // Each subagent run gets its OWN search governor (budget resets per node /
     // per decomposition — a fresh sub-goal earns a fresh allowance). The initial
@@ -3784,7 +3849,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     if (token) liveTokens.add(token)
     let child
     try {
-      child = spawn(CLAUDE_BIN, args, { cwd: cwd || process.cwd(), env: isolate ? isolatedEnv(token) : confined ? { ..._containment.scrubbedEnv(process.env, AGENT_CONTAINMENT), CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" } : process.env, shell: false, stdio: ["ignore", "pipe", "pipe"] })
+      child = spawn(CLAUDE_BIN, args, { cwd: cwd || process.cwd(), env: isolate ? { ...isolatedEnv(token), ...(noticesFile ? { [AGENT_NOTICES_ENV]: noticesFile } : {}) } : confined ? { ..._containment.scrubbedEnv(process.env, AGENT_CONTAINMENT), CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" } : process.env, shell: false, stdio: ["ignore", "pipe", "pipe"] })
       if (ownScratch) child.once("close", () => rmSync(ownScratch, { recursive: true, force: true }))
       if (token) {
         liveClis.add(child)
@@ -7210,6 +7275,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   let lastNote = null // the agent's own NOTE/NEXT from the end of its last stretch, handed back when the session resumes
   let lastSaidText = "" // the agent's last text block, in case the CLI's result frame is empty
   let midNote = null // a NOTE/NEXT the agent wrote in the middle of a stretch and then carried on past: the prompt asks for notes as it goes
+  let deliveredNoticesHash = "" // the intake notices the agent was last given in a prompt (the PostToolUse hook gives it newer ones)
   let reminders = 0 // every reminder so far, so the questions they carry rotate even when the library does not change size
   const runStartedAt = Date.now()
   const leakI = { calls: 0, lastAt: 0 } // searches of Tengoku this run: what the reminders say about Leak I comes from here
@@ -7243,7 +7309,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       })
     const gate = makeProofGate(theorem)
     const pendingVerify = new Map()
-    const attemptPrompt = resuming
+    const attemptBase = resuming
       ? V.continue({
           attempt,
           note: lastNote,
@@ -7258,6 +7324,10 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
           turn: reminders++,
         })
       : controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint, V)
+    // what became of the theorems the account put forward: told at the start of every attempt, and marked told so the hook does not repeat it
+    const noticesText = noticesForPrompt(ctx)
+    deliveredNoticesHash = ctx.getNotices?.()?.hash || deliveredNoticesHash
+    const attemptPrompt = noticesText ? `${attemptBase}\n\n${noticesText}` : attemptBase
     // what the agent is really told, for the console and the admin log (the frame sent when the run opens cannot know the memory yet)
     // The system prompt addendum goes with a new conversation too (it is what the CLI is started with, and a resumed one keeps it).
     ctx.emit({
@@ -7276,6 +7346,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         isolate: true,
         agentToken,
         holdGroup: true,
+        noticesFile: ctx.noticesFile,
         mcpServers: allowedServers,
         model: ctx.model,
         maxTurns: 0,
@@ -7345,7 +7416,16 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       memory.stats.nudges++
       const elapsed = Date.now() - t0
       ctx.emit({ type: "message-annotation", subtype: "status", thought: `↩️ The agent stopped after ${Math.max(1, Math.round(elapsed / 60000))} minute(s) without a verified proof: continuing the same conversation (${nudges} of ${maxNudges}).` })
-      const nudgeText = V.nudge({ elapsedMs: elapsed, libraryCount: memory.size - memory.hiddenCount(), nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl, note: lastNote, toolIds, guide: guideForReminder(), leakI: leakIStats(), turn: reminders++ })
+      let nudgeText = V.nudge({ elapsedMs: elapsed, libraryCount: memory.size - memory.hiddenCount(), nudge: nudges, of: maxNudges, pantograph: allowPantograph && !!pantographUrl, note: lastNote, toolIds, guide: guideForReminder(), leakI: leakIStats(), turn: reminders++ })
+      // newer intake notices than the agent has been given ride along with a reminder; unchanged ones do not
+      {
+        const nn = ctx.getNotices?.()
+        if (nn?.text && nn.hash !== deliveredNoticesHash) {
+          nudgeText = `${nudgeText}\n\n${nn.text}`
+          deliveredNoticesHash = nn.hash
+          ctx.noticesDelivered?.(nn.hash)
+        }
+      }
       ctx.emit({ type: "prompt", kind: "followup", prompt: `[${memoryHeader} · reminder ${nudges} of ${maxNudges} · same session]\n\n${nudgeText}`, model: ctx.model || null })
       midNote = null
       r = await session(nudgeText, r.sessionId)
@@ -13386,6 +13466,7 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
   // other styles, which have no blueprint loop.
   const iterBudget = style === "architect" ? clampNum(opts.maxIters, 1, 32, ARCHITECT_MAX_ITERS) : 0
   const { runId, st: runState } = registerRun(budgetMs, iterBudget)
+  if (opts.notices) setRunNotices(runId, runState, opts.notices)
   // Tell the client its runId + current budgets so it can render the limit
   // indicators and target /extend. Architect runs always get the frame (the
   // iteration button needs a runId even on an uncapped clock); the others only
@@ -13419,6 +13500,11 @@ function proveTreeStream(res, theorem, mcpServers, opts = {}) {
     computeGoverned: budgetMs > 0,
     // estimated-cost cap in USD (0 = none); see deadlinePassed
     costCapUsd: Number(opts.maxCostUsd) > 0 ? Math.min(Number(opts.maxCostUsd), 5000) : 0,
+    // the intake notices (see setRunNotices): the driver reads them at every attempt, and POST /notices replaces them while the run lasts
+    runId,
+    noticesFile: noticesFileFor(runId),
+    getNotices: () => runState.notices || null,
+    noticesDelivered: (hash) => noticesDelivered(runId, hash),
     // memory variants: which target the saved theorems belong to, and a per-attempt length override for experiments
     targetId: typeof opts.targetId === "string" ? opts.targetId.slice(0, 80) : "",
     // The mechanic's window: run-scoped ring of rendered stream frames.
@@ -13745,6 +13831,20 @@ const server = createServer(async (req, res) => {
       clearUsageBlock() // see /prove-tree — a new run re-evaluates the quota
       proveStream(res, theorem, body.mcpServers || [], body.options || {})
       return
+    }
+
+    // New intake notices for a running prove (the page sends them when what became of the account's theorems changes). The driver gets them after its next
+    // tool call and at its next attempt. Behind the same token + CORS gate above.
+    if (req.method === "POST" && url.pathname === "/notices") {
+      const body = JSON.parse((await readBody(req)) || "{}")
+      const runId = String(body.runId || "")
+      const st = ACTIVE_RUNS.get(runId)
+      if (!st) return json(res, 404, { error: "run_not_found" })
+      // nothing open any more after something was: say so, or the driver keeps acting on notices that were answered
+      const cleared = !String(body.text || "").trim() && st.notices?.text
+      const next = cleared ? { text: "INTAKE NOTICES for this target: none are open any more. Disregard the earlier ones.", hash: "0".repeat(16) } : { text: body.text, hash: body.hash }
+      if (!setRunNotices(runId, st, next)) return json(res, 400, { error: "bad_notices" })
+      return json(res, 200, { ok: true, runId, hash: st.notices.hash, chars: st.notices.text.length })
     }
 
     // Push out a running prove's budget: wall-clock (the UI's "+5 min" button)

@@ -4,6 +4,7 @@ import { sql } from '@vercel/postgres';
 import type { SqlTag } from '../db/sql-tag';
 import { leakMemoryStore } from '../leak-memory/memory-core';
 import { keptStore } from '../leak-memory/kept-core';
+import { noticesStore } from '../leak-memory/notices-core';
 import { evaluateHarness } from '../leak-memory/harness';
 
 export { MAX_ENTRIES_PER_ACCOUNT, MAX_ENTRIES_PER_TARGET, MAX_NOMINATED, MIN_NOMINATED_FOR_AUDIT, cleanEntry } from '../leak-memory/memory-core';
@@ -37,3 +38,14 @@ export const markSubmitted = kept.markSubmitted;
 export const setNominated = store.setNominated;
 export const deleteMemory = store.remove;
 export const archiveMemory = store.archiveAll;
+
+// What happened to the theorems an account put forward (../leak-memory/notices-core.ts): written by the intake's reports, read by the account's modal and by the driver.
+const notices = noticesStore(sql as unknown as SqlTag);
+export const ingestNotices = notices.ingest;
+export const listNotices = notices.list;
+export const noticeCounts = notices.counts;
+export const actOnNotice = notices.act;
+export const seenAllNotices = notices.seenAll;
+export const getNoticePrefs = notices.getPrefs;
+export const setNoticePrefs = notices.setPrefs;
+export const driverNotices = notices.driverBlock;

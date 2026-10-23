@@ -87,6 +87,9 @@ interface RunOpts {
   memoryEntries?: unknown[];
   // the server's ticket for this run (memory-client requestRunTicket): the bridge attaches it to what it saves, as evidence of the run's age
   runTicket?: string;
+  // The intake notices for this target (notices-client loadDriverBlock): the bridge hands the text to the driver at the start of every attempt, and
+  // `pushRunNotices` replaces it while the run lasts. Empty text: nothing to say.
+  notices?: { text: string; hash: string };
   // The target's own vetted lemmas (scripts). They are in the run's library but are never saved to the account.
   seeds?: string[];
   // The target's written line of attack (LeakGuide in src/data/leak-targets). The bridge keeps it out of the opening prompt and
@@ -147,6 +150,24 @@ export async function extendProverRun(args: {
     };
   } catch {
     return null;
+  }
+}
+
+// Hand a running prove new intake notices (the bridge gives them to the driver after its next tool call, and at its next attempt). Best-effort like extend:
+// returns whether the bridge took them, and never lets a failure break the run.
+export async function pushRunNotices(args: { runId: string; text: string; hash: string; bridgeUrl?: string; token?: string }): Promise<boolean> {
+  const conn = bridgeConnection();
+  const base = normalizeBase(args.bridgeUrl ?? conn.bridgeUrl);
+  const token = args.token ?? conn.token ?? '';
+  try {
+    const res = await fetch(`${base}/notices`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-bridge-token': token },
+      body: JSON.stringify({ runId: args.runId, text: args.text, hash: args.hash }),
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 
@@ -277,6 +298,7 @@ export async function runProverStream(opts: RunOpts): Promise<ProverOutcome> {
             : {}),
           ...(opts.seeds?.length ? { seeds: opts.seeds } : {}),
           ...(opts.runTicket ? { runTicket: opts.runTicket } : {}),
+          ...(opts.notices && opts.notices.text ? { notices: { text: opts.notices.text, hash: opts.notices.hash } } : {}),
           ...(opts.guide ? { guide: opts.guide } : {}),
         },
       }),

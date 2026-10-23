@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authorizeIntake } from "@/app/lib/leak-memory/oidc";
-import { intakeCandidates, markSubmitted } from "@/app/lib/data/leak-memory";
+import { getNoticePrefs, intakeCandidates, markSubmitted } from "@/app/lib/data/leak-memory";
 import { intakeAccounts } from "@/app/lib/leak-memory/kept-core";
 import { deployBuildVerifier } from "@/app/lib/leak-memory/harness";
 
@@ -26,10 +26,14 @@ export async function GET(request: NextRequest) {
       intakeAccounts(),
       async (ev) => !!ev.build && (await checkBuild(ev.build)).ok,
     );
+    // a target the account paused (notices modal) is not taken while it is paused
+    const paused = new Map<string, Set<string>>();
+    for (const u of new Set(bundles.map((b) => b.username))) paused.set(u, new Set((await getNoticePrefs(u)).pausedTargets));
+    const open = bundles.filter((b) => !paused.get(b.username)?.has(b.target));
     return NextResponse.json(
       {
         schema: "leak-memory-candidates/1",
-        bundles: bundles.map((b) => ({
+        bundles: open.map((b) => ({
           author: b.username,
           target: b.target,
           entries: b.entries.map(({ id, name, kind, statement, closure, origin, savedAt, attempt, isTarget, quality, evidence }) => ({
