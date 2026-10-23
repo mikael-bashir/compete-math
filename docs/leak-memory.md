@@ -64,6 +64,17 @@ Settings that change the cost and are NOT set by the bridge (they pass through t
 
 Memory never reaches Tengoku by itself. A theorem leaves an account only when it is nominated (3 to 10 per target, by the author) and then passes the intake pipeline in emissary-archangel: a mechanical preflight, a Tau Ceti style agent audit, and Jinshi on the nominated modules. See `memory-intake/README.md` there. The modal's **Export nominated** button downloads the bundle (`GET /api/leak/memory/bundle?target=`) that pipeline takes.
 
+## The kept tier and the intake queue
+
+The first half of the autonomous intake (the rest is in competemath/emissary-archangel and competemath/tengoku-sandbox, not here).
+
+- **Kept.** When a theorem rated `KEEP_AT` (4) stars or more is saved, `saveMemory` also copies it, proof included, into `leak_memory_kept` (`src/app/lib/leak-memory/kept-core.ts`). The copy is never touched by what happens to the working library afterwards (a cleared library, an eviction, a merge), it is bounded per account (300 per target, 1500 in all, because the rating is a client's claim), and a theorem a bundle already holds is never rewritten.
+- **Sharing.** Off until the account turns it on (the checkbox in Saved theorems, `PUT /api/leak/memory/share`), and open only to the accounts listed in the host setting `LEAK_INTAKE_ACCOUNTS` (comma separated; empty means nobody; for now the owner's own account). Turning it off takes the waiting theorems out of the queue.
+- **Candidates.** `GET /api/leak/memory/candidates`: for each listed account that shares, one target at a time, up to ten kept, not yet submitted theorems, best rated first. `POST` with `{ marks: [{ username, target, ids, bundle }] }` records which went into which bundle (its sha-256), so they are not offered twice. Both need a GitHub Actions OIDC token from `.github/workflows/memory-intake.yml` on `main` in `competemath/emissary-archangel` (`oidc.ts` verifies GitHub's signature and the repository, workflow, ref, event and audience claims; there is no stored secret), and both answer 404 unless the host sets `LEAK_INTAKE_ENABLED=1`.
+- **What it does not do.** A candidate is a claim by a client. Nothing here makes a theorem trusted or publishes it: the intake job re-derives every field (compile on the real tree, allow-list lint, re-rating), opens a pull request labelled `studied` against Tengoku (sandbox first), and that pull request needs one code owner's approval or two independent contributors with write access.
+
+Host settings (owner only): `LEAK_INTAKE_ENABLED=1`, `LEAK_INTAKE_ACCOUNTS=<username>`; optionally `LEAK_INTAKE_REPOSITORY`, `LEAK_INTAKE_WORKFLOW`, `LEAK_INTAKE_AUDIENCE` (the defaults are in `oidc.ts`).
+
 ## Ratings (Lucid's second job when it sleeps)
 
 When Lucid sleeps it also rates every saved theorem that has no rating yet (at most 24 per sleep, newest first, within eight minutes), by the rule in `public/leak-quality.mjs`: features of the entry (proof size, whether the statement has any variable, how many other entries rest on it, whether it states the target), two questions put to Leak IV (does a one-line automatic tactic prove its statement; does a single existing lemma), and a model's reading in two independent draws. The tactic test is checked first (it must close an easy truth and not an easy falsehood) or the pass stops and says so. A sleep is also due when enough theorems are waiting for a rating, not only when enough are new.

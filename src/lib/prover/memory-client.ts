@@ -98,5 +98,17 @@ export const saveMemoryEntries = (target: string, entries: MemoryEntry[]) =>
 export const setMemoryNominated = (target: string, id: string, nominated: boolean) =>
   call<{ ok: boolean; reason?: string; nominated: number }>('/api/leak/memory', { method: 'PATCH', body: JSON.stringify({ target, id, nominated }) });
 
+// Whether this account shares its kept theorems (rated `keepAt` stars or more) with Tengoku's memory intake, and how many it has kept for a target.
+export interface ShareState {
+  share: boolean;
+  /** whether the intake is open to this account (the owner lists the accounts on the host) */
+  allowed: boolean;
+  keepAt: number;
+  kept: number;
+  submitted: number;
+}
+export const loadShare = (target: string) => call<ShareState>(`/api/leak/memory/share?target=${encodeURIComponent(target)}`);
+export const saveShare = (share: boolean) => call<{ share: boolean }>('/api/leak/memory/share', { method: 'PUT', body: JSON.stringify({ share }) });
+
 export const deleteMemoryEntry = (target: string, id: string) =>
   call<{ deleted: boolean }>(`/api/leak/memory?target=${encodeURIComponent(target)}&id=${encodeURIComponent(id)}`, { method: 'DELETE' });
