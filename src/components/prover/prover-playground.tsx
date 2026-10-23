@@ -18,17 +18,24 @@ import { fetchProverMcpServers } from '@/lib/mcp/fetch-prover-servers';
 import {
   runProverStream,
   extendProverRun,
+  pushRunNotices,
 } from '@/lib/prover/run-prover-stream';
 import { ProverConsole } from '@/components/prover/prover-console';
 import type { ProverEvent, ProverOutcome } from '@/lib/prover/types';
 import { LEAK_TARGETS, findLeakTarget } from '@/data/leak-targets';
 import { LeakMemoryModal } from '@/components/prover/leak-memory-modal';
+import { LeakNoticesModal } from '@/components/prover/leak-notices-modal';
+import { NOTICE_POLL_MS, loadDriverBlock } from '@/lib/prover/notices-client';
 import { backfillQuality } from '@/lib/prover/entry-quality';
 import {
   MEMORY_VARIANTS,
   applyMemoryFrame,
   archiveMemory,
   deleteMemoryEntry,
+  loadShare,
+  requestRunTicket,
+  saveShare,
+  type ShareState,
   isMemoryStrategy,
   loadMemory,
   packMemory,
@@ -97,6 +104,7 @@ export function ProverPlayground() {
   const [memory, setMemory] = useState<MemoryEntry[]>([]);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memoryStats, setMemoryStats] = useState<Record<string, number> | null>(null);
+  const [share, setShare] = useState<ShareState | null>(null);
   const [memoryLimits, setMemoryLimits] = useState({ maxNominated: 10, minNominatedForAudit: 3 });
   const pendingSave = useRef<Map<string, MemoryEntry>>(new Map());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,8 +125,12 @@ export function ProverPlayground() {
   useEffect(() => {
     setMemoryStats(null);
     setMemory([]);
+    setShare(null);
     if (!targetId || !signedIn) return;
     let live = true;
+    void loadShare(targetId).then((r) => {
+      if (live && r.ok) setShare(r.data);
+    });
     setMemoryLoading(true);
     loadMemory(targetId).then((r) => {
       if (!live) return;
@@ -149,6 +161,8 @@ export function ProverPlayground() {
       warnedFull.current = true;
       toast.warning(`Your library for this target is full: ${r.data.skipped} verified theorem(s) were not saved. The next sleep rates and merges the library to make room, or clear it from Saved theorems.`);
     }
+    // a saved rating of four stars or more is copied to the kept tier on the server: show the new count
+    if (r.ok && batch.some((e) => (e.quality?.s ?? 0) >= 4)) void loadShare(targetId).then((x) => x.ok && setShare(x.data));
     if (pendingSave.current.size) saveTimer.current = setTimeout(() => void flushSaves(), 1500);
   }, [targetId, signedIn]);
 
@@ -172,6 +186,19 @@ export function ProverPlayground() {
       }
     },
     [flushSaves, targetId, signedIn],
+  );
+
+  // The kept tier (four stars and better) is copied on the server as theorems are saved; sharing it with the intake is the account's choice.
+  const toggleShare = useCallback(
+    async (on: boolean) => {
+      setShare((s) => (s ? { ...s, share: on } : s));
+      const r = await saveShare(on);
+      if (!r.ok) {
+        setShare((s) => (s ? { ...s, share: !on } : s));
+        toast.error(`Could not change sharing (${r.error}).`);
+      }
+    },
+    [],
   );
 
   const nominate = useCallback(
@@ -222,6 +249,9 @@ export function ProverPlayground() {
   const [extending, setExtending] = useState(false);
   const [extendingIters, setExtendingIters] = useState(false);
   const runIdRef = useRef<string | null>(null);
+  // the hash of the intake notices the running driver was last handed (notices-client loadDriverBlock); a new one is pushed only when it changes
+  const noticeHashRef = useRef<string>('');
+  const runTargetRef = useRef<string | null>(null);
   // Latest saved checkpoint (a partially-filled skeleton) from a decompose run.
   // Persists in component state so you can Resume after a Terminate or a stop.
   const [checkpoint, setCheckpoint] = useState<{
@@ -260,6 +290,13 @@ export function ProverPlayground() {
       pendingSave.current.clear();
       try {
         const mcpServers = await fetchProverMcpServers();
+        // the server's ticket for this run: evidence, kept with what the run saves, that it began when it says it did
+        const ticket = usesMemory && target && signedIn ? await requestRunTicket(target.id) : null;
+        // what became of the theorems this account put forward, in the catalogue's words and within the account's own limits; the driver reads it at every attempt
+        const noticeBlock = usesMemory && target && signedIn ? await loadDriverBlock(target.id) : null;
+        const notices = noticeBlock && noticeBlock.ok && noticeBlock.data.text ? { text: noticeBlock.data.text, hash: noticeBlock.data.hash } : undefined;
+        noticeHashRef.current = notices?.hash ?? '';
+        runTargetRef.current = usesMemory && target ? target.id : null;
         const out = await runProverStream({
           problem,
           mcpServers,
@@ -282,6 +319,8 @@ export function ProverPlayground() {
           question: usesMemory && target ? target.question : undefined,
           memoryEntries: usesMemory && target ? packMemory(memoryRef.current) : undefined,
           seeds: usesMemory && target && useSeeds ? target.seeds : undefined,
+          runTicket: ticket && ticket.ok ? ticket.data.ticket : undefined,
+          notices,
           guide: usesMemory && target ? target.guide : undefined,
           onMemory: usesMemory ? onMemoryFrame : undefined,
           maxIters: isArchitectStrategy(strategy) ? maxIters : undefined,
@@ -300,6 +339,8 @@ export function ProverPlayground() {
         publishRunEnd();
         setRunning(false);
         runIdRef.current = null;
+        runTargetRef.current = null;
+        noticeHashRef.current = '';
         abortRef.current = null;
       }
     },
@@ -319,6 +360,23 @@ export function ProverPlayground() {
       setExtending(false);
     }
   }, [extending, strategy]);
+
+  // Hand a running driver the intake notices that changed since it last heard (new outcomes, or the account's own settings). Best-effort, and only when
+  // the block differs: a block that did not change costs the driver nothing.
+  const pushNoticesNow = useCallback(async () => {
+    const runId = runIdRef.current;
+    const t = runTargetRef.current;
+    if (!runId || !t) return;
+    const r = await loadDriverBlock(t);
+    if (!r.ok || r.data.hash === noticeHashRef.current) return;
+    if (await pushRunNotices({ runId, text: r.data.text, hash: r.data.hash })) noticeHashRef.current = r.data.hash;
+  }, []);
+  // A memory run lasts hours to weeks, so the notices are looked at again while it goes: the driver is told early, not at its next attempt.
+  useEffect(() => {
+    if (!running || !signedIn) return;
+    const t = setInterval(() => void pushNoticesNow(), NOTICE_POLL_MS);
+    return () => clearInterval(t);
+  }, [running, signedIn, pushNoticesNow]);
 
   // "+1 iter": raise the refinement budget for the NEXT run and, while a River
   // run is live, for that run too (the bridge re-reads the budget each iteration).
@@ -538,8 +596,11 @@ export function ProverPlayground() {
             onNominate={nominate}
             onDelete={removeEntry}
             onClear={clearLibrary}
+            share={share}
+            onShare={toggleShare}
           />
         )}
+        {target && <LeakNoticesModal targetId={target.id} targetTitle={target.short} signedIn={signedIn} onChange={() => void pushNoticesNow()} />}
         {/* The refinement-budget control lives on the console below, alongside the
             clock control, so it can be raised MID-FLIGHT and not just per run. */}
         <div className="ml-auto flex items-center gap-1.5">

@@ -12,6 +12,7 @@ import { startFakeLeak } from "./fake-leak.mjs"
 import { Memory, TEMPERAMENT_CARD } from "../../public/leak-memory.mjs"
 import { OLD, SLEEP_SCRIPT_STRICT } from "./overnight-fixture.mjs"
 import { deriveItem } from "../../tools/lrr-sync/core.mjs"
+import { manifestId, manifestText } from "../../scripts/bridge-signing/core.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const bridgePath = path.join(here, "../../public/local-claude-bridge.mjs")
@@ -731,6 +732,38 @@ const GUIDE_SEED = "theorem guide_seed_lemma : 2 + 2 = 4 := by\n  norm_num"
   b.stop()
 }
 
+// ---- what a run says about itself with the theorems it saves (src/app/lib/leak-memory/harness.ts judges it) ----
+{
+  const b = await startBridge({ FAKE_MODE: "ok" })
+  const root = path.join(here, "../..")
+  await check("what a run saves carries the server's ticket, the build's manifest (the one the signing script signs) and counters", async () => {
+    const ticket = "v1." + "a".repeat(40) + "." + "b".repeat(43)
+    const f = await b.frames("control-honoured", { memory: { entries: [] }, runTicket: ticket })
+    const saves = f.filter((x) => x.type === "memory" && x.op === "save")
+    assert.ok(saves.length >= 1, "the run saved a theorem")
+    for (const s of saves) {
+      const h = s.entry.harness
+      assert.equal(h.ticket, ticket)
+      assert.equal(h.build.text, manifestText(root), "the bridge's own files make the signed manifest")
+      assert.equal(h.build.id, manifestId(manifestText(root)))
+      assert.equal(h.receipt.strategy, "control-honoured")
+      assert.equal(typeof h.receipt.model, "string")
+      assert.ok(h.receipt.verifyOk >= 1 && h.receipt.verifyFail >= 0 && h.receipt.attempts >= 1 && h.receipt.seconds >= 0 && h.receipt.searches >= 0, JSON.stringify(h.receipt))
+    }
+    const last = saves[saves.length - 1].entry.harness.receipt
+    assert.ok(last.verifyOk >= saves[0].entry.harness.receipt.verifyOk, "the counters only grow")
+  })
+  await check("a run with no ticket, or one that is not a plausible size, sends none; the build and counters are still said", async () => {
+    for (const runTicket of [undefined, "x".repeat(2000), 12]) {
+      const f = await b.frames("control-honoured", { memory: { entries: [] }, ...(runTicket === undefined ? {} : { runTicket }) })
+      const h = f.find((x) => x.type === "memory" && x.op === "save").entry.harness
+      assert.ok(!("ticket" in h), `ticket ${String(runTicket).slice(0, 8)}`)
+      assert.ok(h.build.id && h.receipt)
+    }
+  })
+  b.stop()
+}
+
 // ---- the project's seed lemmas ----
 {
   const b = await startBridge({ FAKE_QUERY: "seed lemma fake" })
@@ -1237,6 +1270,119 @@ for (const sig of ["SIGTERM", "SIGINT"]) {
     assert.ok(!/at most \d+ min/.test(pa.text), "the status line still names a cap")
   })
   a.stop()
+  b.stop()
+}
+
+
+// ---- the intake notices: what became of the theorems the account put forward, handed to the driver ----
+{
+  const NOTICE_A = "INTAKE NOTICES for this target. They come from the system that reviews the theorems you saved.\n[1] warn · No sign it is useful or general · lemma_one\n    What to do: Make it more general."
+  const HASH_A = "a1a1a1a1a1a1a1a1"
+  const NOTICE_B = "INTAKE NOTICES for this target.\n[1] error · Already in Tengoku · lemma_two\n    What to do: Use the existing theorem."
+  const HASH_B = "b2b2b2b2b2b2b2b2"
+  const waitFile = path.join(tmp, "notices-go")
+  const b = await startBridge({ FAKE_MODE: "giveup", FAKE_WAIT_FILE: waitFile })
+  await check("notices: the PostToolUse hook is in the agent's settings and the agent is given the notices file", async () => {
+    const r = await b.post("control-honoured", { memory: { entries: [] }, notices: { text: NOTICE_A, hash: HASH_A } })
+    let buf = ""
+    let runId = null
+    const dec = new TextDecoder()
+    const rest = []
+    for await (const chunk of r.body) {
+      buf += dec.decode(chunk, { stream: true })
+      let i
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const raw = buf.slice(0, i)
+        buf = buf.slice(i + 2)
+        const d = raw.split("\n").filter((l) => l.startsWith("data: ")).map((l) => l.slice(6)).join("")
+        if (!d) continue
+        let f
+        try { f = JSON.parse(d) } catch { continue }
+        rest.push(f)
+        if (f.type === "run" && !runId) {
+          runId = f.runId
+          // the first invocation is recorded and then waits: replace the notices as the page would, mid-attempt, then let it go
+          for (let k = 0; k < 100 && b.calls().length < 1; k++) await new Promise((r) => setTimeout(r, 100))
+          const bad = await fetch(`http://127.0.0.1:${b.port}/notices`, { method: "POST", headers: { "content-type": "application/json", "x-bridge-token": "test-token", origin: "http://localhost:3000" }, body: JSON.stringify({ runId, text: NOTICE_B, hash: "not-a-hash" }) })
+          assert.equal(bad.status, 400, "a text without a valid hash is refused")
+          const ok = await fetch(`http://127.0.0.1:${b.port}/notices`, { method: "POST", headers: { "content-type": "application/json", "x-bridge-token": "test-token", origin: "http://localhost:3000" }, body: JSON.stringify({ runId, text: NOTICE_B, hash: HASH_B }) })
+          assert.equal(ok.status, 200)
+          const missing = await fetch(`http://127.0.0.1:${b.port}/notices`, { method: "POST", headers: { "content-type": "application/json", "x-bridge-token": "test-token", origin: "http://localhost:3000" }, body: JSON.stringify({ runId: "nope", text: NOTICE_B, hash: HASH_B }) })
+          assert.equal(missing.status, 404, "a run that is not running")
+          fs.writeFileSync(waitFile, "go")
+        }
+      }
+    }
+    assert.ok(runId, "the run frame carried a run id")
+    const calls = b.calls()
+    assert.ok(calls.length >= 2, `the agent stopped at once, so it was spoken to again (${calls.length} invocation(s))`)
+    // 1. the first prompt carries the notices the run began with
+    assert.ok(calls[0].promptFull.includes("No sign it is useful or general"), "attempt 1 is given the notices")
+    assert.ok(!calls[0].promptFull.includes("Already in Tengoku"))
+    // 2. the reminder after it carries the newer ones, once, and not the old ones again
+    assert.ok(calls[1].promptFull.includes("Already in Tengoku"), "the reminder is given the notices that changed")
+    assert.ok(!calls[1].promptFull.includes("No sign it is useful"), "and not the ones it already has")
+    // 3. the hook is in the settings and the file is the run's own
+    const st = JSON.parse(calls[0].settings)
+    assert.match(st.hooks.PostToolUse[0].hooks[0].command, /notices\.mjs/)
+    assert.equal(st.hooks.PostToolUse[0].matcher, "*")
+    assert.ok(st.hooks.PreToolUse, "the local-Lean block is still there")
+    const file = calls[0].env.LEAK_AGENT_NOTICES
+    assert.ok(file && file.includes("notices-"), `the agent is given the notices file (${file})`)
+    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).hash, HASH_B, "the file holds the newest notices")
+    assert.equal(fs.readFileSync(file + ".seen", "utf8").trim(), HASH_B, "and the newest were marked as given")
+  })
+  await check("notices: the hook gives the agent new notices once, after a tool call, and nothing when there are none", async () => {
+    const dir = fs.readdirSync(tmp).filter((d) => d.startsWith("leak-hook-")).map((d) => path.join(tmp, d)).find((d) => fs.existsSync(path.join(d, "notices.mjs")))
+    assert.ok(dir, "the bridge wrote the hook")
+    const hook = path.join(dir, "notices.mjs")
+    const f = path.join(tmp, "hook-notices.json")
+    const run = (env) => new Promise((resolve) => {
+      const c = spawn(process.execPath, [hook], { env: { PATH: process.env.PATH, ...env }, stdio: ["pipe", "pipe", "pipe"] })
+      let out = ""
+      c.stdout.on("data", (d) => (out += d))
+      c.on("close", (code) => resolve({ code, out }))
+      c.stdin.end(JSON.stringify({ tool_name: "mcp__Leak_IV__verify_full_script" }))
+    })
+    fs.rmSync(f, { force: true })
+    fs.rmSync(f + ".seen", { force: true })
+    assert.deepEqual(await run({ LEAK_AGENT_NOTICES: f }), { code: 0, out: "" }, "no file: nothing, and no failure")
+    assert.deepEqual(await run({}), { code: 0, out: "" }, "no variable: nothing")
+    fs.writeFileSync(f, JSON.stringify({ hash: HASH_A, text: NOTICE_A }))
+    const first = await run({ LEAK_AGENT_NOTICES: f })
+    assert.equal(first.code, 0)
+    const j = JSON.parse(first.out)
+    assert.equal(j.hookSpecificOutput.hookEventName, "PostToolUse")
+    assert.ok(j.hookSpecificOutput.additionalContext.includes("No sign it is useful or general"))
+    assert.deepEqual(await run({ LEAK_AGENT_NOTICES: f }), { code: 0, out: "" }, "the same notices are not given twice")
+    fs.writeFileSync(f, JSON.stringify({ hash: HASH_B, text: NOTICE_B }))
+    assert.ok(JSON.parse((await run({ LEAK_AGENT_NOTICES: f })).out).hookSpecificOutput.additionalContext.includes("Already in Tengoku"), "new notices are")
+    fs.writeFileSync(f, "{ not json")
+    assert.deepEqual(await run({ LEAK_AGENT_NOTICES: f }), { code: 0, out: "" }, "a damaged file never fails a tool call")
+  })
+  b.stop()
+}
+{
+  const b = await startBridge({ FAKE_MODE: "giveup" })
+  await check("notices: given at the start of every attempt, and a run without them is unchanged", async () => {
+    const withN = await b.frames("control-honoured", { memory: { entries: [] }, notices: { text: "INTAKE NOTICES for this target.\n[1] warn · Something · lemma_x", hash: "c3c3c3c3c3c3c3c3" } })
+    assert.ok(withN.filter((f) => f.type === "prompt").some((f) => f.prompt.includes("INTAKE NOTICES for this target")), "the prompt shown in the console includes the notices")
+    const first = b.calls().length
+    const without = await b.frames("control-honoured", { memory: { entries: [] } })
+    const calls = b.calls().slice(first)
+    assert.ok(calls.length >= 1)
+    assert.ok(!calls[0].promptFull.includes("INTAKE NOTICES"), "no notices, nothing added to the prompt")
+    assert.ok(done(without), "the run went on as before")
+  })
+  await check("notices: oversized text is cut and control characters are removed", async () => {
+    const long = "x".repeat(20000) + "\u0000END"
+    const before = b.calls().length
+    await b.frames("control-honoured", { memory: { entries: [] }, notices: { text: long, hash: "d4d4d4d4d4d4d4d4" } })
+    const c = b.calls()[before]
+    const m = /x{50,}/.exec(c.promptFull)
+    assert.ok(m && m[0].length <= 6000, `the notices were cut to 6000 characters (${m && m[0].length})`)
+    assert.ok(!c.promptFull.includes("\u0000"))
+  })
   b.stop()
 }
 

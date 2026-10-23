@@ -18,6 +18,8 @@ export interface MemoryEntry {
   subsumes: string[];
   subsumedBy: string | null;
   hits: number;
+  // what the bridge says about the harness (build, run ticket, receipt): sent to the server with a save, never kept in the page or sent back to a run
+  harness?: unknown;
   // the star rating the sleep stage gave it (numbers and flags; see src/data/leak-quality)
   quality?: import('@/data/leak-quality').QualityEntry | null;
 }
@@ -63,7 +65,8 @@ export function packMemory(entries: MemoryEntry[], maxBytes = MEMORY_BYTES_PER_R
   for (const e of ranked) {
     const size = e.closure.length + e.statement.length + 400;
     if (used + size > maxBytes) continue;
-    out.push(e);
+    const { harness: _harness, ...clean } = e; // eslint-disable-line @typescript-eslint/no-unused-vars
+    out.push(clean);
     used += size;
   }
   return out;
@@ -76,7 +79,8 @@ export function applyMemoryFrame(entries: MemoryEntry[], frame: MemoryFrame): Me
     const e = frame.entry as unknown as MemoryEntry;
     if (!e?.id) return entries;
     const prior = entries.find((x) => x.id === e.id);
-    const next: MemoryEntry = { ...e, nominated: prior?.nominated ?? false };
+    const { harness: _harness, ...clean } = e; // eslint-disable-line @typescript-eslint/no-unused-vars
+    const next: MemoryEntry = { ...clean, nominated: prior?.nominated ?? false };
     return prior ? entries.map((x) => (x.id === e.id ? next : x)) : [next, ...entries];
   }
   if (frame.op === 'nominate') return entries.map((x) => (x.id === frame.id ? { ...x, nominated: frame.nominated } : x));
@@ -108,6 +112,21 @@ export const setMemoryNominated = (target: string, id: string, nominated: boolea
 // "Clear the library" for a target: everything but the nominated theorems is put away on the server (not deleted).
 export const archiveMemory = (target: string) =>
   call<{ archived: number }>(`/api/leak/memory?target=${encodeURIComponent(target)}&all=1`, { method: 'DELETE' });
+// Whether this account shares its kept theorems (rated `keepAt` stars or more) with Tengoku's memory intake, and how many it has kept for a target.
+export interface ShareState {
+  share: boolean;
+  /** whether the intake is open to this account (the owner lists the accounts on the host) */
+  allowed: boolean;
+  keepAt: number;
+  kept: number;
+  submitted: number;
+}
+export const loadShare = (target: string) => call<ShareState>(`/api/leak/memory/share?target=${encodeURIComponent(target)}`);
+export const saveShare = (share: boolean) => call<{ share: boolean }>('/api/leak/memory/share', { method: 'PUT', body: JSON.stringify({ share }) });
+
+// A ticket for the run that is about to start (the server signs it; the bridge carries it): see app/lib/leak-memory/harness.ts.
+export const requestRunTicket = (target: string) =>
+  call<{ ticket: string }>('/api/leak/memory/run-ticket', { method: 'POST', body: JSON.stringify({ target }) });
 
 export const deleteMemoryEntry = (target: string, id: string) =>
   call<{ deleted: boolean }>(`/api/leak/memory?target=${encodeURIComponent(target)}&id=${encodeURIComponent(id)}`, { method: 'DELETE' });

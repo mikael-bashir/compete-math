@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MEMORY_BYTES_PER_RUN, isWoundedEntry, packMemory, type MemoryEntry } from '../../src/lib/prover/memory-client';
+import { MEMORY_BYTES_PER_RUN, applyMemoryFrame, isWoundedEntry, packMemory, type MemoryEntry } from '../../src/lib/prover/memory-client';
+import type { MemoryFrame } from '../../src/lib/prover/run-prover-stream';
 
 // What the page sends with a run: the library's best, within what the bridge reads (2 MB). Rated-low and merged theorems are put away; the
 // rest go best rated first, general lemmas a little ahead.
@@ -56,4 +57,16 @@ test('the budget is respected and stays under what the bridge reads; the best go
   assert.ok(packed.length > 0 && packed.length < 50);
   assert.ok(packed.reduce((n, x) => n + x.closure.length + x.statement.length + 400, 0) <= 10_000);
   assert.ok(packed.every((x) => (x.quality?.s ?? 0) === 5), 'five-star first');
+});
+
+test('what the bridge says about its harness goes to the server with a save and is never kept in the page or sent back to a run', () => {
+  const claim = { ticket: 'v1.a.b', build: { id: 'x', text: 'y' }, receipt: { seconds: 1 } };
+  const frame = { type: 'memory', op: 'save', entry: { ...e(1), harness: claim } } as unknown as MemoryFrame;
+  assert.deepEqual((frame as unknown as { entry: { harness: unknown } }).entry.harness, claim, 'the frame has it: the page saves it from there');
+  const held = applyMemoryFrame([], frame);
+  assert.ok(!('harness' in held[0]), 'the page does not keep it');
+  const updated = applyMemoryFrame(held, { type: 'memory', op: 'update', entry: { ...e(1), harness: claim, hits: 3 } } as unknown as MemoryFrame);
+  assert.ok(!('harness' in updated[0]) && updated[0].hits === 3);
+  const packed = packMemory([{ ...e(2), harness: claim } as MemoryEntry]);
+  assert.ok(!('harness' in packed[0]), 'and a run is not sent it back (it would not fit the 2 MB the bridge reads)');
 });
