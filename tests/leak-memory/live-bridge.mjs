@@ -9,8 +9,8 @@ import os from "node:os"
 import fs from "node:fs"
 import assert from "node:assert/strict"
 import { startFakeLeak } from "./fake-leak.mjs"
-import { Memory } from "../../public/leak-memory.mjs"
-import { OLD, SLEEP_SCRIPT } from "./overnight-fixture.mjs"
+import { Memory, TEMPERAMENT_CARD } from "../../public/leak-memory.mjs"
+import { OLD, SLEEP_SCRIPT_STRICT } from "./overnight-fixture.mjs"
 import { deriveItem } from "../../tools/lrr-sync/core.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -525,6 +525,43 @@ const check = async (name, fn) => {
   })
 }
 
+// ---- what a reminder carries: the temperament card, the Leak I check-in, a question that rotates, the agent's own mid-stretch note ----
+{
+  const remindOnce = async (b, extra, want) => {
+    const ctl = new AbortController()
+    const p = b.post("control-honoured", { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 2, ...extra }, { signal: ctl.signal }).then((r) => r.text()).catch(() => "")
+    for (let i = 0; i < 100 && b.calls().length < want; i++) await new Promise((r) => setTimeout(r, 100))
+    ctl.abort()
+    await p
+    assert.ok(b.calls().length >= want, `only ${b.calls().length} CLI calls`)
+    return b.calls()
+  }
+  {
+    const b = await startBridge({ FAKE_MODE: "stubborn", FAKE_MIDNOTE: "1" })
+    await check("every reminder carries the temperament card and the Leak I check-in with the run's own count; the question changes each time though the library does not; a note written mid-stretch is handed back", async () => {
+      const calls = await remindOnce(b, {}, 6)
+      for (const i of [1, 2, 3, 4, 5]) {
+        assert.ok(calls[i].promptFull.includes(TEMPERAMENT_CARD), `reminder ${i} lacks the card`)
+        assert.match(calls[i].promptFull, /Leak I check-in: no searches so far this run\./, `reminder ${i}: nobody searched`)
+        assert.match(calls[i].promptFull, /(Your NEXT was: |\nNEXT: )the mid-stretch next\./, `reminder ${i}: the note written before the last message of the stretch`)
+      }
+      const asked = calls.slice(1, 6).map((c) => (/let the compiler answer what it can: ([^\n]+?) Put what you find in Lean/.exec(c.promptFull) || /in case it is useful: ([^\n]+)/.exec(c.promptFull))[1])
+      assert.equal(new Set(asked).size, 5, "five reminders, five different questions: " + JSON.stringify(asked))
+      assert.doesNotMatch(calls[1].promptFull, /GUIDE|LINE OF ATTACK/, "a target without a guide carries none")
+    })
+    b.stop()
+  }
+  {
+    const b = await startBridge({ FAKE_MODE: "stubborn", FAKE_SEARCHES: "3" })
+    await check("an agent that has just searched Leak I is not told about it", async () => {
+      const calls = await remindOnce(b, {}, 3)
+      assert.doesNotMatch(calls[1].promptFull, /Leak I check-in/)
+      assert.ok(calls[1].promptFull.includes(TEMPERAMENT_CARD))
+    })
+    b.stop()
+  }
+}
+
 // ---- the agent stops early ----
 {
   const b = await startBridge({ FAKE_MODE: "giveup" })
@@ -714,11 +751,12 @@ const GUIDE_SEED = "theorem guide_seed_lemma : 2 + 2 = 4 := by\n  norm_num"
   const m = new Memory({})
   const olds = OLD.flatMap((s) => m.addScript(s, { attempt: 1 }))
   const ids = olds.map((e) => e.id.slice(0, 8))
-  const json = JSON.stringify([{ name: "factorization_centralBinom_eq_card", script: SLEEP_SCRIPT, subsumes: ids, why: "one counting identity" }])
+  const json = JSON.stringify([{ name: "factorization_centralBinom_eq_card", script: SLEEP_SCRIPT_STRICT, subsumes: ids, why: "one counting identity" }])
   const b = await startBridge({ FAKE_MODE: "ok", FAKE_SLEEP_JSON: json, FAKE_LIST: "1" })
   await check("sleep: each merged entry is updated once, the new lemmas are saved once each, and the merged entries leave the list", async () => {
     const f = await b.frames("control-lucid", { memory: { entries: olds.map((e) => ({ ...e })) }, sleepEveryMs: 0, sleepMinNew: 1 })
-    assert.ok(texts(f).some((t) => /Sleep done: 4 abstract/.test(t)), texts(f).join(" | "))
+    assert.ok(texts(f).some((t) => /Dream: 1 group\(s\) studied, 1 general lemma\(s\) added/.test(t)), texts(f).join(" | "))
+    assert.ok(texts(f).some((t) => /Dream done in \d+ min: rated 1, merged 4 theorem\(s\) into 1 general lemma\(s\), put away 0 rated one or two stars\. The agent now sees 1 of 5 \(4 merged, 0 rated low\)/.test(t)), texts(f).join(" | "))
     const fullIds = olds.map((e) => e.id)
     for (const id of fullIds) {
       const n = f.filter((x) => x.type === "memory" && x.op === "update" && x.entry?.id === id).length
@@ -726,7 +764,8 @@ const GUIDE_SEED = "theorem guide_seed_lemma : 2 + 2 = 4 := by\n  norm_num"
       assert.ok(f.find((x) => x.op === "update" && x.entry?.id === id).entry.subsumedBy, "and it says what replaced it")
     }
     const saves = f.filter((x) => x.type === "memory" && x.op === "save" && x.entry?.origin === "abstracted")
-    assert.equal(saves.length, 4)
+    assert.equal(saves.length, 1, "the general lemma is saved once, and its corollaries are not saved at all")
+    assert.ok(!f.some((x) => x.type === "memory" && x.op === "save" && /_cor\b/.test(x.entry?.name || "")))
     // the agent that runs after the sleep sees the merged entries hidden from memory_list, and the abstract lemmas in their place
     assert.ok(b.calls().some((c) => /consolidation \("sleep"\) stage/.test(c.prompt)))
     const listing = f.filter((x) => x.subtype === "tool_result" && /verified theorem\(s\) saved \(showing/.test(x.output || "")).pop()?.output || ""
@@ -776,6 +815,38 @@ const GUIDE_SEED = "theorem guide_seed_lemma : 2 + 2 = 4 := by\n  norm_num"
     assert.ok(!texts(f).some((t) => /Rating \d+ saved/.test(t)))
   })
   b.stop()
+
+  // what rates one or two stars is put away: the agent that runs after the dream does not see it, and the dream says so
+  const bLow = await startBridge({ FAKE_MODE: "ok", FAKE_SLEEP_JSON: "[]", FAKE_LIST: "1", FAKE_READING: JSON.stringify({ depth: 1, generality: 1, role: 0 }) })
+  await check("the dream puts away the theorems it rates one or two stars: the agent no longer sees them, and the run says how many", async () => {
+    const f = await bLow.frames("control-lucid", { memory: { entries: real.map((e) => ({ ...e })) }, sleepEveryMs: 0, sleepMinNew: 1 })
+    for (const e of real) assert.equal(quality(f, e.id)[0].s, 1, `${e.name} is rated one star`)
+    assert.ok(texts(f).some((t) => /Dream done in \d+ min: rated 4, merged 0 theorem\(s\) into 0 general lemma\(s\), put away 4 rated one or two stars\. The agent now sees 0 of 4 \(0 merged, 4 rated low\)/.test(t)), texts(f).join(" | "))
+    const listing = f.filter((x) => x.subtype === "tool_result" && /Memory is empty|verified theorem\(s\) saved/.test(x.output || "")).pop()?.output || ""
+    assert.match(listing, /Memory is empty/, "nothing is left to list")
+    assert.ok(!f.some((x) => x.type === "memory" && x.op === "save" && x.entry?.origin === "abstracted"), "and nothing was merged")
+  })
+  bLow.stop()
+
+  // a numeric fact is rated at once, with no reading and no question to the verifier; the rest still wait for their reading
+  const bMech = await startBridge({ FAKE_MODE: "ok", FAKE_SLEEP_JSON: "[]" })
+  await check("a numeric fact is rated two stars at once, without being read; the others are read as before", async () => {
+    const mm = new Memory({})
+    const ground = mm.addScript("theorem ground_two_plus_two : 2 + 2 = 4 := by\n  norm_num", { attempt: 1, keepTrivial: true })
+    const f = await bMech.frames("control-lucid", { memory: { entries: [...ground, ...real].map((e) => ({ ...e })) }, sleepEveryMs: 0, sleepMinNew: 1 })
+    assert.ok(texts(f).some((t) => /1 numeric fact\(s\) and repeat\(s\) rated at once, without a reading/.test(t)), texts(f).join(" | "))
+    const q = quality(f, ground[0].id)
+    assert.equal(q.length, 1, "rated once")
+    assert.equal(q[0].s, 2)
+    assert.equal(q[0].n, 1, "and the rating says why: a numeric fact")
+    assert.ok(!q[0].c && !q[0].l && q[0].d === undefined, "no probe and no reading stands behind it")
+    const readings = bMech.calls().filter((c) => /You are reviewing theorems that an automated prover banked/.test(c.promptFull))
+    assert.ok(readings.length > 0)
+    assert.ok(readings.every((c) => !c.promptFull.includes(ground[0].id)), "it was never put to a reader")
+    assert.ok(readings.some((c) => c.promptFull.includes(real[0].id)), "the others were")
+    for (const e of real) assert.equal(quality(f, e.id).length, 1)
+  })
+  bMech.stop()
 
   // the tactic test is checked before it is trusted
   const leak2 = await startFakeLeak({ brokenBattery: true })

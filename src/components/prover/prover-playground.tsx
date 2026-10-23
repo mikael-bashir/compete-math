@@ -27,6 +27,7 @@ import { backfillQuality } from '@/lib/prover/entry-quality';
 import {
   MEMORY_VARIANTS,
   applyMemoryFrame,
+  archiveMemory,
   deleteMemoryEntry,
   isMemoryStrategy,
   loadMemory,
@@ -100,6 +101,7 @@ export function ProverPlayground() {
   const pendingSave = useRef<Map<string, MemoryEntry>>(new Map());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warnedSave = useRef(false);
+  const warnedFull = useRef(false);
   const memoryRef = useRef<MemoryEntry[]>([]);
   memoryRef.current = memory;
 
@@ -141,6 +143,11 @@ export function ProverPlayground() {
     if (!r.ok && !warnedSave.current) {
       warnedSave.current = true;
       toast.error(`Could not save to your memory (${r.error}). Entries stay in this tab until you reload.`);
+    }
+    // a library with nothing left that can be put away refuses new theorems: say so, once, instead of losing them without a word
+    if (r.ok && r.data.skipped > 0 && !warnedFull.current) {
+      warnedFull.current = true;
+      toast.warning(`Your library for this target is full: ${r.data.skipped} verified theorem(s) were not saved. The next sleep rates and merges the library to make room, or clear it from Saved theorems.`);
     }
     if (pendingSave.current.size) saveTimer.current = setTimeout(() => void flushSaves(), 1500);
   }, [targetId, signedIn]);
@@ -189,6 +196,19 @@ export function ProverPlayground() {
     },
     [targetId, signedIn],
   );
+
+  // Clear the library for this target. Nothing is deleted on the server (see archiveMemory); the nominated theorems stay.
+  const clearLibrary = useCallback(async () => {
+    if (!targetId) return;
+    if (signedIn) {
+      const r = await archiveMemory(targetId);
+      if (!r.ok) {
+        toast.error(`Could not clear the library (${r.error}).`);
+        return;
+      }
+    }
+    setMemory((m) => m.filter((e) => e.nominated));
+  }, [targetId, signedIn]);
 
   // Refinement-iteration budget for Leak River runs (+1 per click).
   const [maxIters, setMaxIters] = useState(ARCHITECT_DEFAULT_ITERS);
@@ -517,6 +537,7 @@ export function ProverPlayground() {
             minNominated={memoryLimits.minNominatedForAudit}
             onNominate={nominate}
             onDelete={removeEntry}
+            onClear={clearLibrary}
           />
         )}
         {/* The refinement-budget control lives on the console below, alongside the

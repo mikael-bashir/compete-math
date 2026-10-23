@@ -43,14 +43,21 @@ export const MEMORY_VARIANTS: MemoryVariant[] = [
 
 export const isMemoryStrategy = (s: string) => MEMORY_VARIANTS.some((v) => v.key === s);
 
-// The bridge reads a 2 MB body; the rest of the request is small, so entries get at most this much. Nominated and most
-// used theorems go first, then the newest.
-export const MEMORY_BYTES_PER_RUN = 1_200_000;
+// The bridge reads a 2 MB body; the rest of the request is small, so entries get at most this much (it was 1.2 MB, about 500 entries: a
+// library that outgrew it lost its newest theorems from every run). Nominated theorems go first, then general lemmas and the best rated, then
+// the most used, then the newest.
+export const MEMORY_BYTES_PER_RUN = 1_600_000;
+
+// What the sleep stage rated at most this many stars is put away: not sent to runs (the bridge hides it from the agent anyway).
+export const WOUNDED_AT = 2;
+export const isWoundedEntry = (e: MemoryEntry): boolean =>
+  !!e.quality && e.quality.s <= WOUNDED_AT && !e.nominated && !e.isTarget && !(e.origin === 'abstracted' && (e.subsumes?.length ?? 0) > 0);
 
 export function packMemory(entries: MemoryEntry[], maxBytes = MEMORY_BYTES_PER_RUN): MemoryEntry[] {
+  const worth = (e: MemoryEntry) => (e.quality ? e.quality.s : 2.5) + (e.origin === 'abstracted' ? 1 : 0);
   const ranked = [...entries]
-    .filter((e) => !e.subsumedBy || e.nominated) // merged into a more general lemma: hidden, unless the account nominated it
-    .sort((a, b) => Number(b.nominated) - Number(a.nominated) || b.hits - a.hits || Date.parse(b.savedAt) - Date.parse(a.savedAt));
+    .filter((e) => e.nominated || (!e.subsumedBy && !isWoundedEntry(e))) // merged into a general lemma, or rated one or two stars: put away, unless nominated
+    .sort((a, b) => Number(b.nominated) - Number(a.nominated) || worth(b) - worth(a) || b.hits - a.hits || Date.parse(b.savedAt) - Date.parse(a.savedAt));
   const out: MemoryEntry[] = [];
   let used = 0;
   for (const e of ranked) {
@@ -97,6 +104,10 @@ export const saveMemoryEntries = (target: string, entries: MemoryEntry[]) =>
 
 export const setMemoryNominated = (target: string, id: string, nominated: boolean) =>
   call<{ ok: boolean; reason?: string; nominated: number }>('/api/leak/memory', { method: 'PATCH', body: JSON.stringify({ target, id, nominated }) });
+
+// "Clear the library" for a target: everything but the nominated theorems is put away on the server (not deleted).
+export const archiveMemory = (target: string) =>
+  call<{ archived: number }>(`/api/leak/memory?target=${encodeURIComponent(target)}&all=1`, { method: 'DELETE' });
 
 export const deleteMemoryEntry = (target: string, id: string) =>
   call<{ deleted: boolean }>(`/api/leak/memory?target=${encodeURIComponent(target)}&id=${encodeURIComponent(id)}`, { method: 'DELETE' });

@@ -19,7 +19,17 @@ import { createHash } from "node:crypto"
 
 export const MAX_NOMINATED = 10 // what may go to Jinshi: three to ten, nominated by the author or the driver
 export const MIN_NOMINATED = 3
-export const MAX_ENTRIES = 600
+// How many theorems a run's library holds. It was 600, and a library that reaches the cap stops growing without a word: a 1h20 run
+// on 2026-10-22 verified about 190 theorems and saved none of them. Now the cap is higher, a full library makes room by putting away
+// what the sleep stage has merged or rated low (see `expendable`), and a theorem that still cannot be kept is said out loud.
+export const MAX_ENTRIES = 1500
+// A rated theorem with this many stars or fewer is "wounded": true, but it adds little (an instance, a one-line tactic, a restatement of a
+// library lemma). The sleep stage rates the library; wounded entries are hidden from the agent and put away first when room is needed.
+export const WOUNDED_AT = 2
+// An entry the agent no longer sees: merged into a more general lemma, or wounded. Nominated entries, the target itself, the project's
+// seeds, and a general lemma that stands in for others are never either.
+export const isWounded = (e) =>
+  !!e?.quality && Number(e.quality.s) <= WOUNDED_AT && !e.nominated && !e.isTarget && e.origin !== "seed" && !(e.origin === "abstracted" && (e.subsumes || []).length)
 
 // ---- variants -------------------------------------------------------------------------------------------------
 // `key` is the strategy name the page sends. Everything else is configuration read by the bridge.
@@ -74,7 +84,7 @@ export const baseVariant = (name) => String(name).replace(/-iv$/, "")
 // never called open, hard or unsolved, because the harness does not know that and the agent does not need it.
 const TOOL_GUIDE = ({ pantograph = false, memoryTools = true } = {}) =>
   `THE INSTRUMENTS, AND HOW STRONG THEY ARE. Tengoku is a large, self-contained and ever-growing tree of formally verified Lean 4 mathematics: definitions, whole theories, and theorems. Leak is the set of services built over it, and together they are an engine for building proofs from the ground up:
-- Leak I (loogle_search, moogle_search) searches all of Tengoku. loogle takes a type pattern or a list of constants and returns every declaration of that shape; moogle takes a concept in words and returns the declarations about it. Before you prove anything, ask Leak I whether it already exists and what its neighbours say. Whatever it returns is already proved: it is free, and you build on it instead of re-proving it.
+- Leak I (loogle_search, moogle_search) searches all of Tengoku, and it is your highest-leverage instrument: it costs almost nothing, and one precise search can hand you the lemma that closes an important goal. loogle takes a type pattern or a list of constants and returns every declaration of that shape; moogle takes a concept in words and returns the declarations about it. Before you prove anything, ask Leak I whether it already exists and what its neighbours say. Whatever it returns is already proved: it is free, and you build on it instead of re-proving it.
 - Leak IV (verify_full_script) is the compiler and the judge. It compiles your whole script against the entire Tengoku tree and returns either the exact diagnostics or "100% verified". It is fast and exact, so use it constantly: on a whole proof, on one lemma, on an \`example\` that tries \`exact?\`, \`apply?\`, \`simp?\`, \`decide\` or \`omega\`, on a \`#check\` or \`#print\`. Ask Lean itself, rather than reasoning in the dark. Every theorem it verifies is a permanent brick.${pantograph ? "\n- Leak II (init_proof, apply_tactic, get_current_proof_state, snapshot_state, branch_tactics) is a live proof state. Open a goal, apply one tactic at a time and read the real goals after each, snapshot a state and try several tactics on branches from it, and clean up when done. It shows you what a stuck goal actually looks like instead of leaving you to guess." : ""}${memoryTools ? "\n- The memory (memory_recall, memory_list, memory_nominate) is your own library on this target: every theorem Leak IV has verified for you, across sessions and runs, compile-ready. Recall before you re-derive, build on it, generalise it." : ""}
 Used together: search to find what exists, verify to add what does not, ${pantograph ? "step to understand what is stuck, " : ""}${memoryTools ? "remember to build on it. " : ""}A body of mathematics is built by this loop, brick by brick, and not by waiting on a computation.`
 
@@ -82,23 +92,40 @@ const NO_BRUTE_FORCE = `OUR INSTRUMENT IS PROOF, NOT SEARCH. Do not run brute-fo
 
 const HONESTY = `HONESTY. No sorry, no new axioms, and no change to the statement as given. Nothing is proved until verify_full_script says so, and nothing you write needs to pretend otherwise: a lemma is a lemma, a conjecture is a conjecture, and both are welcome here.`
 
-// Questions a mathematician asks when the direct road is not visible. One is offered at each resume, in turn, so that stretches of the
-// same session look in different directions.
+// Questions a mathematician asks when the direct road is not visible: about what lasts (reuse, generality, quality), about looking at small
+// cases without computing at length, about changing the angle. One is offered at each reminder, in turn, so that stretches of the same
+// session look in different directions. They are deliberately not about any one target.
 export const CURIOSITY_PROMPTS = [
-  "What is the simplest case you do not yet understand, and what exactly do you not understand about it?",
-  "What does the proof for one parameter use that the proof for the next parameter cannot? Name the step.",
-  "What would a counterexample have to look like? Write down its properties as a lemma and see which of them the compiler refutes.",
-  "What is the strongest statement you can prove today, with the library as it is? Prove that, then ask what stops it from being stronger.",
-  "Which objects are really in play here (valuations, digits, carries, residues, densities, growth rates)? What is their algebra, and is it in the library?",
-  "Is there a quantity that is monotone, or bounded, or invariant along the structure of the problem? Prove that it is.",
-  "Restate the problem in another language: as a statement about digit expansions, about a product, about a sum, about a set and its density. Which restatement is a theorem you can verify?",
-  "What is a natural generalisation that is actually easier, because it has more structure to use? State it and try it.",
+  "Which one lemma, if you had it today, would make the most later proofs shorter? Prove that one before anything else.",
+  "Take the last two things you verified. What single statement contains both? State it with the fewest hypotheses it can carry, and try it.",
+  "What is the smallest instance of what you are stuck on? Look at its first few cases by hand, or with a check that takes seconds, say the pattern out loud, then state the pattern and prove it.",
+  "If this were true for a completely different reason than the one you have been chasing, what could that reason be? Restate the question in another language (digits, a sum, a set and its density, a graph, a polynomial) and see which restatement is a theorem you can verify.",
+  "Choose the lemma in the library you are least proud of. Would you hand it to a stranger? Tighten it: fewer hypotheses, a name that says what it says, one line saying why anyone would want it.",
+  "Describe the next thing you need as a type pattern (for loogle) or in words (for moogle) and ask Leak I. It costs almost nothing, and one precise search can hand you the lemma that closes an important goal.",
+  "Try to break your own last claim. What would a counterexample have to look like? State its properties as a lemma and see which of them the compiler refutes. A refutation is a result.",
   "Take one lemma from the library and weaken its hypotheses until the proof breaks. The last hypothesis to go is the real content.",
-  "What does the problem look like for the smallest two parameters, side by side? Write the two proofs so that they share every step they can.",
-  "What is the obstruction, precisely? Which prime, which size, which carry? State the obstruction as a lemma about those objects.",
-  "Which classical technique does this resemble (Kummer, Legendre, Lucas, pigeonhole, extremal choice, an averaging argument)? Search the library for its formal shape and try to fit it.",
+  "What does the proof for one parameter use that the proof for the next parameter cannot? Name the step.",
+  "What is the strongest statement you can prove today, with the library as it is? Prove that, then ask what stops it from being stronger.",
+  "If your last three attempts failed in the same way, change altitude: one level more general, or one level more concrete. Which will it be, and what does the change make visible?",
+  "Which classical technique does this resemble (an extremal choice, an averaging argument, pigeonhole, an invariant, a bijection)? Search the library for its formal shape and try to fit it.",
+  "What did the last stretch teach that is not yet written down as a lemma? State it, even unproved, and decide whether it is a conjecture worth testing.",
+  "Is there a quantity that is monotone, or bounded, or invariant along the structure of the problem? Prove that it is.",
 ]
 export const curiosityPrompt = (i) => CURIOSITY_PROMPTS[((Number(i) || 0) % CURIOSITY_PROMPTS.length + CURIOSITY_PROMPTS.length) % CURIOSITY_PROMPTS.length]
+
+// What every reminder carries, in a few lines, so that the temperament of the opening survives the CLI compacting a long conversation (a
+// run showed it gone after about forty minutes). The numbers it names come from the run itself.
+export const TEMPERAMENT_CARD = `KEEP IN MIND, whatever you pick up next: think in months (the lemma later proofs will lean on is worth more than the one that finishes today's thought); make things general (parameters for constants, the hypotheses the proof uses and no more, a name that says what it says, a docstring for a stranger); let small cases teach (a few by hand, or a check that takes seconds, and never a computation you sit and wait for); a stretch should hold several claims, not one, so after a result the next claim is usually already in front of you; and the library is read and graded while you rest, so write for the reader.`
+
+// Leak I, said with the run's own numbers. Silent when it is being used.
+export function leakICheckin(stats) {
+  if (!stats) return ""
+  const { calls = 0, sinceMs = 0 } = stats
+  const min = Math.max(1, Math.round((sinceMs || 0) / 60000))
+  if (calls > 0 && min < 10) return ""
+  const used = calls === 0 ? "no searches so far this run" : `${calls} search${calls === 1 ? "" : "es"} so far, the last one ${min} minutes ago`
+  return `Leak I check-in: ${used}. It is nearly free, and before you build the next piece one targeted search (the shape of what you need for loogle, the idea in words for moogle) may hand it to you ready-made, or show you what its neighbours already say.`
+}
 
 // The agent's lab note: the last NOTE:/NEXT: pair in what it said. Handed back on resume so that the thread is its own.
 export function extractNote(text) {
@@ -283,16 +310,20 @@ An hour on foundations is never wasted. An hour re-running a search usually is.
 
 WHAT CURIOSITY LOOKS LIKE HERE. Ask questions out loud and answer them with the compiler. What is the simplest case I do not understand? What does the proof for one parameter use that the next cannot? What would a counterexample have to look like, and why does it fail to exist? What is the strongest thing I can prove today? Which objects are really in play (valuations, digits, carries, residues, densities) and what is their algebra? Conjecture freely, then test each conjecture by stating it in Lean and asking Leak IV; a refuted conjecture is as valuable as a proved one, and is recorded as a lemma about the counterexample. Generalise what you prove: a lemma with a free parameter where you had a number is worth ten instances. When something surprises you, say so, and chase it.
 
+THE TEMPERAMENT THAT SUITS A QUESTION THAT DOES NOT YIELD. Most hours on a deep question end without the answer; that is the weather, not a verdict, and what counts is what each hour leaves behind. So: think in months, and prefer the lemma later proofs will lean on to the one that merely finishes today's thought. Make things general: when a proof works for one number, ask what it really used, and state it for that, with parameters in place of constants and the hypotheses it needs and no more. Let small cases teach: look at the first few examples by hand, or with a check that takes seconds, say the pattern out loud, then state it and prove it; a check you have to wait for is computing, not understanding. Hold your own claims loosely and try to break the last thing you proved; a refuted conjecture, recorded, is a result. When three attempts fail in the same way, change altitude (one level more general, or one level more concrete) and say which. And keep the library as a craftsperson would: one idea per lemma, a short statement, a name that says what it says, a one-line docstring saying why anyone would want it. While you rest the library is read and graded for exactly this: instances, one-line-tactic facts and restatements of what is already there are put away, and general lemmas are what later work stands on.
+
+WHAT A GOOD STRETCH LOOKS LIKE, so you can recognise your own wins: a pattern you noticed and then proved; a conjecture sharpened until Lean could refute it; one lemma that replaces three; a search that found what you needed ready-made; a bridge to a setting where the question looks different; a dead end written down in one line so nobody walks into it again.
+
 ${NO_BRUTE_FORCE}
 
 ${TOOL_GUIDE({ pantograph, memoryTools })}
 
 PACE. Verify early and often: within your first few minutes, submit something to verify_full_script, even a small lemma or an \`example\` that asks \`exact?\`. A submission that fails teaches more than another stretch of thinking. After a few shell commands with nothing verified, go back to the compiler. And before you prove a lemma, ask Leak I whether the tree already has it or its neighbours (loogle for the shape, moogle for the idea): a mathematician reads before writing, and what the tree already knows is free.
 
-YOUR LAB NOTES. Work in stretches. When a stretch ends (you will pause naturally; that is fine and expected), close your message with two lines in exactly this form:
+YOUR LAB NOTES. Keep notes as you work, in exactly this form, whenever you have learned something worth keeping (after a verified result, a refutation, a change of plan):
 NOTE: <one or two sentences: what you now know or believe that you did not before>
 NEXT: <the one question or claim you will take up next>
-The run hands your own notes back to you when you resume, so the thread is never lost. There is no need to open a note by saying that the statement is not yet proved or refuted: we know, and nobody is asking; say what you learned and what you will do. A pause with a NEXT line is a mathematician closing the notebook for the evening. A pause that announces the problem cannot be done is not something we do here, because it is not something we know.
+Then carry on at once with NEXT: the notes are a log you keep while working, not a goodbye. A stretch should hold several claims, not one; after a lemma verifies, the next claim is usually already in front of you. If you do stop, the run resumes this same conversation and hands your last NOTE and NEXT back, so nothing is lost, but every pause costs a re-read of everything so far. There is no need to open a note by saying that the statement is not yet proved or refuted: we know, and nobody is asking; say what you learned and what you will do. A message that announces the problem cannot be done is not something we do here, because it is not something we know.
 
 ${HONESTY}`
   },
@@ -308,7 +339,7 @@ ${HONESTY}`
   systemRule: `OUR INSTRUMENT IS PROOF, NOT SEARCH (this overrides anything below that calls numeric experiments unrestricted). Do not run brute-force checks: no scanning a range of integers for a witness or a counterexample, no sieving or factoring over a growing bound, no enumerating cases for larger and larger parameters. No computation you start may run for more than 5 minutes, and if you expect one to, do not start it. A search like that has very likely been done, and it leaves nothing a proof can use. Your work here is understanding, recorded as verified Lean.
 
 NO NETWORK beyond the Leak servers, and nothing is installed: curl, wget, pip, npm, brew, git clone and the like are blocked before they run. Nothing written elsewhere about this problem is part of this run, and the question's reputation is not an input: it is simply yours.`,
-  continue({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", pantograph = false, note = null, guide = "", rng = Math.random } = {}) {
+  continue({ attempt = 2, elapsedMs = 0, libraryCount = 0, abstracted = [], toolIds = [], episodic = "", pantograph = false, note = null, guide = "", leakI = null, turn = null, rng = Math.random } = {}) {
     const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
     const lines = [`Welcome back. The last stretch ran ${min} minute${min === 1 ? "" : "s"}; the library holds ${libraryCount} verified theorem(s). This is the same session (attempt ${attempt}), so everything you worked out is still yours.`]
     if (note?.note || note?.next) lines.push(`Your last lab note:\nNOTE: ${note.note || "(none)"}\nNEXT: ${note.next || "(none)"}\n\nTake up NEXT.`)
@@ -317,15 +348,19 @@ NO NETWORK beyond the Leak servers, and nothing is installed: curl, wget, pip, n
       lines.push(`While you were away the library was consolidated: ${abstracted.length} more general lemma(s) were added (${abstracted.slice(0, 12).join(", ")}); memory_recall shows them marked (abstract lemma).`)
     if (toolIds.length) lines.push(`If a tool you used before is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}`)
     if (rng() < HOUSEKEEPING_CHANCE) lines.push(HOUSEKEEPING_LINE)
-    lines.push(`A question for this stretch, in case it is useful: ${curiosityPrompt(attempt)}${pantograph ? " (Leak II can show you the live goal if a step is unclear.)" : ""}`)
+    lines.push(`A question for this stretch, in case it is useful: ${curiosityPrompt(turn ?? attempt)}${pantograph ? " (Leak II can show you the live goal if a step is unclear.)" : ""}`)
+    const checkin = leakICheckin(leakI)
+    if (checkin) lines.push(checkin)
+    lines.push(TEMPERAMENT_CARD)
     if (guide) lines.push(guide)
-    lines.push("Verify something within your first few steps, and close the stretch, as always, with NOTE: and NEXT:.")
+    lines.push("Verify something within your first few steps, aim for several verified claims before you pause, and keep your NOTE: and NEXT: as you go.")
     return `${lines.join("\n\n")}\n${episodic || ""}`
   },
-  nudge({ elapsedMs, libraryCount = 0, nudge = 1, of = 2, pantograph = false, note = null, toolIds = [], guide = "" } = {}) {
+  nudge({ elapsedMs, libraryCount = 0, nudge = 1, of = 2, pantograph = false, note = null, toolIds = [], guide = "", leakI = null, turn = null } = {}) {
     const min = Math.max(1, Math.round((elapsedMs || 0) / 60000))
     const reload = toolIds.length ? ` (If a tool is not callable now, load it again with ONE ToolSearch call: select:${toolIds.join(",")}.)` : ""
-    return `That was a short stretch (${min} minute${min === 1 ? "" : "s"}, nothing new verified), and the library holds ${libraryCount} theorem(s).${note?.next ? ` Your NEXT was: ${note.next}` : ""} Before closing the notebook again, answer one question with the compiler: ${curiosityPrompt(nudge * 5 + libraryCount)} State it in Lean, verify_full_script it${pantograph ? " (or step it through Leak II first if the goal is unclear)" : ""}, and then write NOTE: and NEXT:.${reload} A verified lemma, or a verified counterexample, is a good place to pause; an announcement that the problem cannot be done is not, because it is not something we know.${guide ? `\n\n${guide}` : ""}`
+    const checkin = leakICheckin(leakI)
+    return `That was a short stretch (${min} minute${min === 1 ? "" : "s"}, nothing new verified), and the library holds ${libraryCount} theorem(s).${note?.next ? ` Your NEXT was: ${/[.?!]\s*$/.test(note.next) ? note.next.trim() : `${note.next.trim()}.`}` : ""} A stretch is worth more when it holds several claims, so before you pause again, take up this question and let the compiler answer what it can: ${curiosityPrompt(turn ?? nudge * 5 + libraryCount)} Put what you find in Lean and verify_full_script it${pantograph ? " (or step it through Leak II first if the goal is unclear)" : ""}, and keep going with whatever it shows, writing NOTE: and NEXT: as you go.${reload} A verified lemma, or a verified counterexample, is a milestone, not a stopping place; an announcement that the problem cannot be done is not something we do, because it is not something we know.\n\n${checkin ? `${checkin}\n\n` : ""}${TEMPERAMENT_CARD}${guide ? `\n\n${guide}` : ""}`
   },
 }
 
@@ -479,26 +514,59 @@ const STOP = new Set(["theorem", "lemma", "by", "the", "of", "and", "at", "fun",
 
 // ---- the memory -----------------------------------------------------------------------------------------------
 export class Memory {
-  constructor({ targetId = "", variant = "", emit = () => {}, now = () => Date.now() } = {}) {
+  constructor({ targetId = "", variant = "", emit = () => {}, now = () => Date.now(), maxEntries = MAX_ENTRIES } = {}) {
+    this.max = maxEntries
     this.targetId = targetId
     this.variant = variant
     this.emit = emit
     this.now = now
     this.entries = new Map() // id -> entry
-    this.stats = { saves: 0, updates: 0, recalls: 0, recallHits: 0, injected: 0, sleeps: 0, abstracted: 0, nudges: 0 }
+    this.stats = { saves: 0, updates: 0, recalls: 0, recallHits: 0, injected: 0, sleeps: 0, abstracted: 0, nudges: 0, dropped: 0, evicted: 0 }
   }
 
   get size() {
     return this.entries.size
   }
 
-  // What the driver is shown. An entry that a more general lemma replaced is hidden, unless the account nominated it.
+  // What the driver is shown. An entry that a more general lemma replaced is hidden, and so is a wounded one (rated at most WOUNDED_AT
+  // stars by the sleep stage), unless the account nominated it.
   visible(e) {
-    return !e.subsumedBy || !!e.nominated
+    return !!e.nominated || (!e.subsumedBy && !isWounded(e))
   }
 
   hiddenCount() {
     return [...this.entries.values()].filter((e) => !this.visible(e)).length
+  }
+
+  mergedCount() {
+    return [...this.entries.values()].filter((e) => !!e.subsumedBy && !e.nominated).length
+  }
+
+  woundedCount() {
+    return [...this.entries.values()].filter((e) => !e.subsumedBy && isWounded(e)).length
+  }
+
+  // Entries that can be put away to make room, worst first: merged into a general lemma (the general lemma holds what they said), then the
+  // lowest rated, then the least recalled, then the oldest. Never a nominated entry, the target, or a seed.
+  expendable() {
+    return [...this.entries.values()]
+      .filter((e) => !e.nominated && !e.isTarget && e.origin !== "seed" && (e.subsumedBy || isWounded(e)))
+      .sort(
+        (a, b) =>
+          Number(!!b.subsumedBy) - Number(!!a.subsumedBy) ||
+          (a.quality?.s ?? 3) - (b.quality?.s ?? 3) ||
+          (a.hits || 0) - (b.hits || 0) ||
+          String(a.savedAt || "").localeCompare(String(b.savedAt || "")),
+      )
+  }
+
+  // Make one place in a full library. False when everything left is something the run must keep.
+  makeRoom() {
+    const worst = this.expendable()[0]
+    if (!worst) return false
+    this.entries.delete(worst.id)
+    this.stats.evicted++
+    return true
   }
 
   // Entries from the browser: what this account has already saved for this target (and, if asked, the target's public seeds).
@@ -626,7 +694,13 @@ export class Memory {
         quality: prior?.quality || null, // the same statement with a shorter proof is the same theorem: keep its rating
       }
       if (prior && prior.closure.length <= closure.length) continue // keep the shorter proof
-      if (!prior && this.entries.size >= MAX_ENTRIES) continue
+      if (!prior && this.entries.size >= this.max && !this.makeRoom()) {
+        // full, and nothing in it can be put away: this theorem is not kept. Said out loud (the first time, then now and then), never silently.
+        this.stats.dropped++
+        if (this.stats.dropped === 1 || this.stats.dropped % 20 === 0)
+          this.emit({ type: "message-annotation", subtype: "error", thought: `⚠️ The library is full (${this.entries.size} theorems and none can be put away yet), so ${this.stats.dropped} verified theorem(s) were not kept. The next sleep rates and merges the library to make room.` })
+        continue
+      }
       this.entries.set(id, entry)
       out.push(entry)
       if (meta.silent) continue // the project's own seeds: in this run's library, but not saved to anyone's account
@@ -638,8 +712,18 @@ export class Memory {
   }
 
   // Generalised lemmas from the sleep stage. The bridge has already re-verified `script` with Leak IV.
+  // strict (what the bridge asks): a member is retired only when the verified script re-proves it from the general lemma (see
+  // splitCorollaries), the corollaries themselves are not saved as entries, and a script that retires fewer than two members adds nothing.
   addAbstract(script, subsumes = [], meta = {}) {
-    const added = this.addScript(script, { ...meta, origin: "abstracted", subsumes, minStatement: 12 })
+    let members = subsumes
+    if (meta.strict) {
+      const claimed = subsumes.map((id) => this.entries.get(id)).filter((e) => e && !e.nominated && !e.isTarget && e.origin !== "seed")
+      const split = splitCorollaries(script, claimed)
+      if (split.confirmed.length < MIN_RETIRED) return []
+      members = split.confirmed
+      script = split.general
+    }
+    const added = this.addScript(script, { ...meta, origin: "abstracted", subsumes: members, minStatement: 12 })
     this.stats.abstracted += added.length
     if (!added.length) return added
     // A script can hold several lemmas. Each merged entry is pointed at the new lemma that says the most like it, and told about it once.
@@ -650,7 +734,7 @@ export class Memory {
       for (const t of x) if (y.has(t)) n++
       return n / (x.size + y.size - n || 1)
     }
-    for (const id of new Set(subsumes)) {
+    for (const id of new Set(members)) {
       const old = this.entries.get(id)
       if (!old || added.some((e) => e.id === old.id)) continue
       const best = added.reduce((b, e) => (overlap(old.statement, e.statement) > overlap(old.statement, b.statement) ? e : b), added[0])
@@ -683,8 +767,8 @@ export class Memory {
     return null
   }
 
-  list({ limit = 30, nominatedOnly = false } = {}) {
-    const all = [...this.entries.values()].filter((e) => this.visible(e) && (!nominatedOnly || e.nominated))
+  list({ limit = 30, nominatedOnly = false, all: showAll = false } = {}) {
+    const all = [...this.entries.values()].filter((e) => (showAll || this.visible(e)) && (!nominatedOnly || e.nominated))
     return all.sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || ""))).slice(0, limit)
   }
 
@@ -694,9 +778,9 @@ export class Memory {
 
   // BM25 over name + statement tokens, with a bonus for symbols the query shares and a small one for entries that were
   // useful before. Subsumed entries rank below the abstract lemma that replaced them.
-  recall(query, { limit = 5, markHit = true } = {}) {
+  recall(query, { limit = 5, markHit = true, all = false } = {}) {
     const qt = [...new Set(tokens(query).filter((t) => !STOP.has(t)))]
-    const docs = [...this.entries.values()].filter((e) => this.visible(e)).map((e) => ({ e, t: tokens(`${e.name} ${e.statement}`).filter((x) => !STOP.has(x)) }))
+    const docs = [...this.entries.values()].filter((e) => all || this.visible(e)).map((e) => ({ e, t: tokens(`${e.name} ${e.statement}`).filter((x) => !STOP.has(x)) }))
     const N = docs.length || 1
     const avg = docs.reduce((a, d) => a + d.t.length, 0) / N || 1
     const df = new Map()
@@ -714,7 +798,11 @@ export class Memory {
       }
       if (s <= 0) continue
       if (d.e.subsumedBy) s *= 0.5
+      if (isWounded(d.e)) s *= 0.5
       s *= 1 + Math.min(0.3, 0.05 * (d.e.hits || 0))
+      // what the sleep stage found worth more is shown first: 0.85 at one star up to 1.15 at five, and a general lemma a little above its peers
+      if (d.e.quality) s *= 0.85 + 0.075 * (Number(d.e.quality.s) - 1)
+      if (d.e.origin === "abstracted") s *= 1.15
       scored.push({ e: d.e, s })
     }
     scored.sort((a, b) => b.s - a.s || String(b.e.savedAt || "").localeCompare(String(a.e.savedAt || "")))
@@ -761,10 +849,14 @@ export function renderRecall(entries, memory) {
 export function renderList(entries, memory) {
   if (!entries.length) return "Memory is empty for this target so far."
   const hidden = memory?.hiddenCount?.() ?? 0
+  const merged = memory?.mergedCount?.() ?? hidden
+  const wounded = memory?.woundedCount?.() ?? 0
+  const star = (e) => (e.quality ? ` ${"★".repeat(e.quality.s)}` : "")
   return (
     `${memory ? memory.size - hidden : entries.length} verified theorem(s) saved (showing ${entries.length}, newest first):\n` +
-    entries.map((e) => `- [${e.id.slice(0, 8)}] ${e.name}${e.origin === "abstracted" ? " (abstract lemma)" : ""}${e.nominated ? " *nominated*" : ""}: ${e.statement.slice(0, 220)}`).join("\n") +
-    (hidden ? `\n${hidden} more merged into the general lemmas above are hidden.` : "")
+    entries.map((e) => `- [${e.id.slice(0, 8)}] ${e.name}${e.origin === "abstracted" ? " (abstract lemma)" : ""}${e.nominated ? " *nominated*" : ""}${star(e)}: ${e.statement.slice(0, 220)}`).join("\n") +
+    (merged ? `\n${merged} more merged into the general lemmas above are hidden.` : "") +
+    (wounded ? `\n${wounded} more rated one or two stars (instances, one-line tactics, restatements of the library) are hidden too; memory_list with all=true shows them.` : "")
   )
 }
 
@@ -799,18 +891,22 @@ export function makeHandlers(memory, variantKey) {
   const all = {
     memory_recall: {
       description:
-        "Search the verified theorems saved on THIS target (by you earlier in this run, in earlier attempts, and in earlier runs). Give a goal, a statement, or a few key words (names, symbols, numbers). Returns compile-ready verified blocks, best match first. Use it when you think you may have proved something related before, and before you spend an hour re-deriving a lemma.",
+        "Search the verified theorems saved on THIS target (by you earlier in this run, in earlier attempts, and in earlier runs). Give a goal, a statement, or a few key words (names, symbols, numbers). Returns compile-ready verified blocks, best match first; theorems the sleep stage rated higher and general lemmas come first. Use it when you think you may have proved something related before, and before you spend an hour re-deriving a lemma.",
       inputSchema: {
         type: "object",
-        properties: { query: { type: "string", description: "a Lean statement, a goal, or key words" }, limit: { type: "number", description: "how many (default 5, at most 8)" } },
+        properties: {
+          query: { type: "string", description: "a Lean statement, a goal, or key words" },
+          limit: { type: "number", description: "how many (default 5, at most 8)" },
+          all: { type: "boolean", description: "also search the theorems put away as routine (rated one or two stars); default false" },
+        },
         required: ["query"],
       },
-      run: (args) => renderRecall(memory.recall(String(args?.query || ""), { limit: Math.min(8, Math.max(1, Number(args?.limit) || 5)) }), memory),
+      run: (args) => renderRecall(memory.recall(String(args?.query || ""), { limit: Math.min(8, Math.max(1, Number(args?.limit) || 5)), all: !!args?.all }), memory),
     },
     memory_list: {
-      description: "List the verified theorems saved on this target, newest first (names and statements only).",
-      inputSchema: { type: "object", properties: { limit: { type: "number" }, nominatedOnly: { type: "boolean" } } },
-      run: (args) => renderList(memory.list({ limit: Math.min(60, Math.max(1, Number(args?.limit) || 30)), nominatedOnly: !!args?.nominatedOnly }), memory),
+      description: "List the verified theorems saved on this target, newest first (names and statements only; a star count where the sleep stage has rated it). Theorems rated one or two stars are hidden unless all is true.",
+      inputSchema: { type: "object", properties: { limit: { type: "number" }, nominatedOnly: { type: "boolean" }, all: { type: "boolean" } } },
+      run: (args) => renderList(memory.list({ limit: Math.min(60, Math.max(1, Number(args?.limit) || 30)), nominatedOnly: !!args?.nominatedOnly, all: !!args?.all }), memory),
     },
     memory_nominate: {
       description: `Nominate saved theorems for review (at most ${MAX_NOMINATED}; three to ten are needed before anything can be submitted to Tengoku). Nominate the ones with real reuse value: general, minimal hypotheses, well named, not already in Mathlib. Pass names or ids; on=false removes a nomination.`,
@@ -855,6 +951,29 @@ export function memoryRules(variantKey, { envHint = "", pantograph } = {}) {
 }
 
 // ---- the sleep stage (Lucid) ----------------------------------------------------------------------------------
+// The dream has three jobs, in this order of importance: rate what has no rating (public/leak-quality.mjs), put away what rates one or two
+// stars (isWounded: hidden from the agent, first to go when the library needs room), and merge groups of related theorems into one general
+// lemma that re-proves each of them (`clusters`, `confirmedMembers`). It is as long as the library is big: eighteen minutes for a small one,
+// an hour from a thousand theorems, because a thousand theorems cannot be read and judged in eighteen minutes.
+export const DREAM = {
+  everyMs: 60 * 60_000, // an hour of work between dreams (counted from the end of the last one)
+  minMs: 18 * 60_000, // a small library: ten minutes of merging and eight of rating, as it always was
+  maxMs: 60 * 60_000, // a library of fullAt theorems or more
+  fullAt: 1000,
+  rateShare: 8 / 18, // the part of a dream given to rating
+  ratePerMin: 6, // theorems rated per minute of rating time, at most
+}
+
+// How long this dream may last and how it is divided. `first`: the dream a run opens with is no longer than a small library's, because the
+// agent has not begun and is waiting.
+export function dreamBudget(size, { first = false } = {}) {
+  const n = Math.max(0, Number(size) || 0)
+  let totalMs = Math.round(Math.min(DREAM.maxMs, Math.max(DREAM.minMs, (DREAM.maxMs * n) / DREAM.fullAt)))
+  if (first) totalMs = Math.min(totalMs, DREAM.minMs)
+  const rateMs = Math.round(totalMs * DREAM.rateShare)
+  return { totalMs, rateMs, consolidateMs: totalMs - rateMs, rateMax: Math.max(24, Math.floor((rateMs / 60_000) * DREAM.ratePerMin)) }
+}
+
 // theorems saved since the last sleep that a consolidation could work on (what the sleep prompt is about)
 export function freshCount(memory, state) {
   return [...memory.entries.values()].filter((e) => !e.subsumedBy && e.origin !== "abstracted" && (e.savedAt || "") > (state.lastSleepIso || "")).length
@@ -868,33 +987,86 @@ export function sleepDue(memory, state, cfg, now = Date.now()) {
   return (fresh >= cfg.minNew || waiting >= cfg.minNew) && now - (state.lastSleepAt || 0) >= cfg.everyMs
 }
 
-export function sleepPrompt(memory, target, { maxEntries = 40, maxChars = 14000 } = {}) {
-  const items = [...memory.entries.values()].filter((e) => !e.subsumedBy).slice(0, maxEntries)
+// Groups of related theorems for the dream to merge: the visible, non-seed entries, grouped by how much of their names and statements they
+// share, where a word that is in everything (ℕ, hn, ≤) counts for little and one that is in a few counts for a lot (tf-idf, cosine). Biggest
+// and tightest groups first. `skip` holds the keys of groups already studied in this run (the same members would give the same answer).
+const clusterTokens = (e) => new Set(tokens(`${e.name} ${e.statement}`).filter((t) => !STOP.has(t) && !t.startsWith("#") && !/^\d+$/.test(t)))
+export function dreamClusters(memory, { maxMembers = 12, maxChars = 16000, minSimilarity = 0.4, skip = new Set() } = {}) {
+  const pool = [...memory.entries.values()]
+    .filter((e) => !e.subsumedBy && !isWounded(e) && e.origin !== "seed" && !e.isTarget && !e.nominated)
+    .sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || "")) || a.id.localeCompare(b.id))
+  const toks = pool.map((e) => [...clusterTokens(e)])
+  const df = new Map()
+  for (const ts of toks) for (const t of ts) df.set(t, (df.get(t) || 0) + 1)
+  const weight = (t) => Math.log(1 + pool.length / df.get(t)) ** 2 // squared: what a shared word adds to a dot product
+  const norm = toks.map((ts) => Math.sqrt(ts.reduce((a, t) => a + weight(t), 0)) || 1)
+  const posting = new Map()
+  toks.forEach((ts, i) => ts.forEach((t) => (posting.get(t) || posting.set(t, []).get(t)).push(i)))
+  const left = new Set(pool.keys())
+  const out = []
+  for (let i = 0; i < pool.length; i++) {
+    if (!left.has(i)) continue
+    const dot = new Map()
+    for (const t of toks[i]) {
+      const w = weight(t)
+      for (const j of posting.get(t)) if (j !== i && left.has(j)) dot.set(j, (dot.get(j) || 0) + w)
+    }
+    const near = [...dot.entries()]
+      .map(([j, d]) => ({ j, sim: d / (norm[i] * norm[j]) }))
+      .filter((x) => x.sim >= minSimilarity)
+      .sort((a, b) => b.sim - a.sim || pool[a.j].id.localeCompare(pool[b.j].id))
+    const members = []
+    let used = 0
+    for (const m of [{ j: i, sim: 1 }, ...near.slice(0, maxMembers - 1)]) {
+      const e = pool[m.j]
+      const c = Math.min(e.closure.length, 1400) + 40
+      if (members.length >= 2 && used + c > maxChars) break
+      used += c
+      members.push({ i: m.j, e, sim: m.sim })
+    }
+    left.delete(i)
+    if (members.length < 2) continue
+    for (const m of members) left.delete(m.i)
+    const ids = members.map((m) => m.e.id)
+    const key = sha1([...ids].sort().join(","))
+    if (skip.has(key)) continue
+    const tail = members.slice(1)
+    out.push({ key, members: members.map((m) => m.e), score: members.length * (tail.reduce((a, m) => a + m.sim, 0) / tail.length) })
+  }
+  return out.sort((a, b) => b.score - a.score || a.key.localeCompare(b.key))
+}
+
+// The prompt for one group. `members` is a list of entries, or a whole Memory (the first group, or the newest entries when nothing groups).
+export function sleepPrompt(from, target, { maxEntries = 40, maxChars = 14000 } = {}) {
+  const members = Array.isArray(from)
+    ? from
+    : (dreamClusters(from, { maxChars })[0]?.members ?? [...from.entries.values()].filter((e) => !e.subsumedBy).slice(0, maxEntries))
   let used = 0
   const shown = []
-  for (const e of items) {
+  for (const e of members) {
     const t = `### [${e.id.slice(0, 8)}] ${e.name}\n${e.closure.slice(0, 1400)}`
     if (used + t.length > maxChars) break
     used += t.length
     shown.push(t)
   }
-  return `You are the consolidation ("sleep") stage of a long theorem-proving run. You are NOT proving the target. The run has verified the theorems below; they are all correct Lean 4 + Mathlib. Your job is to make this library more reusable.
+  return `You are the consolidation ("sleep") stage of a long theorem-proving run. You are NOT proving the target. The theorems below were verified by the run (all correct Lean 4 + Mathlib) and look related. Your job is to make the library smaller and better: one general lemma in place of several.
 
 TARGET (for context only):
 ${target}
 
-THE LIBRARY:
+THESE THEOREMS BELONG TOGETHER (${shown.length}):
 ${shown.join("\n\n")}
 
 DO THIS:
-1. Group the theorems that are variants of one idea (same shape with different constants or hypotheses, a chain of special cases, near-duplicates).
-2. For each group worth it, write ONE more general lemma that implies the members (parametrise constants, weaken hypotheses to what the proof really uses, state it at the natural generality), and prove it. Prefer a lemma whose statement is short and whose hypotheses are minimal. Do not invent facts that are not supported by the library.
-3. Check every candidate with verify_full_script (your only tool). A candidate that does not compile with no error, no warning and no sorry is discarded. The system re-verifies everything you return.
-4. Ignore trivial restatements and anything already in Mathlib.
+1. Say in one sentence what idea they share. If they are really unrelated, or none of them is worth generalising, return [].
+2. Write ONE general lemma that holds that idea at its natural generality: parameters where they have constants, only the hypotheses its proof really uses, a name that says what it says, and a one-line docstring saying why anyone would want it. Prefer a short statement.
+3. Under it, re-prove each member you want to retire as a short corollary: the same statement as the member (same binders and conclusion; the name may change), proved by applying your general lemma. A member whose corollary does not compile stays in the library, and that is fine. A general lemma that does not re-prove at least two members is not worth adding.
+4. Check the whole script (general lemma and corollaries) with verify_full_script, your only tool, before you return it. The system verifies it again, and retires only the members whose corollaries it finds in the verified script.
+5. Do not invent facts the library does not support, and ignore trivial restatements and anything Mathlib already has.
 
 Finish with ONE fenced json block and nothing after it:
 \`\`\`json
-[{"name": "lemma_name", "script": "the complete compile-ready Lean text (the lemma and anything it needs)", "subsumes": ["8-char ids from the library"], "why": "one sentence"}]
+[{"name": "general_lemma_name", "script": "the complete compile-ready Lean text: the general lemma, then one corollary per member", "subsumes": ["8-char ids of the members the corollaries re-prove"], "why": "one sentence: the idea they share"}]
 \`\`\`
 If nothing is worth consolidating, return [].`
 }
@@ -917,6 +1089,30 @@ export function parseSleep(text) {
 
 export const resolveSubsumes = (memory, shortIds) =>
   (shortIds || []).map((s) => memory.find(s)?.id).filter(Boolean)
+
+// A statement without its name or its spacing: what two declarations must share to say the same thing.
+const looseStatement = (stmt) => canon(stripComments(stmt)).replace(/^(?:theorem|lemma)\s+\S+\s*/, "").replace(/\s+/g, "")
+
+// Which of the claimed members does this verified script really re-prove? A member is confirmed when the script holds a theorem with the
+// member's statement whose proof leans on an earlier declaration of the script (the general lemma): a corollary, not a copy. Returns the
+// confirmed member ids. The script has been verified before this is asked.
+export const MIN_RETIRED = 2 // a general lemma has to replace at least this many entries, or the library only grows
+export function splitCorollaries(script, members) {
+  const blocks = splitDeclarations(script)
+  const theorems = blocks.map((b, i) => ({ b, i })).filter(({ b }) => ["theorem", "lemma"].includes(blockHead(b)) && !hasSorry(b))
+  const confirmed = []
+  const corollary = new Set()
+  for (const mem of members || []) {
+    const want = looseStatement(mem.statement)
+    const hit = theorems.find(({ b, i }) => !corollary.has(i) && looseStatement(statementOf(b)) === want && theorems.some((c) => c.i < i && blockName(c.b) && words(proofOf(b)).has(blockName(c.b))))
+    if (hit) {
+      confirmed.push(mem.id)
+      corollary.add(hit.i)
+    }
+  }
+  return { confirmed, general: blocks.filter((_, i) => !corollary.has(i)).join("\n\n") }
+}
+export const confirmedMembers = (script, members) => splitCorollaries(script, members).confirmed
 
 
 // What the agent's shell can and cannot do, found by the bridge once per run (probeEnvironment in the bridge) and stated plainly:

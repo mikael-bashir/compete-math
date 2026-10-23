@@ -102,7 +102,7 @@ test('a rating renders as filled and empty stars with a label a screen reader ca
 test('the saved-theorems modal builds with rated and unrated entries and the sort toggle', () => {
   const [id] = Object.keys(file.entries);
   const entry = (over: Partial<MemoryEntry>): MemoryEntry => ({ id, name: 'a_lemma', kind: 'theorem', statement: 'theorem a_lemma : True', closure: 'theorem a_lemma : True := trivial', origin: 'verified', savedAt: '2026-10-20T10:00:00Z', attempt: 1, isTarget: false, nominated: false, subsumes: [], subsumedBy: null, hits: 0, ...over });
-  const props = { targetId: 'erdos-396', targetTitle: 'Erdős 396', entries: [entry({}), entry({ id: 'f'.repeat(40), name: 'b_new' })], signedIn: true, loading: false, stats: null, maxNominated: 10, minNominated: 3, onNominate: () => {}, onDelete: () => {} };
+  const props = { targetId: 'erdos-396', targetTitle: 'Erdős 396', entries: [entry({}), entry({ id: 'f'.repeat(40), name: 'b_new' })], signedIn: true, loading: false, stats: null, maxNominated: 10, minNominated: 3, onNominate: () => {}, onDelete: () => {}, onClear: () => {} };
   const html = renderToStaticMarkup(createElement(LeakMemoryModal, props));
   assert.ok(html.includes('Saved theorems (2)'));
   assert.ok(!html.includes('b_new'), 'the dialog body is closed until it is opened, so only the trigger renders');

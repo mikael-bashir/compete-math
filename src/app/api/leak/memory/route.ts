@@ -4,6 +4,7 @@ import { findLeakTarget } from "@/data/leak-targets";
 import {
   MAX_NOMINATED,
   MIN_NOMINATED_FOR_AUDIT,
+  archiveMemory,
   deleteMemory,
   listMemory,
   saveMemory,
@@ -86,6 +87,17 @@ export async function DELETE(request: NextRequest) {
   if (!username) return NextResponse.json({ error: "Sign in to use memory" }, { status: 401, headers: noStore });
   const target = request.nextUrl.searchParams.get("target") ?? "";
   const id = request.nextUrl.searchParams.get("id") ?? "";
+  // ?target=…&all=1: clear the library for this target. Nothing is deleted: every row except the nominated ones is put away (statement and
+  // rating kept, proof dropped), and a statement saved again comes back.
+  if (request.nextUrl.searchParams.get("all") === "1") {
+    if (!findLeakTarget(target)) return NextResponse.json({ error: "Bad request" }, { status: 400, headers: noStore });
+    try {
+      return NextResponse.json({ archived: await archiveMemory(username, target) }, { headers: noStore });
+    } catch (e) {
+      console.error("[leak-memory] archive failed:", e);
+      return NextResponse.json({ error: "Could not clear the library" }, { status: 500, headers: noStore });
+    }
+  }
   if (!findLeakTarget(target) || !/^[0-9a-f]{8,64}$/.test(id)) return NextResponse.json({ error: "Bad request" }, { status: 400, headers: noStore });
   try {
     return NextResponse.json({ deleted: await deleteMemory(username, target, id) }, { headers: noStore });

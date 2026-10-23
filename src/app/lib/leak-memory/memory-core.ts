@@ -5,8 +5,11 @@ import type { SqlTag } from '../db/sql-tag';
 // what an account nominates AND that clears the Tengoku audit ever leaves its rows. The store takes the database as a parameter so
 // tests/leak-memory/store.test.ts runs it against a real Postgres (PGlite); data/leak-memory.ts wires in the real one.
 
-export const MAX_ENTRIES_PER_TARGET = 600;
-export const MAX_ENTRIES_PER_ACCOUNT = 3000;
+// What an account keeps LIVE per target and in all. Rows put away (archived) do not count, so a full target makes room by archiving what the
+// sleep stage has merged or rated low instead of refusing new theorems: at 600 the store refused them without a word, and a run that
+// verified about 190 theorems saved none.
+export const MAX_ENTRIES_PER_TARGET = 1500;
+export const MAX_ENTRIES_PER_ACCOUNT = 6000;
 export const MAX_NOMINATED = 10;
 export const MIN_NOMINATED_FOR_AUDIT = 3;
 const MAX_STATEMENT = 20_000;
@@ -140,28 +143,54 @@ export function leakMemoryStore(db: SqlTag, limits: Partial<Limits> = {}) {
     await ensure();
     const { rows } = await db`
       SELECT entry, nominated FROM leak_memory
-      WHERE username = ${username} AND target_id = ${targetId}
+      WHERE username = ${username} AND target_id = ${targetId} AND (entry->>'archived') IS NULL
       ORDER BY saved_at DESC, entry_id
       LIMIT ${lim.perTarget}`;
     return rows.map((r) => ({ ...(r.entry as MemoryEntry), nominated: !!r.nominated }));
   };
 
-  // Insert or replace entries a run saved. The nominated flag stays whatever the account set; it is not part of the update.
+  // Put one row away: the proof is dropped, the statement, the name, the rating and the reason stay (a tombstone, not a deletion). An archived
+// row is not listed, not sent to runs and not counted against the limits; saving the same statement again brings it back.
+  const archiveWorst = async (username: string, targetId: string): Promise<boolean> => {
+    const { rows } = await db`
+      UPDATE leak_memory SET
+        entry = (entry - 'closure') || jsonb_build_object('closure', '', 'archived', jsonb_build_object('at', NOW()::text, 'why', 'made room')),
+        updated_at = NOW()
+      WHERE username = ${username} AND target_id = ${targetId} AND entry_id = (
+        SELECT entry_id FROM leak_memory
+        WHERE username = ${username} AND target_id = ${targetId} AND NOT nominated AND (entry->>'archived') IS NULL
+          AND COALESCE(entry->>'isTarget', 'false') <> 'true'
+          AND ((entry->>'subsumedBy') IS NOT NULL
+               OR (COALESCE((entry->'quality'->>'s')::int, 99) <= 2
+                   AND NOT (entry->>'origin' = 'abstracted' AND jsonb_array_length(COALESCE(entry->'subsumes', '[]'::jsonb)) > 0)))
+        ORDER BY ((entry->>'subsumedBy') IS NOT NULL) DESC, COALESCE((entry->'quality'->>'s')::int, 3) ASC, COALESCE((entry->>'hits')::int, 0) ASC, saved_at ASC
+        LIMIT 1)
+      RETURNING entry_id`;
+    return rows.length > 0;
+  };
+
+  // Insert or replace entries a run saved. The nominated flag stays whatever the account set; it is not part of the update. A full target
+  // makes room by archiving its worst expendable row (merged into a general lemma, or rated one or two stars); only when there is none is
+  // a new theorem skipped.
   const save = async (username: string, targetId: string, raw: unknown[]): Promise<{ saved: number; skipped: number }> => {
     await ensure();
     const entries = raw.map(cleanEntry).filter((e): e is MemoryEntry => !!e);
     const { rows: cnt } = await db`
       SELECT
-        COUNT(*) FILTER (WHERE target_id = ${targetId})::int AS here,
-        COUNT(*)::int AS total
+        COUNT(*) FILTER (WHERE target_id = ${targetId} AND (entry->>'archived') IS NULL)::int AS here,
+        COUNT(*) FILTER (WHERE (entry->>'archived') IS NULL)::int AS total
       FROM leak_memory WHERE username = ${username}`;
     let here = Number(cnt[0]?.here ?? 0);
     let total = Number(cnt[0]?.total ?? 0);
     let saved = 0;
     for (const e of entries) {
-      const { rows: ex } = await db`SELECT 1 AS x FROM leak_memory WHERE username = ${username} AND target_id = ${targetId} AND entry_id = ${e.id}`;
-      const isNew = ex.length === 0;
-      if (isNew && (here >= lim.perTarget || total >= lim.perAccount)) continue;
+      const { rows: ex } = await db`SELECT (entry->>'archived') IS NOT NULL AS archived FROM leak_memory WHERE username = ${username} AND target_id = ${targetId} AND entry_id = ${e.id}`;
+      const isNew = ex.length === 0 || ex[0].archived === true; // an archived statement saved again is live again, and counts
+      if (isNew && (here >= lim.perTarget || total >= lim.perAccount)) {
+        if (!(await archiveWorst(username, targetId))) continue;
+        here--;
+        total--;
+      }
       await db`
         INSERT INTO leak_memory (username, target_id, entry_id, entry)
         VALUES (${username}, ${targetId}, ${e.id}, ${JSON.stringify(e)}::jsonb)
@@ -214,5 +243,18 @@ export function leakMemoryStore(db: SqlTag, limits: Partial<Limits> = {}) {
     return rows.length > 0;
   };
 
-  return { ensure, list, save, setNominated, remove };
+  // "Clear the library" for one target: every live row except the nominated ones and the target's own proof is put away, none is deleted.
+  const archiveAll = async (username: string, targetId: string): Promise<number> => {
+    await ensure();
+    const { rows } = await db`
+      UPDATE leak_memory SET
+        entry = (entry - 'closure') || jsonb_build_object('closure', '', 'archived', jsonb_build_object('at', NOW()::text, 'why', 'cleared by the account')),
+        updated_at = NOW()
+      WHERE username = ${username} AND target_id = ${targetId} AND NOT nominated AND (entry->>'archived') IS NULL
+        AND COALESCE(entry->>'isTarget', 'false') <> 'true'
+      RETURNING entry_id`;
+    return rows.length;
+  };
+
+  return { ensure, list, save, setNominated, remove, archiveAll };
 }

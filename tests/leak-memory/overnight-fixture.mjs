@@ -77,3 +77,15 @@ theorem factorization_centralBinom_eq_zero_of_forall_lt (p n : ℕ) (hp : p.Prim
   intro i hi
   omega
 `
+
+// The same consolidation answered the way the dream's prompt now asks for it: the master identity, then one corollary per member (the member's own
+// statement, proved from the master), so that each member can be retired because the verified script re-proves it.
+const corollary = (header) => `open Nat in\n${header} := by\n  rw [factorization_centralBinom_eq_card p n hp]\n  simpa using factorization_centralBinom_eq_card p n hp\n`
+export const SLEEP_SCRIPT_STRICT = `${SLEEP_SCRIPT.split("\n\nopen Nat in")[0]}
+
+${[
+  "theorem le_factorization_centralBinom_of_dvd_succ_cor (p n m : ℕ) (hp : p.Prime) (hn : 1 ≤ n)\n    (hd : p ^ m ∣ n + 1) : m ≤ (centralBinom n).factorization p",
+  "theorem factorization_centralBinom_eq_zero_of_sq_gt_cor (p n : ℕ) (hp : p.Prime) (h2 : 2 * n < p ^ 2)\n    (hmod : 2 * (n % p) < p) : (centralBinom n).factorization p = 0",
+  "theorem one_le_factorization_centralBinom_of_sq_le_cor (p n : ℕ) (hp : p.Prime) (h1 : n < p ^ 2) (h2 : p ^ 2 ≤ 2 * n) : 1 ≤ (centralBinom n).factorization p",
+  "theorem one_le_factorization_centralBinom_of_le_two_mod_cor (p n : ℕ) (hp : p.Prime) (h : p ≤ 2 * (n % p)) : 1 ≤ (centralBinom n).factorization p",
+].map(corollary).join("\n")}`
