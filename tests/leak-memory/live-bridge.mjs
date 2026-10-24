@@ -591,6 +591,179 @@ const check = async (name, fn) => {
   })
   b.stop()
 }
+// ---- Leak Elation and Leak Misery: Control IV Lucid with a laboratory of local tool servers ----
+{
+  const cas = `http://127.0.0.1:${leak.port}/labcas/sse`
+  const atp = `http://127.0.0.1:${leak.port}/labatp/sse`
+  const dead = "http://127.0.0.1:1/sse"
+  const prompt0 = (b) => b.calls()[0].promptFull
+  await check("Elation: finds the CAS at LEAK_LAB_CAS_URL, gives it to the agent (and only it), and the agent can call it", async () => {
+    const before = leak.calls.length
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_LAB: "1", LEAK_LAB_CAS_URL: cas, LEAK_LAB_ATP_URL: atp })
+    try {
+      const f = await b.frames("control-elation", { memory: { entries: [] } })
+      assert.ok(texts(f).some((t) => /🧪 Leak Lab CAS: http:\/\/127\.0\.0\.1:\d+\/labcas\/sse, 3 tools\./.test(t)), texts(f).join(" | "))
+      const c = b.calls()[0]
+      assert.ok(c.servers.Leak_Lab_CAS, "the CLI's MCP config lists the CAS: " + JSON.stringify(c.servers))
+      assert.equal(c.servers.Leak_Lab_ATP, undefined, "Elation has no Vampire server, even if one is running")
+      assert.ok(c.argv.includes("mcp__Leak_Lab_CAS"), "and it is allowed by name: " + c.argv.join(" ").slice(-300))
+      assert.match(prompt0(b), /THE LABORATORY/)
+      assert.match(prompt0(b), /mcp__Leak_Lab_CAS__factor/)
+      assert.doesNotMatch(prompt0(b), /Leak_Lab_ATP/)
+      assert.ok(leak.calls.slice(before).some((x) => x.kind === "labcas" && x.tool === "factor" && x.args.n === 1631), "the call reached the CAS server")
+      assert.ok(f.some((x) => x.subtype === "tool_result" && /^labcas:factor:/.test(x.output || "")), "and its answer came back")
+      assert.equal(done(f)?.verified, true)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("Elation speaks in the lab voice: experiments are invited, the no-brute-force rule is gone, the proof boundary is stated", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", LEAK_LAB_CAS_URL: cas })
+    try {
+      await b.frames("control-elation", { memory: { entries: [] } })
+      const c = b.calls()[0]
+      assert.doesNotMatch(c.promptFull, /OUR INSTRUMENT IS PROOF, NOT SEARCH/)
+      assert.doesNotMatch(c.appendSystem, /OUR INSTRUMENT IS PROOF, NOT SEARCH/)
+      assert.match(c.appendSystem, /THE LAB IS FOR FINDING OUT WHAT IS TRUE; PROOF IS WHAT MAKES IT A FACT/)
+      assert.match(c.appendSystem, /NO NETWORK beyond the Leak servers/, "the rest of the system rule is kept")
+      assert.match(c.promptFull, /Never native_decide or bv_decide/)
+      assert.match(c.promptFull, /a pattern that held on a range is a conjecture until Lean proves it/)
+      assert.match(c.promptFull, /You have a laboratory \(Leak Lab CAS\)/, "the rules line names what is connected")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("Misery: both servers, in the agent's config and in its prompt", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_LAB: "1", LEAK_LAB_CAS_URL: cas, LEAK_LAB_ATP_URL: atp })
+    try {
+      const f = await b.frames("control-misery", { memory: { entries: [] } })
+      const c = b.calls()[0]
+      assert.ok(c.servers.Leak_Lab_CAS && c.servers.Leak_Lab_ATP, JSON.stringify(c.servers))
+      assert.ok(c.argv.includes("mcp__Leak_Lab_CAS") && c.argv.includes("mcp__Leak_Lab_ATP"))
+      assert.match(prompt0(b), /mcp__Leak_Lab_ATP__prove/)
+      assert.match(prompt0(b), /mcp__Leak_Lab_ATP__find_countermodel/)
+      assert.match(prompt0(b), /Vampire \(prove, find_countermodel/)
+      assert.ok(f.some((x) => x.subtype === "tool_result" && /^labatp:prove:/.test(x.output || "")))
+      assert.equal(done(f)?.verified, true)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a lab that is down is reported with the command that starts it, and the agent is not told it has those tools", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", LEAK_LAB_CAS_URL: dead, LEAK_LAB_ATP_URL: atp })
+    try {
+      const f = await b.frames("control-misery", { memory: { entries: [] } })
+      const e = f.find((x) => x.subtype === "error" && /Leak Lab CAS is not available/.test(x.thought || ""))
+      assert.ok(e, "a visible error: " + JSON.stringify(f.filter((x) => x.subtype === "error").map((x) => x.thought)))
+      assert.match(e.thought, /node services\/leak-lab\/start\.mjs elation/)
+      assert.match(e.thought, /this run goes on without it/)
+      const c = b.calls()[0]
+      assert.equal(c.servers.Leak_Lab_CAS, undefined)
+      assert.ok(c.servers.Leak_Lab_ATP, "the server that is up is still used")
+      assert.doesNotMatch(prompt0(b), /Leak_Lab_CAS/)
+      assert.match(prompt0(b), /Leak_Lab_ATP/)
+      assert.equal(done(f)?.verified, true, "the run is not stopped by a missing tool")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("with no lab at all the prompt has no laboratory section, but the lab voice and variant still run", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", LEAK_LAB_CAS_URL: dead })
+    try {
+      const f = await b.frames("control-elation", { memory: { entries: [] } })
+      assert.doesNotMatch(prompt0(b), /THE LABORATORY|You have a laboratory/)
+      assert.equal(done(f)?.verified, true)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("plain http is accepted for the lab only on this machine: any other address must be https", async () => {
+    for (const url of ["http://example.com/sse", "http://192.168.1.20:8021/sse", "ftp://127.0.0.1/sse", "not a url"]) {
+      const b = await startBridge({ FAKE_MODE: "ok", LEAK_LAB_CAS_URL: url })
+      try {
+        const f = await b.frames("control-elation", { memory: { entries: [] } })
+        const e = f.find((x) => x.subtype === "error" && /Leak Lab CAS is not available/.test(x.thought || ""))
+        assert.ok(e, url + ": " + JSON.stringify(f.filter((x) => x.subtype === "error").map((x) => x.thought)))
+        assert.match(e.thought, /plain http is only accepted for 127\.0\.0\.1, localhost or \[::1\]|it is not a URL/, url)
+        assert.equal(b.calls()[0].servers.Leak_Lab_CAS, undefined, url)
+      } finally {
+        b.stop()
+      }
+    }
+  })
+  await check("localhost is accepted like 127.0.0.1, and so is [::1] (it only fails later, because nothing listens there)", async () => {
+    const viaLocalhost = `http://localhost:${leak.port}/labcas/sse`
+    const b = await startBridge({ FAKE_MODE: "ok", LEAK_LAB_CAS_URL: viaLocalhost })
+    try {
+      const f = await b.frames("control-elation", { memory: { entries: [] } })
+      assert.ok(texts(f).some((t) => /🧪 Leak Lab CAS: http:\/\/localhost:\d+\/labcas\/sse, 3 tools/.test(t)), texts(f).join(" | "))
+    } finally {
+      b.stop()
+    }
+    const b2 = await startBridge({ FAKE_MODE: "ok", LEAK_LAB_CAS_URL: "http://[::1]:1/sse" })
+    try {
+      const f = await b2.frames("control-elation", { memory: { entries: [] } })
+      const e = f.find((x) => x.subtype === "error" && /Leak Lab CAS is not available/.test(x.thought || ""))
+      assert.ok(e, "down, as nothing listens there")
+      assert.doesNotMatch(e.thought, /plain http is only accepted/, "but it was not refused for being http")
+    } finally {
+      b2.stop()
+    }
+  })
+  await check("a lab server registered in the app is used as registered, once", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", LEAK_LAB_CAS_URL: dead })
+    try {
+      const registered = [...mcpServers, { name: "Leak_Lab_CAS", url: cas, tools: ["factor", "mod_order"] }]
+      const f = await b.frames("control-elation", { memory: { entries: [] }, mcpServers: registered })
+      assert.ok(texts(f).some((t) => /Leak Lab CAS: .*labcas\/sse, 2 tools \(as registered in the app\)/.test(t)), texts(f).join(" | "))
+      assert.ok(!f.some((x) => /Leak Lab CAS is not available/.test(x.thought || "")), "the environment's dead address is not consulted when the app has one")
+      assert.equal(Object.keys(b.calls()[0].servers).filter((k) => k === "Leak_Lab_CAS").length, 1)
+      assert.equal((b.calls()[0].promptFull.match(/- mcp__Leak_Lab_CAS__factor/g) || []).length, 1, "and its tools are listed once in the prompt, not twice")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("Control IV Lucid is unchanged: no lab, and still the no-brute-force rule", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", LEAK_LAB_CAS_URL: cas })
+    try {
+      await b.frames("control-lucid-iv", { memory: { entries: [] } })
+      const c = b.calls()[0]
+      assert.equal(c.servers.Leak_Lab_CAS, undefined)
+      assert.match(c.promptFull, /OUR INSTRUMENT IS PROOF, NOT SEARCH/)
+      assert.doesNotMatch(c.promptFull, /THE LABORATORY/)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("the bridge's banner says where the lab servers are and whether they answer, with the command that starts them", async () => {
+    const b = await startBridge({ LEAK_LAB_CAS_URL: cas, LEAK_LAB_ATP_URL: dead })
+    try {
+      for (let i = 0; i < 50 && !/Leak Lab ATP/.test(b.log()); i++) await new Promise((r) => setTimeout(r, 100))
+      assert.match(b.log(), /Leak Lab \(local tools for Leak Elation and Leak Misery\):/)
+      assert.match(b.log(), /Leak Lab CAS\s+http:\/\/127\.0\.0\.1:\d+\/labcas\/sse\s+up, 3 tools/)
+      assert.match(b.log(), /Leak Lab ATP\s+http:\/\/127\.0\.0\.1:1\/sse\s+not running \(start it: node services\/leak-lab\/start\.mjs misery\)/)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("the run's record names the lab that was connected", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", LEAK_LAB_CAS_URL: cas, LEAK_LAB_ATP_URL: dead })
+    try {
+      await b.frames("control-misery", { memory: { entries: [] } })
+      const dir = path.join(b.home, ".leak-runs")
+      let end = null
+      for (let i = 0; i < 60 && !end; i++) {
+        const f = fs.existsSync(dir) ? fs.readdirSync(dir).filter((n) => n.endsWith(".jsonl") && n !== "index.jsonl").sort().pop() : null
+        end = f ? fs.readFileSync(path.join(dir, f), "utf8").trim().split("\n").map((l) => JSON.parse(l)).find((l) => l.kind === "end") : null
+        if (!end) await new Promise((r) => setTimeout(r, 100))
+      }
+      assert.deepEqual(end?.memory_run?.lab, ["cas"])
+    } finally {
+      b.stop()
+    }
+  })
+}
+
 // ---- a conversation that has stopped working is not resumed again ----
 // An overnight Lucid run lost its Leak I tools, then took a 196k-character verify error, and made no successful tool call for two hours while the
 // harness resumed the same conversation 377 times. Three stretches in a row with none, or a conversation past 600k tokens, now ends it.

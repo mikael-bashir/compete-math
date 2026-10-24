@@ -44,9 +44,9 @@ theorem still_open (n : ℕ) : n = n + 0 := by
   sorry
 `
 
-test("variants: four designs, each with a Leak II twin, each with a name, and only the memory ones are memory variants", () => {
-  assert.deepEqual(Object.keys(VARIANTS).sort(), ["control-flint", "control-flint-iv", "control-honoured", "control-honoured-iv", "control-lucid", "control-lucid-iv", "control-paragon", "control-paragon-iv"])
-  for (const [k, v] of Object.entries(VARIANTS)) assert.ok(v.name.startsWith(k.endsWith("-iv") ? "Control IV " : "Control II "))
+test("variants: four designs, each with a Leak II twin, plus the lab variants Elation and Misery, each with a name, and only the memory ones are memory variants", () => {
+  assert.deepEqual(Object.keys(VARIANTS).sort(), ["control-elation", "control-flint", "control-flint-iv", "control-honoured", "control-honoured-iv", "control-lucid", "control-lucid-iv", "control-misery", "control-paragon", "control-paragon-iv"])
+  for (const [k, v] of Object.entries(VARIANTS)) assert.ok(v.name.startsWith(v.lab ? "Leak " : k.endsWith("-iv") ? "Control IV " : "Control II "), `${k}: ${v.name}`)
   // the agent manages its own context: no variant ends a session on a timer of its own
   for (const v of Object.values(VARIANTS)) assert.ok(!("attemptMs" in v), `${v.name} has a timer of its own on a session`)
   assert.ok(isMemoryVariant("control-lucid"))
@@ -338,7 +338,7 @@ import { GOAL, MANDATE, SYSTEM_RULE, WORK_MODES, baseVariant, persistBlock, stra
 import { MEMORY_VARIANTS } from "../../src/lib/prover/memory-client.ts"
 
 test("every memory variant has a Leak II twin that differs in nothing but Leak II", () => {
-  const bases = Object.keys(VARIANTS).filter((k) => !k.endsWith("-iv"))
+  const bases = Object.keys(VARIANTS).filter((k) => !k.endsWith("-iv") && !VARIANTS[k].lab) // the lab variants (Elation, Misery) are built on Lucid IV and have no twin
   assert.equal(bases.length, 4)
   for (const k of bases) {
     const base = VARIANTS[k]
@@ -365,7 +365,7 @@ test("the page's list of variants, the module's and the bridge's registry name t
 test("memoryRules mentions Leak II only for the -iv variants, and not when the bridge says it is not connected", () => {
   for (const k of Object.keys(VARIANTS)) {
     const has = /init_proof/.test(memoryRules(k))
-    assert.equal(has, k.endsWith("-iv"), k)
+    assert.equal(has, k.endsWith("-iv") || !!VARIANTS[k].lab, k) // the lab variants are built on a Leak II variant
   }
   assert.doesNotMatch(memoryRules("control-honoured-iv", { pantograph: false }), /init_proof/)
   assert.match(memoryRules("control-honoured", { pantograph: true }), /init_proof/)
@@ -483,7 +483,7 @@ import { CURIOSITY_PROMPTS, DEFAULT_VOICE, VOICES, curiosityPrompt, extractNote,
 
 test("the default voice is the curious mathematician; the order voice stays available by name", () => {
   assert.equal(DEFAULT_VOICE, "curious")
-  assert.deepEqual(Object.keys(VOICES).sort(), ["curious", "order"])
+  assert.deepEqual(Object.keys(VOICES).sort(), ["curious", "lab", "order"])
   assert.equal(voiceFor("order").key, "order")
   assert.equal(voiceFor("curious").key, "curious")
   assert.equal(voiceFor("").key, "curious")

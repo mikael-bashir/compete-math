@@ -41,6 +41,9 @@ export const MEMORY_VARIANTS: MemoryVariant[] = [
   { key: 'control-flint-iv', label: 'Control IV Flint', blurb: 'Flint, plus Leak II: the agent can step a goal one tactic at a time' },
   { key: 'control-paragon-iv', label: 'Control IV Paragon', blurb: 'Paragon, plus Leak II: the agent can step a goal one tactic at a time' },
   { key: 'control-lucid-iv', label: 'Control IV Lucid', blurb: 'Lucid, plus Leak II: the agent can step a goal one tactic at a time' },
+  // Control IV Lucid plus a laboratory of tool servers that run on this machine (services/leak-lab; start them with `pnpm lab:elation` or `pnpm lab:misery`). The bridge finds them by itself.
+  { key: 'control-elation', label: 'Leak Elation', blurb: 'Control IV Lucid, plus a local lab: an exact CAS for number theory, modular arithmetic, integer maps and conjecture testing. Start it with: pnpm lab:elation' },
+  { key: 'control-misery', label: 'Leak Misery', blurb: 'Leak Elation, plus Vampire (first-order proving, finite models) and Z3 (SMT, SAT), contained on this machine. Start it with: pnpm lab:misery' },
 ];
 
 export const isMemoryStrategy = (s: string) => MEMORY_VARIANTS.some((v) => v.key === s);

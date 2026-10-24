@@ -72,6 +72,31 @@ export const VARIANTS = {
 for (const [key, v] of Object.entries({ ...VARIANTS })) {
   VARIANTS[`${key}-iv`] = { ...v, name: v.name.replace("Control II", "Control IV"), blurb: `${v.blurb} Plus Leak II, the interactive Pantograph tactic-stepper.`, pantograph: true }
 }
+
+// Leak Elation and Leak Misery: Control IV Lucid (Leak I, II and IV, the library, the sleep stage) plus a LABORATORY of tool servers that run on the
+// operator's own machine (services/leak-lab, started with `node services/leak-lab/start.mjs elation|misery`). Elation has the CAS (exact number
+// theory, modular arithmetic, dynamics of integer maps, polynomial algebra, data-to-conjecture tools). Misery adds Vampire and Z3 (first-order
+// proving with AVATAR, finite model finding, SMT, SAT). The tools are advisors: Leak IV is still the only judge, so nothing here is trusted.
+// `lab` names the servers a variant wants; the bridge looks for them at LAB_SERVERS[key].url (or the environment variable) and says so if they are down.
+export const LAB_SERVERS = {
+  cas: { name: "Leak_Lab_CAS", env: "LEAK_LAB_CAS_URL", url: "http://127.0.0.1:8021/sse", label: "Leak Lab CAS", start: "node services/leak-lab/start.mjs elation" },
+  atp: { name: "Leak_Lab_ATP", env: "LEAK_LAB_ATP_URL", url: "http://127.0.0.1:8022/sse", label: "Leak Lab ATP", start: "node services/leak-lab/start.mjs misery" },
+}
+VARIANTS["control-elation"] = {
+  ...VARIANTS["control-lucid-iv"],
+  name: "Leak Elation",
+  blurb: "Control IV Lucid, plus a local laboratory: an exact CAS for number theory, modular arithmetic, integer-map dynamics, polynomial certificates and conjecture testing. Experiments are encouraged; Leak IV still decides what is true.",
+  lab: ["cas"],
+  voice: "lab",
+}
+VARIANTS["control-misery"] = {
+  ...VARIANTS["control-lucid-iv"],
+  name: "Leak Misery",
+  blurb: "Leak Elation, plus the Vampire ecosystem (first-order proving with AVATAR, finite model finding, clausification) and Z3 (SMT, SAT), all contained on the operator's machine.",
+  lab: ["cas", "atp"],
+  voice: "lab",
+}
+export const labOf = (variantKey) => (VARIANTS[String(variantKey)]?.lab || []).map((k) => ({ key: k, ...LAB_SERVERS[k] }))
 export const isMemoryVariant = (name) => Object.prototype.hasOwnProperty.call(VARIANTS, String(name))
 export const usesPantograph = (name) => !!VARIANTS[String(name)]?.pantograph
 export const baseVariant = (name) => String(name).replace(/-iv$/, "")
@@ -397,7 +422,41 @@ NO NETWORK beyond the Leak servers, and nothing is installed: curl, wget, pip, n
   },
 }
 
-export const VOICES = { order, curious }
+// ---- the lab voice (Leak Elation, Leak Misery) -----------------------------------------------------------------
+// The curious voice with ONE rule swapped: where it forbids numeric experiments ("no brute force"), this one invites them, because the point of a lab is
+// to find out what is true before arguing why. What stays: a number is only a fact once Leak IV has checked Lean for it, nothing may trust the
+// compiler (no native_decide), and no shell job waits for more than five minutes.
+export const LAB_RULE = `THE LAB, AND WHAT IT IS FOR. Besides the compiler you have a laboratory: exact, fast calculators (and, in some runs, provers) that run on this machine, each call under a time and memory budget that the tool itself enforces. Use it freely and early. The way to use it: look at data (a table, a scan, a histogram of residues, an orbit), notice a pattern, say it out loud as ONE conjecture in a line, try hard to break it (scan a large range, hunt for a counterexample or a short cycle), and when it survives ask WHY: a group, a residue class, a valuation, an identity. Then write the reason in Lean. A conjecture that the lab refutes is progress: record it in one line so nobody walks into it again.
+
+WHAT THE LAB IS NOT. Everything it prints is an observation. Leak IV never reads it, and a pattern that held on a range is a conjecture until Lean proves it: say how far you looked. A statement becomes a fact only when verify_full_script accepts Lean for it, with ordinary Mathlib tactics (norm_num, simp, omega, ring, linear_combination, decide on small numbers, interval_cases). Never native_decide or bv_decide: they trust the compiler. Each lab answer carries a \`lean\` field that says how to turn it into something the kernel can check.
+
+FOR ANYTHING HEAVIER THAN A FEW SECONDS use the lab tools, not loops of your own in the shell: they are exact, bounded and faster. A shell job still may not run more than 5 minutes, and you never sit and wait on one.`
+const LAB_SYSTEM_RULE = `THE LAB IS FOR FINDING OUT WHAT IS TRUE; PROOF IS WHAT MAKES IT A FACT (this overrides anything below that calls numeric experiments unrestricted or forbids them). Experiments with the lab tools are encouraged, early and often, each with a stated question. Their results are observations: a number or a pattern is a fact only once Leak IV has checked Lean for it, with no native_decide and no bv_decide. A shell job may not run more than 5 minutes, and you never wait on one; use the lab tools for anything heavier.`
+export const labGuide = (lab = []) => {
+  const has = (k) => lab.some((x) => (typeof x === "string" ? x : x.key) === k)
+  const lines = ["THE LABORATORY (local servers; no network; every call is bounded, and its description states the limits):"]
+  if (has("cas"))
+    lines.push(
+      "- Leak_Lab_CAS (mcp__Leak_Lab_CAS__*): numbers (factor, primes, arithmetic, evaluate, base_digits); residues (mod_pow, power_cycle, mod_order, unit_group, solve_congruence, crt, solve_polynomial_mod); dynamics of integer maps, Collatz and its relatives and any map defined by residue classes (map_orbit, map_scan, map_cylinders, map_cycles); algebra (polynomial, ideal_certificate, which returns a `linear_combination` line Leak IV can check); data to conjecture (scan_predicate, tabulate, residue_histogram, guess_sequence).",
+    )
+  if (has("atp"))
+    lines.push(
+      "- Leak_Lab_ATP (mcp__Leak_Lab_ATP__*): Vampire (prove, find_countermodel, check_consistency, unsat_core, clausify, check_syntax, explain_proof, vampire_options) and Z3 (smt_check, sat_check). Use a prover when a step is pure first-order logic or equational reasoning; use find_countermodel to refute a claim on a finite structure (Fin n, ZMod n), which becomes a Lean counterexample; use unsat_core to learn the smallest set of hypotheses to formalise. Encode a claim with a handful of axioms, never all of Mathlib.",
+    )
+  lines.push("The tools are loaded like the others (ToolSearch). A good stretch with the lab: a table, a conjecture, an attempt to break it, the reason, Lean.")
+  return lines.join("\n")
+}
+const lab = {
+  ...curious,
+  key: "lab",
+  opening(o = {}) {
+    const base = curious.opening(o).replace(NO_BRUTE_FORCE, LAB_RULE)
+    return o.lab?.length ? `${base}\n\n${labGuide(o.lab)}` : base
+  },
+  systemRule: curious.systemRule.replace(/^OUR INSTRUMENT IS PROOF, NOT SEARCH[^\n]*\n\n/, `${LAB_SYSTEM_RULE}\n\n`),
+}
+
+export const VOICES = { order, curious, lab }
 export const DEFAULT_VOICE = "curious"
 export const voiceFor = (name) => VOICES[String(name || "")] || VOICES[DEFAULT_VOICE]
 
@@ -967,7 +1026,7 @@ export function makeHandlers(memory, variantKey) {
 
 // The sentences added to Control II's prompt for a variant. The baseline forbids top-level helper lemmas; a memory
 // variant allows them, because a lemma that verifies on its own is the unit of progress that memory keeps.
-export function memoryRules(variantKey, { envHint = "", pantograph } = {}) {
+export function memoryRules(variantKey, { envHint = "", pantograph, lab = [] } = {}) {
   const cfg = VARIANTS[variantKey]
   const withLeakII = pantograph === undefined ? !!cfg.pantograph : !!pantograph // the bridge says false when no Leak II server is connected
   const tools = cfg.tools.length
@@ -977,6 +1036,7 @@ export function memoryRules(variantKey, { envHint = "", pantograph } = {}) {
   lines.push("- Verify early and often. Python or other numeric probing is fine for finding a candidate, but a number or a pattern is only a fact once Leak IV has checked it (`decide +kernel`, `rfl`, `norm_num`), and a plan is not progress. Within your first few minutes submit something to verify_full_script, even a small lemma or a concrete instance; a submission that fails teaches more than another stretch of thinking.")
   lines.push("- Look up what the library already has (loogle_search for a type pattern, moogle_search for a concept) before you prove a helper that may exist; use what you find in a real script.")
   if (envHint) lines.push(envHint)
+  if (lab.length) lines.push(`- You have a laboratory (${lab.map((x) => x.label || x).join(", ")}). Treat what it prints as observation: a pattern is a conjecture until Lean proves it, and you say how far you looked. Prefer it to your own shell loops for anything that takes more than a few seconds.`)
   if (tools) lines.push("- Before you re-derive something, call memory_recall: you may already have proved it. Save effort for what is genuinely new.")
   if (cfg.augmentSearch) lines.push("- Your library searches also return matching theorems from this memory under a MEMORY heading; they are compile-ready.")
   if (tools) lines.push(`- When a saved theorem is general, minimally assumed and well named, nominate it with memory_nominate (at most ${MAX_NOMINATED}). Nominated theorems are the ones that can later be submitted to the Tengoku library, so nominate only what you would be proud to have others reuse.`)

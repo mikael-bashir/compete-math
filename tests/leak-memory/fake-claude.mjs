@@ -58,7 +58,7 @@ if (process.env.FAKE_BG) {
 }
 // FAKE_REPORT: one line per invocation, so a test can see how the bridge called the CLI (cwd, env, resume, settings)
 if (process.env.FAKE_REPORT)
-  appendFileSync(process.env.FAKE_REPORT, JSON.stringify({ cwd: process.cwd(), autoMemory: process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY ?? null, claudeMds: process.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS ?? null, resume: resumed, appendSystem: after("--append-system-prompt"), settings: after("--settings"), prompt: prompt.slice(0, 6000), promptTail: prompt.slice(-2500), promptFull: prompt, argv: args.filter((a) => a !== prompt), env: { LEAK_AGENT_NOTICES: process.env.LEAK_AGENT_NOTICES ?? null, BRIDGE_TOKEN: process.env.BRIDGE_TOKEN ?? null, TEST_SECRET_TOKEN: process.env.TEST_SECRET_TOKEN ?? null, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? null }, session: SESSION, pid: process.pid, prevBgAlive }) + "\n")
+  appendFileSync(process.env.FAKE_REPORT, JSON.stringify({ cwd: process.cwd(), autoMemory: process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY ?? null, claudeMds: process.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS ?? null, resume: resumed, appendSystem: after("--append-system-prompt"), settings: after("--settings"), prompt: prompt.slice(0, 6000), promptTail: prompt.slice(-2500), promptFull: prompt, argv: args.filter((a) => a !== prompt), env: { LEAK_AGENT_NOTICES: process.env.LEAK_AGENT_NOTICES ?? null, BRIDGE_TOKEN: process.env.BRIDGE_TOKEN ?? null, TEST_SECRET_TOKEN: process.env.TEST_SECRET_TOKEN ?? null, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? null }, session: SESSION, pid: process.pid, prevBgAlive, servers: Object.fromEntries(Object.entries(cfg.mcpServers).map(([k, v]) => [k, v.url])) }) + "\n")
 // FAKE_WAIT_FILE: the first invocation waits (up to 30 s) until this file exists, so a test can act on the running bridge while the agent is mid-attempt
 if (process.env.FAKE_WAIT_FILE) {
   for (let i = 0; i < 300 && !existsSync(process.env.FAKE_WAIT_FILE); i++) await new Promise((r) => setTimeout(r, 100))
@@ -210,6 +210,19 @@ if (searchUrl && process.env.FAKE_SEARCH) {
   const concept = process.env.FAKE_SEARCH_CONCEPT || "odd sum even"
   const id = toolUse("mcp__Leak_I__moogle_search", { concept })
   const r = await mcp(searchUrl, "tools/call", { name: "moogle_search", arguments: { concept } })
+  toolResult(id, r.result?.content?.[0]?.text || "")
+}
+// FAKE_LAB=1: the agent calls a tool of the lab server (Leak Elation / Misery), directly: the config lists it as the CLI would
+const labCasUrl = cfg.mcpServers.Leak_Lab_CAS?.url
+if (labCasUrl && process.env.FAKE_LAB) {
+  const id = toolUse("mcp__Leak_Lab_CAS__factor", { n: 1631 })
+  const r = await mcp(labCasUrl, "tools/call", { name: "factor", arguments: { n: 1631 } })
+  toolResult(id, r.result?.content?.[0]?.text || "")
+}
+const labAtpUrl = cfg.mcpServers.Leak_Lab_ATP?.url
+if (labAtpUrl && process.env.FAKE_LAB) {
+  const id = toolUse("mcp__Leak_Lab_ATP__prove", { conjecture: "q(a)" })
+  const r = await mcp(labAtpUrl, "tools/call", { name: "prove", arguments: { conjecture: "q(a)" } })
   toolResult(id, r.result?.content?.[0]?.text || "")
 }
 // FAKE_VERIFY_VIA_MCP=1: the verify call really goes to the Leak_IV server of the config (the bridge's guarded proxy, in a memory
