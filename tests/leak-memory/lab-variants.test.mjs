@@ -52,8 +52,18 @@ test("the lab guide mentions only the servers that are connected", () => {
   assert.doesNotMatch(labGuide([{ key: "cas" }]), /Leak_Lab_ATP/)
   assert.doesNotMatch(labGuide([{ key: "atp" }]), /Leak_Lab_CAS/)
   const both = labGuide(labOf("control-misery"))
-  for (const t of ["map_cycles", "ideal_certificate", "scan_predicate", "find_countermodel", "unsat_core", "smt_check"]) assert.ok(both.includes(t), t)
+  for (const t of ["map_cycles", "ideal_certificate", "scan_predicate", "find_countermodel", "unsat_core", "smt_check", "theories", "lean_check"]) assert.ok(both.includes(t), t)
   assert.equal(VOICES.lab.opening({ pantograph: false, memoryTools: true, lab: [] }).includes("THE LABORATORY"), false)
+})
+
+test("Misery's guide teaches refute-before-prove and the finite-structure calls, and Elation's does not mention provers", () => {
+  const g = labGuide(labOf("control-misery"))
+  assert.match(g, /refute before you prove/)
+  assert.match(g, /theory='group'/)
+  assert.match(g, /size=n asks for a structure of exactly that order/)
+  assert.match(g, /complete Lean script \(lean_check\)/)
+  const e = labGuide(labOf("control-elation"))
+  assert.doesNotMatch(e, /refute before you prove|Vampire/)
 })
 
 test("the proof boundary is in the prompt in the plainest words", () => {

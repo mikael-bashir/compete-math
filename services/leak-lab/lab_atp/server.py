@@ -29,6 +29,14 @@ HOW TO WRITE A PROBLEM (TPTP first-order syntax; give `axioms` and a `conjecture
 Encode a Lean claim with a few chosen axioms, never the whole of Mathlib: small, relevant axiom sets are what make provers fast. A finite structure
 like the integers mod n is best studied with find_countermodel (domain size n).
 
+THE HABIT THIS SERVER IS FOR: REFUTE BEFORE YOU PROVE. Before you spend a stretch proving a lemma about groups, rings, orders or lattices, put it to
+find_countermodel with theory='group' (or 'ring', 'comm_ring', 'partial_order', 'lattice', ...). It takes seconds. If the lemma is false you get a
+finite counterexample AND a complete Lean script for it (result.lean_check) that verify_full_script accepts: a refuted lemma is a verified result,
+and the time you did not spend on a false statement is yours. If no model turns up, run prove on the same call to learn which axioms the claim needs
+(unsat_core), and prove only those in Lean. Use size=n to ask what exists at one order: "is there a group of order 8 with one element of order 2 that is
+not the quaternion group?" is find_countermodel(theory='group', size=8, axioms=[...], conjecture=...).
+The theories tool lists the named theories, their fixed symbols and axioms.
+
 EVERY CALL has a time limit that you set (at most 120 s for Vampire) and a memory limit; a call that runs out says so. Ask for 10 s first.
 """
 
@@ -38,6 +46,7 @@ _PROBLEM = "A complete problem in TPTP syntax (fof/tff/cnf statements ending in 
 _AXIOMS = "Axioms as bare formulas in TPTP syntax, e.g. ['![X]: (p(X) => q(X))', 'p(a)']. A statement that already starts with fof( / tff( / cnf( is kept as written."
 _CONJ = "The goal as one bare formula (e.g. 'q(a)'), or a full 'fof(goal, conjecture, ...).' statement."
 _LANG = "'fof' (untyped first-order logic, the default) or 'tff' (typed, with $int / $rat / $real arithmetic). Used to wrap bare formulas."
+_THEORY = "A named theory whose axioms are added for you: 'semigroup', 'monoid', 'group', 'abelian_group', 'ring', 'comm_ring', 'partial_order', 'lattice' (or a list of them). The symbols are FIXED (a group has mul/2, e/0, inv/1); the `theories` tool lists the symbols and the axioms. You then only write what is special to your claim."
 _OPTIONS = "Advanced Vampire options as a dict, e.g. {'avatar': 'off', 'age_weight_ratio': '1:10'}. Only the options listed by `vampire_options` are accepted, each with a fixed set of values."
 
 
@@ -47,6 +56,7 @@ def prove(
     axioms: Annotated[list[str] | None, Field(description=_AXIOMS)] = None,
     conjecture: Annotated[str | None, Field(description=_CONJ)] = None,
     language: Annotated[str, Field(description=_LANG)] = "fof",
+    theory: Annotated[str | list[str] | None, Field(description=_THEORY)] = None,
     strategy: Annotated[str, Field(description="'default' (Vampire's own strategy for the time limit) or 'casc' (the competition schedule: many strategies one after another within the limit; use it on hard problems).")] = "default",
     time_limit_s: Annotated[int, Field(description="Wall-clock limit in seconds, 1 to 120. Start with 10.", ge=1, le=120)] = 10,
     options: Annotated[dict[str, Any] | None, Field(description=_OPTIONS)] = None,
@@ -64,7 +74,7 @@ def prove(
     LEAN: prove the used axioms as lemmas, then replay the logic with `simp only [..]`, `grind`, `aesop` or `tauto`; the result of this tool is never accepted by Leak IV itself.
     EXAMPLE: prove(axioms=["![X]: (p(X) => q(X))", "p(a)"], conjecture="q(a)") -> expected: verdict proved, axioms_used [ax1, ax2].
     """
-    return core.prove(problem, axioms, conjecture, language, strategy, time_limit_s, options, show_proof)
+    return core.prove(problem, axioms, conjecture, language, strategy, time_limit_s, options, show_proof, theory)
 
 
 @mcp.tool
@@ -73,22 +83,27 @@ def find_countermodel(
     axioms: Annotated[list[str] | None, Field(description=_AXIOMS)] = None,
     conjecture: Annotated[str | None, Field(description=_CONJ)] = None,
     language: Annotated[str, Field(description=_LANG)] = "fof",
+    theory: Annotated[str | list[str] | None, Field(description=_THEORY)] = None,
     time_limit_s: Annotated[int, Field(description="Wall-clock limit in seconds, 1 to 120.", ge=1, le=120)] = 20,
     start_size: Annotated[int, Field(description="Smallest domain size to try first (1 to 64); the builder then grows the domain until the limit.", ge=1, le=64)] = 1,
+    size: Annotated[int | None, Field(description="Ask for a model with EXACTLY this many elements (1 to 16), e.g. 8 for a group of order 8. If none exists the answer says what the smallest model has. Leave empty to find the smallest model.", ge=1, le=16)] = None,
     options: Annotated[dict[str, Any] | None, Field(description=_OPTIONS)] = None,
 ) -> dict[str, Any]:
-    """Search for a FINITE structure where the axioms hold and the conjecture fails (Vampire's finite model builder).
+    """Search for a FINITE structure where the axioms hold and the conjecture fails (Vampire's finite model builder), and get back a complete Lean script that checks it.
 
-    USE WHEN you doubt a claim and want a concrete counterexample, or want to know whether a set of axioms is satisfiable in a small structure (a group
-    of some order, a modular ring, a lattice). A found model is the best output of this server: it becomes a Lean counterexample on `Fin n` or `ZMod n`.
-    NOT FOR proving (use `prove`) or for axioms that force an infinite domain (no finite model exists, and none will be found).
+    USE WHEN you doubt a claim about an algebraic structure (a group, ring, order, lattice, or axioms of your own) and want a concrete counterexample BEFORE
+    you spend time proving it: theory='group' plus a conjecture is the whole call. Also to ask what structures of one order exist (size=8 with extra axioms).
+    A found model is the most useful output of this server.
+    NOT FOR proving (use `prove`), or for axioms that force an infinite domain (no finite model exists, and none will be found).
 
-    LIMITS: time_limit_s up to 120; domains grow until the limit, so very large models are out of reach. No model within the limit does NOT mean none exists.
-    RETURNS: result.verdict (countermodel | satisfiable | proved | proved_unsat | timeout | ...), result.domain_size, result.model (cut): the interpretation of every symbol.
-    LEAN: state the structure on `Fin n`, prove each axiom by `decide`, and prove the negation of the conjecture by `decide`: that refutes the claim for good.
-    EXAMPLE: find_countermodel(axioms=["![X,Y]: f(X,Y) = f(Y,X)"], conjecture="![X,Y,Z]: f(f(X,Y),Z) = f(X,f(Y,Z))") -> expected: a countermodel on 2 elements (NAND is commutative and not associative).
+    LIMITS: time_limit_s up to 120; domains grow until the limit, so large models are out of reach; size is at most 16. No model within the limit does NOT mean none exists.
+    RETURNS: result.verdict (countermodel | satisfiable | proved | proved_unsat | timeout | ...), result.domain_size, result.model{size, constants, functions, predicates}
+    (tables as lists of element numbers 0..n-1, shown up to 12 elements) and result.lean_check: a COMPLETE Lean script for the model (the tables on `Fin n`, a `decide`
+    proof that every axiom holds, a `decide` proof that the conjecture fails). With size set and no model of that size, the answer says what the smallest model has.
+    LEAN: send lean_check to verify_full_script as it is. When it compiles, the claim is refuted for that theory, for good. Only first-order (fof) input gets a script.
+    EXAMPLE: find_countermodel(theory="group", conjecture="![X,Y]: (mul(X,Y) = mul(Y,X))") -> expected: a group of order 6 (the smallest non-abelian group) and its lean_check.
     """
-    return core.find_countermodel(problem, axioms, conjecture, language, time_limit_s, start_size, options)
+    return core.find_countermodel(problem, axioms, conjecture, language, time_limit_s, start_size, options, theory, size)
 
 
 @mcp.tool
@@ -96,6 +111,7 @@ def check_consistency(
     problem: Annotated[str | None, Field(description=_PROBLEM)] = None,
     axioms: Annotated[list[str] | None, Field(description=_AXIOMS)] = None,
     language: Annotated[str, Field(description=_LANG)] = "fof",
+    theory: Annotated[str | list[str] | None, Field(description=_THEORY)] = None,
     time_limit_s: Annotated[int, Field(description="Total wall-clock limit in seconds (2 to 120), split between a model search and a refutation search.", ge=2, le=120)] = 20,
 ) -> dict[str, Any]:
     """Check that a set of axioms is not contradictory: look for a finite model, and if none, look for a contradiction.
@@ -107,7 +123,7 @@ def check_consistency(
     LEAN: consistency of a finite model is `decide` on `Fin n`; a contradiction means one of the axioms is false for the structure you meant, so fix the encoding first.
     EXAMPLE: check_consistency(axioms=["![X]: p(X)", "?[X]: ~p(X)"]) -> expected: consistent false, naming both axioms.
     """
-    return core.check_consistency(problem, axioms, language, time_limit_s)
+    return core.check_consistency(problem, axioms, language, time_limit_s, theory)
 
 
 @mcp.tool
@@ -116,6 +132,7 @@ def unsat_core(
     axioms: Annotated[list[str] | None, Field(description=_AXIOMS)] = None,
     conjecture: Annotated[str | None, Field(description=_CONJ)] = None,
     language: Annotated[str, Field(description=_LANG)] = "fof",
+    theory: Annotated[str | list[str] | None, Field(description=_THEORY)] = None,
     time_limit_s: Annotated[int, Field(description="Wall-clock limit in seconds, 1 to 120.", ge=1, le=120)] = 10,
     options: Annotated[dict[str, Any] | None, Field(description=_OPTIONS)] = None,
 ) -> dict[str, Any]:
@@ -129,7 +146,7 @@ def unsat_core(
     LEAN: prove exactly the core's formulas as lemmas and close the goal from them with `simp only`/`grind`; do not import more than the core.
     EXAMPLE: unsat_core(axioms=["![X]: p(X) => q(X)", "![X]: r(X) => s(X)", "p(a)"], conjecture="q(a)") -> expected: core [ax1, ax3], unused [ax2].
     """
-    return core.unsat_core(problem, axioms, conjecture, language, time_limit_s, options)
+    return core.unsat_core(problem, axioms, conjecture, language, time_limit_s, options, theory)
 
 
 @mcp.tool
@@ -138,6 +155,7 @@ def clausify(
     axioms: Annotated[list[str] | None, Field(description=_AXIOMS)] = None,
     conjecture: Annotated[str | None, Field(description=_CONJ)] = None,
     language: Annotated[str, Field(description=_LANG)] = "fof",
+    theory: Annotated[str | list[str] | None, Field(description=_THEORY)] = None,
 ) -> dict[str, Any]:
     """Show the clause normal form Vampire derives from a problem (the negated conjecture and every axiom as clauses, with Skolem symbols).
 
@@ -148,7 +166,7 @@ def clausify(
     LEAN: reading the clauses often shows a missing quantifier or a variable that should have been a constant.
     EXAMPLE: clausify(axioms=["![X]: (p(X) => q(X))"], conjecture="q(a)") -> expected: two clauses, q(X0) | ~p(X0) and the negated goal ~q(a).
     """
-    return core.clausify(problem, axioms, conjecture, language)
+    return core.clausify(problem, axioms, conjecture, language, theory)
 
 
 @mcp.tool
@@ -157,6 +175,7 @@ def check_syntax(
     axioms: Annotated[list[str] | None, Field(description=_AXIOMS)] = None,
     conjecture: Annotated[str | None, Field(description=_CONJ)] = None,
     language: Annotated[str, Field(description=_LANG)] = "fof",
+    theory: Annotated[str | list[str] | None, Field(description=_THEORY)] = None,
 ) -> dict[str, Any]:
     """Check that a problem parses, without trying to prove it, and show Vampire's complaint if it does not.
 
@@ -166,7 +185,7 @@ def check_syntax(
     LEAN: none; this is about the input language. Variables start with a capital letter, constants and predicates with a lowercase one, quantifiers are ![X]: and ?[X]:.
     EXAMPLE: check_syntax(axioms=["p(X"]) -> expected: parses false, with Vampire's parse error.
     """
-    return core.check_syntax(problem, axioms, conjecture, language)
+    return core.check_syntax(problem, axioms, conjecture, language, theory)
 
 
 @mcp.tool
@@ -183,6 +202,21 @@ def explain_proof(
     EXAMPLE: explain_proof(proof="fof(f1,axiom,p(a),file('x',ax1)). ...") -> expected: the step count, axioms_used [ax1], and the rules used {resolution: n, ...}.
     """
     return core.explain_proof(proof, show)
+
+
+@mcp.tool
+def theories() -> dict[str, Any]:
+    """List the named theories (semigroup, monoid, group, abelian group, ring, commutative ring, partial order, lattice): their fixed symbols, their axioms, and the Mathlib class each stands for.
+
+    USE WHEN you want to pass theory=... to another tool and need the exact symbol names (mul, e, inv, add, zero, neg, one, le, meet, join), or want to read the
+    axioms that are added. NOT FOR anything else; it runs no prover.
+
+    LIMITS: none. RETURNS: result.theories = [{theory, symbols, means, mathlib_class, axioms[{name, formula}]}] and how to use them. Axiom names read '<theory>_<axiom>' (group_assoc), the
+    names unsat_core reports.
+    LEAN: the mathlib_class is the typeclass a Lean statement would assume (Group, CommRing, ...); the symbols map to its operations (mul to *, e to 1, inv to ⁻¹).
+    EXAMPLE: theories() -> expected: eight theories; group has symbols mul/2, e/0, inv/1 and the axioms group_assoc, group_left_identity, group_right_identity, group_left_inverse, group_right_inverse.
+    """
+    return core.theories_table()
 
 
 @mcp.tool
