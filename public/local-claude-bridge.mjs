@@ -1164,6 +1164,23 @@ function governorSse(req, res, govId, role = "") {
   })
 }
 
+// The most a tool result may carry into the agent's conversation. A failed verify of a long script came back as 196,348 characters; the CLI
+// refused it ("exceeds maximum allowed tokens"), the agent had nothing to read, and that stretch of an overnight run never recovered. A result
+// longer than the cap keeps its first and its last half (a compile report says what failed at the top and how it ended at the bottom) and says
+// what was left out. `mark` leads the note: the verifier's is "❌", so a truncated reply can never be taken for a clean success.
+const MCP_RESULT_CAP_CHARS = 20000
+function capMcpResult(text, { max = MCP_RESULT_CAP_CHARS, mark = "⚠️" } = {}) {
+  const s = String(text ?? "")
+  if (s.length <= max) return s
+  const half = Math.floor(max / 2)
+  let head = s.slice(0, half)
+  let tail = s.slice(s.length - half)
+  if (/[\uD800-\uDBFF]$/.test(head)) head = head.slice(0, -1) // never cut a surrogate pair in two
+  if (/^[\uDC00-\uDFFF]/.test(tail)) tail = tail.slice(1)
+  const omitted = s.length - head.length - tail.length
+  return `${head}\n\n[${mark} TRUNCATED: this result was ${s.length.toLocaleString("en-US")} characters; the middle ${omitted.toLocaleString("en-US")} are left out, and only the first ${head.length.toLocaleString("en-US")} and the last ${tail.length.toLocaleString("en-US")} are shown. To see less, ask for less (a shorter script, a narrower query).]\n\n${tail}`
+}
+
 async function governorMessage(req, res, govId, sid, role = "") {
   const g = governors.get(govId)
   const stream = g && g.sessions.get(sid)
@@ -1223,7 +1240,7 @@ async function governorMessage(req, res, govId, sid, role = "") {
       const r = await callRemoteMcpTool(g.verifyServer.url, name, args, { timeoutMs: 240000 })
       text = r.ok ? stripNormalizedMarker(r.text, typeof args.script === "string" ? args.script : "") : `❌ Verification Error: ${r.error || "the verifier did not answer"}`
     }
-    reply({ content: [{ type: "text", text: String(text ?? "") }] })
+    reply({ content: [{ type: "text", text: capMcpResult(text, { mark: "❌" }) }] })
   } else if (method === "tools/list") {
     const tools = (g.searchServer?.tools || []).map((t) => ({
       name: t.name,
@@ -1251,7 +1268,7 @@ async function governorMessage(req, res, govId, sid, role = "") {
       } catch (e) {
         text = `Tool error: ${String(e?.message || e)}`
       }
-      reply({ content: [{ type: "text", text: String(text ?? "") }] })
+      reply({ content: [{ type: "text", text: capMcpResult(text) }] })
     } else {
       let text = await governedSearchCall(g, name, msg.params?.arguments || {})
       if (typeof g.augment === "function") {
@@ -1261,7 +1278,7 @@ async function governorMessage(req, res, govId, sid, role = "") {
           /* an augmentation must never break a search */
         }
       }
-      reply({ content: [{ type: "text", text }] })
+      reply({ content: [{ type: "text", text: capMcpResult(text) }] })
     }
   } else if (msg.id != null) {
     reply({})
@@ -2094,11 +2111,25 @@ function resolvePantographUrl(mcpServers) {
   return byName?.url || null
 }
 
+// Ask each MCP server which tools it lists, all at once. [{ name, ok, tools, expected, error }]: `expected` is what the run was told the server
+// has, so a server that answers but has lost a tool shows as that, not as up.
+async function probeMcpServers(servers, { timeoutMs = 20000 } = {}) {
+  return Promise.all(
+    (servers || [])
+      .filter((s) => s?.url)
+      .map(async (s) => {
+        const r = await callRemoteMcpTool(s.url, null, {}, { timeoutMs, listOnly: true })
+        const expected = (Array.isArray(s.tools) ? s.tools : []).map((t) => (typeof t === "string" ? t : t?.name)).filter(Boolean)
+        return { name: String(s.name || s.url), ok: !!r.ok, tools: r.tools || [], expected, error: r.error }
+      }),
+  )
+}
+
 // Call ANY tool on a remote MCP-SSE server, one-shot. `toolMatch` is a string
 // (exact tool name) or RegExp (matched against the server's tool names). Returns
 // { ok, text, error }. Used both to verify scaffolds on the daemon and to proxy
-// governed search calls to Leak I.
-function callRemoteMcpTool(sseUrl, toolMatch, args, { timeoutMs = 180000 } = {}) {
+// governed search calls to Leak I. With `listOnly` nothing is called: it answers { ok, tools: [names] }, which is how a server is probed.
+function callRemoteMcpTool(sseUrl, toolMatch, args, { timeoutMs = 180000, listOnly = false } = {}) {
   return new Promise((resolve) => {
     let base
     try {
@@ -2216,6 +2247,10 @@ function callRemoteMcpTool(sseUrl, toolMatch, args, { timeoutMs = 180000 } = {})
         await rpc("notifications/initialized", undefined, { notify: true })
         const list = await rpc("tools/list", {})
         const tools = list?.result?.tools || []
+        if (listOnly) {
+          done({ ok: true, text: "", tools: tools.map((t) => String(t?.name || "")).filter(Boolean) })
+          return
+        }
         const tool =
           typeof toolMatch === "string"
             ? tools.find((t) => t.name === toolMatch) || tools.find((t) => String(t.name).endsWith(toolMatch))
@@ -3074,6 +3109,7 @@ function makeUsageTap({ say, metrics, model }) {
       })
     : null
   return {
+    lastContext: () => prevCtx, // the size of the conversation at the last API call flushed: how big it is as this stretch ends
     see(o) {
       if (o?.type === "assistant" && o.message?.id && o.message.usage) pending.set(o.message.id, { u: o.message.usage, model: o.message.model || model })
       else if (o?.type === "system" && /compact/i.test(String(o.subtype || ""))) {
@@ -4133,7 +4169,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
       }
       destroyGovernor(governor)
       if (token && !holdGroup) reapAgent(token)
-      resolve({ ok: false, finalText, exitCode: null, timedOut, stopped, stderr: e.message, costUsd, sessionId })
+      resolve({ ok: false, finalText, exitCode: null, timedOut, stopped, stderr: e.message, costUsd, sessionId, contextTokens: usageTap.lastContext() })
     })
     child.on("close", (code) => {
       clearTimers()
@@ -4157,7 +4193,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
         })
       destroyGovernor(governor)
       if (token && !holdGroup) reapAgent(token)
-      resolve({ ok: code === 0 && !timedOut, finalText, exitCode: code, timedOut, stopped, stderr, costUsd, sessionId })
+      resolve({ ok: code === 0 && !timedOut, finalText, exitCode: code, timedOut, stopped, stderr, costUsd, sessionId, contextTokens: usageTap.lastContext() })
     })
   })
 }
@@ -7037,6 +7073,13 @@ async function runSleepStage(M, memory, ctx, theorem, cfg, state) {
 
 async function consolidate(M, memory, ctx, theorem, cfg, state, boxMs) {
   const verifyOnly = (ctx.mcpServers || []).filter((s) => s?.url === ctx.verifyUrl)
+  // The sleep session's only tool is Leak IV. Without it the session cannot compile a corollary, so every group would come back "[]" ("I have no
+  // verify_full_script tool in this session") and look like a library with nothing to merge: say so, and leave the groups for a later sleep.
+  const hasVerifier = verifyOnly.some((s) => !Array.isArray(s.tools) || s.tools.some((t) => /verify_full_script$/i.test(typeof t === "string" ? t : t?.name || "")))
+  if (!hasVerifier) {
+    ctx.emit({ type: "message-annotation", subtype: "error", thought: `🌙 Dream: merging skipped — the sleep session would have no verify_full_script (${verifyOnly.length ? "the verifier server lists no such tool" : `no connected server matches the verifier ${ctx.verifyUrl || "(none set)"}`}), so no corollary could be checked. The groups stay unstudied for the next sleep.` })
+    return
+  }
   const t0 = Date.now()
   const over = () => Date.now() - t0 > boxMs || ctx.signal?.aborted || deadlinePassed(ctx)
   state.seenClusters ??= new Set()
@@ -7222,7 +7265,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   const guideText = guideObj ? M.renderGuide(guideObj, { withLean: seeds.length > 0 }) : ""
   if (opts?.guide && !guideText) ctx.emit({ type: "message-annotation", subtype: "status", thought: "🧭 The target's guide was not used (malformed, or too long to hand over at every reminder)." })
   const sig = theoremSignature(theorem)
-  ctx.memoryRun = { variant: variantKey, voice: V.key, memory, sessionMode: "persistent", attempts: 0, resumes: 0, freshStarts: 0, guards: { kernel_eval_refused: 0 } } // read when the run ends, for its record
+  ctx.memoryRun = { variant: variantKey, voice: V.key, memory, sessionMode: "persistent", attempts: 0, resumes: 0, freshStarts: 0, forcedFresh: 0, guards: { kernel_eval_refused: 0 } } // read when the run ends, for its record
   const pantographUrl = resolvePantographUrl(ctx.mcpServers)
   const allowPantograph = !!cfg.pantograph
   const memoryHeader = `${allowPantograph ? "CONTROL IV" : "CONTROL II"} MEMORY — ${cfg.name} · voice ${V.key}`
@@ -7263,7 +7306,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   ctx.emit({
     type: "message-annotation",
     subtype: "status",
-    thought: `🧠 ${cfg.name}: one continuous agent against Leak IV + Leak I search${allowPantograph ? " + Leak II (Pantograph)" : ""}, a library of verified theorems (${loaded} loaded for this target), ONE persistent session across attempts (when the agent stops it is resumed in the same conversation, which the CLI compacts as it grows; a new conversation only if the old one cannot be resumed), no cap on it, until the clock ends. Voice: ${V.key}.`,
+    thought: `🧠 ${cfg.name}: one continuous agent against Leak IV + Leak I search${allowPantograph ? " + Leak II (Pantograph)" : ""}, a library of verified theorems (${loaded} loaded for this target), ONE persistent session across attempts (when the agent stops it is resumed in the same conversation, which the CLI compacts as it grows; a new conversation only if the old one cannot be resumed, has gone ${M.FRESH_AFTER_IDLE_STRETCHES} stretches without a successful tool call, or has passed ${M.FRESH_AT_CONTEXT_TOKENS.toLocaleString("en-US")} tokens), no cap on it, until the clock ends. Voice: ${V.key}.`,
   })
   if (allowPantograph && !pantographUrl)
     ctx.emit({ type: "message-annotation", subtype: "error", thought: `🧠 ${cfg.name} is meant to have Leak II (Pantograph), but no Leak II server is connected: the agent will run without it.` })
@@ -7278,6 +7321,9 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   let midNote = null // a NOTE/NEXT the agent wrote in the middle of a stretch and then carried on past: the prompt asks for notes as it goes
   let deliveredNoticesHash = "" // the intake notices the agent was last given in a prompt (the PostToolUse hook gives it newer ones)
   let reminders = 0 // every reminder so far, so the questions they carry rotate even when the library does not change size
+  let idleStretches = 0 // stretches of the agent in a row with no successful tool call (see M.freshStartReason)
+  let stretchToolOk = 0 // successful tool calls in the stretch under way
+  let freshNote = "" // why the next conversation is a new one, when the harness chose that
   const runStartedAt = Date.now()
   const leakI = { calls: 0, lastAt: 0 } // searches of Tengoku this run: what the reminders say about Leak I comes from here
   const leakIStats = () => ({ calls: leakI.calls, sinceMs: Date.now() - (leakI.lastAt || runStartedAt) })
@@ -7306,8 +7352,9 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
         subtype: "status",
         thought: resuming
           ? `🧠 Attempt ${attempt} — resuming the SAME session (everything it has learned is still in it), ${memory.size} verified theorem(s) in memory.`
-          : `🧠 Attempt ${attempt} — the previous session could not be resumed; opening a new conversation, ${memory.size} verified theorem(s) in memory${lastAttempt ? ", last submission carried forward" : ""}.`,
+          : `🧠 Attempt ${attempt} — ${freshNote || "the previous session could not be resumed"}; opening a new conversation, ${memory.size} verified theorem(s) in memory${lastAttempt ? ", last submission carried forward" : ""}.`,
       })
+    freshNote = ""
     const gate = makeProofGate(theorem)
     const pendingVerify = new Map()
     const attemptBase = resuming
@@ -7386,6 +7433,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
               }
             } else if (o?.type === "user" && Array.isArray(o.message?.content)) {
               for (const c of o.message.content) {
+                if (c?.type === "tool_result" && M.toolResultSucceeded(c)) stretchToolOk++
                 if (c?.type !== "tool_result" || !c.tool_use_id || !pendingVerify.has(c.tool_use_id)) continue
                 const t = Array.isArray(c.content) ? c.content.map((x) => x?.text || "").join("\n") : String(c.content ?? "")
                 const script = pendingVerify.get(c.tool_use_id)
@@ -7407,12 +7455,23 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     )
     // An agent that stops within minutes, with no verified proof, while the clock is running is spoken to in the same conversation (so
     // it keeps what it learned) instead of being started afresh: an overnight run had about seventy attempts of one to five minutes each.
+    //
+    // A conversation that has stopped working is not resumed again, though: after FRESH_AFTER_IDLE_STRETCHES stretches in a row with no successful
+    // tool call, or once it is past FRESH_AT_CONTEXT_TOKENS, the next stretch opens a new conversation (below), seeded like a new attempt.
+    let startFresh = null
+    const endStretch = (res) => {
+      if (!res?.sessionId) return // no agent ran (the CLI could not start): that has its own count
+      idleStretches = stretchToolOk > 0 ? 0 : idleStretches + 1
+      startFresh = M.freshStartReason({ idleStretches, contextTokens: res.contextTokens || 0 })
+    }
     const t0 = Date.now()
     midNote = null
+    stretchToolOk = 0
     let r = await session(attemptPrompt, sessionId || undefined)
+    endStretch(r)
     lastNote = M.extractNote(r?.finalText) || M.extractNote(lastSaidText) || midNote || lastNote
     let nudges = 0
-    while (!gate.verifiedScript && !ctx.signal?.aborted && !deadlinePassed(ctx) && nudges < maxNudges && r?.sessionId && !r.timedOut && !r.stopped && Date.now() - t0 < minAttemptMs) {
+    while (!startFresh && !gate.verifiedScript && !ctx.signal?.aborted && !deadlinePassed(ctx) && nudges < maxNudges && r?.sessionId && !r.timedOut && !r.stopped && Date.now() - t0 < minAttemptMs) {
       nudges++
       memory.stats.nudges++
       const elapsed = Date.now() - t0
@@ -7429,15 +7488,31 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
       }
       ctx.emit({ type: "prompt", kind: "followup", prompt: `[${memoryHeader} · reminder ${nudges} of ${maxNudges} · same session]\n\n${nudgeText}`, model: ctx.model || null })
       midNote = null
+      stretchToolOk = 0
       r = await session(nudgeText, r.sessionId)
+      endStretch(r)
       lastNote = M.extractNote(r?.finalText) || M.extractNote(lastSaidText) || midNote || lastNote
     }
     // The session goes on only if it can be resumed. A resume the CLI refused (no conversation under that id: no session id comes back and
     // nothing was said) ends it: the next attempt opens a new conversation. Only then are the jobs it started ended; while the session
     // continues they are the agent's own, as across a reminder.
     const lost = !r?.sessionId || (resuming && !r.ok && !r.timedOut && !r.stopped && !String(r.finalText || "").trim())
-    sessionId = lost ? "" : r.sessionId
-    if (lost) remindersSinceFullGuide = Infinity // a new conversation has not seen the guide: its first reminder carries it in full
+    sessionId = lost || startFresh ? "" : r.sessionId
+    if (lost || startFresh) remindersSinceFullGuide = Infinity // a new conversation has not seen the guide: its first reminder carries it in full
+    if (startFresh && !lost && !gate.verifiedScript && !ctx.signal?.aborted && !deadlinePassed(ctx)) {
+      const tokens = (r?.contextTokens || 0).toLocaleString("en-US")
+      if (startFresh === "idle") {
+        // Say what the servers answer now, so that a dropped tool shows in the log and not only as an agent that went quiet.
+        const probes = M.describeProbes(await probeMcpServers(allowedServers))
+        freshNote = `${idleStretches} stretches in a row without one successful tool call`
+        ctx.emit({ type: "message-annotation", subtype: probes.anyBad ? "error" : "status", thought: `🩺 ${freshNote} (the conversation is ${tokens} tokens). MCP servers just now: ${probes.line}. Not resuming it: the next stretch opens a new conversation.` })
+      } else {
+        freshNote = `the conversation reached ${tokens} tokens (past ${M.FRESH_AT_CONTEXT_TOKENS.toLocaleString("en-US")})`
+        ctx.emit({ type: "message-annotation", subtype: "status", thought: `🧠 The conversation is ${tokens} tokens, past ${M.FRESH_AT_CONTEXT_TOKENS.toLocaleString("en-US")}. Not resuming it: the next stretch opens a new conversation.` })
+      }
+      ctx.memoryRun.forcedFresh++
+      idleStretches = 0 // the new conversation gets its own three stretches
+    }
     lastAttemptMs = Date.now() - t0
     lastStopIso = new Date().toISOString()
     // A CLI that started and exited on the spot, having opened no conversation and said nothing, never ran an agent (a flag it does not
@@ -13296,7 +13371,7 @@ function runEndDetail(ctx, metrics, proof) {
   const run = ctx?.memoryRun
   if (run?.memory) {
     try {
-      detail.memory_run = { variant: run.variant, voice: run.voice || null, session_mode: run.sessionMode, attempts: run.attempts, resumes: run.resumes, fresh_starts: run.freshStarts, stats: { ...run.memory.stats }, size: run.memory.size, guards: { ...(run.guards || {}), containment: AGENT_CONTAINMENT, hook_blocked: readBlocks(run.agentToken) } }
+      detail.memory_run = { variant: run.variant, voice: run.voice || null, session_mode: run.sessionMode, attempts: run.attempts, resumes: run.resumes, fresh_starts: run.freshStarts, forced_fresh: run.forcedFresh ?? 0, stats: { ...run.memory.stats }, size: run.memory.size, guards: { ...(run.guards || {}), containment: AGENT_CONTAINMENT, hook_blocked: readBlocks(run.agentToken) } }
       detail.memory = { schema: "leak-run-memory/1", variant: run.variant, target_id: ctx.targetId || "", entries: [...run.memory.entries.values()].map((e) => run.memory.publicEntry(e)) }
     } catch {
       /* the record is an extra: it never breaks a run */
