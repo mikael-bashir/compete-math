@@ -35,12 +35,8 @@ if "UNPROVABLE" in text:
     print("% SZS status CounterSatisfiable for t")
 elif "CONTRADICTION" in text or "% PROVABLE" in text:
     print("% SZS status Theorem for t\n% SZS output start Proof for t")
-    print("fof(f1,axiom,![X]: (p(X) => q(X)),file('/dev/stdin',ax1)).")
-    print("fof(f2,axiom,p(a),file('/dev/stdin',ax2)).")
-    print("fof(f3,negated_conjecture,~q(a),inference(negate,[],[f0])).")
-    print("cnf(u4,axiom,~p(X0) | q(X0),inference(cnf_transformation,[],[f1])).")
-    print("cnf(u5,plain,q(a),inference(resolution,[],[u4,f2])).")
-    print("cnf(u6,plain,$false,inference(resolution,[],[u5,f3])).")
+    for line in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "real_vampire_proof_5_1_0.tptp")).read().splitlines():
+        print(line)
     print("% SZS output end Proof for t")
     print("% Time elapsed: 0.012 s\n% Active clauses: 3\n% Generated clauses: 7")
 elif "TIMEOUT" in text:

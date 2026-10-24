@@ -146,7 +146,7 @@ def clausify(
 
     LIMITS: 15 s. RETURNS: result.clause_count and result.clauses (cut at 6,000 characters).
     LEAN: reading the clauses often shows a missing quantifier or a variable that should have been a constant.
-    EXAMPLE: clausify(axioms=["![X]: (p(X) => q(X))"], conjecture="q(a)") -> expected: cnf clauses with ~p(X) | q(X) and the negated goal.
+    EXAMPLE: clausify(axioms=["![X]: (p(X) => q(X))"], conjecture="q(a)") -> expected: two clauses, q(X0) | ~p(X0) and the negated goal ~q(a).
     """
     return core.clausify(problem, axioms, conjecture, language)
 

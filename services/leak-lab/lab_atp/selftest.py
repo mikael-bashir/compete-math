@@ -22,6 +22,7 @@ def main() -> None:
     for opt in vampire.OPTIONS:
         expect(f"vampire has the option --{opt}", f"--{opt}" in shown, "not in `vampire --show_options on`: remove it from lab_atp/vampire.py OPTIONS")
 
+    expect("vampire has the option --unused_predicate_definition_removal (clausify uses it)", "--unused_predicate_definition_removal" in shown)
     r = core.prove(axioms=["![X]: (p(X) => q(X))", "p(a)"], conjecture="q(a)")
     expect("prove: q(a) follows", r["ok"] and r["result"]["verdict"] == "proved" and r["result"]["axioms_used"] == ["ax1", "ax2"], r)
     r = core.prove(axioms=["![X]: (p(X) => q(X))", "p(a)"], conjecture="q(b)", time_limit_s=5)
@@ -40,7 +41,7 @@ def main() -> None:
     r = core.unsat_core(axioms=["![X]: (p(X) => q(X))", "![X]: (r(X) => s(X))", "p(a)"], conjecture="q(a)")
     expect("unsat_core: ax1 and ax3, not ax2", r["ok"] and r["result"]["core"] == ["ax1", "ax3"] and r["result"]["unused"] == ["ax2"], r)
     r = core.clausify(axioms=["![X]: (p(X) => q(X))"], conjecture="q(a)")
-    expect("clausify gives clauses", r["ok"] and r["result"]["clause_count"] >= 2, r)
+    expect("clausify shows both clauses (the implication and the negated goal)", r["ok"] and r["result"]["clause_count"] == 2 and "q(X0) | ~p(X0)" in r["result"]["clauses"] and "~q(a)" in r["result"]["clauses"], r)
     r = core.check_syntax(axioms=["p(X"])
     expect("check_syntax refuses p(X", r["ok"] and r["result"]["parses"] is False, r)
     r = call("smt_check", smtlib2="(declare-const x Int) (declare-const y Int) (assert (= (+ (* 3 x) (* 5 y)) 1)) (assert (> x 0))")

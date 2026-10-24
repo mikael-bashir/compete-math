@@ -116,7 +116,7 @@ def unsat_core(problem=None, axioms=None, conjecture=None, language="fof", time_
 def clausify(problem=None, axioms=None, conjecture=None, language="fof") -> dict:
     try:
         text = problem_text(problem, axioms, conjecture, language)
-        argv = vampire.build_argv(time_limit_s=10, proof=False)
+        argv = vampire.build_argv(time_limit_s=10, proof=False, extra=vampire.CLAUSIFY_RAW)
         argv[argv.index("--mode") + 1] = "clausify"
     except LabError as e:
         return fail(str(e))
@@ -129,7 +129,9 @@ def _clausify_result(argv, text) -> dict:
     res = run_limited(argv, stdin=text, limits=Limits(wall_s=15, memory_bytes=3072 * 1024 * 1024))
     body = res.stdout
     n = body.count("cnf(")
-    return {"clause_count": n, "clauses": clip(body, 6000, "clauses"), "ok": res.returncode == 0 or n > 0, "stderr": res.stderr.strip()[-300:]}
+    # Vampire prints its parse errors on stdout (a "parse error in ..." line), other complaints on stderr
+    complaint = res.stderr.strip()[-300:] or ("" if n else body.strip()[-300:])
+    return {"clause_count": n, "clauses": clip(body, 6000, "clauses"), "ok": res.returncode == 0 or n > 0, "stderr": complaint}
 
 
 def check_syntax(problem=None, axioms=None, conjecture=None, language="fof") -> dict:

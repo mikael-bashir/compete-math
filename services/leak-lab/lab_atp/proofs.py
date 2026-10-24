@@ -70,7 +70,7 @@ def parse_proof(text: str) -> list[dict[str, Any]]:
         formula = args[2] if len(args) > 2 else ""
         annot = ",".join(args[3:]) if len(args) > 3 else ""
         step: dict[str, Any] = {"name": name, "role": role, "formula": re.sub(r"\s+", " ", formula)}
-        f = re.search(r"file\(\s*'?[^,]*'?\s*,\s*([\w$]+)\s*\)", annot)
+        f = re.search(r"file\(\s*'?[^,]*'?\s*,\s*'?([\w$]+)'?\s*\)", annot)  # Vampire 5.1 writes file('<stdin>','ax1'): the name is quoted
         if f:
             step["source_axiom"] = f.group(1)
         inf = re.search(r"inference\(\s*([\w$]+)\s*,\s*\[(.*?)\]\s*,\s*\[(.*?)\]\s*\)", annot, re.S)
@@ -85,7 +85,7 @@ def parse_proof(text: str) -> list[dict[str, Any]]:
 
 def summarise(steps: list[dict[str, Any]], show: int = 60) -> dict[str, Any]:
     rules = Counter(s.get("rule", "input") for s in steps)
-    used = sorted({s["source_axiom"] for s in steps if "source_axiom" in s})
+    used = sorted({s["source_axiom"] for s in steps if "source_axiom" in s and s["role"] != "conjecture"})  # the goal cites its own name; it is not an axiom
     conj = [s["name"] for s in steps if s["role"] in ("conjecture", "negated_conjecture")]
     return {
         "steps": len(steps), "axioms_used": used, "conjecture_steps": conj[:5], "rules": dict(rules.most_common()),

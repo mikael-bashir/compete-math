@@ -18,16 +18,9 @@ except ImportError:
 
 PROVABLE = "% PROVABLE\nfof(ax1, axiom, ![X]: (p(X) => q(X))).\nfof(ax2, axiom, p(a)).\nfof(ax3, axiom, r(b)).\nfof(goal, conjecture, q(a)).\n"
 
-# the shape of what Vampire prints with --proof tptp: input statements with file(...) sources, derived ones with inference(rule, [], [parents])
-SAMPLE_PROOF = """\
-fof(f1,axiom,![X0] : (p(X0) => q(X0)),file('/dev/stdin',ax1)).
-fof(f2,axiom,p(a),file('/dev/stdin',ax2)).
-fof(f3,conjecture,q(a),file('/dev/stdin',goal)).
-fof(f4,negated_conjecture,~q(a),inference(negated_conjecture,[],[f3])).
-cnf(u5,axiom,~p(X0) | q(X0),inference(cnf_transformation,[],[f1])).
-cnf(u6,plain,q(a),inference(resolution,[],[u5,f2])).
-cnf(u7,plain,$false,inference(subsumption_resolution,[],[u6,f4])).
-"""
+# A proof exactly as Vampire 5.1.0 printed it (captured from the built image for ax1: p(X)=>q(X), ax2: p(a), goal: q(a)): the axiom names are in file('<stdin>','ax1')
+with open(os.path.join(HERE, "fakes", "real_vampire_proof_5_1_0.tptp"), encoding="utf8") as _f:
+    SAMPLE_PROOF = _f.read()
 
 
 class Argv(unittest.TestCase):
@@ -95,10 +88,11 @@ class ParseOutput(unittest.TestCase):
 class ProofReading(unittest.TestCase):
     def test_sample(self):
         steps = proofs.parse_proof(SAMPLE_PROOF)
-        self.assertEqual(len(steps), 7)
+        self.assertEqual(len(steps), 11)
         s = proofs.summarise(steps)
-        self.assertEqual(s["axioms_used"], ["ax1", "ax2", "goal"])
+        self.assertEqual(s["axioms_used"], ["ax1", "ax2"])
         self.assertEqual(s["rules"]["resolution"], 1)
+        self.assertEqual(s["rules"]["forward_subsumption_resolution"], 1)
         self.assertFalse(s["uses_avatar_splitting"])
         self.assertIn("Lean", proofs.lean_guidance(s) + "Lean")
         self.assertIn("native_decide", proofs.lean_guidance(s))
@@ -133,7 +127,7 @@ class Tools(unittest.TestCase):
         self.assertTrue(r["ok"], r)
         res = r["result"]
         self.assertEqual((res["verdict"], res["axioms_used"]), ("proved", ["ax1", "ax2"]))
-        self.assertEqual(res["proof_steps"], 6)
+        self.assertEqual(res["proof_steps"], 11)  # the stand-in prints the proof captured from the real Vampire
         self.assertIn("proof", res)
         argv = self.calls()[0]["argv"]
         self.assertIn("5s", argv)
@@ -186,6 +180,7 @@ class Tools(unittest.TestCase):
         c = core.clausify(axioms=["![X]: (p(X) => q(X))"], conjecture="q(a)")
         self.assertEqual(c["result"]["clause_count"], 2)
         self.assertEqual(self.calls()[0]["argv"][self.calls()[0]["argv"].index("--mode") + 1], "clausify")
+        self.assertIn("--unused_predicate_definition_removal", self.calls()[0]["argv"], "the clauses shown are those of the formulas, not of what preprocessing left")
         self.assertTrue(core.check_syntax(axioms=["p"])["result"]["parses"])
         broken = core.check_syntax(problem="BROKEN")
         self.assertFalse(broken["result"]["parses"])
@@ -193,7 +188,7 @@ class Tools(unittest.TestCase):
 
     def test_explain(self):
         r = core.explain_proof(SAMPLE_PROOF)
-        self.assertEqual(r["result"]["steps"], 7)
+        self.assertEqual(r["result"]["steps"], 11)
         self.assertFalse(core.explain_proof("nothing")["ok"])
 
     def test_wall_clock_kills_a_prover_that_ignores_its_limit(self):

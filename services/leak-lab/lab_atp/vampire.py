@@ -27,6 +27,8 @@ OPTIONS: dict[str, dict[str, Any]] = {
     "theory_axioms": {"kind": CHOICE, "values": ["on", "off", "some"], "doc": "Add axioms for built-in theories (arithmetic, arrays) when the problem uses them in tff syntax."},
     "fmb_start_size": {"kind": RANGE, "min": 1, "max": 64, "doc": "Smallest domain size the finite model builder tries first (only for find_countermodel / saturation_algorithm fmb)."},
 }
+# clausify shows the clauses of YOUR formulas, so it must not let Vampire's preprocessing delete a predicate that occurs with one sign only (it would show a tautology)
+CLAUSIFY_RAW = ["--unused_predicate_definition_removal", "off"]
 MODES = {
     "default": ["--mode", "vampire"],
     "casc": ["--mode", "casc"],
