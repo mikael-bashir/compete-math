@@ -13381,7 +13381,9 @@ function proofBankFind(theorem, toolchain) {
 // in a stream that never flushes because the process was killed, and a
 // sub-millisecond syscall a few hundred times over half an hour costs nothing.
 // Every operation is wrapped — logging must never be able to break a run.
-const RUN_LOG_DIR = join(homedir(), ".leak-runs")
+// Where run transcripts go. LEAK_RUN_LOG_DIR moves them: the default folder is the one tools/lrr-sync watches and publishes to LRR, so an experiment
+// that should not be published runs with this set to somewhere else.
+const RUN_LOG_DIR = process.env.LEAK_RUN_LOG_DIR || join(homedir(), ".leak-runs")
 function slugForRun(theorem) {
   const m = String(theorem || "").match(/theorem\s+([A-Za-z0-9_'.]+)/)
   return (m ? m[1] : "run").replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 60) || "run"

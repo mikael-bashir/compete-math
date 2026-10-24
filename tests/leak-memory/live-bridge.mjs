@@ -1682,6 +1682,27 @@ for (const sig of ["SIGTERM", "SIGINT"]) {
 }
 
 
+// ---- run records go where LEAK_RUN_LOG_DIR says (the default folder is the one lrr-sync publishes) ----
+{
+  await check("LEAK_RUN_LOG_DIR moves the run's transcript and index, and nothing is written to ~/.leak-runs", async () => {
+    const dir = fs.mkdtempSync(path.join(tmp, "runs-"))
+    const b = await startBridge({ FAKE_MODE: "ok", LEAK_RUN_LOG_DIR: dir })
+    try {
+      await b.frames("control-honoured", { memory: { entries: [] } })
+      let names = []
+      for (let i = 0; i < 60 && !names.some((n) => n.endsWith(".jsonl") && n !== "index.jsonl"); i++) {
+        names = fs.existsSync(dir) ? fs.readdirSync(dir) : []
+        if (!names.some((n) => n.endsWith(".jsonl") && n !== "index.jsonl")) await new Promise((r) => setTimeout(r, 100))
+      }
+      assert.ok(names.some((n) => n.endsWith(".jsonl") && n !== "index.jsonl"), "a transcript in the chosen folder: " + names.join(","))
+      assert.ok(names.includes("index.jsonl"), "and its index row")
+      assert.equal(fs.existsSync(path.join(b.home, ".leak-runs")), false, "the default folder was not created")
+    } finally {
+      b.stop()
+    }
+  })
+}
+
 // ---- the intake notices: what became of the theorems the account put forward, handed to the driver ----
 {
   const NOTICE_A = "INTAKE NOTICES for this target. They come from the system that reviews the theorems you saved.\n[1] warn · No sign it is useful or general · lemma_one\n    What to do: Make it more general."
