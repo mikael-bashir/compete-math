@@ -20,7 +20,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30 # `pnpm test` (with the live-bridge scenarios) takes 14 of the old 15 minutes: it cancelled main's own run after #84 and every run of #85
     env:
       # the Tengoku search model's postinstall downloads CUDA binaries; nothing here uses them
       ONNXRUNTIME_NODE_INSTALL: skip
