@@ -464,6 +464,8 @@ test("the tools are explained as Tengoku with Leak, each one as it is, and Leak 
   assert.match(b, /Leak II \(init_proof, apply_tactic, get_current_proof_state, snapshot_state, branch_tactics\)/)
   assert.match(b, /memory_recall, memory_list, memory_nominate/)
   assert.match(b, /search to find what exists, verify to add what does not, step to understand what is stuck, remember/)
+  assert.match(b, /three to five one-shot verify_full_script attempts have failed, strongly consider Leak II before a sixth/, "the nudge towards Leak II on a hard problem believed true")
+  assert.doesNotMatch(strategyBlock({ pantograph: false, memoryTools: true }), /strongly consider Leak II/, "and it is not mentioned when there is no Leak II")
   const plain = strategyBlock({ pantograph: false, memoryTools: false })
   assert.doesNotMatch(plain, /snapshot_state|memory_recall/)
   assert.match(plain, /Leak IV \(verify_full_script\)/)

@@ -78,4 +78,6 @@ test("the rules line appears for a lab variant and not for the others", () => {
   assert.match(memoryRules("control-elation", { lab: [{ label: "Leak Lab CAS" }] }), /You have a laboratory \(Leak Lab CAS\)/)
   assert.doesNotMatch(memoryRules("control-elation", { lab: [] }), /You have a laboratory/)
   assert.doesNotMatch(memoryRules("control-lucid-iv", {}), /You have a laboratory/)
+  assert.match(memoryRules("control-misery", {}), /once three to five one-shot attempts have failed, strongly consider this tool/, "Misery is told about Leak II on a hard problem")
+  assert.doesNotMatch(memoryRules("control-misery", { pantograph: false }), /Leak II \(init_proof/, "and not when no Leak II server is connected")
 })
