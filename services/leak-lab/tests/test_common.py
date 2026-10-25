@@ -172,6 +172,20 @@ class Gate(unittest.TestCase):
 
         self.assertEqual(asyncio.run(run()), b"HELLO")
 
+    def test_the_gate_names_its_addresses_and_has_no_wildcard_default(self):
+        import inspect
+
+        self.assertEqual(inspect.signature(gate.serve).parameters["listen_host"].default, "127.0.0.1", "a gate started without an address listens on loopback only")
+        self.assertNotIn("0.0.0.0", inspect.getsource(gate))
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "reads the interfaces with Linux ioctls; the container is Linux")
+    def test_interface_addresses_are_the_containers_own_and_never_loopback(self):
+        found = gate.interface_addresses()
+        self.assertIsInstance(found, list)
+        for addr in found:
+            self.assertRegex(addr, r"^\d+\.\d+\.\d+\.\d+$")
+            self.assertFalse(addr.startswith("127."))
+
 
 if __name__ == "__main__":
     unittest.main()
