@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import sys
 
 
@@ -39,11 +40,22 @@ async def serve(listen_port: int, target_host: str, target_port: int, listen_hos
         await server.serve_forever()
 
 
+SERVICE_NAME = re.compile(r"[a-z][a-z0-9-]{0,62}")
+
+
+def target_of(spec: str) -> tuple[str, int]:
+    """`service:port` of a lab server, nothing else: a name on the lab network, never an address, so the gate cannot be pointed at anything outside it."""
+    host, _, port = spec.rpartition(":")
+    if not SERVICE_NAME.fullmatch(host) or not port.isdigit() or not 1024 <= int(port) <= 65535:
+        raise SystemExit(f"gate: GATE_TARGET must be <service>:<port> (a service name and a port from 1024), not {spec!r}")
+    return host, int(port)
+
+
 def main() -> None:
-    listen, target = int(os.environ["GATE_LISTEN_PORT"]), os.environ["GATE_TARGET"]
-    host, _, port = target.rpartition(":")
+    listen = int(os.environ["GATE_LISTEN_PORT"])
+    host, port = target_of(os.environ["GATE_TARGET"])
     print(f"gate: 0.0.0.0:{listen} -> {host}:{port}", file=sys.stderr, flush=True)
-    asyncio.run(serve(listen, host, int(port)))
+    asyncio.run(serve(listen, host, port))
 
 
 if __name__ == "__main__":
