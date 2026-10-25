@@ -1,0 +1,90 @@
+% TRYING [1]
+% TRYING [2]
+% TRYING [3]
+% TRYING [4]
+% TRYING [5]
+% TRYING [6]
+% Finite Model Found!
+% SZS status CounterSatisfiable for 
+% SZS output start FiniteModel for 
+tff('declare_$i1',type,'fmb_$i_1':$i).
+tff('declare_$i2',type,'fmb_$i_2':$i).
+tff('declare_$i3',type,'fmb_$i_3':$i).
+tff('declare_$i4',type,'fmb_$i_4':$i).
+tff('declare_$i5',type,'fmb_$i_5':$i).
+tff('declare_$i6',type,'fmb_$i_6':$i).
+tff('finite_domain_$i',axiom,
+      ! [X:$i] : (
+         X = 'fmb_$i_1' | X = 'fmb_$i_2' | X = 'fmb_$i_3' | X = 'fmb_$i_4' | X = 'fmb_$i_5' | 
+         X = 'fmb_$i_6'
+      ) ).
+
+tff('distinct_domain_$i',axiom,
+         'fmb_$i_1' != 'fmb_$i_2' & 'fmb_$i_1' != 'fmb_$i_3' & 'fmb_$i_1' != 'fmb_$i_4' & 'fmb_$i_1' != 'fmb_$i_5' & 'fmb_$i_1' != 'fmb_$i_6' & 
+         'fmb_$i_2' != 'fmb_$i_3' & 'fmb_$i_2' != 'fmb_$i_4' & 'fmb_$i_2' != 'fmb_$i_5' & 'fmb_$i_2' != 'fmb_$i_6' & 'fmb_$i_3' != 'fmb_$i_4' & 
+         'fmb_$i_3' != 'fmb_$i_5' & 'fmb_$i_3' != 'fmb_$i_6' & 'fmb_$i_4' != 'fmb_$i_5' & 'fmb_$i_4' != 'fmb_$i_6' & 'fmb_$i_5' != 'fmb_$i_6'
+).
+
+tff(declare_e,type,e:$i).
+tff(e_definition,axiom,e = 'fmb_$i_1').
+tff(declare_mul,type,mul: ($i * $i) > $i).
+tff(function_mul,axiom,
+           mul('fmb_$i_1','fmb_$i_1') = 'fmb_$i_1'
+         & mul('fmb_$i_1','fmb_$i_2') = 'fmb_$i_2'
+         & mul('fmb_$i_1','fmb_$i_3') = 'fmb_$i_3'
+         & mul('fmb_$i_1','fmb_$i_4') = 'fmb_$i_4'
+         & mul('fmb_$i_1','fmb_$i_5') = 'fmb_$i_5'
+         & mul('fmb_$i_1','fmb_$i_6') = 'fmb_$i_6'
+         & mul('fmb_$i_2','fmb_$i_1') = 'fmb_$i_2'
+         & mul('fmb_$i_2','fmb_$i_2') = 'fmb_$i_1'
+         & mul('fmb_$i_2','fmb_$i_3') = 'fmb_$i_4'
+         & mul('fmb_$i_2','fmb_$i_4') = 'fmb_$i_3'
+         & mul('fmb_$i_2','fmb_$i_5') = 'fmb_$i_6'
+         & mul('fmb_$i_2','fmb_$i_6') = 'fmb_$i_5'
+         & mul('fmb_$i_3','fmb_$i_1') = 'fmb_$i_3'
+         & mul('fmb_$i_3','fmb_$i_2') = 'fmb_$i_5'
+         & mul('fmb_$i_3','fmb_$i_3') = 'fmb_$i_6'
+         & mul('fmb_$i_3','fmb_$i_4') = 'fmb_$i_2'
+         & mul('fmb_$i_3','fmb_$i_5') = 'fmb_$i_4'
+         & mul('fmb_$i_3','fmb_$i_6') = 'fmb_$i_1'
+         & mul('fmb_$i_4','fmb_$i_1') = 'fmb_$i_4'
+         & mul('fmb_$i_4','fmb_$i_2') = 'fmb_$i_6'
+         & mul('fmb_$i_4','fmb_$i_3') = 'fmb_$i_5'
+         & mul('fmb_$i_4','fmb_$i_4') = 'fmb_$i_1'
+         & mul('fmb_$i_4','fmb_$i_5') = 'fmb_$i_3'
+         & mul('fmb_$i_4','fmb_$i_6') = 'fmb_$i_2'
+         & mul('fmb_$i_5','fmb_$i_1') = 'fmb_$i_5'
+         & mul('fmb_$i_5','fmb_$i_2') = 'fmb_$i_3'
+         & mul('fmb_$i_5','fmb_$i_3') = 'fmb_$i_2'
+         & mul('fmb_$i_5','fmb_$i_4') = 'fmb_$i_6'
+         & mul('fmb_$i_5','fmb_$i_5') = 'fmb_$i_1'
+         & mul('fmb_$i_5','fmb_$i_6') = 'fmb_$i_4'
+         & mul('fmb_$i_6','fmb_$i_1') = 'fmb_$i_6'
+         & mul('fmb_$i_6','fmb_$i_2') = 'fmb_$i_4'
+         & mul('fmb_$i_6','fmb_$i_3') = 'fmb_$i_1'
+         & mul('fmb_$i_6','fmb_$i_4') = 'fmb_$i_5'
+         & mul('fmb_$i_6','fmb_$i_5') = 'fmb_$i_2'
+         & mul('fmb_$i_6','fmb_$i_6') = 'fmb_$i_3'
+
+).
+
+tff(declare_inv,type,inv: ($i) > $i).
+tff(function_inv,axiom,
+           inv('fmb_$i_1') = 'fmb_$i_1'
+         & inv('fmb_$i_2') = 'fmb_$i_2'
+         & inv('fmb_$i_3') = 'fmb_$i_6'
+         & inv('fmb_$i_4') = 'fmb_$i_4'
+         & inv('fmb_$i_5') = 'fmb_$i_5'
+         & inv('fmb_$i_6') = 'fmb_$i_3'
+
+).
+
+% SZS output end FiniteModel for 
+% ------------------------------
+% Version: Vampire 5.1.0 (Release build, commit 7b2f410ec on 2026-08-13 10:17:34 +0200)
+% CaDiCaL version: 2.1.3
+% Termination reason: Satisfiable
+% Time elapsed: 0.029 s
+% Peak memory usage: 14 MB
+% ------------------------------
+% ------------------------------
