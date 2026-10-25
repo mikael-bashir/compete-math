@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""A stand-in for the vampire binary, for tests: answers according to the problem text it reads on stdin and records its arguments."""
+import json
+import os
+import sys
+import time
+
+args = sys.argv[1:]
+text = sys.stdin.read()
+log = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vampire.log")  # the lab scrubs the child environment, so the stand-in writes next to itself
+if log:
+    with open(log, "a") as f:
+        f.write(json.dumps({"argv": args, "problem": text}) + "\n")
+mode = args[args.index("--mode") + 1] if "--mode" in args else "vampire"
+if "SLEEP" in text:
+    time.sleep(60)
+if "include(" in text:
+    print("% SZS status InputError")
+    sys.exit(1)
+if mode == "clausify":
+    if "BROKEN" in text:
+        sys.stderr.write("Parsing Error on line 1\n")
+        sys.exit(1)
+    print("cnf(u1,axiom,\n    ~p(X0) | q(X0)).\ncnf(u2,negated_conjecture,\n    ~q(a)).")
+    sys.exit(0)
+here = os.path.dirname(os.path.abspath(__file__))
+if "--saturation_algorithm" in args and args[args.index("--saturation_algorithm") + 1] == "fmb" and "mul(X,Y) = mul(Y,X)" in text:
+    print(open(os.path.join(here, "real_vampire_fmb_group6_5_1_0.txt")).read())  # what the real binary printed for the group axioms and "commutative"
+    sys.exit(0)
+if "--saturation_algorithm" in args and args[args.index("--saturation_algorithm") + 1] == "fmb" and "le(X,Y) | le(Y,X)" in text:
+    print(open(os.path.join(here, "real_vampire_fmb_order3_5_1_0.txt")).read())
+    sys.exit(0)
+if "--saturation_algorithm" in args and args[args.index("--saturation_algorithm") + 1] == "fmb" and "exact_size" in text:
+    print("% SZS status GaveUp for t")  # what the real binary does when the one size it was given has no model
+    sys.exit(0)
+if "--saturation_algorithm" in args and args[args.index("--saturation_algorithm") + 1] == "fmb":
+    if "CONTRADICTION" in text:
+        print("% SZS status Unsatisfiable for t\n% SZS output start Proof for t\nfof(f1,axiom,p,file('/dev/stdin',ax1)).\nfof(f2,axiom,~p,file('/dev/stdin',ax2)).\nfof(f3,plain,$false,inference(resolution,[],[f1,f2])).\n% SZS output end Proof for t")
+    elif "GOALFAILS" in text:
+        print("% SZS status CounterSatisfiable for t\n% SZS output start FiniteModel for t\ntff('declare_$i1',type,'fmb_$i_1':$i).\ntff('declare_$i2',type,'fmb_$i_2':$i).\n% SZS output end FiniteModel for t")
+    else:
+        print("% SZS status Satisfiable for t\n% SZS output start FiniteModel for t\ntff('declare_$i1',type,'fmb_$i_1':$i).\n% SZS output end FiniteModel for t")
+    sys.exit(0)
+if "UNPROVABLE" in text:
+    print("% SZS status CounterSatisfiable for t")
+elif "CONTRADICTION" in text or "% PROVABLE" in text:
+    print("% SZS status Theorem for t\n% SZS output start Proof for t")
+    for line in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "real_vampire_proof_5_1_0.tptp")).read().splitlines():
+        print(line)
+    print("% SZS output end Proof for t")
+    print("% Time elapsed: 0.012 s\n% Active clauses: 3\n% Generated clauses: 7")
+elif "TIMEOUT" in text:
+    print("% SZS status Timeout for t")
+else:
+    print("% SZS status GaveUp for t")
