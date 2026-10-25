@@ -3,7 +3,7 @@
 An expression is parsed with Python's parser, and then only a whitelist of syntax is allowed: numbers, names that are variables or functions
 of the lab, + - * / // % **, comparisons, and/or/not, if-else, and calls of the lab's own functions. No attribute access, no subscripts, no
 lambdas, no comprehensions, no strings, no imports: `__import__('os')` is not a function of the lab, and so it is refused before anything
-runs. ** and << are routed through bounded versions. This is the only way a tool turns text from the driver into arithmetic.
+runs. What passes is evaluated by walking the tree here (no eval), with ** and << (and / // %) routed through bounded versions. This is the only way a tool turns text from the driver into arithmetic.
 """
 from __future__ import annotations
 
@@ -77,18 +77,17 @@ FUNCTIONS: dict[str, Callable[..., Any]] = {
     "int": lambda x: math.floor(x),
 }
 CONSTANTS: dict[str, Any] = {"True": True, "False": False}
-_HELPERS = {"_pow": arith.safe_pow, "_shl": arith.safe_shl, "_div": _div, "_floordiv": _floordiv, "_mod": _mod}
-
-
-class _Rewrite(ast.NodeTransformer):
-    """Route the operators that can blow up or fail through bounded helpers."""
-
-    def visit_BinOp(self, node: ast.BinOp):
-        self.generic_visit(node)
-        name = {ast.Pow: "_pow", ast.LShift: "_shl", ast.Div: "_div", ast.FloorDiv: "_floordiv", ast.Mod: "_mod"}.get(type(node.op))
-        if name:
-            return ast.copy_location(ast.Call(func=ast.Name(id=name, ctx=ast.Load()), args=[node.left, node.right], keywords=[]), node)
-        return node
+# the operators that can blow up or fail go through bounded versions; the rest are Python's own
+_BOUNDED = {ast.Pow: arith.safe_pow, ast.LShift: arith.safe_shl, ast.Div: _div, ast.FloorDiv: _floordiv, ast.Mod: _mod}
+_PLAIN = {
+    ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b, ast.Mult: lambda a, b: a * b,
+    ast.BitAnd: lambda a, b: a & b, ast.BitOr: lambda a, b: a | b, ast.BitXor: lambda a, b: a ^ b, ast.RShift: lambda a, b: a >> b,
+}
+_UNARY_OPS = {ast.USub: lambda a: -a, ast.UAdd: lambda a: +a, ast.Not: lambda a: not a, ast.Invert: lambda a: ~a}
+_CMP_OPS = {
+    ast.Eq: lambda a, b: a == b, ast.NotEq: lambda a, b: a != b, ast.Lt: lambda a, b: a < b,
+    ast.LtE: lambda a, b: a <= b, ast.Gt: lambda a, b: a > b, ast.GtE: lambda a, b: a >= b,
+}
 
 
 def _validate(tree: ast.AST, variables: set[str]) -> None:
@@ -135,12 +134,49 @@ def compile_expr(text: str, variables: tuple[str, ...] = ()) -> Callable[..., An
     except SyntaxError as e:
         raise LabError(f"syntax error: {e.msg} (at column {e.offset})") from None
     _validate(tree, set(variables))
-    tree = ast.fix_missing_locations(_Rewrite().visit(tree))
-    code = compile(tree, "<lab-expression>", "eval")
-    env = {"__builtins__": {}, **FUNCTIONS, **CONSTANTS, **_HELPERS}
+    body = tree.body
+
+    def walk(node: ast.AST, scope: dict[str, Any]) -> Any:
+        """Evaluate a node that _validate accepted. There is no eval: a node of any other kind cannot get here, and is refused if it did."""
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.Name):
+            if node.id in scope:
+                return scope[node.id]
+            if node.id in CONSTANTS:
+                return CONSTANTS[node.id]
+            return FUNCTIONS[node.id]
+        if isinstance(node, ast.BinOp):
+            op = type(node.op)
+            left, right = walk(node.left, scope), walk(node.right, scope)
+            return (_BOUNDED.get(op) or _PLAIN[op])(left, right)
+        if isinstance(node, ast.UnaryOp):
+            return _UNARY_OPS[type(node.op)](walk(node.operand, scope))
+        if isinstance(node, ast.BoolOp):
+            result = None
+            for v in node.values:  # Python's rule: `and` stops at the first falsy value, `or` at the first truthy one, and the answer is that value
+                result = walk(v, scope)
+                if isinstance(node.op, ast.And) != bool(result):
+                    break
+            return result
+        if isinstance(node, ast.Compare):
+            left = walk(node.left, scope)
+            for op, comparator in zip(node.ops, node.comparators):
+                right = walk(comparator, scope)
+                if not _CMP_OPS[type(op)](left, right):
+                    return False
+                left = right
+            return True
+        if isinstance(node, ast.IfExp):
+            return walk(node.body if walk(node.test, scope) else node.orelse, scope)
+        if isinstance(node, ast.Tuple):
+            return tuple(walk(e, scope) for e in node.elts)
+        if isinstance(node, ast.Call):
+            return FUNCTIONS[node.func.id](*[walk(a, scope) for a in node.args])
+        raise LabError(f"syntax not allowed in a lab expression: {type(node).__name__}")
 
     def run(*args: Any) -> Any:
-        return eval(code, env, dict(zip(variables, args)))  # noqa: S307 - the tree was validated against a whitelist above
+        return walk(body, dict(zip(variables, args)))
 
     return run
 

@@ -11,6 +11,25 @@ from lab_common.limits import Limits, run_limited  # noqa: E402
 
 
 class SafeExpr(unittest.TestCase):
+    def test_walks_the_tree_like_python_does(self):
+        """The expressions are evaluated by walking the checked tree (no eval): on plain integer expressions it must agree with Python itself."""
+        cases = [
+            "a and b", "a or b", "0 or 5", "3 and 0", "not a", "-a + ~b", "1 < a <= 3", "a < b < 2", "a == a == 1", "b if a else a",
+            "(a, b)", "a & b | a ^ b", "b >> 1", "a - b * a + b", "min(a, b) + max(a, b) * abs(a - b)", "gcd(12, 18) + lcm(4, 6)",
+            "a if b else 0 if a else 7", "(a and b) or (not a and 9)", "(a * b) < (b - a) and True",
+        ]
+        for text in cases:
+            for a in (0, 1, 2, 5):
+                for b in (0, 1, 3):
+                    with self.subTest(text=text, a=a, b=b):
+                        expected = eval(text, {"min": min, "max": max, "abs": abs, "gcd": __import__("math").gcd, "lcm": __import__("math").lcm}, {"a": a, "b": b})  # noqa: S307 - the reference, test input only
+                        self.assertEqual(safe_expr.evaluate(text, {"a": a, "b": b}), expected)
+
+    def test_there_is_no_eval_in_the_evaluator(self):
+        with open(safe_expr.__file__, encoding="utf8") as f:
+            source = f.read()
+        self.assertNotRegex(source, r"(?<![\w.])(eval|exec)\(", "the lab's expression language never hands text to Python's eval or exec")
+
     def test_values(self):
         self.assertEqual(safe_expr.evaluate("3**20 + 7 % 4"), 3486784404)
         self.assertEqual(safe_expr.evaluate("x*x + 1", {"x": 12}), 145)
