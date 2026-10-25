@@ -43,6 +43,10 @@ Whenever a proof comes back verified, the bridge fires a single non-blocking
 theorem and proof, then moves on — nothing waits on that call succeeding, and
 nothing about proving locally requires ever visiting competemath.com.
 
+## Optional: the Leak Lab (Leak Elation and Leak Misery)
+
+`node services/leak-lab/start.mjs elation` (or `misery`) starts local tool servers for the two lab variants (an exact CAS; and Vampire/Z3) in locked-down containers and prints their MCP URLs. The bridge finds them on its own. See `services/leak-lab/README.md`.
+
 ## Notes
 
 - Override the container ports in `docker-compose.yml` if 8011/8012/8014 are

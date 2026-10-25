@@ -12,7 +12,7 @@ export function startFakeLeak({ brokenBattery = false } = {}) {
   let marker = false
   const server = createServer((req, res) => {
     const url = new URL(req.url, "http://x")
-    const kind = url.pathname.startsWith("/iv") ? "iv" : "i"
+    const kind = url.pathname.startsWith("/labcas") ? "labcas" : url.pathname.startsWith("/labatp") ? "labatp" : url.pathname.startsWith("/iv") ? "iv" : "i"
     if (req.method === "GET" && url.pathname.endsWith("/sse")) {
       const sid = randomBytes(6).toString("hex")
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" })
@@ -31,6 +31,14 @@ export function startFakeLeak({ brokenBattery = false } = {}) {
         if (m.id == null || !out) return
         const reply = (result) => out.write(`event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", id: m.id, result })}\n\n`)
         if (m.method === "initialize") return reply({ protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "fake-leak", version: "0" } })
+        // the lab servers of Leak Elation (CAS) and Leak Misery (ATP): a few tools each, so the bridge can find, list and call them
+        const LAB_TOOLS = { labcas: ["factor", "mod_order", "map_cycles"], labatp: ["prove", "find_countermodel"] }
+        if (m.method === "tools/list" && LAB_TOOLS[kind])
+          return reply({ tools: LAB_TOOLS[kind].map((name) => ({ name, description: `${kind} ${name}`, inputSchema: { type: "object", properties: {} } })) })
+        if (m.method === "tools/call" && LAB_TOOLS[kind]) {
+          calls.push({ kind, tool: m.params?.name, args: m.params?.arguments || {} })
+          return reply({ content: [{ type: "text", text: `${kind}:${m.params?.name}:${JSON.stringify(m.params?.arguments || {})}` }] })
+        }
         if (m.method === "tools/list")
           return reply({
             tools: [

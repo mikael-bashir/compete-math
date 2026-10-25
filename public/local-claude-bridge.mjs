@@ -2831,6 +2831,21 @@ const STRATEGIES = {
     search: GOV_INITIAL,
     style: "memory",
   },
+  // Leak Elation / Leak Misery: Control IV Lucid with a laboratory of local tool servers (services/leak-lab). See LAB_SERVERS in leak-memory.mjs.
+  "control-elation": {
+    label: "Leak Elation — Control IV Lucid + a local lab: exact CAS for number theory, modular arithmetic, integer maps and conjecture testing (experimental)",
+    node: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    decompose: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    search: GOV_INITIAL,
+    style: "memory",
+  },
+  "control-misery": {
+    label: "Leak Misery — Leak Elation + the Vampire ecosystem and Z3 (first-order proving, finite models, SMT, SAT) in the local lab (experimental)",
+    node: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    decompose: (t, m, x) => controlPrompt(t, m, 1, null, true, true),
+    search: GOV_INITIAL,
+    style: "memory",
+  },
   // Phase-1 linear context: planner writes a `have`-skeleton, isolated minions
   // fill each hole, an assembler stitches + re-verifies. Bounded context per
   // agent; falls back to `have` on any failure. See proveHaveTree.
@@ -7002,7 +7017,7 @@ const queryOfArgs = (args) => Object.values(args || {}).filter((v) => typeof v =
 // The prompt of a memory variant. Same skeleton as controlPrompt (Control II: Leak IV + Leak I search, one continuous agent,
 // fresh attempts until the clock ends), with the rule about top-level lemmas turned around: here a verified helper lemma is
 // the unit of progress that the memory keeps.
-function controlMemoryPrompt(M, variantKey, memory, theorem, mcpServers, attempt, lastAttempt, envHint = "", V = null) {
+function controlMemoryPrompt(M, variantKey, memory, theorem, mcpServers, attempt, lastAttempt, envHint = "", V = null, lab = []) {
   const cfg = M.VARIANTS[variantKey]
   V = V || M.voiceFor()
   const extra = cfg.tools.map((t) => ({ id: `mcp__memory__${t}`, args: t === "memory_recall" ? ["query", "limit"] : t === "memory_nominate" ? ["names", "on"] : ["limit", "nominatedOnly"] }))
@@ -7015,7 +7030,7 @@ function controlMemoryPrompt(M, variantKey, memory, theorem, mcpServers, attempt
     ? `This target's memory already holds ${memory.size} verified theorem(s).`
     : "This target's memory is empty so far."
   const pantograph = !!cfg.pantograph && !!resolvePantographUrl(mcpServers)
-  return `${V.opening({ pantograph, memoryTools: cfg.tools.length > 0 })}
+  return `${V.opening({ pantograph, memoryTools: cfg.tools.length > 0, lab })}
 
 You are working on ONE Lean 4 + Mathlib theorem in a long, single continuous session, and you keep a library of verified theorems as you go. Your tools are Leak IV's verify_full_script — it IS the compiler: every call returns either "✅ Compilation Successful! The proof is 100% verified." or the exact Lean diagnostic text (line number, error/warning message) — and Leak I's loogle_search/moogle_search for library lookups.${pantograph ? " You ALSO have Leak II's interactive proof assistant (init_proof / apply_tactic): step a goal ONE tactic at a time to watch the live goal state evolve, then fold the tactics that worked into your verify_full_script submission." : ""} verify_full_script is the ONLY thing that counts as progress; search${pantograph ? " and Pantograph only support" : " only supports"} a submission, ${pantograph ? "they do" : "it does"} not replace one. ${memLine}
 
@@ -7031,7 +7046,7 @@ ${pantograph ? `\nINTERACTIVE (Leak II): when an error is opaque or a subgoal is
 ${V.strategy({ pantograph, memoryTools: cfg.tools.length > 0 })}
 
 RULES:
-${M.memoryRules(variantKey, { envHint, pantograph })}
+${M.memoryRules(variantKey, { envHint, pantograph, lab })}
 ${V.sessionRules(attempt)}
 - The target is only proved when verify_full_script succeeds on a script that contains the target's exact statement with no sorry.
 ${episodic}${lastBlock}
@@ -7222,6 +7237,66 @@ async function rateStage(memory, ctx, theorem, cfg, state, budget = null) {
   return rated
 }
 
+// ---- the lab (Leak Elation, Leak Misery) --------------------------------------------------------------------------------------------
+// The lab servers run on this machine (services/leak-lab). A plain http URL is accepted for a lab server only if it is a loopback address: the
+// bridge is local, and nothing else should be reached without TLS. The run looks for each server its variant wants (the request may already
+// list it; otherwise the URL in the environment or the default port), asks it for its tools, and says what it found. A server that is down is
+// reported with the command that starts it, and the run goes on without it: the prompt then does not mention tools the agent does not have.
+function labUrlIssue(url) {
+  let u
+  try {
+    u = new URL(url)
+  } catch {
+    return "it is not a URL"
+  }
+  if (u.protocol === "https:") return ""
+  if (u.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)) return ""
+  return "plain http is only accepted for 127.0.0.1, localhost or [::1]; use https for anything else"
+}
+const labUrl = (L) => String(process.env[L.env] || L.url).trim()
+
+async function resolveLabServers(M, variantKey, requested = []) {
+  const found = []
+  const missing = []
+  for (const L of M.labOf(variantKey)) {
+    const url = labUrl(L)
+    const have = (requested || []).find((s) => s?.url && (s.name === L.name || s.url === url))
+    if (have && Array.isArray(have.tools) && have.tools.length) {
+      found.push({ ...L, server: { name: have.name, url: have.url, tools: have.tools }, fromRequest: true })
+      continue
+    }
+    const issue = labUrlIssue(have?.url || url)
+    if (issue) {
+      missing.push({ ...L, url, why: issue })
+      continue
+    }
+    const [probe] = await probeMcpServers([{ name: L.name, url: have?.url || url }], { timeoutMs: 8000 })
+    if (probe?.ok && probe.tools.length) found.push({ ...L, server: { name: L.name, url: have?.url || url, tools: probe.tools } })
+    else missing.push({ ...L, url, why: probe?.error || "no tools listed" })
+  }
+  return { found, missing }
+}
+
+// What the bridge prints about the lab when it starts: where each server should be and whether it answers (the operator starts them with start.mjs).
+async function labStartupReport() {
+  try {
+    const M = await memoryModule()
+    console.log("  Leak Lab (local tools for Leak Elation and Leak Misery):")
+    for (const L of Object.values(M.LAB_SERVERS)) {
+      const url = labUrl(L)
+      const issue = labUrlIssue(url)
+      if (issue) {
+        console.log(`  ${L.label.padEnd(14)} ${url}  REFUSED: ${issue}`)
+        continue
+      }
+      const [r] = await probeMcpServers([{ name: L.name, url }], { timeoutMs: 3000 })
+      console.log(r?.ok ? `  ${L.label.padEnd(14)} ${url}  up, ${r.tools.length} tools` : `  ${L.label.padEnd(14)} ${url}  not running (start it: ${L.start})`)
+    }
+  } catch {
+    /* a status line must never matter */
+  }
+}
+
 async function proveControlMemory(theorem, ctx, opts = {}) {
   if (ctx.signal?.aborted) return { verified: false, proof: "" }
   const M = await memoryModule()
@@ -7231,7 +7306,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
     ctx.emit({ type: "message-annotation", subtype: "error", thought: `Unknown memory variant ${variantKey}.` })
     return { verified: false, proof: "" }
   }
-  const V = M.voiceFor(opts?.voice) // how the harness speaks to the agent (options.voice; "curious" unless asked otherwise)
+  const V = M.voiceFor(opts?.voice || cfg.voice) // how the harness speaks to the agent (options.voice; else the variant's own, e.g. the lab voice; else "curious")
   ctx.stage = "🧠"
   // What this run says about itself with every theorem it saves (app/lib/leak-memory/harness.ts): the server's ticket for the run, which build this is,
   // and counters. The server judges them against its own clock; nothing here is a proof.
@@ -7269,7 +7344,17 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
   const pantographUrl = resolvePantographUrl(ctx.mcpServers)
   const allowPantograph = !!cfg.pantograph
   const memoryHeader = `${allowPantograph ? "CONTROL IV" : "CONTROL II"} MEMORY — ${cfg.name} · voice ${V.key}`
-  const allowedServers = (ctx.mcpServers || []).filter((s) => s?.url && (allowPantograph || s.url !== pantographUrl))
+  const lab = await resolveLabServers(M, variantKey, ctx.mcpServers)
+  const labServerUrls = new Set(lab.found.map((x) => x.server.url))
+  const allowedServers = [
+    ...(ctx.mcpServers || []).filter((s) => s?.url && (allowPantograph || s.url !== pantographUrl) && !labServerUrls.has(s.url)),
+    ...lab.found.map((x) => x.server),
+  ]
+  const labPresent = lab.found.map((x) => ({ key: x.key, label: x.label, name: x.name }))
+  ctx.memoryRun.lab = labPresent.map((x) => x.key)
+  for (const x of lab.found) ctx.emit({ type: "message-annotation", subtype: "status", thought: `🧪 ${x.label}: ${x.server.url}, ${x.server.tools.length} tools${x.fromRequest ? " (as registered in the app)" : ""}.` })
+  for (const x of lab.missing)
+    ctx.emit({ type: "message-annotation", subtype: "error", thought: `🧪 ${x.label} is not available at ${x.url} (${String(x.why).slice(0, 160)}). Start it with: ${x.start} — this run goes on without it, and the agent is not told it has those tools.` })
   const handlers = M.makeHandlers(memory, variantKey)
   const augment = cfg.augmentSearch ? (toolName, args, text) => M.augmentSearchText(memory, queryOfArgs(args), text) : null
   // the first sleep is one interval after the run starts: the agent works first, whatever the library it inherited
@@ -7371,7 +7456,7 @@ async function proveControlMemory(theorem, ctx, opts = {}) {
           leakI: leakIStats(),
           turn: reminders++,
         })
-      : controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint, V)
+      : controlMemoryPrompt(M, variantKey, memory, theorem, allowedServers, attempt, lastAttempt, envHint, V, labPresent)
     // what became of the theorems the account put forward: told at the start of every attempt, and marked told so the hook does not repeat it
     const noticesText = noticesForPrompt(ctx)
     deliveredNoticesHash = ctx.getNotices?.()?.hash || deliveredNoticesHash
@@ -13296,7 +13381,9 @@ function proofBankFind(theorem, toolchain) {
 // in a stream that never flushes because the process was killed, and a
 // sub-millisecond syscall a few hundred times over half an hour costs nothing.
 // Every operation is wrapped — logging must never be able to break a run.
-const RUN_LOG_DIR = join(homedir(), ".leak-runs")
+// Where run transcripts go. LEAK_RUN_LOG_DIR moves them: the default folder is the one tools/lrr-sync watches and publishes to LRR, so an experiment
+// that should not be published runs with this set to somewhere else.
+const RUN_LOG_DIR = process.env.LEAK_RUN_LOG_DIR || join(homedir(), ".leak-runs")
 function slugForRun(theorem) {
   const m = String(theorem || "").match(/theorem\s+([A-Za-z0-9_'.]+)/)
   return (m ? m[1] : "run").replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 60) || "run"
@@ -13371,7 +13458,7 @@ function runEndDetail(ctx, metrics, proof) {
   const run = ctx?.memoryRun
   if (run?.memory) {
     try {
-      detail.memory_run = { variant: run.variant, voice: run.voice || null, session_mode: run.sessionMode, attempts: run.attempts, resumes: run.resumes, fresh_starts: run.freshStarts, forced_fresh: run.forcedFresh ?? 0, stats: { ...run.memory.stats }, size: run.memory.size, guards: { ...(run.guards || {}), containment: AGENT_CONTAINMENT, hook_blocked: readBlocks(run.agentToken) } }
+      detail.memory_run = { variant: run.variant, voice: run.voice || null, session_mode: run.sessionMode, attempts: run.attempts, resumes: run.resumes, fresh_starts: run.freshStarts, forced_fresh: run.forcedFresh ?? 0, lab: run.lab || [], stats: { ...run.memory.stats }, size: run.memory.size, guards: { ...(run.guards || {}), containment: AGENT_CONTAINMENT, hook_blocked: readBlocks(run.agentToken) } }
       detail.memory = { schema: "leak-run-memory/1", variant: run.variant, target_id: ctx.targetId || "", entries: [...run.memory.entries.values()].map((e) => run.memory.publicEntry(e)) }
     } catch {
       /* the record is an extra: it never breaks a run */
@@ -14021,6 +14108,7 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log("  2. Keep this terminal open while you use the feature.")
   console.log("  3. The token is a secret — anyone with it can drive your Claude.")
   console.log(line)
+  labStartupReport()
   // Diagnostic hook (off unless GOV_SELFTEST=<search server sse url>): stand up a
   // persistent governor so the search throttle can be exercised without an agent.
   if (process.env.GOV_SELFTEST) {

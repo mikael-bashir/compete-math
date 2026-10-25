@@ -15,6 +15,12 @@ All four are Control II (one continuous agent, Leak IV plus Leak I search) with 
 
 What is saved: every declaration a run verifies on Leak IV that is not trivial (a closing-tactic proof of a one-line statement is not), with the helper declarations it needs, so each entry compiles on its own. Entries are keyed by the statement (not the name); a shorter proof of the same statement replaces a longer one. `sorry`, `admit` and `native_decide` scripts are never saved.
 
+## Leak Elation and Leak Misery (a lab of local tools)
+
+Control IV Lucid plus a laboratory of tool servers that run on the operator's machine, started with `pnpm lab:elation` or `pnpm lab:misery` (`services/leak-lab`, see its README for the tools, the containment and what can be proved with what). **Elation** adds `Leak_Lab_CAS` (exact number theory, modular arithmetic, integer-map dynamics, polynomial certificates, conjecture testing); **Misery** adds `Leak_Lab_ATP` (Vampire, Z3) as well. They use the **lab voice**: the curious voice with the no-brute-force rule replaced by an invitation to experiment, with the proof boundary stated (every lab answer is an observation; a fact is what Leak IV verifies; no `native_decide`, no `bv_decide`). The bridge looks for the servers at `127.0.0.1:8021` / `:8022` (`LEAK_LAB_CAS_URL`, `LEAK_LAB_ATP_URL`; plain http only for loopback), adds the ones that answer to the agent's tools, and reports the ones that do not with the command that starts them. The run's end line records `memory_run.lab`.
+
+Everything the harness says to a Misery agent (system prompt, first prompt, reminders, sleep prompts, every lab tool description) is in [leak-misery-prompts.md](leak-misery-prompts.md), written by `node scripts/dump-leak-prompts.mjs control-misery > docs/leak-misery-prompts.md` from the code that says it; run it again after changing a prompt.
+
 ## Where it lives
 
 - `public/leak-quality.mjs`: the rating rule (features, two probes, a model's reading, the stars). Next to the bridge; the setup command downloads it. The sleep stage and `tools/leak-rank` both use it.

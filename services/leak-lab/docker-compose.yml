@@ -1,0 +1,76 @@
+# Leak Lab: the local tool servers for Leak Elation (CAS) and Leak Misery (CAS + Vampire/SMT/SAT).
+#
+#   node services/leak-lab/start.mjs elation      # or: pnpm lab:elation
+#   node services/leak-lab/start.mjs misery       # or: pnpm lab:misery
+#
+# How it is contained (each line is a thing `docker inspect` shows, and start.mjs checks the network ones):
+#   - the tool servers are on a network with NO way out (`internal: true`): they cannot reach the internet, your LAN, or the host;
+#   - a tiny gate (the same image, `python -m lab_common.gate`) is the only thing published, and only on 127.0.0.1, and it only copies bytes;
+#   - read-only root filesystem, a small non-executable tmpfs, no capabilities, no privilege escalation, a non-root user, a process limit,
+#     memory and CPU limits; every computation then runs in its own child process under rlimits and a wall-clock kill (lab_common/limits.py).
+name: leak-lab
+
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  user: "10001:10001"
+  pids_limit: 256
+  tmpfs: ["/tmp:size=128m,mode=1777,nosuid,nodev,noexec"]
+  restart: unless-stopped
+  init: true
+
+services:
+  cas:
+    <<: *hardened
+    build: { context: ., dockerfile: lab_cas/Dockerfile }
+    image: leak-lab-cas:1
+    mem_limit: 2g
+    cpus: 2
+    networks: [lab_internal]
+
+  cas-gate:
+    <<: *hardened
+    image: leak-lab-cas:1
+    command: ["python", "-m", "lab_common.gate"]
+    environment: { GATE_LISTEN_PORT: "8021", GATE_TARGET: "cas:8021" }
+    ports: ["127.0.0.1:${LAB_CAS_PORT:-8021}:8021"]
+    mem_limit: 128m
+    cpus: 0.5
+    networks: [lab_internal, lab_edge]
+    depends_on: { cas: { condition: service_healthy } }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8021), 3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  atp:
+    <<: *hardened
+    profiles: ["misery"]
+    build: { context: ., dockerfile: lab_atp/Dockerfile }
+    image: leak-lab-atp:1
+    mem_limit: 3g
+    cpus: 2
+    networks: [lab_internal]
+
+  atp-gate:
+    <<: *hardened
+    profiles: ["misery"]
+    image: leak-lab-atp:1
+    command: ["python", "-m", "lab_common.gate"]
+    environment: { GATE_LISTEN_PORT: "8022", GATE_TARGET: "atp:8022" }
+    ports: ["127.0.0.1:${LAB_ATP_PORT:-8022}:8022"]
+    mem_limit: 128m
+    cpus: 0.5
+    networks: [lab_internal, lab_edge]
+    depends_on: { atp: { condition: service_healthy } }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8022), 3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  lab_internal: { internal: true }
+  lab_edge: {}

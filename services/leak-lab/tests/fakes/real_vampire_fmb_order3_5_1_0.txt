@@ -1,0 +1,41 @@
+% Detected minimum model sizes of [3]
+% Detected maximum model sizes of [5]
+% TRYING [3]
+% Finite Model Found!
+% SZS status CounterSatisfiable for 
+% SZS output start FiniteModel for 
+tff('declare_$i1',type,'fmb_$i_1':$i).
+tff('declare_$i2',type,'fmb_$i_2':$i).
+tff('declare_$i3',type,'fmb_$i_3':$i).
+tff('finite_domain_$i',axiom,
+      ! [X:$i] : (
+         X = 'fmb_$i_1' | X = 'fmb_$i_2' | X = 'fmb_$i_3'
+      ) ).
+
+tff('distinct_domain_$i',axiom,
+         'fmb_$i_1' != 'fmb_$i_2' & 'fmb_$i_1' != 'fmb_$i_3' & 'fmb_$i_2' != 'fmb_$i_3'
+).
+
+tff(declare_le,type,le: ($i * $i) > $o).
+tff(predicate_le,axiom,
+           le('fmb_$i_1','fmb_$i_1')
+         & ~le('fmb_$i_1','fmb_$i_2')
+         & ~le('fmb_$i_1','fmb_$i_3')
+         & ~le('fmb_$i_2','fmb_$i_1')
+         & le('fmb_$i_2','fmb_$i_2')
+         & ~le('fmb_$i_2','fmb_$i_3')
+         & ~le('fmb_$i_3','fmb_$i_1')
+         & ~le('fmb_$i_3','fmb_$i_2')
+         & le('fmb_$i_3','fmb_$i_3')
+
+).
+
+% SZS output end FiniteModel for 
+% ------------------------------
+% Version: Vampire 5.1.0 (Release build, commit 7b2f410ec on 2026-08-13 10:17:34 +0200)
+% CaDiCaL version: 2.1.3
+% Termination reason: Satisfiable
+% Time elapsed: 0.0000 s
+% Peak memory usage: 11 MB
+% ------------------------------
+% ------------------------------
