@@ -142,6 +142,39 @@ export function extractNote(text) {
   return note || next ? { note, next } : null
 }
 
+// ---- a conversation that has stopped working: when to leave it for a new one ----------------------------------------------------------
+// A run of Control IV Lucid on erdos_396 lost its Leak I tools mid-conversation, then hit a 196k-character verify error, and the agent made no
+// successful tool call for two hours. The harness kept resuming that conversation (377 text-only turns, the context grew to 876k tokens): a
+// resume only repeats what is already wrong. These are the two reasons to stop resuming, and what counts as a tool call that worked.
+export const FRESH_AFTER_IDLE_STRETCHES = 3 // stretches of the agent in a row with no successful tool call
+export const FRESH_AT_CONTEXT_TOKENS = 600_000 // the size of the conversation at the end of a stretch, past which it is not resumed again
+
+export const toolResultText = (block) => (Array.isArray(block?.content) ? block.content.map((x) => x?.text || "").join("\n") : String(block?.content ?? ""))
+
+// A tool_result the CLI reports as an error, or that is the CLI's own refusal ("No such tool available", "result ... exceeds maximum allowed
+// tokens"), is not a tool call that worked. A compile that fails ("❌ Compilation Failed") IS one: the tool answered.
+export function toolResultSucceeded(block) {
+  if (!block || block.is_error === true) return false
+  return !/^\s*(?:<tool_use_error>|Error:)/.test(toolResultText(block))
+}
+
+// Why the next stretch should open a new conversation instead of resuming this one, or null. Stretches with no tool call win over size.
+export function freshStartReason({ idleStretches = 0, contextTokens = 0 } = {}) {
+  if (idleStretches >= FRESH_AFTER_IDLE_STRETCHES) return "idle"
+  if (contextTokens >= FRESH_AT_CONTEXT_TOKENS) return "context"
+  return null
+}
+
+// One line for the annotation: what each MCP server answered when it was asked for its tools. probes: [{ name, ok, tools, expected, error }]
+export function describeProbes(probes) {
+  const parts = (probes || []).map((p) => {
+    if (!p.ok) return `${p.name} DOWN (${String(p.error || "no answer").slice(0, 120)})`
+    const missing = (p.expected || []).filter((t) => !(p.tools || []).includes(t))
+    return missing.length ? `${p.name} up but missing ${missing.join(", ")}` : `${p.name} up (${(p.tools || []).length} tool${(p.tools || []).length === 1 ? "" : "s"})`
+  })
+  return { line: parts.length ? parts.join(" · ") : "no MCP server to probe", anyBad: (probes || []).some((p) => !p.ok || (p.expected || []).some((t) => !(p.tools || []).includes(t))) }
+}
+
 // ---- a target's line of attack (its "guide") -------------------------------------------------------------------
 // A target may carry a written line of attack: a chain of steps, each saying what it claims and why it follows (or might), with the
 // steps that are not yet established marked and filled as far as they can be. The harness never puts it in the OPENING prompt: the

@@ -49,20 +49,30 @@ async function startBridge(env = {}) {
     if (!res.ok) throw new Error("HTTP " + res.status + " " + (await res.text()))
     return res
   }
-  const frames = async (strategy, extra) => {
-    const res = await post(strategy, extra)
+  // until(frames so far), when given, ends the run as soon as it is true: for a scenario whose point is made long before the run's own clock (which is at least a minute) runs out
+  const frames = async (strategy, extra, until) => {
+    const ac = new AbortController()
+    const res = await post(strategy, extra, { signal: ac.signal })
     const out = []
     let buf = ""
     const dec = new TextDecoder()
-    for await (const chunk of res.body) {
-      buf += dec.decode(chunk, { stream: true })
-      let i
-      while ((i = buf.indexOf("\n\n")) >= 0) {
-        const raw = buf.slice(0, i)
-        buf = buf.slice(i + 2)
-        const d = raw.split("\n").filter((l) => l.startsWith("data: ")).map((l) => l.slice(6)).join("")
-        if (d) try { out.push(JSON.parse(d)) } catch {}
+    try {
+      for await (const chunk of res.body) {
+        buf += dec.decode(chunk, { stream: true })
+        let i
+        while ((i = buf.indexOf("\n\n")) >= 0) {
+          const raw = buf.slice(0, i)
+          buf = buf.slice(i + 2)
+          const d = raw.split("\n").filter((l) => l.startsWith("data: ")).map((l) => l.slice(6)).join("")
+          if (d) try { out.push(JSON.parse(d)) } catch {}
+        }
+        if (until && until(out)) {
+          ac.abort()
+          break
+        }
       }
+    } catch (e) {
+      if (!ac.signal.aborted) throw e
     }
     return out
   }
@@ -581,6 +591,215 @@ const check = async (name, fn) => {
   })
   b.stop()
 }
+// ---- a conversation that has stopped working is not resumed again ----
+// An overnight Lucid run lost its Leak I tools, then took a 196k-character verify error, and made no successful tool call for two hours while the
+// harness resumed the same conversation 377 times. Three stretches in a row with none, or a conversation past 600k tokens, now ends it.
+{
+  const opts = { memory: { entries: [] }, minAttemptMs: 600000, maxNudges: 2 }
+  const freshProbe = (f) => f.filter((x) => x.subtype === "error" || x.subtype === "status").map((x) => x.thought).filter((t) => /🩺/.test(t || ""))
+  await check("three stretches in a row with no successful tool call: servers are probed, the answer is shown, and a NEW conversation is opened (not a resume)", async () => {
+    const b = await startBridge({ FAKE_MODE: "idle" })
+    try {
+      const f = await b.frames("control-honoured", opts)
+      const calls = b.calls()
+      assert.equal(calls[0].resume, null)
+      assert.equal(calls[1].resume, calls[0].session, "the first reminder still resumes")
+      assert.equal(calls[2].resume, calls[1].session, "so does the second")
+      assert.equal(calls[3].resume, null, "after the third idle stretch the conversation is not resumed")
+      assert.notEqual(calls[3].session, calls[2].session)
+      assert.doesNotMatch(calls[3].prompt, /short stretch|Welcome back/, "seeded like a new attempt, not as a reminder")
+      const probe = freshProbe(f)
+      assert.equal(probe.length, 1, texts(f).join(" | "))
+      assert.match(probe[0], /3 stretches in a row without one successful tool call/)
+      assert.match(probe[0], /MCP servers just now: Leak_IV up \(1 tool\) · Leak_I up \(1 tool\)\./)
+      assert.ok(texts(f).some((t) => /Attempt 2 — 3 stretches in a row without one successful tool call; opening a new conversation/.test(t)), texts(f).join(" | "))
+      const last = f.filter((x) => x.type === "prompt").pop()?.prompt || ""
+      assert.doesNotMatch(last, /same session/)
+      assert.equal(done(f)?.verified, true, "the new conversation, with its tools, proves the target")
+      const stats = f.filter((x) => x.type === "memory" && x.op === "stats").pop()
+      assert.ok(stats, "a stats frame")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("two idle stretches are not enough: the third stretch is still a resume of the same conversation", async () => {
+    const b = await startBridge({ FAKE_MODE: "idle", FAKE_IDLE_STRETCHES: "2" })
+    try {
+      const f = await b.frames("control-honoured", opts)
+      const calls = b.calls()
+      assert.equal(calls[2].resume, calls[1].session)
+      assert.equal(freshProbe(f).length, 0, "no probe, no restart")
+      assert.equal(done(f)?.verified, true)
+      assert.equal(calls.filter((c) => c.resume === null).length, 1, "one conversation was opened, only the first")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a stretch with a successful tool call between idle ones starts the count again", async () => {
+    // idle, idle, a stretch that works (a verified lemma, not the target), idle, idle, then it works: five stretches, never three idle in a row
+    const b = await startBridge({ FAKE_PATTERN: "idle,idle,work,idle,idle,ok" })
+    try {
+      const f = await b.frames("control-honoured", opts)
+      const calls = b.calls()
+      assert.equal(freshProbe(f).length, 0, texts(f).join(" | "))
+      assert.equal(calls.length, 6)
+      assert.equal(calls.filter((c) => c.resume === null).length, 1, "every stretch after the first was a resume")
+      assert.equal(done(f)?.verified, true)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a server that is down is named in the probe, as an error", async () => {
+    const b = await startBridge({ FAKE_MODE: "idle" })
+    try {
+      const down = [mcpServers[0], { name: "Leak_I", url: "http://127.0.0.1:1/i/sse", tools: [{ name: "moogle_search", args: ["concept"] }] }]
+      const f = await b.frames("control-honoured", { ...opts, mcpServers: down })
+      const e = f.find((x) => x.subtype === "error" && /🩺/.test(x.thought || ""))
+      assert.ok(e, "the probe is an error annotation when a server is down: " + texts(f).join(" | "))
+      assert.match(e.thought, /Leak_IV up \(1 tool\)/)
+      assert.match(e.thought, /Leak_I DOWN \(/)
+      assert.equal(b.calls()[3].resume, null)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a conversation of 700k tokens is not resumed after a stretch that worked", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_BIGCTX: "700000" })
+    try {
+      const f = await b.frames("control-honoured", opts)
+      const calls = b.calls()
+      assert.equal(calls[1].resume, null, "no reminder in the old conversation")
+      assert.doesNotMatch(calls[1].prompt, /short stretch/)
+      assert.ok(texts(f).some((t) => /The conversation is 700,012 tokens, past 600,000\. Not resuming it/.test(t)), texts(f).join(" | "))
+      assert.ok(texts(f).some((t) => /Attempt 2 — the conversation reached 700,012 tokens \(past 600,000\); opening a new conversation/.test(t)), texts(f).join(" | "))
+      assert.equal(freshProbe(f).length, 0, "the tools worked: nothing to probe")
+      assert.equal(done(f)?.verified, true)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a conversation of 590k tokens still gets its reminder in the same conversation", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_BIGCTX: "590000" })
+    try {
+      const f = await b.frames("control-honoured", opts)
+      const calls = b.calls()
+      assert.equal(calls[1].resume, calls[0].session)
+      assert.match(calls[1].prompt, /short stretch/)
+      assert.ok(!texts(f).some((t) => /Not resuming it/.test(t)))
+      assert.equal(done(f)?.verified, true)
+    } finally {
+      b.stop()
+    }
+  })
+}
+
+// ---- a tool result is capped at 20k characters (first 10k, last 10k) in the bridge's proxy ----
+{
+  const outputs = (f) => f.filter((x) => x.subtype === "tool_result").map((x) => String(x.output || ""))
+  await check("a 216k-character failed compile reaches the agent as 10k + 10k with a note, and is not mistaken for a success", async () => {
+    const before = leak.calls.length
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1", FAKE_TARGET_PROOF: "theorem HUGE_ERROR_fake : True := by\n  trivial", FAKE_LEMMA: "0" })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: [] }, computeBudgetMs: 4000 }, (fr) => fr.some((x) => x.subtype === "tool_result" && /TAIL-OF-REPORT/.test(x.output || "")))
+      assert.ok(leak.calls.slice(before).some((c) => c.tool === "verify_full_script" && /HUGE_ERROR/.test(JSON.stringify(c.args))), "the script reached the fake Leak IV")
+      const t = outputs(f).find((x) => /HEAD-OF-REPORT/.test(x))
+      assert.ok(t, "the agent saw the report")
+      assert.ok(t.length > 20000 && t.length < 21000, `20,000 characters and the note: ${t.length}`)
+      assert.match(t, /^❌ Compilation Failed: HEAD-OF-REPORT/, "the head is the report's own")
+      assert.match(t, /TAIL-OF-REPORT\n\[tools: /, "the tail is the report's own end")
+      assert.match(t, /\[❌ TRUNCATED: this result was 216,\d{3} characters; the middle 196,\d{3} are left out, and only the first 10,000 and the last 10,000 are shown\./)
+      assert.notEqual(done(f)?.verified, true)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a long 'successful' compile is cut with a note that keeps it from counting as a proof", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1", FAKE_TARGET_PROOF: "theorem HUGE_OK_fake : True := by\n  trivial", FAKE_LEMMA: "0" })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: [] }, computeBudgetMs: 4000 }, (fr) => fr.some((x) => x.subtype === "tool_result" && /Compilation Successful/.test(x.output || "") && /TRUNCATED/.test(x.output || "")) && fr.some((x) => /closed it on attempt|stopped after \d+ minute/.test(x.thought || "")))
+      const t = outputs(f).find((x) => /Compilation Successful/.test(x) && /TRUNCATED/.test(x))
+      assert.ok(t, "the agent saw a cut success: " + outputs(f).join(" | ").slice(0, 300))
+      assert.match(t, /\[❌ TRUNCATED/)
+      assert.ok(!texts(f).some((x) => /closed it on attempt/.test(x)), "a cut report is not a verified proof")
+      assert.ok(texts(f).some((x) => /stopped after \d+ minute/.test(x)), "the run went on, as it does when nothing is verified: " + texts(f).join(" | "))
+      assert.ok(!f.some((x) => x.type === "memory" && x.op === "save"), "and nothing from it is saved to memory")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a result of exactly 20,000 characters is passed on whole", async () => {
+    // the cap is not applied to what fits: the same fake, a run that never reaches the cap
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_VERIFY_VIA_MCP: "1" })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: [] } })
+      assert.ok(!outputs(f).some((x) => /TRUNCATED/.test(x)), "a short result is never touched")
+      assert.equal(done(f)?.verified, true)
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a search result is capped the same way (the budget line at its end is kept)", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_SEARCH_CONCEPT: "HUGE", FAKE_LEMMA: "0", FAKE_TARGET: "0" })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: [] }, computeBudgetMs: 4000 }, (fr) => fr.some((x) => x.subtype === "tool_result" && /SEARCH-HEAD/.test(x.output || "")))
+      const t = outputs(f).find((x) => /SEARCH-HEAD/.test(x))
+      assert.ok(t, "the agent saw the search result: " + outputs(f).join(" | ").slice(0, 300))
+      assert.ok(t.length > 20000 && t.length < 21000, `20,000 characters and the note: ${t.length}`)
+      assert.match(t, /TRUNCATED/)
+      assert.match(t, /\[search budget: \d+ left/, "the last 10k holds the governor's budget line")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("a memory tool's answer is capped the same way", async () => {
+    const big = { id: "big1", name: "odd_pair_even_big", statement: "theorem odd_pair_even_big (a b : ℕ) (ha : a % 2 = 1) (hb : b % 2 = 1) : (a + b) % 2 = 0", closure: `theorem odd_pair_even_big (a b : ℕ) (ha : a % 2 = 1) (hb : b % 2 = 1) : (a + b) % 2 = 0 := by\n  omega\n${"-- padding line of a very long proof\n".repeat(1500)}`, origin: "seed", saved_at: 1 }
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_LEMMA: "0", FAKE_TARGET: "0" })
+    try {
+      const f = await b.frames("control-honoured", { memory: { entries: [big] }, computeBudgetMs: 4000 }, (fr) => fr.some((x) => x.subtype === "tool_result" && /odd_pair_even_big/.test(x.output || "") && /\[tools:/.test(x.output || "")))
+      const t = outputs(f).find((x) => /odd_pair_even_big/.test(x) && /\[tools:/.test(x))
+      assert.ok(t, "the agent recalled the entry: " + outputs(f).join(" | ").slice(0, 300))
+      assert.ok(t.length < 21000, `capped: ${t.length}`)
+      assert.match(t, /TRUNCATED/)
+    } finally {
+      b.stop()
+    }
+  })
+}
+
+// ---- a sleep session with no verifier does not pretend to have found nothing ----
+{
+  const m = new Memory({})
+  const olds = OLD.flatMap((s) => m.addScript(s, { attempt: 1 }))
+  await check("sleep with no verify_full_script for its session says it is skipping the merge, and starts no sleep session", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_LIST: "1" })
+    try {
+      // the verifier the run was told about lists no verify_full_script, so the sleep session (whose only tool is the verifier) would have none
+      const noTool = [{ name: "Leak_IV", url: mcpServers[0].url, tools: ["other_tool"] }, mcpServers[1]]
+      const f = await b.frames("control-lucid", { memory: { entries: olds.map((e) => ({ ...e })) }, sleepEveryMs: 0, sleepMinNew: 1, mcpServers: noTool }, (fr) => fr.some((x) => /Dream: merging skipped/.test(x.thought || "")) && fr.some((x) => /Attempt 2|closed it|stopped after/.test(x.thought || "") || x.type === "prompt" && /same session|reminder/.test(x.prompt || "")))
+      const e = f.find((x) => x.subtype === "error" && /Dream: merging skipped/.test(x.thought || ""))
+      assert.ok(e, "a visible message: " + texts(f).join(" | "))
+      assert.match(e.thought, /no verify_full_script/)
+      assert.match(e.thought, /stay unstudied for the next sleep/)
+      assert.ok(!b.calls().some((c) => /consolidation \("sleep"\) stage/.test(c.prompt)), "no sleep session was started with nothing to verify with")
+      assert.ok(!texts(f).some((t) => /Dream: \d+ group\(s\) studied/.test(t)), "and it does not report groups studied")
+    } finally {
+      b.stop()
+    }
+  })
+  await check("sleep with no verifier server at all is skipped the same way", async () => {
+    const b = await startBridge({ FAKE_MODE: "ok", FAKE_LIST: "1" })
+    try {
+      const f = await b.frames("control-lucid", { memory: { entries: olds.map((e) => ({ ...e })) }, sleepEveryMs: 0, sleepMinNew: 1, mcpServers: [mcpServers[1]] }, (fr) => fr.some((x) => /Dream: merging skipped/.test(x.thought || "")) && fr.some((x) => x.type === "prompt" && /same session|reminder/.test(x.prompt || "")))
+      const e = f.find((x) => x.subtype === "error" && /Dream: merging skipped/.test(x.thought || ""))
+      assert.ok(e, "a visible message: " + texts(f).join(" | "))
+      assert.match(e.thought, /the verifier server lists no such tool/, "with no Leak IV connected the run falls back to another server, which lists none")
+      assert.ok(!b.calls().some((c) => /consolidation \("sleep"\) stage/.test(c.prompt)))
+    } finally {
+      b.stop()
+    }
+  })
+}
+
 // ---- a target's guide (its written line of attack): only when the agent is reminded to keep going ----
 const GUIDE = {
   intro: "GUIDE-INTRO.",

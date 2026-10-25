@@ -78,6 +78,25 @@ if (/consolidation \("sleep"\) stage/.test(prompt)) {
   out({ type: "result", subtype: "success", is_error: false, result: "```json\n" + (process.env.FAKE_SLEEP_JSON || "[]") + "\n```", total_cost_usd: 0.01, session_id: SESSION })
   process.exit(0)
 }
+// which invocation of the CLI this is (1 for the first): the report has one line for each, this one included
+const invocation = process.env.FAKE_REPORT && existsSync(process.env.FAKE_REPORT) ? readFileSync(process.env.FAKE_REPORT, "utf8").trim().split("\n").filter(Boolean).length : 1
+// FAKE_MODE=idle: an agent that has lost its tools. The first FAKE_IDLE_STRETCHES invocations (default 3) say a line of text, make no tool call and
+// stop; the ones after that work as usual. (The bridge resumes the first ones in the same conversation, then opens a new one.)
+// FAKE_PATTERN="idle,idle,work,idle": a stretch by stretch script instead, where "work" verifies a lemma and stops without the target and anything else works as usual
+const step = process.env.FAKE_PATTERN ? process.env.FAKE_PATTERN.split(",")[invocation - 1] || "ok" : null
+if (step ? step === "idle" : mode === "idle" && invocation <= Number(process.env.FAKE_IDLE_STRETCHES || 3)) {
+  out({ type: "assistant", message: { ...(process.env.FAKE_IDLE_CTX ? { id: `msg_idle_${invocation}`, model: "claude-sonnet-5-5", usage: { input_tokens: 4, output_tokens: 20, cache_read_input_tokens: Number(process.env.FAKE_IDLE_CTX), cache_creation_input_tokens: 0 } } : {}), content: [{ type: "text", text: "I will think about it some more." }] } })
+  out({ type: "assistant", message: { content: [{ type: "tool_use", id: `idle_${invocation}`, name: "mcp__Leak_I__loogle_search", input: { query: "x" } }] } })
+  out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `idle_${invocation}`, is_error: true, content: "<tool_use_error>Error: No such tool available: mcp__Leak_I__loogle_search</tool_use_error>" }] } })
+  out({ type: "result", subtype: "success", is_error: false, result: "I will think about it some more.", total_cost_usd: 0.01, session_id: SESSION })
+  process.exit(0)
+}
+// The agents that stop without a proof (giveup, stubborn, lose) did something first: one tool call that worked, as an agent that is trying does.
+// Without it each of their stretches would count as one with no tool call, and three of them make the bridge open a new conversation (FAKE_MODE=idle).
+const workedBeforeStopping = () => {
+  out({ type: "assistant", message: { content: [{ type: "tool_use", id: `worked_${invocation}`, name: "mcp__memory__memory_list", input: {} }] } })
+  out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `worked_${invocation}`, content: [{ type: "text", text: "Memory is empty for this target so far." }] }] } })
+}
 // lose = stop at once, and a resume finds no conversation: the CLI says so on stderr, prints nothing and exits 1
 if (mode === "lose" && resumed) {
   process.stderr.write(`No conversation found with session ID: ${resumed}\n`)
@@ -85,6 +104,7 @@ if (mode === "lose" && resumed) {
 }
 // FAKE_SEARCHES=n: the agent asks Leak I n times in the stretch before it stops (the bridge counts them for the reminder's Leak I check-in)
 for (let i = 0; i < Number(process.env.FAKE_SEARCHES || 0); i++) out({ type: "assistant", message: { content: [{ type: "tool_use", id: `fake_search_${i}`, name: "mcp__Leak_I__moogle_search", input: { concept: "x" } }] } })
+if (mode === "stubborn" || mode === "lose" || (mode === "giveup" && !resumed)) workedBeforeStopping()
 if (process.env.FAKE_MIDNOTE && (mode === "stubborn" || mode === "lose" || (mode === "giveup" && !resumed))) {
   // the prompt asks for notes as the agent goes: this one wrote its NOTE/NEXT mid-stretch and ended on plain text
   out({ type: "assistant", message: { content: [{ type: "text", text: "NOTE: the mid-stretch note.\nNEXT: the mid-stretch next." }] } })
@@ -152,8 +172,13 @@ let n = 0
 const pace = () => new Promise((r) => setTimeout(r, Number(process.env.FAKE_PACE_MS) || 0))
 // FAKE_USAGE=1: every assistant message carries an id, a model and the usage a real API call reports, so the bridge's per-call usage record can
 // be checked: the context grows by 20 000 cache-read tokens a call, unless FAKE_USAGE_DROP_AT=k, where call k reads only 30 000 (a compaction).
+// FAKE_BIGCTX=n: the first invocation's conversation is n tokens big when it ends, and it does not try the target (so the bridge has to decide what to do with it)
+const bigCtx = Number(process.env.FAKE_BIGCTX || 0) > 0 && invocation === 1
+const noTarget = bigCtx || step === "work"
 const usageOf = (k) =>
-  process.env.FAKE_USAGE
+  bigCtx
+    ? { id: `msg_big_${k}`, model: "claude-sonnet-5-5", usage: { input_tokens: 12, output_tokens: 300, cache_read_input_tokens: Number(process.env.FAKE_BIGCTX), cache_creation_input_tokens: 0 } }
+    : process.env.FAKE_USAGE
     ? {
         id: `msg_fake_${k}`,
         model: "claude-sonnet-5-5",
@@ -182,8 +207,9 @@ if (mem && process.env.FAKE_LIST) {
 const searchUrl = cfg.mcpServers.Leak_I?.url
 if (searchUrl && process.env.FAKE_SEARCH) {
   await pace()
-  const id = toolUse("mcp__Leak_I__moogle_search", { concept: "odd sum even" })
-  const r = await mcp(searchUrl, "tools/call", { name: "moogle_search", arguments: { concept: "odd sum even" } })
+  const concept = process.env.FAKE_SEARCH_CONCEPT || "odd sum even"
+  const id = toolUse("mcp__Leak_I__moogle_search", { concept })
+  const r = await mcp(searchUrl, "tools/call", { name: "moogle_search", arguments: { concept } })
   toolResult(id, r.result?.content?.[0]?.text || "")
 }
 // FAKE_VERIFY_VIA_MCP=1: the verify call really goes to the Leak_IV server of the config (the bridge's guarded proxy, in a memory
@@ -201,9 +227,10 @@ if (process.env.FAKE_LEMMA !== "0") {
   const id = toolUse("mcp__Leak_IV__verify_full_script", { script: LEMMA })
   toolResult(id, await verify(LEMMA))
 }
-if (process.env.FAKE_TARGET !== "0") {
+if (process.env.FAKE_TARGET !== "0" && !noTarget) {
   await pace()
   const id = toolUse("mcp__Leak_IV__verify_full_script", { script: TARGET })
   toolResult(id, await verify(TARGET))
 }
 out({ type: "result", subtype: "success", is_error: false, result: "done", total_cost_usd: 0.01, session_id: SESSION })
+process.stdout.write("", () => process.exit(0)) // an MCP call's 60 s timer would otherwise keep this process alive after its answer, and the bridge waits for the CLI to exit (after stdout is flushed: a long line is lost to a pipe otherwise)

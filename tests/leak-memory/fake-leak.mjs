@@ -45,11 +45,16 @@ export function startFakeLeak({ brokenBattery = false } = {}) {
           if (kind === "iv") {
             const script = String(a.script || "")
             // a probe of the rating pass (a statement whose proof is a tactic battery or exact?): closes only an easy truth
+            // HUGE_ERROR: a failed compile as long as the one that stopped an overnight run (196,348 characters), with a head and a tail to look for
+            // HUGE_OK: a compile that says it succeeded but is too long to pass whole (a long list of warnings): cut, it must not read as a clean success
+            if (/HUGE_OK/.test(script)) return reply({ content: [{ type: "text", text: `✅ Compilation Successful! The proof is 100% verified.\n${"Line 7 (Warning): unused variable `h`\n".repeat(900)}` }] })
+            if (/HUGE_ERROR/.test(script)) return reply({ content: [{ type: "text", text: `❌ Compilation Failed: HEAD-OF-REPORT\n${"Line 7 (Error): unsolved goals ⊢ a b c d e f\n".repeat(4800)}TAIL-OF-REPORT` }] })
             const probe = /exact\?|first \| decide/.test(script)
             const ok = probe ? !brokenBattery && /2 \+ 2 = 4|a \+ b = b \+ a|EASY_PROBE/.test(script) : !/\bsorry\b/.test(script)
             const tail = ok && marker ? `\n[[LEAK_NORMALIZED_SCRIPT_B64:${Buffer.from(`import Mathlib\n${script}`).toString("base64")}]]` : ""
             return reply({ content: [{ type: "text", text: ok ? `✅ Compilation Successful! The proof is 100% verified.${tail}` : "Compilation Failed: Line 1 (Error): declaration uses sorry" }] })
           }
+          if (/HUGE/.test(String(a.concept || ""))) return reply({ content: [{ type: "text", text: `SEARCH-HEAD\n${"Mathlib.Fake.lemma_of_many_hits : a → b → c\n".repeat(2000)}SEARCH-TAIL` }] })
           return reply({ content: [{ type: "text", text: "Mathlib.Algebra.Group.even_add_odd_fake : Even a → Odd b → Odd (a + b)" }] })
         }
         reply({})
