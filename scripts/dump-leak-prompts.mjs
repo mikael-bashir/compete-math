@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url"
 import path from "node:path"
 import os from "node:os"
 import fs from "node:fs"
+import { randomBytes } from "node:crypto"
 import { startFakeLeak } from "../tests/leak-memory/fake-leak.mjs"
 import * as M from "../public/leak-memory.mjs"
 import { readingPrompt } from "../public/leak-quality.mjs"
@@ -25,10 +26,11 @@ const fence = (t, lang = "") => "````" + lang + "\n" + String(t).replace(/\s+$/,
 const leak = await startFakeLeak()
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "dump-prompts-"))
 const HOME = fs.mkdtempSync(path.join(tmp, "home-"))
-const PORT = 4700 + Math.floor(Math.random() * 200)
+const PORT = 4700 + (randomBytes(2).readUInt16BE() % 200)
+const TOKEN = randomBytes(16).toString("hex") // the bridge and this script share it for one run; nothing is stored
 const bridge = spawn(process.execPath, [path.join(root, "public", "local-claude-bridge.mjs")], {
   env: {
-    PATH: process.env.PATH, TMPDIR: tmp, HOME, PORT: String(PORT), BRIDGE_TOKEN: "t", LEAK_PROOF_BANK: path.join(HOME, "bank.json"),
+    PATH: process.env.PATH, TMPDIR: tmp, HOME, PORT: String(PORT), BRIDGE_TOKEN: TOKEN, LEAK_PROOF_BANK: path.join(HOME, "bank.json"),
     CLAUDE_BIN: path.join(root, "tests", "leak-memory", "fake-claude.mjs"), FAKE_SEARCH: "1", FAKE_MODE: "ok", FAKE_LAB: "1",
     FAKE_REPORT: path.join(HOME, "report.jsonl"),
     LEAK_LAB_CAS_URL: `http://127.0.0.1:${leak.port}/labcas/sse`, LEAK_LAB_ATP_URL: `http://127.0.0.1:${leak.port}/labatp/sse`,
@@ -42,7 +44,7 @@ for (let i = 0; i < 100 && !/127\.0\.0\.1|localhost/.test(log); i++) await new P
 const THEOREM = "theorem target_example (a b : ℕ) (ha : a % 2 = 1) (hb : b % 2 = 1) : (a + b) % 2 = 0 := by\n  sorry"
 const res = await fetch(`http://127.0.0.1:${PORT}/prove-tree`, {
   method: "POST",
-  headers: { "content-type": "application/json", "x-bridge-token": "t", origin: "http://localhost:3000" },
+  headers: { "content-type": "application/json", "x-bridge-token": TOKEN, origin: "http://localhost:3000" },
   body: JSON.stringify({
     theorem: THEOREM, model: "sonnet",
     mcpServers: [

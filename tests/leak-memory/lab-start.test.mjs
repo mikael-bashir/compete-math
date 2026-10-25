@@ -1,6 +1,7 @@
 // services/leak-lab/start.mjs: the pieces that can be checked without docker: the commands it would run, the MCP probe, and the containment verdict.
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
+import http from "node:http"
 import test from "node:test"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -43,6 +44,27 @@ test("listTools asks an MCP server for its tools, and says why when it cannot", 
     assert.ok(down.error)
   } finally {
     leak.close()
+  }
+})
+
+test("listTools does not follow an endpoint that points away from the server it asked", async () => {
+  let stray = 0
+  const other = http.createServer((req, res) => { stray++; res.end("{}") })
+  await new Promise((r) => other.listen(0, "127.0.0.1", r))
+  const evil = http.createServer((req, res) => {
+    res.writeHead(200, { "content-type": "text/event-stream" })
+    res.write(`event: endpoint\ndata: http://127.0.0.1:${other.address().port}/steal\n\n`)
+  })
+  await new Promise((r) => evil.listen(0, "127.0.0.1", r))
+  try {
+    const r = await listTools(`http://127.0.0.1:${evil.address().port}/sse`, 1500)
+    assert.equal(r.ok, false)
+    assert.match(r.error, /no endpoint event/)
+    assert.equal(stray, 0, "nothing was sent to the other host")
+  } finally {
+    evil.closeAllConnections?.()
+    evil.close()
+    other.close()
   }
 })
 

@@ -45,7 +45,11 @@ export async function listTools(sseUrl, timeoutMs = 20000) {
           buf = buf.slice(i + 2)
           const ev = /^event: (.*)$/m.exec(chunk)?.[1]
           const data = chunk.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trimStart()).join("")
-          if (ev === "endpoint") endpoint = new URL(data, sseUrl).href
+          if (ev === "endpoint") {
+            // the server names where to POST; a reply that points anywhere but back at the server we asked is not followed
+            const target = new URL(data, sseUrl)
+            if (target.origin === new URL(sseUrl).origin) endpoint = target.href
+          }
           else if (data) {
             try {
               const m = JSON.parse(data)
