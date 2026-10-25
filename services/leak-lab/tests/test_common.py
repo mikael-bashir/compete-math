@@ -1,4 +1,5 @@
 import asyncio
+import math
 import os
 import sys
 import unittest
@@ -12,18 +13,24 @@ from lab_common.limits import Limits, run_limited  # noqa: E402
 
 class SafeExpr(unittest.TestCase):
     def test_walks_the_tree_like_python_does(self):
-        """The expressions are evaluated by walking the checked tree (no eval): on plain integer expressions it must agree with Python itself."""
+        """The expressions are evaluated by walking the checked tree (no eval): on plain integer expressions it must agree with Python itself,
+        written out here as the same expression in Python."""
+        gcd, lcm = math.gcd, math.lcm
         cases = [
-            "a and b", "a or b", "0 or 5", "3 and 0", "not a", "-a + ~b", "1 < a <= 3", "a < b < 2", "a == a == 1", "b if a else a",
-            "(a, b)", "a & b | a ^ b", "b >> 1", "a - b * a + b", "min(a, b) + max(a, b) * abs(a - b)", "gcd(12, 18) + lcm(4, 6)",
-            "a if b else 0 if a else 7", "(a and b) or (not a and 9)", "(a * b) < (b - a) and True",
+            ("a and b", lambda a, b: a and b), ("a or b", lambda a, b: a or b), ("0 or 5", lambda a, b: 0 or 5), ("3 and 0", lambda a, b: 3 and 0),
+            ("not a", lambda a, b: not a), ("-a + ~b", lambda a, b: -a + ~b), ("1 < a <= 3", lambda a, b: 1 < a <= 3), ("a < b < 2", lambda a, b: a < b < 2),
+            ("a == a == 1", lambda a, b: a == a == 1), ("b if a else a", lambda a, b: b if a else a), ("(a, b)", lambda a, b: (a, b)),
+            ("a & b | a ^ b", lambda a, b: a & b | a ^ b), ("b >> 1", lambda a, b: b >> 1), ("a - b * a + b", lambda a, b: a - b * a + b),
+            ("min(a, b) + max(a, b) * abs(a - b)", lambda a, b: min(a, b) + max(a, b) * abs(a - b)),
+            ("gcd(12, 18) + lcm(4, 6)", lambda a, b: gcd(12, 18) + lcm(4, 6)),
+            ("a if b else 0 if a else 7", lambda a, b: a if b else 0 if a else 7), ("(a and b) or (not a and 9)", lambda a, b: (a and b) or (not a and 9)),
+            ("(a * b) < (b - a) and True", lambda a, b: (a * b) < (b - a) and True),
         ]
-        for text in cases:
+        for text, reference in cases:
             for a in (0, 1, 2, 5):
                 for b in (0, 1, 3):
                     with self.subTest(text=text, a=a, b=b):
-                        expected = eval(text, {"min": min, "max": max, "abs": abs, "gcd": __import__("math").gcd, "lcm": __import__("math").lcm}, {"a": a, "b": b})  # noqa: S307 - the reference, test input only
-                        self.assertEqual(safe_expr.evaluate(text, {"a": a, "b": b}), expected)
+                        self.assertEqual(safe_expr.evaluate(text, {"a": a, "b": b}), reference(a, b))
 
     def test_there_is_no_eval_in_the_evaluator(self):
         with open(safe_expr.__file__, encoding="utf8") as f:
