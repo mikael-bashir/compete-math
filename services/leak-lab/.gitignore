@@ -1,0 +1,3 @@
+tests/fakes/vampire.log
+__pycache__/
+*.pyc
