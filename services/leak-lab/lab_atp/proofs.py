@@ -94,12 +94,20 @@ def summarise(steps: list[dict[str, Any]], show: int = 60) -> dict[str, Any]:
     }
 
 
+LONG_PROOF_STEPS = 60  # beyond this, a prover's refutation is a certificate of truth, not something a Lean tactic replays in one go
+
+
 def lean_guidance(summary: dict[str, Any]) -> str:
     """What to try in Lean given the shape of the refutation. The proof itself is never trusted or pasted: Lean must re-derive the result."""
     used = summary["axioms_used"]
     parts = [f"The refutation used {len(used)} axiom(s): {', '.join(used) if used else '(none named)'}. Prove those as Lean lemmas first (each by norm_num, simp, omega, ring or decide as fits), then close the goal from exactly them."]
-    if summary["uses_equality_reasoning"]:
-        parts.append("It rewrites with equations: in Lean that is `rw [..]`/`simp only [..]` with the used axioms, or `calc` chains; `grind` can replay pure equational reasoning.")
+    if summary["steps"] > LONG_PROOF_STEPS:
+        parts.append(
+            f"This refutation has {summary['steps']} steps. Do not expect grind, simp or aesop to replay it in one go (on a real 270-step ring proof grind failed). Treat it as a CERTIFICATE THAT THE CLAIM IS TRUE (you can now invest in a proof without doubt) and as a map: "
+            "read it with explain_proof, find the few equations it keeps re-deriving, prove those as small Lean lemmas, and assemble a human-sized argument from them."
+        )
+    elif summary["uses_equality_reasoning"]:
+        parts.append("It rewrites with equations: in Lean that is `rw [..]`/`simp only [..]` with the used axioms, or `calc` chains; `grind` can replay short equational reasoning.")
     else:
         parts.append("It is pure logic over the used axioms: `tauto`, `aesop`, or `grind` with those lemmas as hypotheses usually replays it.")
     if summary["uses_avatar_splitting"]:

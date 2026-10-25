@@ -386,7 +386,7 @@ def ideal_certificate(
     NOT FOR inequalities, for equations that need division, or for goals that need case analysis.
 
     LIMITS: 40 s; at most 2,500 unknown coefficients (hypotheses x monomials up to max_degree). Solved by exact linear algebra over the rationals, then re-expanded as a check.
-    RETURNS: result.found, result.multipliers{h1: poly, ...}, and the ready line in `lean`. found=false means no certificate of that degree exists (not that the goal is false).
+    RETURNS: result.found, result.multipliers{h1: poly, ...}, and the ready line in `lean`. found=false means no certificate of that degree exists (not that the goal is false); when max_degree is below what the goal's degree needs (a goal of degree d usually needs multipliers of degree d - 1, at most 8 here) the note says so and names the degree to try.
     LEAN: `linear_combination (c1) * h1 + (c2) * h2`. It is checked by `ring`, so the type must be a commutative ring (ℤ or ℚ; cast ℕ first with `zify`/`push_cast`).
     EXAMPLE: ideal_certificate("x^2 = 1", ["x = y", "y^2 = 1"], ["x", "y"], 2) -> (x + y) * h1 + (1) * h2.
     """

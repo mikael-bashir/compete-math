@@ -97,6 +97,16 @@ class ProofReading(unittest.TestCase):
         self.assertIn("Lean", proofs.lean_guidance(s) + "Lean")
         self.assertIn("native_decide", proofs.lean_guidance(s))
 
+    def test_a_long_proof_is_a_certificate_not_a_replay(self):
+        long = {"steps": 270, "axioms_used": ["ring_mul_assoc"], "uses_equality_reasoning": True, "uses_avatar_splitting": False}
+        g = proofs.lean_guidance(long)
+        self.assertIn("CERTIFICATE THAT THE CLAIM IS TRUE", g)
+        self.assertIn("270 steps", g)
+        self.assertNotIn("`grind` can replay", g)
+        short = proofs.lean_guidance({"steps": 11, "axioms_used": ["ax1"], "uses_equality_reasoning": True, "uses_avatar_splitting": False})
+        self.assertNotIn("CERTIFICATE", short)
+        self.assertIn("grind", short)
+
     def test_equality_and_avatar_are_noticed(self):
         steps = proofs.parse_proof("cnf(u1,plain,a = b,inference(superposition,[],[u0,u00])).\ncnf(u2,plain,x,inference(avatar_sat_refutation,[],[u1])).")
         s = proofs.summarise(steps)

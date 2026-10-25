@@ -159,6 +159,23 @@ class Algebra(unittest.TestCase):
         self.assertFalse(d["ok"])
         self.assertIn("does not reproduce the goal", d["error"])
 
+    def test_a_degree_that_is_too_low_is_said_before_the_driver_guesses(self):
+        # found by a real run: the agent asked for max_degree 7 for a degree-9 goal and was only told "not found"
+        hyps = ["x + y + z = 0", "x*y + y*z + z*x = -7", "x*y*z = 6"]
+        low = algebra.ideal_certificate("x^9 + y^9 + z^9 = 19170", hyps, ["x", "y", "z"], 7)
+        self.assertFalse(result(low)["found"])
+        self.assertEqual(result(low)["multipliers_usually_need_degree_at_least"], 8)
+        self.assertIn("Try max_degree=8", low["note"])
+        self.assertTrue(result(algebra.ideal_certificate("x^9 + y^9 + z^9 = 19170", hyps, ["x", "y", "z"], 8))["found"])
+
+    def test_when_more_than_the_cap_is_needed_it_says_to_lower_the_goal_first(self):
+        hyps = ["x + y + z = 0", "x*y + y*z + z*x = -7", "x*y*z = 6"]
+        d = algebra.ideal_certificate("x^11 + y^11 + z^11 = 175098", hyps, ["x", "y", "z"], 8)
+        self.assertFalse(result(d)["found"])
+        self.assertEqual(result(d)["multipliers_usually_need_degree_at_least"], 10)
+        self.assertIn("allows at most 8", d["note"])
+        self.assertIn("t^3 = 7t + 6", d["note"])
+
     def test_certificate_absent_is_not_a_claim_of_falsity(self):
         d = algebra.ideal_certificate("x = 2", ["x = 1"], ["x"], 3)
         self.assertFalse(result(d)["found"])

@@ -174,7 +174,14 @@ def ideal_certificate(goal: str, hypotheses: list[str], variables: list[str], ma
     rhs = [Fraction(int(goal_poly[k].p), int(goal_poly[k].q)) if k in goal_poly else Fraction(0) for k in keys]
     sol = _solve_linear(rows, rhs, len(cols))
     if sol is None:
-        return ok({"found": False, "max_degree": max_degree}, note=f"the goal is not in the span of the hypotheses with multipliers of degree <= {max_degree} (it may be true anyway: try a higher degree, or the goal may not lie in the ideal)")
+        deg_goal = sympy.Poly(g, *gens).total_degree() if g != 0 else 0
+        deg_hyps = [sympy.Poly(h, *gens).total_degree() for h in hs if h != 0 and sympy.Poly(h, *gens).total_degree() > 0]
+        needed = max(0, deg_goal - min(deg_hyps)) if deg_hyps else 0
+        result = {"found": False, "max_degree": max_degree, "goal_degree": deg_goal, "multipliers_usually_need_degree_at_least": needed}
+        if max_degree < needed:
+            cap = " The tool allows at most 8: if more is needed, first prove smaller facts and substitute (for example that each variable satisfies t^3 = 7t + 6, then reduce powers of t), so that the final goal has lower degree." if needed > 8 else ""
+            return ok(result, note=f"max_degree {max_degree} is too low for this goal: the goal has degree {deg_goal} and the lowest-degree hypothesis has degree {min(deg_hyps)}, so the multipliers usually need degree {needed} or more. Try max_degree={min(needed, 8)}.{cap}")
+        return ok(result, note=f"the goal is not in the span of the hypotheses with multipliers of degree <= {max_degree} (it may be true anyway: try a higher degree, or the goal may not lie in the ideal)")
     coeffs = [sympy.Integer(0)] * len(hs)
     for (i, mo), val in zip(cols, sol):
         if val:
