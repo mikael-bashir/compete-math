@@ -26,7 +26,7 @@ async def _pipe(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> N
             pass
 
 
-async def serve(listen_port: int, target_host: str, target_port: int, listen_host: str = "0.0.0.0") -> None:
+async def serve(listen_port: int, target_host: str, target_port: int, listen_host: str = "127.0.0.1") -> None:
     async def handle(client_r: asyncio.StreamReader, client_w: asyncio.StreamWriter) -> None:
         try:
             up_r, up_w = await asyncio.open_connection(target_host, target_port)
@@ -54,7 +54,7 @@ def target_of(spec: str) -> tuple[str, int]:
 def main() -> None:
     listen = int(os.environ["GATE_LISTEN_PORT"])
     host, port = target_of(os.environ["GATE_TARGET"])
-    print(f"gate: 0.0.0.0:{listen} -> {host}:{port}", file=sys.stderr, flush=True)
+    print(f"gate: 127.0.0.1:{listen} -> {host}:{port}", file=sys.stderr, flush=True)
     asyncio.run(serve(listen, host, port))
 
 
