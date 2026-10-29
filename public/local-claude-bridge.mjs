@@ -74,7 +74,7 @@ const BRIDGE_BUILD = process.env.BRIDGE_BUILD_TAG || null
 // Which build of the harness this is: the manifest the signed bridge files make (scripts/bridge-signing: "<sha256>  <name>" per file, in this order, the bridge
 // itself under the name the setup command gives it). A run says so with everything it saves, so the intake can tell a published, signed build from anything
 // else (app/lib/leak-memory/harness.ts). null when a file is missing (a partial copy).
-const HARNESS_FILES = ["claude-bridge.mjs", "leak-min-imports.mjs", "leak-memory.mjs", "leak-containment.mjs", "leak-quality.mjs"] // = scripts/bridge-signing/files.json, `local`
+const HARNESS_FILES = ["claude-bridge.mjs", "leak-min-imports.mjs", "leak-memory.mjs", "leak-containment.mjs", "leak-quality.mjs", "tengai-drip.mjs"] // = scripts/bridge-signing/files.json, `local`
 const HARNESS_BUILD = (() => {
   try {
     const self = fileURLToPath(import.meta.url)
@@ -13888,6 +13888,14 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/health") {
       const v = await getVersion()
       return json(res, 200, { ok: v.ok, version: v.version, error: v.error })
+    }
+    // The Tengai page's "Run a drip" button (public/tengai-drip.mjs): starts anomalous-archangel's drip in the operator's own checkout of competemath/tengai.
+    if (url.pathname === "/tengai-drip") {
+      try {
+        return await (await import("./tengai-drip.mjs")).handle(req, res, { json, readBody })
+      } catch (e) {
+        return json(res, 501, { error: `tengai-drip.mjs is missing next to the bridge (${String(e?.message || e).slice(0, 120)}): run the setup command on the Leak page again` })
+      }
     }
     // Read-only view of the proof bank. Default lists metadata (proof length
     // in place of the proof text); ?full=1 includes the proofs themselves.

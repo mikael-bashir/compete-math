@@ -18,5 +18,9 @@
   {
     "url": "leak-quality.mjs",
     "local": "leak-quality.mjs"
+  },
+  {
+    "url": "tengai-drip.mjs",
+    "local": "tengai-drip.mjs"
   }
 ]
