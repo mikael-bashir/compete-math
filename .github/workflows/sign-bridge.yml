@@ -14,6 +14,7 @@ on:
       - "public/leak-memory.mjs"
       - "public/leak-containment.mjs"
       - "public/leak-quality.mjs"
+      - "public/tengai-drip.mjs"
       - "public/bridge-signing.pub"
       - "scripts/bridge-signing/**"
       - ".github/workflows/sign-bridge.yml"

@@ -26,6 +26,7 @@ export const LEARN_DROPDOWN = [
 export const RESEARCH_DROPDOWN = [
   { label: "Leak", href: "/leak" },
   { label: "Tengoku", href: "/tengoku" },
+  { label: "Tengai", href: "/tengai" },
   { label: "LRR", href: "/lrr" },
   { label: "Blog", href: "/blog" },
 ] as const;

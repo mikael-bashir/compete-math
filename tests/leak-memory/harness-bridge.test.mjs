@@ -35,7 +35,7 @@ test("the provider is asked afresh for every frame (the counters move)", () => {
   assert.deepEqual(frames.map((f) => f.entry.harness.receipt.seconds), [1, 2])
 })
 
-test("the bridge names its files as the signed manifest does: the same five, in the same order", () => {
+test("the bridge names its files as the signed manifest does: the same files, in the same order", () => {
   const src = readFileSync(new URL("../../public/local-claude-bridge.mjs", import.meta.url), "utf8")
   const m = /const HARNESS_FILES = \[([^\]]*)\]/.exec(src)
   assert.ok(m, "HARNESS_FILES is declared in the bridge")
@@ -48,6 +48,6 @@ test("the manifest the bridge builds from its own files is the one the signing s
   // the bridge hashes its own file under the name the setup command gives it, and its siblings by name: the same lines as manifestText of public/
   const root = new URL("../..", import.meta.url).pathname
   const text = manifestText(root)
-  assert.equal(text.split("\n").length, 6, "five lines and a final break")
+  assert.equal(text.split("\n").length, 7, "six lines and a final break")
   assert.equal(manifestId(text), createHash("sha256").update(text).digest("hex"))
 })

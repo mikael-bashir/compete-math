@@ -21,6 +21,7 @@ const LINK_COLUMNS = [
     title: "Research",
     links: [
       { label: "Tengoku", href: "/tengoku" },
+      { label: "Tengai", href: "/tengai" },
       { label: "Leak", href: "/leak" },
       { label: "LRR", href: "/lrr" },
       { label: "Blog", href: "/blog" },

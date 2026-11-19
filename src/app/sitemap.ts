@@ -50,6 +50,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     page("/about/leak", now, "monthly", 0.9),
     page("/about/tengoku", now, "monthly", 0.9),
     page("/tengoku", now, "daily", 0.9),
+    page("/tengai", now, "daily", 0.7),
     page("/lrr", now, "monthly", 0.7),
     page("/lrr/policy", now, "yearly", 0.4),
     page("/blog", now, "weekly", 0.6),
