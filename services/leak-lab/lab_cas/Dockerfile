@@ -1,5 +1,5 @@
 # Leak Lab CAS. Build context is services/leak-lab (see docker-compose.yml).
-FROM python:3.12-slim-bookworm
+FROM python:3.15.2-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 HOME=/tmp
 WORKDIR /app
