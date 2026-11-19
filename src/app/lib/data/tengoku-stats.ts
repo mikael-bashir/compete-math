@@ -42,6 +42,8 @@ export interface FullTreeStats {
   tentative: number;
   total: number;
   libraries: number | null;
+  /** libraries that hold at least one trusted theorem (trusted records or an intake manifest); `libraries` also counts those with only tentative records */
+  trustedLibraries: number | null;
   toolchain: string | null;
   treeCommit: string | null;
   generatedAt: string | null;
@@ -67,6 +69,12 @@ function count(v: unknown): number | null {
   return typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : null;
 }
 
+/** how many of stats.json's libraries hold trusted theorems; null when the file has no per-library figures */
+function trustedLibraryCount(libs: unknown): number | null {
+  if (!libs || typeof libs !== "object") return null;
+  return Object.values(libs as Record<string, unknown>).filter((l) => ((l ?? {}) as { trusted?: unknown }).trusted !== undefined && Number((l as { trusted: unknown }).trusted) > 0).length;
+}
+
 export function parseFullStats(raw: unknown): FullTreeStats {
   const s = (raw ?? {}) as Partial<Record<keyof TreeStats, unknown>>;
   const t = (s.totals ?? {}) as Record<string, unknown>;
@@ -82,6 +90,7 @@ export function parseFullStats(raw: unknown): FullTreeStats {
     tentative,
     total,
     libraries: count(s.library_count),
+    trustedLibraries: trustedLibraryCount(s.libraries),
     toolchain: str(s.toolchain),
     treeCommit: str(s.tree_commit),
     generatedAt: str(s.generated_at),
@@ -119,6 +128,7 @@ export async function getTreeStatsFull(): Promise<FullTreeStats> {
       staging: live.staging,
       tentative,
       libraries: Object.keys(byLibrary).length,
+      trustedLibraries: Object.keys(live.trustedByLibrary).length, // the counter lists a library only when it holds at least one trusted line
       total: live.trusted + live.staging + tentative,
       treeCommit: live.commit,
       live: true,
