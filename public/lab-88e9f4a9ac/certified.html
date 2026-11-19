@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Certified Ocean</title>
+<style>
+:root { color-scheme: dark; --bg:#07080a; --fg:#f1ecdc; --dim:#a39c86; --gold:#ffd98a; --line:rgba(255,217,138,.18); }
+html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden; font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+#hud { position:fixed; left:10px; top:8px; right:10px; display:flex; flex-wrap:wrap; gap:2px 14px; justify-content:space-between; pointer-events:none; text-shadow:0 0 8px #000,0 0 2px #000; }
+#hud b { color:#ffe9a8; font-weight:600; }
+#hud .d { color:var(--dim); }
+#bar { position:fixed; left:50%; transform:translateX(-50%); bottom:10px; display:flex; flex-wrap:wrap; gap:5px; align-items:center; justify-content:center; max-width:calc(100% - 20px); padding:5px 7px; background:rgba(12,13,9,.62); border:1px solid var(--line); border-radius:8px; backdrop-filter:blur(10px); }
+#bar button { height:22px; padding:0 8px; margin:0; background:rgba(255,255,255,.04); color:#e9e2cc; border:1px solid var(--line); border-radius:5px; font:inherit; font-size:10.5px; cursor:pointer; }
+#bar button:hover { background:rgba(255,217,138,.1); }
+#bar button.on { background:rgba(255,217,138,.16); border-color:rgba(255,217,138,.45); color:#fff1cc; }
+#bar .sep { width:1px; height:14px; background:var(--line); }
+#res { position:fixed; left:50%; transform:translateX(-50%); bottom:52px; max-width:min(720px,calc(100% - 20px)); padding:6px 9px; background:rgba(12,13,9,.78); border:1px solid var(--line); border-radius:8px; backdrop-filter:blur(10px); font-size:10.5px; display:none; }
+#res table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+#res th { color:var(--dim); font-weight:400; text-align:right; padding:1px 6px; } #res th:first-child, #res td:first-child { text-align:left; }
+#res td { text-align:right; padding:1px 6px; }
+#res p { margin:5px 0 0; color:var(--dim); }
+#err { position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:24px; text-align:center; color:#ff9a9a; }
+
+.resx { position:sticky; top:0; float:right; width:20px; height:20px; margin:-3px -6px 2px 8px; padding:0; line-height:18px; text-align:center; background:transparent; color:var(--dim,#a39c86); border:0; border-radius:4px; font:inherit; font-size:16px; cursor:pointer; }
+.resx:hover, .resx:focus-visible { color:var(--fg,#f1ecdc); background:rgba(255,255,255,.1); outline:none; }
+</style>
+</head><body>
+<canvas id="c"></canvas>
+<div id="hud"><span id="h1"></span><span id="h2" class="d"></span></div>
+<div id="res"></div>
+<div id="bar">
+  <button data-m="0">naive march</button><button data-m="1">sphere trace, heuristic</button><button data-m="2">certified</button><button data-m="4">certified + overlap</button><button data-m="7">multi-scale</button><button data-m="6" class="on">multi-scale + overlap</button>
+  <span class="sep"></span>
+  <button id="lod" class="on">LOD</button>
+  <span class="sep"></span>
+  <button id="bench">benchmark</button>
+</div>
+<div id="err"></div>
+<script>
+const W = {"N": 48, "g": 9.81, "k": [0.052, 0.061, 0.07, 0.081, 0.094, 0.109, 0.126, 0.146, 0.17, 0.197, 0.228, 0.264, 0.305, 0.354, 0.41, 0.475, 0.55, 0.637, 0.738, 0.855, 0.99, 1.147, 1.328, 1.538, 1.782, 2.064, 2.391, 2.77, 3.208, 3.716, 4.304, 4.986, 5.775, 6.689, 7.748, 8.975, 10.396, 12.042, 13.949, 16.157, 18.715, 21.678, 25.11, 29.086, 33.691, 39.025, 45.203, 52.36], "a": [0.954026, 0.787713, 0.6678, 0.560508, 0.468825, 0.392511, 0.329852, 0.276402, 0.230264, 0.192932, 0.161898, 0.135781, 0.114184, 0.09549, 0.080061, 0.067101, 0.056277, 0.047184, 0.039545, 0.033144, 0.027797, 0.023296, 0.01954, 0.016384, 0.01373, 0.011511, 0.009649, 0.008087, 0.006781, 0.005684, 0.004766, 0.003994, 0.003349, 0.002808, 0.002354, 0.001973, 0.001654, 0.001387, 0.001162, 0.000974, 0.000817, 0.000685, 0.000574, 0.000481, 0.000403, 0.000338, 0.000284, 0.000238], "dx": [0.6254876462938882, 0.9208439419943546, 0.8787881065197705, 0.8742719624845724, 0.9979540950067132, 0.46021213961964397, 0.7241379310344828, 0.7971131174880671, 0.47837579721414863, 0.5743073047858942, 0.9879055824364567, 0.44855213592633825, 0.9667617268167962, 0.9444641591505025, 0.999998000002, 0.8769896089855247, 0.9907945659271529, 0.8057321160291229, 0.8215450527291754, 0.9954025924270481, 0.5833194133168246, 0.9720734676249629, 0.8650435814058886, 0.6025589661571598, 0.94946784401528, 0.9963088249826072, 0.9518879147883812, 0.9084679677965115, 0.4822709279979485, 0.48746550009705714, 0.8919310088438315, 0.614047377132661, 0.5897442419463557, 0.9599215639390112, 0.9893984954179179, 0.8398840873025, 0.9647214614384119, 0.9979540950067132, 0.39955564108395586, 0.4835694681403457, 0.4330332800483792, 0.9044426838929855, 0.43820224719101125, 0.527725156133511, 0.49525890781803594, 0.40597539543058, 0.8970130580893854, 0.6594632134343504], "dz": [-0.7802340702210663, 0.389931320224854, -0.4772121790560217, 0.48543643828350425, 0.06393453104021482, -0.8878089808887435, 0.6896551724137931, 0.6038300074759906, -0.8781552235452043, 0.818639798488665, 0.1550566354300436, 0.8937566678665507, -0.2556790244861835, 0.32861444289643493, 0.001999998000002, 0.4805093399002943, 0.1353740304830464, 0.5922801340575523, -0.5701436015042319, 0.09577932443649831, 0.812242859031531, -0.2346767426473706, -0.501696723398184, -0.7980743651462655, 0.31386432288646005, -0.0858412794742521, 0.30644640262177586, -0.41795448494743603, -0.8760221184467876, -0.8731422485569725, 0.4521715111136757, -0.7892691674178712, -0.8075900749087487, 0.2802687836432786, -0.145226090165508, 0.5427658057542375, 0.2632726758327472, -0.06393453104021482, -0.9167089449099911, -0.875305986202804, -0.9013779331504305, 0.4265951611920288, 0.898876404494382, 0.8494151868102321, 0.8687454254422788, 0.9138840070298769, -0.4420040425348268, 0.7517368356857608], "phase": [3.523, 2.577, 1.094, 5.991, 3.331, 4.567, 3.943, 4.041, 0.02, 2.966, 4.174, 2.26, 0.757, 2.182, 1.454, 2.984, 1.971, 4.802, 5.385, 4.942, 4.779, 2.98, 0.859, 4.79, 3.951, 3.756, 5.549, 0.575, 6.078, 4.49, 5.001, 5.821, 1.161, 1.992, 0.788, 3.753, 1.306, 4.074, 3.07, 4.961, 5.688, 1.946, 6.269, 3.003, 2.534, 4.06, 4.694, 1.532], "omega": [0.714226854717743, 0.7735696478016701, 0.828673639015988, 0.8914089970378356, 0.9602812088133351, 1.03406479487506, 1.1117823528011228, 1.196770654720444, 1.291394595001853, 1.3901690544678371, 1.4955534092769807, 1.6092979835940888, 1.7297543178151051, 1.86352891042774, 2.0055173896029923, 2.1586454085838183, 2.3228215600859228, 2.499793991512101, 2.6906839279261323, 2.8961267237467356, 3.1163921447725413, 3.354410529437326, 3.609387759717706, 3.88429916458555, 4.181078808154661, 4.499759993599659, 4.843109538302845, 5.21283991697424, 5.60985561311519, 6.037711486979152, 6.4978642645103015, 6.993758646107256, 7.52680210979404, 8.10056109167754, 8.718249824362685, 9.38321639950822, 10.098750417749713, 10.86885550552587, 11.697849802420956, 12.589685063574862, 13.549691878415539, 14.582907117581186, 15.69487495968031, 16.89182228180252, 18.17989851456823, 19.566176172159956, 21.05804905493384, 22.663883162423865], "Lpre": [0.0, 0.049609399311164856, 0.09765993813568592, 0.14440598271614552, 0.1898071740140543, 0.23387676604205226, 0.27666050584376717, 0.3182218974797611, 0.35857662796499445, 0.39772154529646114, 0.43572918554333684, 0.47264196474607273, 0.5084881829316579, 0.543314336144434, 0.5771178283819256, 0.6099428696862946, 0.6418158750827322, 0.6727682546011934, 0.702824491265027, 0.7320087290972586, 0.7603468761225958, 0.7878659323667879, 0.8145864698494539, 0.8405356145964632, 0.8657342306277132, 0.8902011139611292, 0.9139598406191949, 0.9370306216211852, 0.9594316329844341, 0.9811851017301388, 1.0023068658734036, 1.0228197494359952, 1.0427338524275456, 1.0620743458720598, 1.0808570757846498, 1.0990958851785173, 1.1168035770658722, 1.133998577464287, 1.1507008473927975, 1.1669096008506545, 1.1826465338585492, 1.1979367034403772, 1.212786147601897, 1.2271993013473386, 1.2411896806895915, 1.2547671666380786, 1.2679576292174721, 1.280795293460411, 1.2932569853447953], "Atail": [5.86220359062767, 4.9081766807975775, 4.12046292957592, 3.452662292712212, 2.892153758170128, 2.4233283110637664, 2.030816936736107, 1.7009646221647263, 1.4245623585672378, 1.194298138970375, 1.0013659549760818, 0.8394678005781173, 0.703686671087265, 0.5895025621929169, 0.4940124711265564, 0.413951394774437, 0.3468503307819366, 0.29057327711200714, 0.2433892321138382, 0.20384419440078735, 0.1707001627922058, 0.14290313628292084, 0.11960711406612397, 0.10006709543132783, 0.08368307980632782, 0.06995306671237946, 0.0584420557346344, 0.048793046532630925, 0.04070603882026672, 0.033925032353401184, 0.02824102693271637, 0.02347502238750458, 0.019481018578529356, 0.016132015384674073, 0.013324012706756592, 0.010970010461807251, 0.008997008580207825, 0.007343007002830505, 0.005956005680084229, 0.004794004571914673, 0.0038200036430358886, 0.003003002863883972, 0.0023180022106170655, 0.0017440016632080078, 0.0012630012044906617, 0.0008600008201599121, 0.0005220004978179932, 0.0002380002269744873, 0.0], "Aall": 5.86220359062767, "Lall": 1.2932569853447953, "rms_slope": 0.14220061012032129};
+const VS = `#version 300 es
+void main(){ vec2 p = vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2)); gl_Position = vec4(p*2.0-1.0, 0.0, 1.0); }`;
+const FS = `#version 300 es
+precision highp float; precision highp int;
+#define NW ${W.N}
+uniform vec4 uW[NW];      // kx, kz, amplitude, phase
+uniform float uOm[NW];    // angular frequency
+uniform float uK[NW];     // wavenumber, ascending
+uniform float uTail0;     // total amplitude of the waves from index 8 on, rounded up (certified, Lean: trunc_err)
+uniform vec2 uRes; uniform float uTime; uniform vec3 uO; uniform mat3 uCam; uniform float uTanHalf;
+uniform int uMode; uniform float uLod; uniform float uSea;
+layout(location=0) out vec4 oCol;   // rgb, steps/255
+layout(location=1) out vec4 oInfo;  // t (or -1 for sky), M, steps, 0
+
+float gKc = 1e9;   // the cutoff wavenumber of this pixel: waves above it fade out smoothly (weights in [0,1], Lean: weight_err, and H_lip with a_i replaced by w_i a_i)
+int gMf = NW;      // waves below half the cutoff keep their full weight
+float wt(int i){ return 1.0 - smoothstep(0.5 * gKc, gKc, uK[i]); }
+float height(vec2 xz, int M){
+  float h = 0.0;
+  for (int i = 0; i < NW; i++) { if (i >= gMf) break; vec4 w = uW[i]; h += w.z * cos(dot(w.xy, xz) - uOm[i] * uTime + w.w); }
+  for (int i = gMf; i < NW; i++) { if (i >= M) break; vec4 w = uW[i]; h += wt(i) * w.z * cos(dot(w.xy, xz) - uOm[i] * uTime + w.w); }
+  return h * uSea;
+}
+// the first eight waves only
+float height8(vec2 xz){
+  float h = 0.0;
+  for (int i = 0; i < 8; i++) { vec4 w = uW[i]; h += w.z * cos(dot(w.xy, xz) - uOm[i] * uTime + w.w); }
+  return h * uSea;
+}
+// how far the surface can move over a stretch s of the ray: band by band, slow waves by slope times s, fast waves by twice their amplitude (Lean: H_rise;
+// min (|k| s) 2 only grows with |k|, so a band may use its largest projection)
+const int NB = 8;
+float gBa[NB]; float gBk[NB];
+float rise(float s){
+  float r = 0.0;
+  for (int b = 0; b < NB; b++) r += gBa[b] * min(gBk[b] * s, 2.0);
+  return r * uSea;
+}
+vec3 normalAt(vec2 xz, int M){
+  float gx = 0.0, gz = 0.0;
+  for (int i = 0; i < NW; i++) { if (i >= M) break; vec4 w = uW[i]; float s = -(i < gMf ? 1.0 : wt(i)) * w.z * sin(dot(w.xy, xz) - uOm[i] * uTime + w.w); gx += s * w.x; gz += s * w.y; }
+  return normalize(vec3(-gx * uSea, 1.0, -gz * uSea));
+}
+vec3 sky(vec3 d){
+  vec3 sun = normalize(vec3(-0.40, 0.085, -0.91));
+  float e = max(d.y, 0.0);
+  vec3 col = mix(vec3(0.95, 0.62, 0.38), vec3(0.07, 0.13, 0.27), pow(e, 0.45));
+  col += vec3(1.0, 0.55, 0.25) * pow(max(dot(d, sun), 0.0), 6.0) * 0.55;
+  col += vec3(1.0, 0.85, 0.6) * pow(max(dot(d, sun), 0.0), 600.0) * 6.0;
+  return col;
+}
+void main(){
+  vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+  vec3 d = normalize(uCam * vec3(uv * 2.0 * uTanHalf, -1.0));
+  vec3 o = uO;
+  // level of detail. The pixel's footprint depends on how far away the surface is, which is what we are looking for. The true surface lies within
+  // E0 = the dropped amplitude of the eight largest waves' surface, so the ray reaches the surface no earlier than it reaches (those eight waves + E0):
+  // a certified lower bound on the distance, from a short march (Lean: trunc_err, safe_step). Waves shorter than about LODK footprints there fade out.
+  float tPlane = d.y < -1e-4 ? o.y / -d.y : 4000.0;
+  if (uLod > 0.0 && uMode != 3) {
+    float E0 = uSea * uTail0, L8 = 0.0;
+    for (int i = 0; i < 8; i++) L8 += uW[i].z * abs(dot(uW[i].xy, d.xz));
+    L8 *= uSea;
+    float Am8 = uSea * 6.0, D8 = max(L8 - d.y, 1e-3);
+    float tl = 0.0;
+    if (o.y > Am8 + E0) { if (d.y < 0.0) tl = (o.y - Am8 - E0) / -d.y; else tl = 4000.0; }
+    for (int i = 0; i < 64; i++) {
+      if (tl >= 4000.0) break;
+      vec3 p = o + d * tl; float g = p.y - height8(p.xz) - E0;
+      if (g < 1e-3 * tl + 1e-3) break;
+      tl += g / D8;
+    }
+    tPlane = min(tPlane, max(tl, 0.5));
+  }
+  float foot = tPlane * (2.0 * uTanHalf / uRes.y);
+  gKc = (uMode == 3 || uLod <= 0.0) ? 1e9 : 3.14159 / (uLod * foot);
+  int M = NW;
+  gMf = NW;
+  if (gKc < 1e8) {
+    for (int m = 0; m <= NW; m++) { if (m == NW || uK[m] >= gKc) { M = m; break; } }
+    for (int m = 0; m <= NW; m++) { if (m == NW || uK[m] >= 0.5 * gKc) { gMf = m; break; } }
+  }
+  // the ray sees wave i as a cosine of ray length with wavenumber k_i . d_xz; the sum of w_i a_i |k_i . d_xz| bounds how fast the surface can rise along it (Lean: H_lip)
+  float L = 0.0, Asum = 0.0;
+  for (int b = 0; b < NB; b++) { gBa[b] = 0.0; gBk[b] = 0.0; }
+  for (int i = 0; i < NW; i++) {
+    if (i >= M) break;
+    float wa = (i < gMf ? 1.0 : wt(i)) * uW[i].z, al = abs(dot(uW[i].xy, d.xz)); int b = i * NB / NW;
+    L += wa * al; Asum += wa; gBa[b] += wa; gBk[b] = max(gBk[b], al);
+  }
+  L *= uSea; float Amax = uSea * Asum;
+  float D = L - d.y;                   // how fast the ray can fall towards the surface, at worst
+  float tmax = 3000.0;
+  float t = 0.0; bool hit = false; int steps = 0;
+  if (o.y > Amax) { if (d.y < 0.0) t = (o.y - Amax) / -d.y; else t = tmax + 1.0; }   // the surface lies inside the slab |y| <= Amax: skip to it
+  if (t < tmax) {
+    if (uMode == 2) {
+      // certified: the step is the height above the surface divided by the worst-case rate of approach (Lean: safe_step), so it cannot cross
+      for (int i = 0; i < 192; i++) {
+        vec3 p = o + d * t; float g = p.y - height(p.xz, M); steps++;
+        if (g < 4e-4 * t + 2e-4) { hit = true; break; }
+        t += g / max(D, 1e-3);
+        if (t > tmax) break;
+      }
+      if (!hit && t <= tmax) hit = true;   // out of steps while still above the surface by a hair: count it as the surface
+    } else if (uMode == 1) {
+      for (int i = 0; i < 192; i++) {
+        vec3 p = o + d * t; float g = p.y - height(p.xz, M); steps++;
+        if (g < 4e-4 * t + 2e-4) { hit = true; break; }
+        t += 0.5 * g;                      // the usual hand-tuned factor: no guarantee
+        if (t > tmax) break;
+      }
+      if (!hit && t <= tmax) hit = true;
+    } else if (uMode == 0 || uMode == 5) {
+      float tp = t; float kf = uMode == 5 ? 0.02 : 0.06; float k0 = uMode == 5 ? 0.04 : 0.1;
+      for (int i = 0; i < (uMode == 5 ? 400 : 96); i++) {
+        vec3 p = o + d * t; float g = p.y - height(p.xz, M); steps++;
+        if (g < 0.0) { float a = tp, b = t; for (int j = 0; j < 6; j++) { float m = 0.5 * (a + b); vec3 q = o + d * m; if (q.y - height(q.xz, M) < 0.0) b = m; else a = m; } t = 0.5 * (a + b); hit = true; break; }
+        tp = t; t += kf * t + k0;
+        if (t > tmax) break;
+      }
+    } else if (uMode == 6 || uMode == 7) {
+      // certified, multi-scale and over-relaxed. The plain bound charges every wave its full slope however far the step goes; but a wave can only move the
+      // surface by twice its amplitude, so over a long step the fast waves cost little (Lean: H_rise). Solve Rise(s) - dy s <= g for the largest s by
+      // a fixed-point step from the plain safe step (Rise(s)/s only falls as s grows, so every iterate is safe), and check it.
+      float Db = L + d.y;
+      vec3 p0 = o + d * t; float g = p0.y - height(p0.xz, M); steps++;
+      for (int i = 0; i < 160; i++) {
+        if (g < 4e-4 * t + 2e-4) { hit = true; break; }
+        float sSafe = g / max(D, 1e-3);
+        for (int j = 0; j < 1; j++) {
+          float r = rise(sSafe);
+          float rate = r / sSafe - d.y;
+          float s2 = rate > 1e-3 ? g / rate : 8.0 * sSafe;
+          s2 = min(s2, 8.0 * sSafe);
+          if (rise(s2) - d.y * s2 <= g) sSafe = max(sSafe, s2);   // verified safe: take it
+        }
+        if (uMode == 7) { t += sSafe; vec3 q2 = o + d * t; g = q2.y - height(q2.xz, M); steps++; }
+        else {
+          float s = 1.8 * sSafe;
+          vec3 q = o + d * (t + s); float g2 = q.y - height(q.xz, M); steps++;
+          float back = Db > 1e-3 ? g2 / Db : 1e9;
+          if (g2 > 0.0 && back < 1e8) {      // the same multi-scale improvement for the backward interval: Rise(s) + dy s <= g2
+            float rb = rise(back) / back + d.y;
+            float b2 = rb > 1e-3 ? min(g2 / rb, 8.0 * back) : 8.0 * back;
+            if (rise(b2) + d.y * b2 <= g2) back = max(back, b2);
+          }
+          if (g2 > 0.0 && sSafe + back >= s) { t += s; g = g2; }
+          else { t += sSafe; vec3 q2 = o + d * t; g = q2.y - height(q2.xz, M); steps++; }
+        }
+        if (t > tmax) break;
+      }
+      if (!hit && t <= tmax) hit = true;
+    } else if (uMode == 4) {
+      // certified and over-relaxed: try a step 1.8 times the safe one, and keep it only if the safe interval forward from here and the safe interval
+      // backward from the new point (Lean: safe_step and safe_step_back) together cover it, so it cannot have jumped over the surface
+      float Db = L + d.y;
+      vec3 p0 = o + d * t; float g = p0.y - height(p0.xz, M); steps++;
+      for (int i = 0; i < 160; i++) {
+        if (g < 4e-4 * t + 2e-4) { hit = true; break; }
+        float sSafe = g / max(D, 1e-3), s = 1.8 * sSafe;
+        vec3 q = o + d * (t + s); float g2 = q.y - height(q.xz, M); steps++;
+        float back = Db > 1e-3 ? g2 / Db : 1e9;
+        if (g2 > 0.0 && sSafe + back >= s) { t += s; g = g2; }
+        else { t += sSafe; vec3 q2 = o + d * t; g = q2.y - height(q2.xz, M); steps++; }
+        if (t > tmax) break;
+      }
+      if (!hit && t <= tmax) hit = true;
+    } else {
+      // reference: a dense march at about 1% of the distance, then bisection
+      float tp = t;
+      for (int i = 0; i < 2600; i++) {
+        vec3 p = o + d * t; float g = p.y - height(p.xz, NW); steps++;
+        if (g < 0.0) { float a = tp, b = t; for (int j = 0; j < 14; j++) { float m = 0.5 * (a + b); vec3 q = o + d * m; if (q.y - height(q.xz, NW) < 0.0) b = m; else a = m; } t = 0.5 * (a + b); hit = true; break; }
+        tp = t; t += 0.003 * t + 0.006;
+        if (t > tmax) break;
+      }
+    }
+  }
+  vec3 col;
+  if (!hit) col = sky(d);
+  else {
+    vec3 p = o + d * t; int Mn = M;
+    vec3 n = normalAt(p.xz, Mn);
+    float ndv = max(dot(n, -d), 0.0);
+    float fr = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
+    vec3 r = reflect(d, n); r.y = abs(r.y);
+    vec3 refl = sky(r);
+    vec3 sun = normalize(vec3(-0.40, 0.085, -0.91));
+    float h = p.y;
+    vec3 body = mix(vec3(0.01, 0.07, 0.09), vec3(0.05, 0.28, 0.27), clamp(0.5 + h * 0.35, 0.0, 1.0));
+    body += vec3(0.5, 0.25, 0.1) * 0.12 * pow(max(dot(n, sun), 0.0), 2.0);
+    col = mix(body, refl, fr);
+    col += vec3(1.0, 0.8, 0.5) * pow(max(dot(r, sun), 0.0), 900.0) * 2.5;
+    float fog = 1.0 - exp(-t * 0.00055);
+    col = mix(col, sky(vec3(d.x, 0.0, d.z)), fog);
+  }
+  col = col / (1.0 + col); col = pow(col * 1.5, vec3(0.92));
+  oCol = vec4(clamp(col, 0.0, 1.0), min(float(steps) / 255.0, 1.0));
+  oInfo = vec4(hit ? t : -1.0, float(M), float(steps), 0.0);
+}`;
+const gl = document.getElementById('c').getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: true });
+function fail(m) { const e = document.getElementById('err'); e.style.display = 'flex'; e.textContent = m; throw new Error(m); }
+if (!gl) fail('This needs WebGL 2.');
+gl.getExtension('EXT_color_buffer_float');
+const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) fail(gl.getShaderInfoLog(o)); return o; };
+const prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) fail(gl.getProgramInfoLog(prog));
+gl.useProgram(prog); const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+const U = n => gl.getUniformLocation(prog, n);
+const wv = new Float32Array(W.N * 4); for (let i = 0; i < W.N; i++) { wv[i*4] = W.k[i]*W.dx[i]; wv[i*4+1] = W.k[i]*W.dz[i]; wv[i*4+2] = W.a[i]; wv[i*4+3] = W.phase[i]; }
+gl.uniform4fv(U('uW'), wv); gl.uniform1fv(U('uOm'), new Float32Array(W.omega)); gl.uniform1fv(U('uK'), new Float32Array(W.k)); gl.uniform1f(U('uTail0'), W.Atail[8]);
+
+const LODK = +(new URLSearchParams(location.search).get('lodk') || 2.5);
+let mode = 6, lod = 1, benchBusy = false, sea = 1.0, camH = 6.0;
+const FOV = 0.9, TH = Math.tan(FOV / 2);
+function camera(t) {
+  const yaw = 0.35 * Math.sin(t * 0.07) + 0.15, pitch = -0.05, c = Math.cos(yaw), s = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  // columns: right, up, back (the ray is camera * (x, y, -1))
+  const r = [c, 0, -s], u = [s * sp, cp, c * sp], b = [s * cp, -sp, c * cp];
+  return { o: [0, camH, 0], m: [...r, ...u, ...b] };
+}
+function setFrame(w, h, t, md) {
+  const cam = camera(t);
+  gl.uniform2f(U('uRes'), w, h); gl.uniform1f(U('uTime'), t); gl.uniform3fv(U('uO'), cam.o); gl.uniformMatrix3fv(U('uCam'), false, new Float32Array(cam.m));
+  gl.uniform1f(U('uTanHalf'), TH); gl.uniform1f(U('uSea'), sea); gl.uniform1i(U('uMode'), md); gl.uniform1f(U('uLod'), lod ? LODK : 0.0);
+}
+function target(w, h) {
+  const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  const t0 = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t0); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t0, 0);
+  const t1 = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t1); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, t1, 0);
+  gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+  if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) fail('float render targets are not available');
+  return { f, t0, t1, w, h };
+}
+function draw(w, h, t, md) { setFrame(w, h, t, md); gl.viewport(0, 0, w, h); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+
+// ---------- live view ----------
+const cv = document.getElementById('c'), h1 = document.getElementById('h1'), h2 = document.getElementById('h2');
+let last = performance.now(), acc = 0, nf = 0, stepsEst = null;
+function frame(now) {
+  if (!benchBusy) {
+    const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.drawBuffers([gl.BACK]);
+    draw(w, h, now / 1000, mode);
+    acc += now - last; nf++;
+    if (acc > 500) { h2.textContent = `${(1000 * nf / acc).toFixed(0)} fps \u00b7 ${W.N} cosine waves`; acc = 0; nf = 0; }
+  }
+  last = now; requestAnimationFrame(frame);
+}
+const NAMES = ['naive march', 'sphere trace, heuristic', 'certified', '', 'certified + overlap', '', 'multi-scale + overlap', 'multi-scale'];
+function label() { h1.innerHTML = `<b>${NAMES[mode]}</b>${lod ? ' \u00b7 LOD' : ''}`; }
+document.querySelectorAll('#bar [data-m]').forEach(b => b.onclick = () => { mode = +b.dataset.m; document.querySelectorAll('#bar [data-m]').forEach(x => x.classList.toggle('on', x === b)); label(); });
+document.getElementById('lod').onclick = e => { lod = lod ? 0 : 1; e.target.classList.toggle('on', !!lod); label(); };
+label();
+
+// ---------- benchmark: the same frame, rendered four ways, compared with the dense reference ----------
+async function bench() {
+  benchBusy = true; const res = document.getElementById('res'); res.style.display = 'block'; res.textContent = 'measuring\u2026';
+  await new Promise(r => setTimeout(r, 30));
+  const w = 640, h = 360, T = 12.5, tg = target(w, h), n = w * h;
+  const read = (md, lodOn) => {
+    const keep = lod; lod = lodOn; gl.bindFramebuffer(gl.FRAMEBUFFER, tg.f); gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]); draw(w, h, T, md); lod = keep;
+    const c = new Uint8Array(n * 4); gl.readBuffer(gl.COLOR_ATTACHMENT0); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    const i = new Float32Array(n * 4); gl.readBuffer(gl.COLOR_ATTACHMENT1); gl.readPixels(0, 0, w, h, gl.RGBA, gl.FLOAT, i); return { c, i };
+  };
+  const refSS = (T2) => { const w2 = w * 2, h2 = h * 2, t2 = target(w2, h2); gl.bindFramebuffer(gl.FRAMEBUFFER, t2.f); gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]); const keep = lod; lod = 0; draw(w2, h2, T2, 3); lod = keep; const c = new Uint8Array(w2 * h2 * 4); gl.readBuffer(gl.COLOR_ATTACHMENT0); gl.readPixels(0, 0, w2, h2, gl.RGBA, gl.UNSIGNED_BYTE, c); const o = new Float32Array(n * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let k = 0; k < 3; k++) { let a = 0; for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) a += c[((2 * y + dy) * w2 + 2 * x + dx) * 4 + k]; o[(y * w + x) * 4 + k] = a / 4; } return o; };
+  const scenes = [['calm sea, camera 6 m', 1.0, 6.0], ['rough sea, camera 2.5 m', 2.2, 2.5], ['storm, camera 1.5 m', 3.2, 1.5]];
+  const cases = [[0, 1, 'naive march'], [0, 0, 'naive march, no LOD'], [2, 0, 'certified'], [4, 0, 'certified + overlap'], [7, 0, 'multi-scale'], [6, 0, 'multi-scale + overlap'], [4, 1, 'certified + overlap + smooth LOD']];
+  const out = []; let html = '';
+  const keepSea = sea, keepCam = camH;
+  for (const [sname, sv, cv2] of scenes) {
+    sea = sv; camH = cv2;
+    const ref = read(3, 0); const refImg = refSS(T); const rows = [];
+    for (const [md, lodOn, name] of cases) {
+      const r = read(md, lodOn); let steps = 0, miss = 0, wrong = 0, se = 0, refHits = 0;
+      for (let p = 0; p < n; p++) {
+        const tr = ref.i[p * 4], tm = r.i[p * 4]; steps += r.i[p * 4 + 2];
+        if (tr >= 0) { refHits++; if (tm < 0) miss++; else if (Math.abs(tm - tr) > 0.03 * tr + 0.05) wrong++; } else if (tm >= 0) wrong++;
+        for (let k = 0; k < 3; k++) { const dd = r.c[p * 4 + k] - refImg[p * 4 + k]; se += dd * dd; }
+      }
+      const psnr = 10 * Math.log10(255 * 255 / (se / (n * 3) + 1e-9));
+      const tw = 1280, th = 720, tt = target(tw, th); gl.bindFramebuffer(gl.FRAMEBUFFER, tt.f); gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+      const keep = lod; lod = lodOn; const px = new Uint8Array(4);
+      draw(tw, th, T, md); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const t0 = performance.now(); for (let k = 0; k < 12; k++) draw(tw, th, T + k * 0.01, md); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const ms = (performance.now() - t0) / 12; lod = keep;
+      rows.push({ name, steps: steps / n, miss: 100 * miss / Math.max(refHits, 1), wrong: 100 * wrong / n, psnr, ms });
+    }
+    let refSteps = 0; for (let p = 0; p < n; p++) refSteps += ref.i[p * 4 + 2];
+    out.push({ scene: sname, rows, refSteps: refSteps / n });
+    html += `<table><tr><th>${sname}</th><th>steps/px</th><th>ms @720p</th><th>missed</th><th>wrong hit</th><th>PSNR</th></tr>` +
+      rows.map(r => `<tr><td>${r.name}</td><td>${r.steps.toFixed(1)}</td><td>${r.ms.toFixed(2)}</td><td>${r.miss.toFixed(2)}%</td><td>${r.wrong.toFixed(2)}%</td><td>${r.psnr.toFixed(1)} dB</td></tr>`).join('') + '</table>';
+  }
+  sea = keepSea; camH = keepCam;
+  window.__bench = out;
+  res.innerHTML = html + `<p>The reference is a dense march (0.3% of the distance per step, then bisection) with all ${W.N} waves and no LOD. "missed": the reference hits water and the method sees sky; "wrong hit": hit distance off by more than 3%.</p>`;
+  benchBusy = false;
+}
+document.getElementById('bench').onclick = bench;
+requestAnimationFrame(frame);
+</script>
+<script>
+// the benchmark panel: a close button (re-added whenever the page rewrites the panel) and Escape
+(function () {
+  var r = document.getElementById('res'); if (!r) return;
+  function add() {
+    if (r.querySelector('.resx')) return;
+    var b = document.createElement('button'); b.className = 'resx'; b.type = 'button'; b.textContent = '\u00d7'; b.setAttribute('aria-label', 'Close results');
+    b.onclick = function () { r.style.display = 'none'; }; r.insertBefore(b, r.firstChild);
+  }
+  new MutationObserver(add).observe(r, { childList: true });
+  addEventListener('keydown', function (e) { if (e.key === 'Escape') r.style.display = 'none'; });
+  add();
+})();
+</script>
+</body></html>
